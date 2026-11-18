@@ -1,0 +1,38 @@
+name: Islet
+options:
+  bundleIdPrefix: com.marcogad
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+targets:
+  Islet:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/Islet
+    info:
+      path: Sources/Islet/Info.plist
+      properties:
+        CFBundleName: Islet
+        LSUIElement: true   # menu-bar/agent app, no Dock icon
+        NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
+    entitlements:
+      path: Sources/Islet/Islet.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet
+  IsletTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/IsletTests
+    dependencies:
+      - target: Islet
