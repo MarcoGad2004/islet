@@ -9,6 +9,7 @@ settings:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: L4Y6A9NY9T   # stable signature so Accessibility/Camera grants survive rebuilds
     ENABLE_HARDENED_RUNTIME: YES
 targets:
   Islet:
@@ -16,6 +17,8 @@ targets:
     platform: macOS
     sources:
       - Sources/Islet
+      - path: Models/FaceEmbedding.mlmodel   # fetched by scripts/fetch-model.sh, not in git
+        optional: true
     info:
       path: Sources/Islet/Info.plist
       properties:

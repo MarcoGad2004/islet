@@ -81,7 +81,9 @@ Results (fill in):
 
 | Q  | Result |
 |----|--------|
-| 10 | |
-| 11 | |
-| 12 | |
-| 13 | |
+| 10 | **Yes.** `screenIsLocked` arrives immediately; the app keeps running. |
+| 11 | **Yes.** ~30 fps camera frames while locked; Vision finds a face in every sampled frame. |
+| 12 | **Yes (needs Accessibility).** Both `cghidEventTap` and `cgSessionEventTap` keystrokes reached the password field (6 of 6) even with secure input on. Fails silently if the app isn't trusted: signing must be stable (set `DEVELOPMENT_TEAM`). |
+| 13 | **No.** Neither the shielding level nor a private SkyLight space showed the island over the lock screen. The scan runs without visuals; only the unlock animation shows (after unlock). |
+| 14 | **Solved in principle:** AuraFace-v1 (Apache-2.0) Core ML, 112×112 aligned input, 512-d embedding, cosine score. The threshold (default 0.45) must be tuned with Settings → Test recognition, including on someone else's face. Liveness (blink) not built yet. |
+| 15 | Done in `FaceStore`: generic-password Keychain items, never logged. |

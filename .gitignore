@@ -28,3 +28,7 @@ Package.resolved
 *.mobileprovision
 .env
 Local.xcconfig
+
+# Face model (130 MB, fetched by scripts/fetch-model.sh)
+Models/*.mlmodel
+Models/*.mlmodelc

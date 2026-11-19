@@ -49,8 +49,8 @@ the unlock animation still ships.
 ## M7: Unlock animation
 - [ ] Listen for screen unlock; play the lock-opens sequence in wings or chin
 
-## M8: Face unlock (only if M2 passed)
-- [ ] Settings: enrol face (after Touch ID/password), store login password in the Keychain
+## M8: Face unlock (M2 passed except Q13: the scan has no visuals over the lock screen)
+- [x] Settings: enrol face (after Touch ID/password), store login password in the Keychain (island enrolment animation, test recognition and threshold slider included)
 - [ ] On lock: scan, match, type password; 3 tries
 - [ ] Face scan animation (looking, match, no match)
 

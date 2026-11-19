@@ -14,7 +14,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, chin, scan, expanded
+    case closed, peek, wings, chin, scan, expanded, enrol
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -72,6 +72,8 @@ extension Presentation {
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 10, br: 16, ic: 10)
         case .scan:
             return IslandMetrics(sw: nw, sh: nh, bw: nw, bh: L.scanHeight, tr: 0, br: 44, ic: 0)
+        case .enrol:
+            return IslandMetrics(sw: nw, sh: nh, bw: 380, bh: 214, tr: 16, br: 30, ic: 10)
         case .expanded:
             return IslandMetrics(sw: nw, sh: nh, bw: L.expandedWidth, bh: Double(L.expandedBodyHeight), tr: 16, br: 30, ic: 10)
         }

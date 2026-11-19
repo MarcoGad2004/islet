@@ -1,0 +1,159 @@
+import SwiftUI
+
+/// Settings. For now: face unlock setup (M8 builds the unlock itself). Launch at login and permissions
+/// status arrive with M9.
+struct SettingsView: View {
+    let face: FaceUnlockCoordinator
+
+    private enum Step { case overview, password, scanning }
+    @State private var step = Step.overview
+    @State private var password = ""
+    @State private var message: String?
+    @State private var busy = false
+    @State private var confirmRemove = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Face unlock").font(.title2.weight(.semibold))
+            Text("Unlocks this Mac's lock screen with the camera. It is convenient, not as strong as Touch ID, and only ever types your login password into the lock screen.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+            statusRows
+
+            switch step {
+            case .overview: overview
+            case .password: passwordStep
+            case .scanning: scanningStep
+            }
+
+            if let message {
+                Text(message).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            testSection
+            Spacer(minLength: 0)
+        }
+        .padding(24)
+        .frame(width: 460, height: 520, alignment: .topLeading)
+        .onChange(of: face.enrolment?.phase) { _, phase in
+            if step == .scanning, phase != nil, phase != .scanning { step = .overview }
+        }
+        .confirmationDialog("Remove face unlock?", isPresented: $confirmRemove) {
+            Button("Remove face and password", role: .destructive) { face.stopTest(); face.faces.removeAll() }
+        } message: { Text("Deletes the stored face data and login password from the Keychain.") }
+    }
+
+    // MARK: Pieces
+
+    private var statusRows: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            row("Face model", ok: face.modelAvailable, detail: face.modelAvailable ? "Installed" : "Missing (run scripts/fetch-model.sh)")
+            row("Face", ok: face.faces.isEnrolled, detail: face.faces.isEnrolled ? "Enrolled" : "Not set up")
+            row("Login password", ok: face.faces.hasPassword, detail: face.faces.hasPassword ? "Stored in the Keychain" : "Not stored")
+        }
+    }
+
+    private func row(_ title: String, ok: Bool, detail: String) -> some View {
+        HStack {
+            Image(systemName: ok ? "checkmark.circle.fill" : "circle").foregroundStyle(ok ? .green : .secondary)
+            Text(title)
+            Spacer()
+            Text(detail).foregroundStyle(.secondary)
+        }
+    }
+
+    private var overview: some View {
+        HStack {
+            Button(face.faces.isReady ? "Scan face again…" : "Set up face unlock…") { Task { await begin() } }
+                .buttonStyle(.borderedProminent).disabled(busy || !face.modelAvailable)
+            if face.faces.hasPassword {
+                Button("Change password…") { Task { await begin(passwordOnly: true) } }.disabled(busy)
+            }
+            Spacer()
+            if face.faces.isEnrolled || face.faces.hasPassword {
+                Button("Remove…", role: .destructive) { confirmRemove = true }
+            }
+        }
+    }
+
+    private var passwordStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Enter your Mac login password. It is checked against your account, then stored only in this Mac's Keychain.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            SecureField("Login password", text: $password).textFieldStyle(.roundedBorder)
+                .onSubmit { Task { await savePassword() } }
+            HStack {
+                Button("Save") { Task { await savePassword() } }
+                    .buttonStyle(.borderedProminent).disabled(password.isEmpty || busy)
+                Button("Cancel") { password = ""; message = nil; step = .overview }
+            }
+        }
+    }
+
+    private var scanningStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Look at the notch at the top of your screen and slowly move your head in a circle. Keep the dot touching the ring all the way round.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
+            Button("Cancel") { face.cancelEnrolment(); step = .overview }
+        }
+    }
+
+    private var testSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Test recognition").font(.headline)
+            HStack {
+                Button(face.testingFace ? "Stop" : "Start test") {
+                    Task {
+                        if face.testingFace { face.stopTest() } else { message = await face.startTest() }
+                    }
+                }.disabled(!face.faces.isEnrolled || face.isEnrolling)
+                if face.testingFace {
+                    if let score = face.testScore {
+                        let match = score >= face.faces.threshold
+                        Label(String(format: "%.2f  %@", score, match ? "Match" : "No match"),
+                              systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(match ? .green : .red).monospacedDigit()
+                    } else {
+                        Text("No face in view").foregroundStyle(.secondary)
+                    }
+                }
+            }
+            HStack {
+                Text("Match threshold").foregroundStyle(.secondary)
+                Slider(value: Binding(get: { Double(face.faces.threshold) }, set: { face.faces.threshold = Float($0) }),
+                       in: 0.25...0.75)
+                Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 40)
+            }
+            Text("Try your face, then someone else's. Set the threshold between the two scores.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Actions
+
+    private func begin(passwordOnly: Bool = false) async {
+        message = nil
+        busy = true; defer { busy = false }
+        face.stopTest()
+        guard await IdentityCheck.confirmOwner(reason: "Set up face unlock for this Mac") else {
+            message = "Identity wasn't confirmed."; return
+        }
+        if passwordOnly || !face.faces.hasPassword {
+            step = .password
+        } else {
+            await startScan()
+        }
+    }
+
+    private func savePassword() async {
+        busy = true; defer { busy = false }
+        guard IdentityCheck.verifyLoginPassword(password) else { message = "That isn't your login password."; return }
+        guard face.faces.savePassword(password) else { message = "Couldn't save to the Keychain."; return }
+        password = ""; message = nil
+        if face.faces.isEnrolled { step = .overview } else { await startScan() }
+    }
+
+    private func startScan() async {
+        if let error = await face.beginEnrolment() { message = error; step = .overview } else { step = .scanning }
+    }
+}
