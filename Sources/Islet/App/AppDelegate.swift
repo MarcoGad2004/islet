@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var paused = false
+    private var signalSources: [DispatchSourceSignal] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.start()
@@ -24,6 +25,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "chin": notch.store.setBase(.chin)
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
+        case "morph":
+            // Wings, then a switch to chin one second later, to judge the morph.
+            let store = notch.store
+            store.layoutCheck = { true }
+            store.recomputeLayout()
+            store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.3))
+                store.layoutCheck = { false }
+                store.recomputeLayout()
+            }
+        case "locksequence": previewLockSequence()
         case "enrol": previewEnrolment()
         case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
@@ -39,7 +52,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Wires each module to the island store. A failing module must not take down the others.
+    func applicationWillTerminate(_ notification: Notification) { media.stop() }
+
     private func startModules() {
+        // Quit cleanly on SIGTERM/SIGINT too, so the media helper process never outlives the app.
+        for sig in [SIGTERM, SIGINT] {
+            signal(sig, SIG_IGN)
+            let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            src.setEventHandler { NSApplication.shared.terminate(nil) }
+            src.resume()
+            signalSources.append(src)
+        }
+
         let store = notch.store
         store.power = power
         store.levels = levels
@@ -84,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         let debug = NSMenuItem(title: "Show shape", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5), ("Simulate lock scan (no typing)", 6), ("Preview unlock animation", 7), ("Preview charging", 8), ("Preview low battery", 9), ("Preview volume", 10)] {
+        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5), ("Simulate lock scan (no typing)", 6), ("Preview lock-screen sequence", 11), ("Preview unlock animation", 7), ("Preview charging", 8), ("Preview low battery", 9), ("Preview volume", 10)] {
             let i = sub.addItem(withTitle: title, action: #selector(debugShape(_:)), keyEquivalent: "")
             i.target = self
             i.tag = tag
@@ -109,6 +133,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     #if DEBUG
+    /// Plays the lock-screen story with a fake match: closed lock in the wings, the scan drops down, the dots
+    /// become a check that flies left while the lock opens, then everything folds back.
+    private func previewLockSequence() {
+        let store = notch.store
+        Task { @MainActor in
+            store.setLockScreen(true)
+            try? await Task.sleep(for: .seconds(1.5))
+            let model = ScanModel()
+            store.scan = model
+            store.setBase(.scan)
+            try? await Task.sleep(for: .seconds(1.6))
+            model.faceVisible = true
+            try? await Task.sleep(for: .seconds(1.0))
+            model.phase = .match
+            model.matchedAt = Date()
+            try? await Task.sleep(for: .milliseconds(650))
+            model.flown = true
+            try? await Task.sleep(for: .milliseconds(1150))
+            store.setBase(nil)
+            store.setLockScreen(false)
+        }
+    }
+
     /// Plays a fake enrolment (no camera) so the animation can be judged: a dot circles, sectors fill, check.
     private func previewEnrolment() {
         let model = EnrolmentModel()
@@ -143,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 4: store.setBase(nil); store.expand()
         case 5: previewEnrolment()
         case 6: faceUnlock.unlock.simulate()
+        case 11: previewLockSequence()
         case 7: store.playUnlock()
         case 8: store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
         case 9: store.showCharge(ChargeEvent(kind: .low, percent: 20))

@@ -3,6 +3,8 @@ import Foundation
 /// A short event or persistent state shown in the wings or chin.
 enum IslandContent {
     case unlock(start: Date)
+    /// On the lock screen: a white closed padlock on the right of the wings.
+    case locked
     case level(LevelState)
     case charge(ChargeEvent)
     case media
@@ -11,6 +13,7 @@ enum IslandContent {
     var kind: String {
         switch self {
         case .unlock: "unlock"
+        case .locked: "locked"
         case .level: "level"
         case .charge(let c): "charge-\(c.kind)"
         case .media: "media"

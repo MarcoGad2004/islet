@@ -106,6 +106,7 @@ private struct DisplaySoundPage: View {
             HStack {
                 Text("DISPLAY AND SOUND").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
                 Spacer()
+                if let m = store.media, let monitor = store.mediaMonitor { MiniPlayer(media: m, monitor: monitor, store: store) }
             }
             HStack(spacing: 10) {
                 if let power = store.power, power.state.hasBattery { BatteryBlock(state: power.state) }
@@ -170,5 +171,32 @@ private struct BatteryBlock: View {
         if state.charging, let m = state.minutesToFull { return "\(hm(m)) to full" }
         if !state.onAC, let m = state.minutesToEmpty { return "\(hm(m)) left" }
         return " "
+    }
+}
+
+/// Paused (or otherwise idle) media, collapsed into the panel's header so it can be resumed from the notch
+/// without the media taking over the island.
+private struct MiniPlayer: View {
+    let media: MediaInfo
+    let monitor: MediaMonitor
+    let store: IslandStore
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { store.showMediaPage() } label: {
+                HStack(spacing: 8) {
+                    ArtworkView(image: media.artwork, size: 22, radius: 6, playing: media.playing)
+                    Text(media.artist.isEmpty ? media.title : "\(media.title) · \(media.artist)")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
+                        .lineLimit(1).frame(maxWidth: 170, alignment: .leading)
+                }
+            }.buttonStyle(.plain)
+            Button { monitor.togglePlayPause() } label: {
+                Image(systemName: media.playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+                    .frame(width: 26, height: 22)
+                    .background(Capsule().fill(Color(hex: 0x1C1C1E)))
+            }.buttonStyle(.plain)
+        }
     }
 }

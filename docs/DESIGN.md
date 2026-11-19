@@ -101,6 +101,16 @@ Draw the island as **one custom `Shape`** (stem + body + inner curves) whose dim
 - **Track change**: artwork cross-fades 0.3 s; the chin's title slides up out and the new one up in.
 - **16-step bar**: each key press fills/empties one step with a quick ease (≈0.12 s).
 
+### Lock-screen story (revised 2026-11-19, owner request)
+
+On the lock screen the island sits in the **wings** with a **white closed padlock on the right**. The face
+scan expands the wide bar **downward** (wings width × notch height + 150, bottom radius 40) so the padlock
+stays visible. On a match the dots fly into a check (0.5 s), then the check **flies to the left wing**
+(spring, from 0.65 s) while the right-hand padlock opens and turns green (starting 0.1 s after the match).
+Everything folds back 1.8 s after the match. Any other unlock (Touch ID, Apple Watch, password) plays the
+same layout without the scan: padlock on the right opens, check pops in on the left. This replaces the
+old "lock on the left, check on the right" wings layout below.
+
 ### Lock opens (unlock animation)
 
 1. 0.0 s: white closed padlock appears (wings: left side; chin: centred).

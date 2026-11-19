@@ -39,7 +39,13 @@ final class IslandAnimator {
 
         // Channel order: sw sh bw bh tr br ic
         let specs: [(Spring, Double)]
-        if growsBody {
+        let widthChange = target.sw - current.sw
+        if (growsBody || shrinksBody) && abs(widthChange) > 40 {
+            // Wings <-> chin: one connected morph. The bar pinches in to the notch while the body drops out of
+            // it (or the reverse), all on the same spring so nothing lags behind.
+            let morph = Spring(response: 0.42, damping: 0.8)
+            specs = [(morph, 0), (morph, 0), (morph, 0), (morph, 0), (morph, 0), (morph, 0), (morph, 0)]
+        } else if growsBody {
             // Flow down first, bubble out sideways from 0.2 s, corners from 0.12 s, inner curves from 0.22 s.
             let down = Spring(response: 0.32, damping: 1)
             let out = Spring(response: 0.5, damping: 0.62)
@@ -52,10 +58,18 @@ final class IslandAnimator {
             // Corner radii ride with the height (same delay and spring), so the shape stays rounded all the
             // way up instead of snapping boxy first. The inner curves shrink with the width.
             specs = [(inward, 0), (up, 0.18), (inward, 0), (up, 0.18), (up, 0.18), (up, 0.18), (inward, 0)]
-        } else {
-            let width = Spring(response: 0.5, damping: 0.62) // wings spring out with overshoot
+        } else if widthChange > 40 {
+            // Wings spring out with the soft overshoot (~0.55 s).
+            let width = Spring(response: 0.5, damping: 0.62)
             let other = Spring(response: 0.35, damping: 0.9)
             specs = [(width, 0), (other, 0), (width, 0), (other, 0), (other, 0), (other, 0), (other, 0)]
+        } else if widthChange > 2 || target.sh - current.sh > 2 {
+            // Hover peek: a small, springy "bubble" up to the slightly larger shape.
+            let bubble = Spring(response: 0.4, damping: 0.5)
+            specs = [(bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0)]
+        } else {
+            let settle = Spring(response: 0.3, damping: 0.9)
+            specs = [(settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0)]
         }
 
         for i in 0..<IslandMetrics.channelCount {

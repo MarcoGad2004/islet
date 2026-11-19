@@ -12,7 +12,6 @@ final class MediaMonitor {
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var buffer = Data()
     @ObservationIgnored private var state: [String: Any] = [:]
-    @ObservationIgnored private var hideTask: Task<Void, Never>?
     @ObservationIgnored private var artworkKey = ""
     @ObservationIgnored private var artwork: NSImage?
 
@@ -25,6 +24,11 @@ final class MediaMonitor {
 
     func start() {
         guard let r = resources else { available = false; return }
+        // A previous run that was killed can leave its adapter behind: clear stale ones first.
+        let stale = Process()
+        stale.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        stale.arguments = ["-f", "mediaremote-adapter.pl .* stream"]
+        try? stale.run(); stale.waitUntilExit()
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
         p.arguments = [r.script, r.framework, "stream"]
@@ -86,18 +90,8 @@ final class MediaMonitor {
     }
 
     private func update(_ new: MediaInfo?) {
-        hideTask?.cancel()
         info = new
-        guard let new else { onChange?(nil); return }
-        onChange?(new)
-        if !new.playing {
-            // Hide 30 s after pause.
-            hideTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(30))
-                guard !Task.isCancelled else { return }
-                self?.onChange?(nil)
-            }
-        }
+        onChange?(new) // the store decides how long a paused item keeps the notch (30 s)
     }
 
     // MARK: Commands

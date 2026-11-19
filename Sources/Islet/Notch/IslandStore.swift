@@ -19,7 +19,12 @@ final class IslandStore {
     private(set) var unlockStart: Date?
     private(set) var media: MediaInfo?
     private(set) var mediaHidden = false
+    /// Media takes the notch only while it plays and for 30 s after a pause; the item itself is kept for the
+    /// mini player in the expanded panel.
+    private(set) var mediaFresh = false
     private(set) var wingsFit = false
+    /// The Mac is locked with the screen on: the island shows the closed padlock in the wings.
+    private(set) var lockScreen = false
     var enrolment: EnrolmentModel?
     var scan: ScanModel?
 
@@ -36,13 +41,17 @@ final class IslandStore {
     @ObservationIgnored private var chargeTask: Task<Void, Never>?
     @ObservationIgnored private var levelTask: Task<Void, Never>?
     @ObservationIgnored private var unlockTask: Task<Void, Never>?
+    @ObservationIgnored private var mediaStaleTask: Task<Void, Never>?
 
     // MARK: Derived
 
-    var mediaVisible: Bool { media != nil && !mediaHidden }
+    var mediaVisible: Bool { media != nil && mediaFresh && !mediaHidden }
+    /// The expanded panel shows the media page only for actively playing media.
+    var mediaPlaying: Bool { media?.playing == true }
 
     var content: IslandContent? {
         if let unlockStart { return .unlock(start: unlockStart) }
+        if lockScreen { return .locked }
         if let level { return .level(level) }
         if let charge { return .charge(charge) }
         if mediaVisible { return .media }
@@ -57,6 +66,7 @@ final class IslandStore {
         if expanded { return .expanded }
         if let c = content {
             if case .level = c { return .chin } // volume and brightness always use the chin
+            if case .locked = c { return .wings } // the lock screen has no menus: always wings
             return compactLayout
         }
         if let base { return base }
@@ -129,7 +139,7 @@ final class IslandStore {
 
     func expand() {
         guard !expanded, !locked else { return }
-        expandedPage = (level == nil && mediaVisible) ? .media : .displaySound
+        expandedPage = (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
         power?.refresh()
         setExpanded(true)
@@ -164,6 +174,12 @@ final class IslandStore {
 
     func setBase(_ p: Presentation?) {
         base = p
+        refresh()
+    }
+
+    func setLockScreen(_ value: Bool) {
+        guard value != lockScreen else { return }
+        lockScreen = value
         refresh()
     }
 
@@ -216,11 +232,31 @@ final class IslandStore {
     }
 
     func setMedia(_ info: MediaInfo?) {
+        let wasPlaying = media?.playing == true
         // A different app starting to play brings hidden media back.
-        if let info, info.playing, media?.bundleID != info.bundleID || media?.playing == false, mediaHidden { mediaHidden = false }
-        let appeared = (media == nil) != (info == nil)
+        if let info, info.playing, media?.bundleID != info.bundleID || !wasPlaying, mediaHidden { mediaHidden = false }
+        let before = mediaVisible
         media = info
-        if appeared { recomputeLayout() }
+        mediaStaleTask?.cancel()
+        if info?.playing == true {
+            mediaFresh = true
+        } else if wasPlaying && info != nil {
+            // Just paused: keep it in the notch for 30 s, then hand the notch back.
+            mediaFresh = true
+            mediaStaleTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                self?.mediaFresh = false
+                self?.recomputeLayout()
+                self?.refresh()
+            }
+        } else if !wasPlaying {
+            mediaFresh = false // paused at launch, or nothing: don't take the notch
+        }
+        if before != mediaVisible { recomputeLayout() }
         refresh()
     }
+
+    /// From the mini player: open the full media page.
+    func showMediaPage() { if expanded { expandedPage = .media } }
 }

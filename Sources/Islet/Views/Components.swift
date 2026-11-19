@@ -121,34 +121,35 @@ private extension Color {
 /// DESIGN.md "Lock opens": closed white padlock; at 0.4 s the body dips ~1 pt, the shackle lifts ~2.5 pt and
 /// swings open about its right leg (~28 deg, done by ~1.15 s); at 0.8 s it turns green.
 struct PadlockView: View {
-    var start: Date
+    /// nil keeps the lock closed and white (the lock screen's resting state).
+    var start: Date?
     var size: CGFloat = 1
 
     private func ease(_ x: Double) -> Double { let c = min(max(x, 0), 1); return c * c * (3 - 2 * c) }
 
     var body: some View {
-        TimelineView(.animation) { ctx in
-            let t = ctx.date.timeIntervalSince(start)
+        TimelineView(.animation(paused: start == nil)) { ctx in
+            let t = start.map { ctx.date.timeIntervalSince($0) } ?? -1
             let dip = ease((t - 0.4) / 0.2)
             let lift = ease((t - 0.4) / 0.3)
             let swing = ease((t - 0.55) / 0.6)
             let green = ease((t - 0.8) / 0.2)
             ZStack {
-                // Shackle: an inverted U whose right leg stays seated in the body; the left leg swings out.
-                // Its bottom sits 2.5 pt inside the body (hidden behind it) so the lift never detaches it.
+                // Shackle: right leg is the hinge and stays seated in the body (it is 4.5 pt longer than it looks);
+                // the shorter left leg is the free one. Opening lifts the shackle and swings the free leg up and out.
                 Shackle()
                     .stroke(Color.isletText, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
                     .overlay(Shackle().stroke(Color.isletGreen, style: StrokeStyle(lineWidth: 2.4, lineCap: .round)).opacity(green))
-                    .frame(width: 11.5, height: 10)
-                    .rotationEffect(.degrees(-28 * swing), anchor: .bottomTrailing)
-                    .offset(y: -5 - 2.5 * lift + dip)
+                    .frame(width: 11.5, height: 13.5)
+                    .rotationEffect(.degrees(30 * swing), anchor: .bottomTrailing)
+                    .offset(y: -2 - 3.5 * lift + dip)
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color.isletText)
                     .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.isletGreen).opacity(green))
-                    .frame(width: 17, height: 13)
-                    .offset(y: 4 + dip)
+                    .frame(width: 17, height: 12)
+                    .offset(y: 6.3 + dip)
             }
-            .frame(width: 24, height: 30) // headroom so the lifted shackle is never clipped
+            .frame(width: 26, height: 30) // headroom so the lifted shackle is never clipped
             .scaleEffect(size)
         }
     }
@@ -157,9 +158,11 @@ struct PadlockView: View {
 private struct Shackle: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
-        p.move(to: CGPoint(x: r.minX, y: r.maxY))
-        p.addLine(to: CGPoint(x: r.minX, y: r.midY))
-        p.addArc(center: CGPoint(x: r.midX, y: r.midY), radius: r.width / 2, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        let radius = r.width / 2
+        // Left (free) leg is 4.5 pt shorter than the right (hinge) leg.
+        p.move(to: CGPoint(x: r.minX, y: r.maxY - 4.5))
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY + radius))
+        p.addArc(center: CGPoint(x: r.midX, y: r.minY + radius), radius: radius, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
         p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
         return p
     }

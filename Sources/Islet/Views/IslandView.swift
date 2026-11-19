@@ -28,7 +28,7 @@ struct IslandView: View {
                     }
                 case .scan:
                     if let s = store.scan {
-                        ScanView(model: s).frame(width: store.geometry?.width ?? 190, height: 150).padding(.top, nh).transition(fade())
+                        ScanView(model: s, notchWidth: store.geometry?.width ?? 190, notchHeight: nh).transition(fade(0.12))
                     }
                 case .expanded:
                     ExpandedView(store: store).padding(.top, nh).transition(fade())

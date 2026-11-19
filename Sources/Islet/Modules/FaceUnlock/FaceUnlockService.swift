@@ -10,6 +10,9 @@ final class ScanModel {
     var faceVisible = false
     /// Bumped on each "not recognized" so the grid shakes.
     var shakes = 0
+    /// When the face matched: the lock starts opening shortly after, and the check flies left at `flown`.
+    var matchedAt: Date?
+    var flown = false
 
     var label: String {
         switch phase {
@@ -69,9 +72,13 @@ final class FaceUnlockService {
         }
         add(dnc, "com.apple.screenIsLocked") { $0.didLock() }
         add(dnc, "com.apple.screenIsUnlocked") { $0.didUnlock() }
-        add(ws, NSWorkspace.screensDidWakeNotification.rawValue) { $0.screenAwake = true; $0.beginIfPossible() }
-        add(ws, NSWorkspace.screensDidSleepNotification.rawValue) { $0.screenAwake = false; $0.stop(collapseAfter: 0) }
+        add(ws, NSWorkspace.screensDidWakeNotification.rawValue) { $0.screenAwake = true; $0.syncLockScreen(); $0.beginIfPossible() }
+        add(ws, NSWorkspace.screensDidSleepNotification.rawValue) { $0.screenAwake = false; $0.syncLockScreen(); $0.stop(collapseAfter: 0) }
+        syncLockScreen()
     }
+
+    /// The island shows the closed padlock whenever the Mac is locked and the screen is on.
+    private func syncLockScreen() { island.setLockScreen(locked && screenAwake) }
 
     func refreshPermission() { accessibilityTrusted = AXIsProcessTrusted() }
 
@@ -85,6 +92,7 @@ final class FaceUnlockService {
     private func didLock() {
         Self.log.info("locked")
         locked = true
+        syncLockScreen()
         attempts = 0
         stoppedForThisLock = false
         beginIfPossible()
@@ -93,14 +101,14 @@ final class FaceUnlockService {
     private func didUnlock() {
         Self.log.info("unlocked")
         locked = false
+        syncLockScreen()
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
-        // After a face match, let "Welcome back" finish and fold up, then play the lock-opens animation.
-        // Any other unlock (Touch ID, Apple Watch, password) plays it straight away.
-        let delay = model?.phase == .match ? 0.9 : 0
-        stop(collapseAfter: delay)
-        if delay > 0 {
-            Task { try? await Task.sleep(for: .seconds(delay + 0.05)); island.playUnlock() }
+        if let model, let matched = model.matchedAt {
+            // Face unlock: the scan sequence is the unlock animation. Let it finish (1.8 s from the match).
+            stop(collapseAfter: max(0, matched.addingTimeInterval(1.8).timeIntervalSinceNow))
         } else {
+            // Touch ID, Apple Watch or password: the lock-opens animation in the wings.
+            stop(collapseAfter: 0)
             island.playUnlock()
         }
     }
@@ -164,7 +172,10 @@ final class FaceUnlockService {
         case .match(let score):
             Self.log.info("match score=\(score)")
             model.phase = .match
+            model.matchedAt = Date()
             camera?.stop(); camera = nil
+            // The dots become a check (0.5 s), then the check flies to the left wing as the padlock opens.
+            Task { try? await Task.sleep(for: .milliseconds(650)); if self.model === model { model.flown = true } }
             Task { await completeMatch() }
         case .noMatch(let score):
             attempts += 1
@@ -188,8 +199,8 @@ final class FaceUnlockService {
     private func completeMatch() async {
         guard let model, model.phase == .match else { return }
         if simulated {
-            // No typing in a simulated run: just let the check animation play before folding away.
-            try? await Task.sleep(for: .milliseconds(900))
+            // No typing in a simulated run: let the whole sequence play, then fold away.
+            try? await Task.sleep(for: .milliseconds(1800))
             stop(collapseAfter: 0); return
         }
         // Real unlock: type straight away. The check animation plays while the password goes in, and the

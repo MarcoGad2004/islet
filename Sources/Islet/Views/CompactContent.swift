@@ -33,8 +33,8 @@ struct CompactContentView: View {
         case .media:
             if let m = store.media { ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing) }
         case .charge(let c): chargeIcon(c)
-        case .unlock(let start): PadlockView(start: appears(start))
-        case .level: EmptyView()
+        case .unlock(let start): CheckPop(start: appears(start))
+        case .locked, .level: EmptyView()
         }
     }
 
@@ -43,7 +43,8 @@ struct CompactContentView: View {
         case .media: LevelBars(playing: store.media?.playing ?? false)
         case .charge(let c):
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
-        case .unlock(let start): CheckPop(start: appears(start))
+        case .unlock(let start): PadlockView(start: appears(start))
+        case .locked: PadlockView(start: nil)
         case .level: EmptyView()
         }
     }
@@ -76,6 +77,8 @@ struct CompactContentView: View {
                     .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
                     .frame(width: 30, alignment: .trailing)
             }
+        case .locked:
+            PadlockView(start: nil)
         case .unlock(let start):
             HStack(spacing: 10) {
                 PadlockView(start: appears(start))
