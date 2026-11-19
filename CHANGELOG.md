@@ -6,13 +6,21 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ## 1.2 (unreleased)
 
 **Macs without a notch**
-- Islet now runs on MacBooks without a notch (and with the lid closed on an external display). New setting, General →
-  **Without a notch**:
-  - **Drop down from the menu bar icon** (the default): click Islet's menu bar icon and the panel drops down under it;
-    right-click (or Control-click) for the menu. Charging, volume, media and connection notices grow out of the menu
-    bar under the icon as a wide bar and fold back into it, invisible when there's nothing to show.
+- Islet now runs on MacBooks without a notch, and with the lid closed on an external display. Setup has a new step,
+  **Your Mac**, which also lives in Settings → General. It asks whether this Mac has a notch (it starts on what macOS
+  reports) and what to do without one:
+  - **Bubble from the top edge** (the default): notices drip out of the top edge under the camera like a drop of
+    liquid, come loose and float just below the menu bar, then rise back into the edge. Volume, brightness, charging,
+    connection notices, Wi-Fi join progress, the face scan and the unlock animation all show this way. Music and the
+    lock-screen padlock don't stay on screen, since a floating card can't sit there all the time.
+    - Hover the middle of the menu bar, under the camera: a drop hangs down from the edge with an arrow at its tip.
+      Swipe down with two fingers (or click it) and it lets go and bubbles out into the panel, music player included.
+      Swipe up, click away or press Esc to close it.
+  - **Drop down from the menu bar icon**: click Islet's menu bar icon and the panel drops down under it; right-click
+    (or Control-click) for the menu. Notices grow out of the menu bar under the icon.
   - **Off**: no island at all, for using Islet just for face unlock.
-- Without a notch the menu bar icon always shows, since it's the way to Settings.
+- Choosing "No notch" on a notched Mac uses the no-notch style there too.
+- Without an island in the notch or at the top edge, the menu bar icon always shows, since it's the way to Settings.
 
 **Face unlock**
 - New "Prove it's live" setting: **Random** (the default) asks for a blink, a smile, or a head turn left or right,

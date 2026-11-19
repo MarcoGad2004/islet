@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var menuBarObserver: NSKeyValueObservation?
     private var notchlessObserver: NSKeyValueObservation?
+    private var hasNotchObserver: NSKeyValueObservation?
     private var statusMenu: NSMenu?
     private var menuBarShown = true
     private var pauseItem: NSMenuItem?
@@ -41,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.applyMenuBarVisibility() }
         }
         notchlessObserver = UserDefaults.standard.observe(\.notchlessStyle, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.notch.screenChanged(); self?.applyMenuBarVisibility() }
+        }
+        hasNotchObserver = UserDefaults.standard.observe(\.hasNotch, options: [.new]) { [weak self] _, _ in
             Task { @MainActor in self?.notch.screenChanged(); self?.applyMenuBarVisibility() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -254,11 +258,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return (x: w.frame.midX, bottom: w.frame.minY, screen: screen.frame)
     }
 
-    /// Without a notch island (no notch, or the owner turned the menu bar mode off) the icon is the only way to
-    /// Settings, so it stays.
+    /// With no island, or one that only opens from the icon, the icon is the way to Settings, so it stays.
     private func applyMenuBarVisibility() {
         let wanted = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
-        let show = wanted || !(notch.store.geometry.map { !$0.virtual } ?? false)
+        let show = wanted || notch.store.geometry.map { $0.mode == .menuBar } ?? true
         guard show != menuBarShown else { return }
         menuBarShown = show
         statusItem?.isVisible = show
@@ -356,4 +359,6 @@ extension UserDefaults {
     @objc dynamic var showMenuBarIcon: Bool { bool(forKey: "showMenuBarIcon") }
     /// KVO key for what Islet does without a notch (`NotchlessStyle`).
     @objc dynamic var notchlessStyle: String? { string(forKey: "notchlessStyle") }
+    /// KVO key for the owner's "This Mac has a notch" choice.
+    @objc dynamic var hasNotch: Bool { bool(forKey: "hasNotch") }
 }

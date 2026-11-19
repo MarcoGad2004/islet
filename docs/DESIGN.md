@@ -324,15 +324,33 @@ With the pointer over the island:
 
 ## Without a notch (1.2)
 
-Setting "Without a notch": **menu bar** (default) or **off**. It applies whenever no screen has a notch, including
-the lid closed on an external display.
-- Menu bar: the island hangs from the bottom of the menu bar under Islet's icon (moved in to stay 8 pt clear of the
-  screen edge). The stand-in notch is 100 x 32 pt and invisible: idle is zero height, and every shape is a card as
-  wide as its body (no stem, no inner curves), flat on top with the top flare melting into the menu bar. Nothing can
-  be covered there, so compact content always uses the wide bar, never the chin. Click the icon to open or close
-  the panel; right-click or Control-click for the menu. There is no hover peek.
-- Off: no island. Face unlock and the modules keep running.
-- With no island in a notch the menu bar icon always shows.
+Mockups: the "Islet without a notch" canvas (<https://claude.ai/artifact/PznELF9GV5LZd61mXHWhDo>), with a playable
+prototype. Setup's **Your Mac** step (also in Settings → General) asks whether the Mac has a notch, starting on what
+macOS reports; "No notch" on a notched Mac uses the no-notch style too. Without a notch (or with the lid closed) the
+style is one of:
+
+- **Bubble from the top edge** (default). The island is a black card centred on the screen with the menu bar,
+  floating 10 pt below the menu bar, as wide as its body (wings 220 x 34, the panel 500 wide with a 14 pt top
+  margin instead of the notch's height).
+  - Arriving: a drop falls out of the top edge (0.2 s), snaps free and springs out sideways (0.33 s, soft overshoot,
+    from 0.1 s); content fades in as it settles. Leaving: content fades, the card pulls in to a 48 x 30 drop (0.18 s),
+    then rises into the edge (0.25 s, no bounce). These are 0.6x the first mockup's timings.
+  - The neck: a 4 pt strip along the top edge and the card are blurred together (6 pt) and cut at half opacity, so a
+    liquid neck joins them only while the card is near the edge. The card itself is drawn crisp on top.
+  - Hover strip: 260 pt wide, the menu bar's height, centred under the camera. Hovering it, a 30 pt drop reaches down
+    from the edge to the float height in one smooth motion (0.27 s, no bounce) with a chevron at its tip, and stays
+    joined to the edge. A two-finger swipe down (or a click) lets it go: it springs down a touch as a 32 pt drop
+    (0.18 s) and bubbles out into the panel.
+  - Only what comes and goes shows: volume and brightness, charging, connection notices, join progress, the face scan
+    and the unlock. Music in the wings, the padlock while locked (only the ⌘⇧ reminder shows, every 12 s) and the
+    hidden-media dot are left out. Wings never fall back to the chin: there are no menus to cover.
+- **Menu bar**: the island hangs from the bottom of the menu bar under Islet's icon (moved in to stay 8 pt clear of
+  the screen edge). The stand-in notch is 100 x 32 pt and invisible: idle is zero height, and every shape is a card
+  as wide as its body, flat on top. Click the icon to open or close the panel; right-click or Control-click for the
+  menu. No hover peek.
+- **Off**: no island. Face unlock and the modules keep running.
+
+With no island, or one that only opens from the icon, the menu bar icon always shows.
 
 ## Visual tokens
 

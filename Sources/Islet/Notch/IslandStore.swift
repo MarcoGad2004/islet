@@ -80,14 +80,18 @@ final class IslandStore {
             ? IslandLayout.expandedListBodyHeight : IslandLayout.expandedBodyHeight
     }
 
+    /// Bezel mode (no notch): a card floating on screen can't stay up all the time, so the constant ones (music while
+    /// it plays, the padlock while locked) are left out; only what comes and goes shows.
+    private var floating: Bool { geometry?.floating == true }
+
     var content: IslandContent? {
         if let unlockStart { return .unlock(start: unlockStart) }
-        if lockScreen { return .locked }
+        if lockScreen && (!floating || (lockHint && lockHintFull)) { return .locked } // floating: only the ⌘⇧ reminder
         if let level { return .level(level) }
         if let progress { return .progress(progress) }
         if let event { return .event(event) }
         if let charge { return .charge(charge) }
-        if mediaVisible { return .media }
+        if mediaVisible && !floating { return .media }
         return nil
     }
 
@@ -116,12 +120,13 @@ final class IslandStore {
     }
 
     /// Green dot hint under the camera while media is hidden and the pointer is over the notch.
-    var showsHiddenMediaDot: Bool { mediaHidden && media != nil && pointerInside && content == nil && !expanded && base == nil }
+    var showsHiddenMediaDot: Bool { !floating && mediaHidden && media != nil && pointerInside && content == nil && !expanded && base == nil }
 
     // MARK: Geometry and layout
 
     func setGeometry(_ g: NotchGeometry?) {
         geometry = g
+        animator.floating = g?.floating == true
         recomputeLayout()
         if let m = targetMetrics() { animator.snap(to: m) }
     }
@@ -139,7 +144,27 @@ final class IslandStore {
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
         let m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
-        return g.virtual ? Self.underMenuBar(m, presentation) : m
+        switch g.mode {
+        case .notch: return m
+        case .menuBar: return Self.underMenuBar(m, presentation)
+        case .bezel: return Self.floating(m, presentation, floatTop: Double(g.floatTop))
+        }
+    }
+
+    /// Bezel mode: a card as wide as its body floating `floatTop` down (10 pt under the menu bar), tucked above the
+    /// top edge when idle, and the orb, a drop hanging from the edge down to that height, while the pointer is in the
+    /// strip under the camera (`.peek`).
+    static func floating(_ m: IslandMetrics, _ p: Presentation, floatTop: Double) -> IslandMetrics {
+        switch p {
+        case .closed: return IslandMetrics(sw: 46, sh: 22, bw: 46, bh: 0, tr: 0, br: 11, ic: 0, y: -40)
+        case .peek: return IslandMetrics(sw: 30, sh: floatTop + 30, bw: 30, bh: 0, tr: 0, br: 15, ic: 0, y: 0)
+        default:
+            let w = max(m.sw, m.bw)
+            // The panel and enrolment had the notch's height above their content; floating, a margin is enough.
+            let top = p == .expanded || p == .enrol ? Double(IslandLayout.floatingContentTop) : m.sh
+            let h = top + m.bh
+            return IslandMetrics(sw: w, sh: top, bw: w, bh: m.bh, tr: 0, br: min(m.br, h / 2), ic: 0, y: floatTop)
+        }
     }
 
     /// Without a notch there is nothing to hide the stem behind, so the island is a plain card hanging from the
@@ -160,8 +185,15 @@ final class IslandStore {
         guard let g = geometry, !paused else { return false }
         let p = g.panelPoint(fromGlobal: globalPoint)
         let m = animator.metrics
-        if g.virtual && m.height < 1 { return false } // nothing showing under the menu bar
         let slop = 2.0
+        if g.floating {
+            // The card where it floats, or the hover strip in the middle of the menu bar, under the camera.
+            let w = NotchGeometry.panelWidth
+            let card = CGRect(x: w / 2 - m.width / 2 - slop, y: m.y - slop, width: m.width + 2 * slop, height: m.height + 2 * slop)
+            let strip = CGRect(x: w / 2 - NotchGeometry.hoverStripWidth / 2, y: 0, width: NotchGeometry.hoverStripWidth, height: g.menuBarHeight)
+            return (m.y > -1 && card.contains(p)) || (!expanded && strip.contains(p))
+        }
+        if g.virtual && m.height < 1 { return false } // nothing showing under the menu bar
         let rect = CGRect(x: NotchGeometry.panelWidth / 2 - m.width / 2 - slop, y: -slop,
                           width: m.width + 2 * slop, height: m.height + slop)
         return rect.contains(p)

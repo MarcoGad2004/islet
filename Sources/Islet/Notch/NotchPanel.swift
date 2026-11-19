@@ -51,7 +51,7 @@ final class NotchController {
     /// The last place the icon was seen, kept for when its window is away (the lock screen has no status items).
     private var lastAnchor: (x: CGFloat, bottom: CGFloat, screen: CGRect)?
     /// The island is under the menu bar icon rather than in a notch.
-    var inMenuBar: Bool { store.geometry?.virtual == true }
+    var inMenuBar: Bool { store.geometry?.mode == .menuBar }
 
     func start() {
         let host = IslandHostingView(rootView: IslandView(store: store))
@@ -109,9 +109,13 @@ final class NotchController {
         updatePanelVisibility()
     }
 
-    /// No notch: the island under the menu bar icon, or none when the owner turned that off.
+    /// No notch: the island floating under the camera, under the menu bar icon, or none, as the owner chose.
     private func menuBarGeometry() -> NotchGeometry? {
-        guard NotchlessStyle.current == .menuBar else { return nil }
+        switch NotchlessStyle.current {
+        case .off: return nil
+        case .bezel: return NotchGeometry.bezel()
+        case .menuBar: break
+        }
         if let a = menuBarAnchor?(), a.screen.contains(CGPoint(x: a.x, y: a.bottom)) { lastAnchor = a }
         guard let a = lastAnchor ?? NSScreen.main.map({ s in
             (x: s.frame.maxX - 200, bottom: s.visibleFrame.maxY, screen: s.frame)

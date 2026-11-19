@@ -22,8 +22,13 @@ final class IslandAnimator {
     @ObservationIgnored private var then: IslandMetrics?
     /// For a wings close (no body to wait for): start the second leg once the width is this close to the pill's.
     @ObservationIgnored private var thenAtWidth: Double?
+    /// Bezel mode legs: when to start the second leg, and its spring.
+    @ObservationIgnored private var thenWhen: ((IslandMetrics) -> Bool)?
+    @ObservationIgnored private var thenSpring: Spring?
+    /// Bezel mode (no notch): the island is a card that drips out of the top edge and floats (`goFloating`).
+    @ObservationIgnored var floating = false
 
-    init(initial: IslandMetrics = IslandMetrics(sw: 190, sh: 34, bw: 190, bh: 0, tr: 0, br: 10, ic: 0)) {
+    init(initial: IslandMetrics = IslandMetrics(sw: 190, sh: 34, bw: 190, bh: 0, tr: 0, br: 10, ic: 0, y: 0)) {
         metrics = initial
         for i in 0..<IslandMetrics.channelCount { channels[i].value = initial[i]; channels[i].target = initial[i] }
     }
@@ -47,7 +52,8 @@ final class IslandAnimator {
         // Same destination (the pointer crossing the edge mid-morph, a refresh that changed nothing): leave the
         // running motion alone. Re-planning it would restart the delays and swap springs halfway through.
         if target == (then ?? self.target) { return }
-        then = nil; thenAtWidth = nil
+        then = nil; thenAtWidth = nil; thenWhen = nil; thenSpring = nil
+        if floating { goFloating(target); return }
         var goal = target
         let current = metrics
         let growsBody = target.bh > current.bh + 0.5
@@ -127,15 +133,56 @@ final class IslandAnimator {
         apply(goal, specs)
     }
 
+    /// Bezel mode. The card is at `y` (below 0: tucked above the top edge, unseen; 0: the orb hanging from the edge;
+    /// above 0: floating under the menu bar). The neck to the edge is drawn by `BezelBackdrop`; this only moves the
+    /// card. Timings are 0.6x the first mockup's, as decided on the "Islet without a notch" canvas.
+    private func goFloating(_ target: IslandMetrics) {
+        let cur = metrics
+        func all(_ s: Spring) -> [(Spring, Double)] { Array(repeating: (s, 0), count: IslandMetrics.channelCount) }
+        let floats = { (m: IslandMetrics) in m.y > 1 }
+        let attached = abs(cur.y) < 0.5 && cur.height > 1
+        // Channel order: sw sh bw bh tr br ic y
+        if floats(cur) && !floats(target) {
+            // Leaving: content gone, it pulls in to a small drop where it floats, then rises into the edge (or reaches
+            // up to it, when the pointer is still in the strip and it becomes the orb).
+            var gather = cur
+            gather.sw = 48; gather.bw = 48; gather.sh = 30; gather.bh = 0; gather.br = 15; gather.tr = 0; gather.ic = 0
+            then = target
+            thenWhen = { abs($0.sw - 48) < 3 && $0.height < 34 }
+            thenSpring = Spring(response: 0.25, damping: 1)
+            apply(gather, all(Spring(response: 0.18, damping: 1)))
+        } else if attached && floats(target) {
+            // The swipe: the drop lets go of the edge and springs down a touch, then bubbles out.
+            var drop = target
+            drop.sw = 32; drop.bw = 32; drop.sh = 32; drop.bh = 0; drop.br = 16
+            then = target
+            thenWhen = { abs($0.y - target.y) < 4 }
+            thenSpring = Spring(response: 0.33, damping: 0.62)
+            apply(drop, all(Spring(response: 0.18, damping: 0.6)))
+        } else if floats(target) && !floats(cur) {
+            // Arriving: a drop falls out of the edge, snaps free, then springs out sideways.
+            let down = Spring(response: 0.2, damping: 0.85), out = Spring(response: 0.33, damping: 0.62)
+            apply(target, [(out, 0.1), (down, 0), (out, 0.1), (down, 0), (down, 0), (out, 0.1), (down, 0), (down, 0)])
+        } else if floats(target) {
+            // One floating shape to another (a notice changing, the panel growing): a soft bubble.
+            apply(target, all(Spring(response: 0.33, damping: 0.62)))
+        } else {
+            // The orb reaching down from the edge, or pulling back into it: one smooth motion, no bounce.
+            apply(target, all(Spring(response: 0.27, damping: 1)))
+        }
+    }
+
     private func apply(_ goal: IslandMetrics, _ specs: [(Spring, Double)]) {
         for i in 0..<IslandMetrics.channelCount {
+            // Notch-mode plans name the first seven channels; `y` stays 0 there, so its spring doesn't matter.
+            let spec = i < specs.count ? specs[i] : specs[specs.count - 1]
             channels[i].target = goal[i]
-            channels[i].spring = specs[i].0
+            channels[i].spring = spec.0
             // Delays stage a motion from rest. A channel that is already moving (hover bubble interrupted by the
             // chin, or the chin by the hover) turns toward the new target straight away with its momentum,
             // instead of freezing mid-air for the delay and then jumping on.
             let moving = abs(channels[i].velocity) > 1
-            channels[i].delay = moving ? 0 : specs[i].1
+            channels[i].delay = moving ? 0 : spec.1
         }
         startTimer()
     }
@@ -188,10 +235,10 @@ final class IslandAnimator {
         }
         metrics = next
         // Second leg of a close: once the body has been absorbed into the swollen pill, it eases down to the notch.
-        let legDone = thenAtWidth.map { next.sw - $0 < 3 } ?? (next.bh < 2 && next.bw - next.sw < 1)
+        let legDone = thenWhen?(next) ?? thenAtWidth.map { next.sw - $0 < 3 } ?? (next.bh < 2 && next.bw - next.sw < 1)
         if let final = then, legDone {
-            then = nil; thenAtWidth = nil
-            let settle = Spring(response: 0.38, damping: 0.9)
+            let settle = thenSpring ?? Spring(response: 0.38, damping: 0.9)
+            then = nil; thenAtWidth = nil; thenWhen = nil; thenSpring = nil
             apply(final, Array(repeating: (settle, 0), count: IslandMetrics.channelCount))
             moving = true
         }

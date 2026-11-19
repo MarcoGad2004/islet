@@ -23,11 +23,15 @@ struct IslandView: View {
         let m = store.animator.metrics
         let pres = store.presentation
         let nh = store.geometry?.height ?? 34
+        let floating = store.geometry?.floating == true
+        // Floating, the panel and enrolment start a small margin into the card instead of below the notch.
+        let top = floating ? IslandLayout.floatingContentTop : nh
+        let shape = floating ? AnyShape(CardShape(m: m)) : AnyShape(IslandShape(m: m))
         let content = store.content
         // The hint's body grows and folds under the lock bar without remounting the padlock.
         let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
-            IslandShape(m: m).fill(Color.black)
+            if floating { BezelBackdrop(m: m) } else { IslandShape(m: m).fill(Color.black) }
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
             Group {
                 if store.base == .scan, let scan = store.scan {
@@ -39,12 +43,12 @@ struct IslandView: View {
                 switch pres {
                 case .enrol:
                     if let e = store.enrolment {
-                        EnrolView(model: e).frame(width: 380, height: 214).padding(.top, nh).transition(fade())
+                        EnrolView(model: e).frame(width: 380, height: 214).padding(.top, top).transition(fade())
                     }
                 case .scan:
                     EmptyView()
                 case .expanded:
-                    ExpandedView(store: store).padding(.top, nh)
+                    ExpandedView(store: store).padding(.top, top)
                         .transition(fade())
                 case .wings, .lockWings, .lockHint, .levelWings, .eventWings, .chin:
                     if let c = content {
@@ -53,7 +57,12 @@ struct IslandView: View {
                             .id(key).transition(pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
                 case .peek, .closed:
-                    if store.showsHiddenMediaDot {
+                    if floating && pres == .peek, let g = store.geometry {
+                        // The orb: an arrow at the tip of the drop, for the swipe down.
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.isletTertiary)
+                            .frame(width: 30, height: 30).padding(.top, g.floatTop)
+                            .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.15)))
+                    } else if store.showsHiddenMediaDot {
                         Circle().fill(Color.isletGreen).frame(width: 4, height: 4)
                             .padding(.top, nh + 1).transition(.opacity)
                     }
@@ -61,9 +70,12 @@ struct IslandView: View {
                 }
             }
             .animation(.easeOut(duration: 0.3), value: key)
+            // Floating, everything above sits at the card's top, wherever it is on its way.
+            .offset(y: floating && pres != .peek ? m.y : 0)
+            .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)
+            .clipShape(shape)
         }
-        .clipShape(IslandShape(m: m))
-        .contentShape(IslandShape(m: m))
+        .contentShape(shape)
         .onTapGesture { store.click() }
         .frame(width: NotchGeometry.panelWidth,
                height: store.geometry?.panelHeight ?? 300,

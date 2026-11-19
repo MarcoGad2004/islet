@@ -71,3 +71,49 @@ struct IslandShape: Shape {
         return p
     }
 }
+
+/// Bezel mode (no notch): the island is a plain rounded card, `y` down from the top of the panel (the screen's top
+/// edge), as wide as its body.
+struct CardShape: Shape {
+    var m: IslandMetrics
+
+    static func frame(_ m: IslandMetrics, in rect: CGRect) -> CGRect {
+        let w = max(m.sw, m.bw, 0), h = max(m.sh + m.bh, 0)
+        return CGRect(x: rect.midX - w / 2, y: rect.minY + m.y, width: w, height: h)
+    }
+
+    static func radius(_ m: IslandMetrics, _ f: CGRect) -> CGFloat { max(0, min(m.br, f.width / 2, f.height / 2)) }
+
+    func path(in rect: CGRect) -> Path {
+        let f = Self.frame(m, in: rect)
+        return Path(roundedRect: f, cornerRadius: Self.radius(m, f), style: .continuous)
+    }
+}
+
+/// Bezel mode's black: the card, plus the liquid neck that joins it to the top edge while it is close to it (falling
+/// out, the orb hanging from the edge, rising back in). A thin strip along the top edge and the card are blurred
+/// together and cut at half opacity, so they merge like two drops where they meet; on their own the strip stays
+/// below the cut and never shows. The card is drawn again on top, crisp, so only the neck comes from the blur.
+struct BezelBackdrop: View {
+    var m: IslandMetrics
+    static let blur: CGFloat = 6
+
+    var body: some View {
+        Canvas { ctx, size in
+            let bounds = CGRect(origin: .zero, size: size)
+            let f = CardShape.frame(m, in: bounds)
+            guard f.maxY > 0, f.width > 0, f.height > 0 else { return }
+            let card = Path(roundedRect: f, cornerRadius: CardShape.radius(m, f), style: .continuous)
+            // Only near the edge: once the card floats well clear there is no neck to draw.
+            if f.minY < Self.blur * 3 {
+                ctx.drawLayer { layer in
+                    layer.addFilter(.alphaThreshold(min: 0.5, color: .black))
+                    layer.addFilter(.blur(radius: Self.blur))
+                    layer.fill(Path(CGRect(x: f.minX - 40, y: 0, width: f.width + 80, height: 4)), with: .color(.black))
+                    layer.fill(card, with: .color(.black))
+                }
+            }
+            ctx.fill(card, with: .color(.black))
+        }
+    }
+}

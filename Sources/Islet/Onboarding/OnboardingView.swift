@@ -12,7 +12,7 @@ struct OnboardingView: View {
     let wifi: WiFiController
     var finish: () -> Void
 
-    private enum Step: Int, CaseIterable { case welcome, permissions, face, done }
+    private enum Step: Int, CaseIterable { case welcome, display, permissions, face, done }
     private enum FaceStep { case intro, password, scanning, enrolled }
 
     @State private var step = Step.welcome
@@ -32,6 +32,7 @@ struct OnboardingView: View {
             ZStack {
                 switch step {
                 case .welcome: welcome
+                case .display: display
                 case .permissions: permissions
                 case .face: faceSetup
                 case .done: done
@@ -64,6 +65,14 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Setup takes about a minute.").foregroundStyle(.secondary)
             Spacer()
+        }
+    }
+
+    private var display: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            header("Your Mac", "Islet lives in the notch. On a Mac without one it can bubble out of the top edge instead.")
+            card { NotchChoice() }
+            Spacer(minLength: 0)
         }
     }
 
@@ -193,7 +202,7 @@ struct OnboardingView: View {
             Spacer()
             switch step {
             case .welcome: Button("Get started") { go(1) }.buttonStyle(.borderedProminent)
-            case .permissions: Button("Continue") { go(1) }.buttonStyle(.borderedProminent)
+            case .display, .permissions: Button("Continue") { go(1) }.buttonStyle(.borderedProminent)
             case .face:
                 Button(faceStep == .enrolled ? "Continue" : "Skip for now") { go(1) }
                     .buttonStyle(.borderedProminent).disabled(faceStep == .scanning || busy)

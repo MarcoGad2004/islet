@@ -29,6 +29,8 @@ enum IslandLayout {
     static let expandedBodyHeight: CGFloat = 216
     /// Wi-Fi and Bluetooth lists get a taller body so they are not cramped.
     static let expandedListBodyHeight: CGFloat = 300
+    /// Bezel mode: the floating panel's top margin (no notch to clear).
+    static let floatingContentTop: CGFloat = 14
 }
 
 /// What the island is showing. Features set these; the shape morphs between them.
@@ -41,10 +43,12 @@ enum Presentation: Equatable {
 /// - bw/bh: body width/height below the stem
 /// - tr/br: body top and bottom corner radii
 /// - ic: concave inner curve radius where the stem meets the body
+/// - y: top of the shape (bezel mode only: the floating card hangs below the menu bar; 0 everywhere else)
 struct IslandMetrics: Equatable {
     var sw, sh, bw, bh, tr, br, ic: Double
+    var y: Double = 0
 
-    static let channelCount = 7
+    static let channelCount = 8
 
     subscript(i: Int) -> Double {
         get {
@@ -55,7 +59,8 @@ struct IslandMetrics: Equatable {
             case 3: bh
             case 4: tr
             case 5: br
-            default: ic
+            case 6: ic
+            default: y
             }
         }
         set {
@@ -66,7 +71,8 @@ struct IslandMetrics: Equatable {
             case 3: bh = newValue
             case 4: tr = newValue
             case 5: br = newValue
-            default: ic = newValue
+            case 6: ic = newValue
+            default: y = newValue
             }
         }
     }

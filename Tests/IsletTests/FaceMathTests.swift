@@ -90,6 +90,32 @@ final class IslandContentTests: XCTestCase {
         XCTAssertEqual(store.presentation, .wings)
     }
 
+    @MainActor func testBezelModeFloatsUnderTheMenuBar() {
+        let g = NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1440, height: 900), width: 100, height: 34, mode: .bezel, menuBarHeight: 24)
+        XCTAssertEqual(g.floatTop, 34)
+        // Idle: tucked above the edge. Orb: hangs from the edge down to where cards float. Notices: float.
+        let closed = IslandStore.floating(Presentation.closed.metrics(notchWidth: 100, notchHeight: 34), .closed, floatTop: 34)
+        XCTAssertLessThan(closed.y + closed.height, 0)
+        let orb = IslandStore.floating(Presentation.peek.metrics(notchWidth: 100, notchHeight: 34), .peek, floatTop: 34)
+        XCTAssertEqual(orb.y, 0)
+        XCTAssertEqual(orb.height, 64)
+        let panel = IslandStore.floating(Presentation.expanded.metrics(notchWidth: 100, notchHeight: 34), .expanded, floatTop: 34)
+        XCTAssertEqual(panel.y, 34)
+        XCTAssertEqual(panel.sw, panel.bw)
+
+        let store = IslandStore()
+        store.layoutCheck = { true }
+        store.setGeometry(g)
+        // Music doesn't stay up without a notch; a notice still shows.
+        store.setMedia(MediaInfo(bundleID: "x", title: "t", artist: "", album: "", playing: true, duration: 100, elapsed: 0, timestamp: Date(), rate: 1))
+        XCTAssertNil(store.content)
+        store.showCharge(ChargeEvent(kind: .connected, percent: 50))
+        XCTAssertEqual(store.presentation, .wings)
+        // The hover strip in the middle of the menu bar counts as over the island.
+        XCTAssertTrue(store.isOverIsland(globalPoint: CGPoint(x: 720, y: 890)))
+        XCTAssertFalse(store.isOverIsland(globalPoint: CGPoint(x: 300, y: 890)))
+    }
+
     @MainActor func testLockScreenShowsTheLockBar() {
         let store = IslandStore()
         store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))

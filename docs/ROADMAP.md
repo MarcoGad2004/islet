@@ -57,8 +57,9 @@ the unlock animation still ships.
 - [x] Face scan animation (looking, match, no match); visible over the lock screen only if the SkyLight space works (RESEARCH.md Q13)
 
 ## 1.2: Macs without a notch
-- [x] "Without a notch" setting: the island drops down from the menu bar icon (wide-bar notices, panel on click), or off
-- [ ] Try it on a Mac without a notch (tested on a notched Mac with `-IsletNoNotch YES`)
+- [x] "Your Mac" step in setup and Settings: notch or not, and the no-notch style (top edge bubble, menu bar icon, off)
+- [x] Top edge bubble: drop from the edge, floating card, hover strip orb, two-finger swipe to the panel
+- [ ] Try it with "No notch" on the notched Mac, then on a Mac without a notch
 
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status
