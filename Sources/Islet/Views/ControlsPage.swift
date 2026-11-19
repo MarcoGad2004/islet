@@ -5,7 +5,7 @@ import SwiftUI
 /// header, four tiles, two condensed sliders. Tiles and sliders open a detail view in place; nothing grows.
 struct ControlsPage: View {
     let store: IslandStore
-    @State private var detail: ControlDetail?
+    private var detail: ControlDetail? { store.controlDetail }
 
     private let cardColor = Color(hex: 0x1C1C1E)
 
@@ -34,7 +34,7 @@ struct ControlsPage: View {
             }
         }
         #if DEBUG
-        .onAppear { if detail == nil { detail = Self.debugDetail } }
+        .onAppear { if detail == nil, let d = Self.debugDetail { store.setControlDetail(d) } }
         #endif
     }
 
@@ -43,7 +43,7 @@ struct ControlsPage: View {
     private var header: some View {
         HStack(spacing: 10) {
             if let detail {
-                Button { self.detail = nil } label: {
+                Button { store.setControlDetail(nil) } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold))
                         Text(detail.title.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.8)
@@ -89,14 +89,14 @@ struct ControlsPage: View {
                 ControlTile(icon: wifi.powerOn ? "wifi" : "wifi.slash", title: "Wi-Fi",
                             status: wifi.powerOn ? (wifi.ssid ?? "Not connected") : "Off",
                             on: wifi.powerOn, accent: Color(hex: 0x0A84FF),
-                            toggle: { wifi.setPower(!wifi.powerOn) }, open: { detail = .wifi })
+                            toggle: { wifi.setPower(!wifi.powerOn) }, open: { store.setControlDetail(.wifi) })
             }
             if let bt = store.bluetooth {
                 let connected = bt.devices.filter(\.connected)
                 ControlTile(icon: "bluetooth", symbol: false, title: "Bluetooth",
                             status: !bt.powerOn ? "Off" : (connected.count == 1 ? connected[0].name : (connected.isEmpty ? "On" : "\(connected.count) devices")),
                             on: bt.powerOn, accent: Color(hex: 0x0A84FF),
-                            toggle: { bt.setPower(!bt.powerOn) }, open: { detail = .bluetooth })
+                            toggle: { bt.setPower(!bt.powerOn) }, open: { store.setControlDetail(.bluetooth) })
             }
             if let ad = store.airdrop {
                 ControlTile(icon: "dot.radiowaves.left.and.right", title: "AirDrop", status: ad.mode.status,
@@ -105,7 +105,7 @@ struct ControlsPage: View {
             }
             ControlTile(icon: "rectangle.on.rectangle", title: "Mirroring",
                         status: Self.mirroringStatus(), on: false, accent: Color(hex: 0x0A84FF),
-                        toggle: { detail = .mirroring }, open: { detail = .mirroring })
+                        toggle: { store.setControlDetail(.mirroring) }, open: { store.setControlDetail(.mirroring) })
         }
         .frame(height: 74)
     }
@@ -122,9 +122,9 @@ struct ControlsPage: View {
         if let levels = store.levels {
             HStack(spacing: 10) {
                 CondensedSlider(icon: "sun.max.fill", value: levels.brightness, enabled: levels.brightnessAvailable,
-                                set: { levels.setBrightness($0) }, expand: { detail = .display })
+                                set: { levels.setBrightness($0) }, expand: { store.setControlDetail(.display) })
                 CondensedSlider(icon: levels.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", value: levels.muted ? 0 : levels.volume,
-                                enabled: true, set: { levels.setVolume($0) }, expand: { detail = .sound })
+                                enabled: true, set: { levels.setVolume($0) }, expand: { store.setControlDetail(.sound) })
             }
             .frame(height: 52)
         }

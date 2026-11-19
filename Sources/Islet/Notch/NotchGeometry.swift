@@ -9,7 +9,7 @@ struct NotchGeometry: Equatable {
 
     /// Size of the panel that hosts the island: big enough for the largest shape plus overshoot room.
     static let panelWidth: CGFloat = 560
-    var panelHeight: CGFloat { height + IslandLayout.expandedBodyHeight + 24 }
+    var panelHeight: CGFloat { height + IslandLayout.expandedListBodyHeight + 24 }
 
     /// Panel frame in global coordinates, centred at the top of the screen.
     var panelFrame: CGRect {

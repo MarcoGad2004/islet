@@ -22,6 +22,8 @@ enum IslandLayout {
     static let scanHeight: Double = 150
     static let expandedWidth: Double = 500
     static let expandedBodyHeight: CGFloat = 216
+    /// Wi-Fi and Bluetooth lists get a taller body so they are not cramped.
+    static let expandedListBodyHeight: CGFloat = 300
 }
 
 /// What the island is showing. Features set these; the shape morphs between them.
@@ -69,7 +71,7 @@ struct IslandMetrics: Equatable {
 }
 
 extension Presentation {
-    func metrics(notchWidth nw: Double, notchHeight nh: Double) -> IslandMetrics {
+    func metrics(notchWidth nw: Double, notchHeight nh: Double, bodyHeight: Double = Double(IslandLayout.expandedBodyHeight)) -> IslandMetrics {
         typealias L = IslandLayout
         switch self {
         case .closed:
@@ -98,7 +100,7 @@ extension Presentation {
         case .enrol:
             return IslandMetrics(sw: nw, sh: nh, bw: 380, bh: 214, tr: 16, br: 30, ic: 10)
         case .expanded:
-            return IslandMetrics(sw: nw, sh: nh, bw: L.expandedWidth, bh: Double(L.expandedBodyHeight), tr: 16, br: 30, ic: 10)
+            return IslandMetrics(sw: nw, sh: nh, bw: L.expandedWidth, bh: bodyHeight, tr: 16, br: 30, ic: 10)
         }
     }
 }

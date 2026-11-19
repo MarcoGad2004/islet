@@ -12,7 +12,7 @@ struct ExpandedView: View {
             }
         }
         .padding(16)
-        .frame(width: CGFloat(IslandLayout.expandedWidth), height: IslandLayout.expandedBodyHeight)
+        .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight)
     }
 }
 
@@ -23,16 +23,19 @@ private struct MediaPage: View {
 
     var body: some View {
         if let m = store.media, let monitor = store.mediaMonitor {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("NOW PLAYING").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
+                    // Same header as the Control Center details: back to the controls.
+                    Button { store.showControlsPage() } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold))
+                            Text("NOW PLAYING").font(.system(size: 11, weight: .semibold)).tracking(0.8)
+                        }.foregroundStyle(Color.isletSecondary).frame(height: 26)
+                    }.buttonStyle(.plain).help("Back to controls")
                     Spacer()
                     SettingsGear(store: store)
-                    Button { store.collapse() } label: {
-                        Image(systemName: "chevron.up").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
-                            .frame(width: 26, height: 20)
-                    }.buttonStyle(.plain)
-                }
+                }.frame(height: 26)
+                Spacer(minLength: 6)
                 HStack(spacing: 14) {
                     Button { monitor.activatePlayer(); store.collapse() } label: {
                         ArtworkView(image: m.artwork, size: 80, radius: 14, playing: m.playing)
@@ -49,7 +52,9 @@ private struct MediaPage: View {
                         control("forward.fill", 17) { monitor.next() }
                     }
                 }
+                Spacer(minLength: 6)
                 Scrubber(media: m) { monitor.seek(to: $0) }
+                    .padding(.bottom, 2)
             }
         } else {
             Text("Nothing playing").foregroundStyle(Color.isletSecondary).frame(maxWidth: .infinity, maxHeight: .infinity)

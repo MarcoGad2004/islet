@@ -40,7 +40,12 @@ final class IslandAnimator {
         // Channel order: sw sh bw bh tr br ic
         let specs: [(Spring, Double)]
         let widthChange = target.sw - current.sw
-        if (growsBody || shrinksBody) && abs(widthChange) > 40 {
+        if current.bh > 40 && target.bh > 40 && abs(widthChange) < 2 && abs(target.bw - current.bw) < 2 {
+            // The expanded panel changing height (Wi-Fi and Bluetooth lists): it bubbles to the new size, a soft
+            // overshoot and settle, the same spring family as the hover bubble.
+            let bubble = Spring(response: 0.46, damping: 0.55)
+            specs = [(bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0)]
+        } else if (growsBody || shrinksBody) && abs(widthChange) > 40 {
             // Wings <-> chin: one connected morph. The bar pinches in to the notch while the body drops out of
             // it (or the reverse), all on the same spring so nothing lags behind.
             let morph = Spring(response: 0.42, damping: 0.8)

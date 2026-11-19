@@ -10,6 +10,8 @@ final class IslandStore {
     private(set) var base: Presentation?
     private(set) var expanded = false
     private(set) var expandedPage = ExpandedPage.displaySound
+    /// The open detail of the Control Center page. Wi-Fi and Bluetooth make the panel taller.
+    private(set) var controlDetail: ControlDetail?
     private(set) var pointerInside = false
     private(set) var paused = false
     /// Set by the app; the gear in the expanded view calls it.
@@ -59,6 +61,12 @@ final class IslandStore {
     var mediaVisible: Bool { media != nil && mediaFresh && !mediaHidden }
     /// The expanded panel shows the media page only for actively playing media.
     var mediaPlaying: Bool { media?.playing == true }
+
+    /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
+    var expandedBodyHeight: CGFloat {
+        expandedPage == .displaySound && (controlDetail == .wifi || controlDetail == .bluetooth)
+            ? IslandLayout.expandedListBodyHeight : IslandLayout.expandedBodyHeight
+    }
 
     var content: IslandContent? {
         if let unlockStart { return .unlock(start: unlockStart) }
@@ -115,7 +123,7 @@ final class IslandStore {
 
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
-        return presentation.metrics(notchWidth: g.width, notchHeight: g.height)
+        return presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
     }
 
     private func refresh() {
@@ -178,6 +186,7 @@ final class IslandStore {
 
     private func setExpanded(_ value: Bool) {
         expanded = value
+        controlDetail = nil
         leaveTask?.cancel()
         onExpandedChange?(value)
         refresh()
@@ -300,5 +309,12 @@ final class IslandStore {
     }
 
     /// From the mini player: open the full media page.
-    func showMediaPage() { if expanded { expandedPage = .media } }
+    func showMediaPage() { if expanded { controlDetail = nil; expandedPage = .media; refresh() } }
+    func showControlsPage() { if expanded { expandedPage = .displaySound; refresh() } }
+
+    func setControlDetail(_ d: ControlDetail?) {
+        guard controlDetail != d else { return }
+        controlDetail = d
+        refresh()
+    }
 }

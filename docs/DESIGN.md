@@ -227,7 +227,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
   network), Bluetooth device connected (device name, battery if known). The system's own banners for these are
   not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings.
-- Lists scroll inside the fixed panel height. The same hover bubble, morph and fade timings apply.
+- Wi-Fi and Bluetooth details make the panel taller (216 to 300 pt) and it bubbles to the new size with a soft overshoot (the
+  hover-bubble spring family); every other page keeps 216 pt. Lists scroll inside the panel. The Now Playing page has the
+  same header as the details (back arrow to the controls, gear). The same hover bubble, morph and fade timings apply.
 - Any tile whose native control fails on a macOS version falls back to opening its System Settings pane, so a tile
   never becomes a dead button.
 - The system Control Center icon cannot be removed by an app: the owner hides it in System Settings > Control Center
