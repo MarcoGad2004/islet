@@ -28,6 +28,9 @@ targets:
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "18"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
+        NSLocationWhenInUseUsageDescription: "Islet reads nearby Wi-Fi network names for the Wi-Fi control."
+        NSBluetoothAlwaysUsageDescription: "Islet lists and connects your Bluetooth devices from the notch."
+        NSAppleEventsUsageDescription: "Islet toggles Dark Mode through System Events."
         NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
     postBuildScripts:
@@ -40,6 +43,9 @@ targets:
       properties:
         com.apple.security.app-sandbox: false
         com.apple.security.device.camera: true
+        com.apple.security.device.bluetooth: true
+        com.apple.security.personal-information.location: true
+        com.apple.security.automation.apple-events: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet

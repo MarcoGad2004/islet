@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
         case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
         case "volume": notch.store.showLevel(LevelState(kind: .volume, value: 0.5))
+        case "spike": runSpike()
         case "levelwide":
             notch.store.layoutCheck = { true }
             notch.store.recomputeLayout()
@@ -128,6 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             i.target = self
             i.tag = tag
         }
+        let spike = sub.addItem(withTitle: "Run Control Center spike (M10)", action: #selector(runSpike), keyEquivalent: "")
+        spike.target = self
         debug.submenu = sub
         menu.addItem(debug)
 
@@ -145,6 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarShown = show
         statusItem?.isVisible = show
     }
+
+    #if DEBUG
+    private var controlSpike: ControlSpike?
+    @objc private func runSpike() {
+        let s = ControlSpike(); controlSpike = s
+        Task { await s.run() }
+    }
+    #endif
 
     @objc private func openSettings() { settings.show() }
 

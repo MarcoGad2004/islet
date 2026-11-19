@@ -73,22 +73,26 @@ If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation stil
   Brightness uses private DisplayServices (`DisplayServicesGet/SetBrightness`), which works for the
   built-in display.
 
-## Control Center page (v1.1 spike, not yet run)
-Desk research only (web, 2026-11-19); verify each on this Mac before building.
-- **Q16 Wi-Fi.** CoreWLAN is public: power, scan, associate. Network names need Location Services and an authorised,
-  properly bundled app; some reports of nil SSIDs even when authorised (macOS 15.1). Turning Wi-Fi off may ask for an
-  admin password.
-- **Q17 Bluetooth.** IOBluetooth lists paired devices and connects them (public). Power on/off is private
-  (IOBluetoothPreference*, what blueutil uses); reported flaky on macOS 26.
-- **Q18 Focus.** No public set API. State is readable from ~/Library/DoNotDisturb/DB (Assertions.json,
-  ModeConfigurations.json; may need Full Disk Access). Setting works through a Shortcuts "Set Focus" shortcut run
-  with `shortcuts run`; editing the files does not switch Focus.
-- **Q19 AirDrop.** `com.apple.sharingd DiscoverableMode` (Everyone / Contacts Only / Off) is folklore and may be
-  ignored by current macOS. Opening the AirDrop window is easy.
-- **Q20 Screen mirroring.** No public AirPlay target picker; wired and Sidecar mirroring is public
-  (CGConfigureDisplayMirrorOfDisplay). Otherwise private APIs or opening the system picker.
-- **Q21 Display toggles.** Dark Mode (AppleScript/System Events), Night Shift and True Tone (private CoreBrightness),
-  keyboard backlight (private). Each needs a probe.
+## Control Center page (v1.1 spike)
+Read-only probes run on the owner's Mac (macOS 27.2.1, 2026-11-19, `ControlSpike`, debug launch arg `-IsletDebugShape spike`).
+Writes (toggling, joining, connecting) are not yet tested; they change the user's settings and need the owner's OK.
+- **Q16 Wi-Fi: reads work.** After the Location prompt (granted), CoreWLAN returned the connected SSID and RSSI, a scan of
+  16 networks all with names (13 secured), and 151 known networks. Writes untested: `setPower` (drops the connection,
+  may want admin), `associate` (secured networks need a password; known ones may join from the keychain).
+- **Q17 Bluetooth: reads work, power private symbols present.** `IOBluetoothDevice.pairedDevices()` listed 7 devices with
+  connected state and no extra prompt; CBManager authorization stayed "not determined" so IOBluetooth is not gated by it.
+  `IOBluetoothPreferenceGet/SetControllerPowerState` both resolve (read returned 1). Connect/disconnect and power set untested.
+- **Q18 Focus: reading the DB needs Full Disk Access.** `~/Library/DoNotDisturb/DB/*.json` were not readable (permission
+  denied). `shortcuts list` works (8 shortcuts, none is a plain Set Focus one). So: read state would need Full Disk Access
+  (heavy ask) or another source; set works only through a shortcut the user creates or the app installs.
+- **Q19 AirDrop: mode is readable.** `defaults read com.apple.sharingd DiscoverableMode` returned "Contacts Only". Whether
+  writing it takes effect on this macOS is untested; `airdrop://` has no handler, so "open AirDrop" needs another route.
+- **Q20 Mirroring:** one display, built in. No public AirPlay target list; the plan stays "open the system picker" unless a
+  private route is found.
+- **Q21 Display toggles: all present.** CoreBrightness loads. `CBBlueLightClient` status call works (Night Shift active=1,
+  enabled=0) and has `setEnabled:`/`setActive:`. `CBTrueToneClient` has supported/available/enabled (all true) and
+  `setEnabled:`. `KeyboardBrightnessClient` exists. Dark Mode reads via `AppleInterfaceStyle` and via System Events (Automation
+  prompt granted); setting is untested.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423.
 
