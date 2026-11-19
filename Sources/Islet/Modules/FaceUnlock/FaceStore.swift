@@ -35,36 +35,78 @@ enum KeychainStore {
 @MainActor @Observable
 final class FaceStore {
     private static let facesAccount = "face-embeddings"
+    private static let learnedAccount = "face-learned"
     private static let passwordAccount = "login-password"
     private static let thresholdKey = "faceUnlockThreshold"
+    private static let requireBlinkKey = "faceUnlockRequireBlink"
+    private static let learnKey = "faceUnlockLearn"
+    private static let brightenKey = "faceUnlockBrighten"
+    /// Learned looks kept on top of the enrolment; the oldest is dropped past this.
+    static let maxLearned = 24
 
+    /// The enrolment scan. Never changed by learning.
     private(set) var embeddings: [[Float]] = []
+    /// Looks added from successful, live unlocks (new lighting, glasses, haircut). Each one had to match the
+    /// enrolment itself, comfortably above the threshold, so the set can't drift towards someone else.
+    private(set) var learned: [[Float]] = []
     private(set) var hasPassword = false
     /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition".
     var threshold: Float {
         didSet { UserDefaults.standard.set(threshold, forKey: Self.thresholdKey) }
     }
 
+    /// Only unlock after a blink, so a still photo can't.
+    var requireBlink: Bool { didSet { UserDefaults.standard.set(requireBlink, forKey: Self.requireBlinkKey) } }
+    /// Add new looks from successful unlocks.
+    var learnFromUnlocks: Bool { didSet { UserDefaults.standard.set(learnFromUnlocks, forKey: Self.learnKey) } }
+    /// Raise the screen brightness while scanning in a dark room.
+    var brightenInDark: Bool { didSet { UserDefaults.standard.set(brightenInDark, forKey: Self.brightenKey) } }
+
     var isEnrolled: Bool { !embeddings.isEmpty }
     var isReady: Bool { isEnrolled && hasPassword }
+    /// What a scan compares against.
+    var allEmbeddings: [[Float]] { embeddings + learned }
 
     init() {
+        UserDefaults.standard.register(defaults: [Self.requireBlinkKey: true, Self.learnKey: true, Self.brightenKey: true])
         let t = UserDefaults.standard.float(forKey: Self.thresholdKey)
         threshold = t > 0 ? t : 0.45
+        requireBlink = UserDefaults.standard.bool(forKey: Self.requireBlinkKey)
+        learnFromUnlocks = UserDefaults.standard.bool(forKey: Self.learnKey)
+        brightenInDark = UserDefaults.standard.bool(forKey: Self.brightenKey)
         reload()
     }
 
     func reload() {
-        if let data = KeychainStore.load(account: Self.facesAccount),
-           let list = try? JSONDecoder().decode([[Float]].self, from: data) { embeddings = list } else { embeddings = [] }
+        embeddings = Self.loadList(Self.facesAccount)
+        learned = Self.loadList(Self.learnedAccount)
         hasPassword = KeychainStore.load(account: Self.passwordAccount) != nil
     }
 
+    private static func loadList(_ account: String) -> [[Float]] {
+        KeychainStore.load(account: account).flatMap { try? JSONDecoder().decode([[Float]].self, from: $0) } ?? []
+    }
+
+    /// A new enrolment replaces the old one and forgets what was learned on top of it.
     func saveEmbeddings(_ list: [[Float]]) -> Bool {
         guard let data = try? JSONEncoder().encode(list), KeychainStore.save(data, account: Self.facesAccount) else { return false }
         embeddings = list
+        forgetLearned()
         return true
     }
+
+    /// Learns from a live, successful unlock. Returns true when the sample was kept.
+    @discardableResult func learn(_ sample: [Float]) -> Bool {
+        guard learnFromUnlocks, isEnrolled,
+              FaceLearning.shouldLearn(sample, enrolled: embeddings, learned: learned, threshold: threshold) else { return false }
+        var list = learned + [sample]
+        if list.count > Self.maxLearned { list.removeFirst(list.count - Self.maxLearned) }
+        guard let data = try? JSONEncoder().encode(list), KeychainStore.save(data, account: Self.learnedAccount) else { return false }
+        learned = list
+        return true
+    }
+
+    func forgetLearned() { KeychainStore.delete(account: Self.learnedAccount); learned = [] }
 
     func savePassword(_ password: String) -> Bool {
         let ok = KeychainStore.save(Data(password.utf8), account: Self.passwordAccount)
@@ -75,9 +117,25 @@ final class FaceStore {
     /// The stored login password, for the unlock service only.
     func password() -> String? { KeychainStore.load(account: Self.passwordAccount).flatMap { String(data: $0, encoding: .utf8) } }
 
-    func removeFace() { KeychainStore.delete(account: Self.facesAccount); embeddings = [] }
+    func removeFace() { KeychainStore.delete(account: Self.facesAccount); embeddings = []; forgetLearned() }
     func removePassword() { KeychainStore.delete(account: Self.passwordAccount); hasPassword = false }
     func removeAll() { removeFace(); removePassword() }
+}
+
+/// The rules for adding a learned look. Pure, so they can be tested.
+enum FaceLearning {
+    /// How far above the threshold a sample must score against the enrolment itself to be learned.
+    static let margin: Float = 0.08
+    /// A sample this similar to one already kept adds nothing new.
+    static let redundant: Float = 0.92
+
+    static func shouldLearn(_ sample: [Float], enrolled: [[Float]], learned: [[Float]], threshold: Float) -> Bool {
+        guard !enrolled.isEmpty else { return false }
+        // Anchored to the enrolment, not to earlier learned looks, so learning can't creep away from your face.
+        guard FaceMatcher.score(sample, enrolled: enrolled) >= threshold + margin else { return false }
+        let nearest = (enrolled + learned).map { FaceMatcher.cosine(sample, $0) }.max() ?? 0
+        return nearest < redundant
+    }
 }
 
 enum IdentityCheck {

@@ -3,6 +3,20 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.1.1 (unreleased)
+
+**Face unlock**
+- Photo protection: a face has to blink before it unlocks (Settings, on by default), and a face inside the edge of a
+  held-up photo, phone or tablet is refused. The scan shows "Blink to unlock" while it waits.
+- Learns from successful unlocks: a live unlock that matched your original scan well is kept as an extra look (up to 24),
+  so new light, glasses or a haircut are recognized. "Forget learned looks" is in Settings; scanning again resets them.
+- In a dark room the screen eases brighter to light your face during the scan, then eases back.
+- Test recognition shows whether a blink was seen, a photo edge, and the light level.
+
+**Volume and brightness**
+- The bar glides between levels on a spring, and the number rolls up or down. The Control Center sliders and their
+  percentages animate the same way when you press the keys.
+
 ## 1.1 (2026-11-19)
 
 **Control Center in the notch**

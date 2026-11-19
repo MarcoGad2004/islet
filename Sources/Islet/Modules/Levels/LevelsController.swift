@@ -20,6 +20,9 @@ final class LevelsController {
     @ObservationIgnored fileprivate var tap: CFMachPort?
     @ObservationIgnored private var displayID: CGDirectDisplayID = CGMainDisplayID()
     @ObservationIgnored private let displayServices = DisplayServices()
+    /// Brightness to return to after a face scan raised it; nil when nothing is raised.
+    @ObservationIgnored private var boostRestore: Double?
+    @ObservationIgnored private var rampTask: Task<Void, Never>?
 
     // MARK: Setup
 
@@ -104,6 +107,8 @@ final class LevelsController {
     }
 
     private func brightnessKey(up: Bool, fine: Bool) {
+        // The owner took over: stop any face-scan ramp and keep whatever they choose.
+        rampTask?.cancel(); boostRestore = nil
         let n = fine ? 64.0 : 16.0
         let step = ((displayServices.get(displayID).map(Double.init) ?? brightness) * n).rounded()
         let b = (up ? min(n, step + 1) : max(0, step - 1)) / n
@@ -124,7 +129,46 @@ final class LevelsController {
         Audio.setMuted(m); muted = m
     }
 
-    func setBrightness(_ b: Double) { displayServices.set(displayID, Float(b)); brightness = b }
+    func setBrightness(_ b: Double) {
+        rampTask?.cancel(); boostRestore = nil
+        displayServices.set(displayID, Float(b)); brightness = b
+    }
+
+    // MARK: Face scan light
+
+    /// Face unlock in a dark room: ease the screen up so it lights the face. Does nothing when already raised
+    /// or the screen is already at least that bright.
+    func boostForFaceScan(to target: Double = 1.0, over seconds: Double = 1.4) {
+        guard boostRestore == nil, displayServices.available, let now = displayServices.get(displayID).map(Double.init),
+              now < target - 0.02 else { return }
+        boostRestore = now
+        ramp(from: now, to: target, over: seconds)
+    }
+
+    /// Ease back to the brightness from before the scan.
+    func endFaceScanBoost(over seconds: Double = 1.0) {
+        guard let restore = boostRestore else { return }
+        boostRestore = nil
+        let now = displayServices.get(displayID).map(Double.init) ?? brightness
+        ramp(from: now, to: restore, over: seconds)
+    }
+
+    private func ramp(from a: Double, to b: Double, over seconds: Double) {
+        rampTask?.cancel()
+        let display = displayID, services = displayServices
+        rampTask = Task { [weak self] in
+            let start = Date()
+            while !Task.isCancelled {
+                let t = min(Date().timeIntervalSince(start) / seconds, 1)
+                let e = t * t * (3 - 2 * t) // ease in and out
+                let v = a + (b - a) * e
+                services.set(display, Float(v))
+                self?.brightness = v
+                if t >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+        }
+    }
 
     func selectOutput(_ device: OutputDevice) {
         Audio.setDefaultOutput(device.id)

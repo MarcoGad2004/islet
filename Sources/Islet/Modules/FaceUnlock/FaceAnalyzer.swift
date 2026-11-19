@@ -11,6 +11,10 @@ struct FaceAnalysis: @unchecked Sendable {
     var boxWidth: Double
     /// Eyes, nose, mouth corners in image coordinates (bottom-left origin), ordered left to right.
     var points: [CGPoint]
+    /// Eye height over eye width along the eye axis, both eyes averaged. Drops sharply during a blink.
+    var eyeOpenness: Double
+    /// The face sits inside a rectangle that hugs it: the edge of a held-up photo, phone or tablet.
+    var framed: Bool
     var pixelBuffer: CVPixelBuffer
 
     /// The 112x112 ArcFace-aligned crop, rendered on demand.
@@ -21,7 +25,13 @@ struct FaceAnalysis: @unchecked Sendable {
 struct FaceAnalyzer: Sendable {
     func analyze(_ pb: CVPixelBuffer) -> FaceAnalysis? {
         let request = VNDetectFaceLandmarksRequest()
-        guard (try? VNImageRequestHandler(cvPixelBuffer: pb).perform([request])) != nil,
+        let rects = VNDetectRectanglesRequest()
+        rects.minimumSize = 0.15
+        rects.maximumObservations = 6
+        rects.minimumConfidence = 0.6
+        rects.minimumAspectRatio = 0.3
+        rects.quadratureTolerance = 25
+        guard (try? VNImageRequestHandler(cvPixelBuffer: pb).perform([request, rects])) != nil,
               let face = request.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
               let lm = face.landmarks else { return nil }
 
@@ -44,11 +54,80 @@ struct FaceAnalyzer: Sendable {
         let mouthMid = CGPoint(x: (m1.x + m2.x) / 2, y: (m1.y + m2.y) / 2)
         let baseline = (eyeMid.y + mouthMid.y) / 2
 
+        // Eye openness measured along the eye axis, so head roll doesn't change it.
+        let ux = (eR.x - eL.x) / eyeDist, uy = (eR.y - eL.y) / eyeDist
+        func openness(_ p: [CGPoint]) -> Double? {
+            guard p.count >= 4 else { return nil }
+            let along = p.map { $0.x * ux + $0.y * uy }, across = p.map { -$0.x * uy + $0.y * ux }
+            guard let a0 = along.min(), let a1 = along.max(), let c0 = across.min(), let c1 = across.max(), a1 - a0 > 1 else { return nil }
+            return Double((c1 - c0) / (a1 - a0))
+        }
+        let eyes = [openness(pts(lm.leftEye)), openness(pts(lm.rightEye))].compactMap { $0 }
+        let eyeOpenness = eyes.isEmpty ? 0 : eyes.reduce(0, +) / Double(eyes.count)
+
+        let framed = (rects.results ?? []).contains { PhotoCheck.hugs(face.boundingBox, $0.boundingBox) }
+
         return FaceAnalysis(proxyX: Double((nose.x - eyeMid.x) / eyeDist),
                             proxyY: Double((nose.y - baseline) / eyeDist),
                             boxWidth: Double(face.boundingBox.width),
                             points: [eL, eR, nose, m1, m2],
+                            eyeOpenness: eyeOpenness,
+                            framed: framed,
                             pixelBuffer: pb)
+    }
+}
+
+/// Anti-spoofing signals that work with a plain 2D webcam. Neither is proof on its own; together they stop the easy
+/// attacks (a printed photo, a picture on a phone or tablet).
+enum PhotoCheck {
+    /// True when `rect` (a straight-edged quad Vision found) encloses the face snugly: a photo print or a screen
+    /// held up to the camera. A real head in front of a picture frame or monitor usually hides the rectangle's bottom
+    /// edge behind the neck and shoulders, so Vision doesn't see a closed quad there. Normalized coordinates.
+    static func hugs(_ face: CGRect, _ rect: CGRect) -> Bool {
+        guard rect.width < 0.95 || rect.height < 0.95 else { return false } // the whole frame isn't a photo edge
+        guard rect.insetBy(dx: -0.02, dy: -0.02).contains(face) else { return false }
+        return face.width / rect.width >= 0.25 && face.height / rect.height >= 0.18
+    }
+}
+
+/// A blink is the eyes closing well below their open level, then opening again. A printed photo can't do it;
+/// a video on a phone can, which is what the rectangle check above is for.
+struct BlinkDetector {
+    private var peak = 0.0
+    private var frames = 0
+    private var closed = false
+    private(set) var blinked = false
+
+    mutating func reset() { self = BlinkDetector() }
+
+    mutating func add(_ openness: Double) {
+        guard openness > 0 else { return }
+        frames += 1
+        // The open level follows the largest recent value and decays slowly, so a squint or a head turn
+        // doesn't leave it stuck high.
+        peak = max(openness, peak * 0.985)
+        guard frames >= 4 else { return }
+        if openness < peak * 0.6 { closed = true } else if closed && openness > peak * 0.82 { blinked = true; closed = false }
+    }
+}
+
+/// Mean brightness of a BGRA frame, 0...1, from a sparse grid of pixels.
+enum FrameLight {
+    static func luma(_ pb: CVPixelBuffer) -> Double? {
+        guard CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA else { return nil }
+        CVPixelBufferLockBaseAddress(pb, .readOnly); defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pb) else { return nil }
+        let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb), row = CVPixelBufferGetBytesPerRow(pb)
+        let p = base.assumingMemoryBound(to: UInt8.self)
+        var sum = 0.0, n = 0.0
+        for y in stride(from: h / 24, to: h, by: max(h / 12, 1)) {
+            for x in stride(from: w / 32, to: w, by: max(w / 16, 1)) {
+                let o = y * row + x * 4
+                sum += 0.114 * Double(p[o]) + 0.587 * Double(p[o + 1]) + 0.299 * Double(p[o + 2])
+                n += 1
+            }
+        }
+        return n > 0 ? sum / n / 255 : nil
     }
 }
 

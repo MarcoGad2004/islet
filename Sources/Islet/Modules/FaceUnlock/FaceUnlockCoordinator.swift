@@ -26,6 +26,12 @@ final class FaceUnlockCoordinator {
     private(set) var enrolment: EnrolmentModel?
     private(set) var testScore: Float?
     private(set) var testingFace = false
+    /// Test recognition: a blink was seen since the test started.
+    private(set) var testBlinked = false
+    /// Test recognition: the face is inside a photo or screen edge right now.
+    private(set) var testFramed = false
+    /// Test recognition: mean camera brightness, 0...1.
+    private(set) var testLight: Double?
     private(set) var modelAvailable = false
 
     private let island: IslandStore
@@ -120,19 +126,30 @@ final class FaceUnlockCoordinator {
         guard await FaceCamera.requestAccess() else { return "Camera access is off." }
         stopCamera()
         testScore = nil
+        testBlinked = false; testFramed = false; testLight = nil
         testingFace = true
-        let enrolled = faces.embeddings
+        let enrolled = faces.allEmbeddings
         let analyzer = self.analyzer
-        let counter = FrameCounter(every: 4)
+        // Every other frame: often enough to catch a blink (~100-150 ms).
+        let counter = FrameCounter(every: 2)
+        let blink = TestBlink()
         let camera = FaceCamera()
         do {
             try camera.start { [weak self] pb in
                 guard counter.shouldProcess() else { return }
-                var score: Float?
-                if let a = analyzer.analyze(pb), a.boxWidth > 0.14, let img = a.alignedImage(), let e = embedder.embed(img) {
+                var score: Float?, framed = false
+                let a = analyzer.analyze(pb)
+                if let a, a.boxWidth > 0.14, let img = a.alignedImage(), let e = embedder.embed(img) {
                     score = FaceMatcher.score(e, enrolled: enrolled)
+                    framed = a.framed
                 }
-                Task { @MainActor in self?.testScore = score }
+                let blinked = blink.add(a?.eyeOpenness)
+                let light = FrameLight.luma(pb)
+                Task { @MainActor in
+                    guard let self, self.testingFace else { return }
+                    self.testScore = score; self.testFramed = framed; self.testLight = light
+                    if blinked { self.testBlinked = true }
+                }
             }
         } catch { testingFace = false; return "Couldn't start the camera." }
         self.camera = camera
@@ -143,9 +160,21 @@ final class FaceUnlockCoordinator {
         stopCamera()
         testingFace = false
         testScore = nil
+        testBlinked = false; testFramed = false; testLight = nil
     }
 
     private func stopCamera() { camera?.stop(); camera = nil }
+}
+
+/// A blink detector the camera queue can share.
+final class TestBlink: @unchecked Sendable {
+    private var detector = BlinkDetector()
+    private let lock = NSLock()
+    func add(_ openness: Double?) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if let openness { detector.add(openness) }
+        return detector.blinked
+    }
 }
 
 /// Lets every Nth camera frame through (cheap thread-safe counter).

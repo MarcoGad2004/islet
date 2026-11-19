@@ -53,6 +53,16 @@ lock screen. Each question below can block it:
     Options: a Core ML face-embedding model (check its licence) compared against the enrolled
     embedding; or Vision feature prints on the aligned face crop (likely weaker). Add a simple
     liveness check (e.g. a blink via eye landmarks) to resist a photo.
+    **1.1.1:** two checks built, both for a plain 2D webcam (no depth or IR, so neither is Face ID grade):
+    a blink (eye height over width along the eye axis drops below 60% of its recent open level, then
+    recovers above 82%), and a rectangle check (Vision `VNDetectRectanglesRequest` finds a quad that
+    snugly encloses the face: a print, phone or tablet edge; 4 of the last 10 frames). A video of the
+    owner blinking on a screen held so its edges are out of frame could still pass. Unverified: how far
+    Vision's eye contour actually closes on a blink; Settings → Test recognition shows "Blink seen" to
+    check it. Learning keeps up to 24 extra embeddings from live unlocks that score ≥ threshold + 0.08
+    against the original enrolment (not against learned ones, so it can't drift) and aren't near-duplicates
+    (cosine < 0.92). It helps recognition in new conditions; false positives are held back by the anchor
+    rule, the liveness checks and the threshold, not by learning itself.
 15. **Keychain**: store the password as a generic password item only this app can read; never log it.
 
 If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation still ships.

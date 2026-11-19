@@ -91,12 +91,19 @@ private struct WidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// The 16-step bar (steps 9 x 6 pt, 3 pt gaps).
-struct StepBar: View {
+/// The 16-step bar (steps 9 x 6 pt, 3 pt gaps). The fill is one animatable value, so a change glides across the
+/// steps on a spring instead of each step snapping on or off.
+struct StepBar: View, Animatable {
     /// 0...1; the last lit step is partly filled between whole steps (fine adjustment).
     var value: Double
     var muted: Bool
     var stepWidth: CGFloat = 9
+
+    nonisolated var animatableData: Double {
+        get { value }
+        set { value = newValue }
+    }
+
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<16, id: \.self) { i in
@@ -109,7 +116,29 @@ struct StepBar: View {
                 .frame(width: stepWidth, height: 6)
             }
         }
-        .animation(.easeOut(duration: 0.12), value: value)
+        .animation(.easeOut(duration: 0.2), value: muted)
+    }
+}
+
+/// The spring the level HUD uses for the bar and the rolling number.
+extension Animation {
+    static let levelGlide = Animation.spring(response: 0.32, dampingFraction: 0.82)
+}
+
+/// A percentage whose digits roll up or down to the new value.
+struct RollingNumber: View {
+    var value: Double
+    var off = false
+    var suffix = ""
+    var size: CGFloat = 13
+
+    var body: some View {
+        let n = Int((value * 100).rounded())
+        Text(off ? "Off" : "\(n)\(suffix)")
+            .font(.system(size: size, weight: .semibold)).monospacedDigit()
+            .contentTransition(.numericText(value: off ? -1 : Double(n)))
+            .animation(.levelGlide, value: n)
+            .animation(.levelGlide, value: off)
     }
 }
 

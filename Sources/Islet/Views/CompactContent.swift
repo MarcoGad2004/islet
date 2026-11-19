@@ -30,6 +30,7 @@ struct CompactContentView: View {
                         // 16 steps spanning the bar with the same side inset as the icon and number above.
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
                         StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16)
+                            .animation(.levelGlide, value: l.value)
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
                     }
                 }
@@ -54,6 +55,7 @@ struct CompactContentView: View {
         case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.checkInset)
         case .level(let l):
             Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l))
                 .frame(width: 18).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
         case .locked: EmptyView()
         case .event(let e):
@@ -71,8 +73,7 @@ struct CompactContentView: View {
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level(let l):
-            Text(l.muted ? "Off" : "\(Int((l.value * 100).rounded()))")
-                .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+            RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .event(let e):
             Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
@@ -103,11 +104,11 @@ struct CompactContentView: View {
             }
         case .level(let l):
             HStack(spacing: 10) {
-                Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).frame(width: 18)
-                StepBar(value: l.value, muted: l.muted)
+                Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                    .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l)).frame(width: 18)
+                StepBar(value: l.value, muted: l.muted).animation(.levelGlide, value: l.value)
                 Spacer(minLength: 2)
-                Text(l.muted ? "Off" : "\(Int((l.value * 100).rounded()))")
-                    .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
                     .frame(width: 30, alignment: .trailing)
             }
         case .event(let e):

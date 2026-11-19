@@ -116,6 +116,10 @@ struct SettingsView: View {
             }
             Divider()
             testSection
+            if face.faces.isEnrolled {
+                Divider()
+                protectionSection
+            }
             Spacer(minLength: 0)
         }
         .padding(24)
@@ -218,8 +222,8 @@ struct SettingsView: View {
                 }.disabled(!face.faces.isEnrolled || face.isEnrolling)
                 if face.testingFace {
                     if let score = face.testScore {
-                        let match = score >= face.faces.threshold
-                        Label(String(format: "%.2f  %@", score, match ? "Match" : "No match"),
+                        let match = score >= face.faces.threshold && !face.testFramed
+                        Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : match ? "Match" : "No match"),
                               systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
                             .foregroundStyle(match ? .green : .red).monospacedDigit()
                     } else {
@@ -227,14 +231,43 @@ struct SettingsView: View {
                     }
                 }
             }
+            if face.testingFace {
+                HStack(spacing: 16) {
+                    Label(face.testBlinked ? "Blink seen" : "Blink once", systemImage: face.testBlinked ? "eye.fill" : "eye")
+                        .foregroundStyle(face.testBlinked ? .green : .secondary)
+                    if let light = face.testLight {
+                        Label(String(format: "Light %.2f%@", light, light < 0.25 ? " (dark)" : ""), systemImage: "sun.min")
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    }
+                }
+                .font(.callout)
+            }
             HStack {
                 Text("Match threshold").foregroundStyle(.secondary)
                 Slider(value: Binding(get: { Double(face.faces.threshold) }, set: { face.faces.threshold = Float($0) }),
                        in: 0.25...0.75)
                 Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 40)
             }
-            Text("Try your face, then someone else's. Set the threshold between the two scores.")
-                .font(.caption).foregroundStyle(.secondary)
+            Text("Try your face, then someone else's. Set the threshold between the two scores. Hold up a photo of yourself: it should say Photo edge, or never see a blink.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var protectionSection: some View {
+        let faces = face.faces
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Protection and learning").font(.headline)
+            Toggle("Require a blink (stops a still photo)", isOn: Binding(get: { faces.requireBlink }, set: { faces.requireBlink = $0 }))
+            Toggle("Brighten the screen to light my face in the dark", isOn: Binding(get: { faces.brightenInDark }, set: { faces.brightenInDark = $0 }))
+            Toggle("Learn from successful unlocks", isOn: Binding(get: { faces.learnFromUnlocks }, set: { faces.learnFromUnlocks = $0 }))
+            HStack {
+                Text(faces.learned.isEmpty ? "No looks learned yet" : "\(faces.learned.count) of \(FaceStore.maxLearned) looks learned")
+                    .font(.callout).foregroundStyle(.secondary).monospacedDigit()
+                Spacer()
+                if !faces.learned.isEmpty { Button("Forget learned looks") { faces.forgetLearned() } }
+            }
+            Text("A photo or phone held up to the camera is always refused. Learning only keeps unlocks that included a blink and matched your original scan well, so it adapts to new light, glasses or a haircut without drifting.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 

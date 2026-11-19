@@ -51,7 +51,8 @@ the unlock animation still ships.
 
 ## M8: Face unlock (M2 passed except Q13: the scan has no visuals over the lock screen)
 - [x] Settings: enrol face (after Touch ID/password), store login password in the Keychain (island enrolment animation, test recognition and threshold slider included)
-- [x] On lock: scan, match, type password; 3 tries (needs a real lock test; blink liveness still to do)
+- [x] On lock: scan, match, type password; 3 tries (needs a real lock test)
+- [x] 1.1.1: blink liveness, photo/phone edge check, learning from live unlocks, dark-room brightness ramp (all need testing on the Mac)
 - [x] Face scan animation (looking, match, no match); visible over the lock screen only if the SkyLight space works (RESEARCH.md Q13)
 
 ## M9: Polish

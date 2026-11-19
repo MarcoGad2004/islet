@@ -328,7 +328,7 @@ struct SliderCard: View {
                 Image(systemName: icon).font(.system(size: large ? 15 : 13, weight: .semibold)).frame(width: large ? 22 : 20)
             }.buttonStyle(.plain)
             ValueSlider(value: value, height: large ? 14 : 8, enabled: enabled, onChange: set, onTap: large ? nil : expand)
-            Text("\(Int((value * 100).rounded()))%").font(.system(size: large ? 13 : 12, weight: .semibold)).monospacedDigit()
+            RollingNumber(value: value, suffix: "%", size: large ? 13 : 12)
                 .frame(width: large ? 42 : 38, alignment: .trailing)
         }
         .foregroundStyle(Color.isletText)
@@ -355,6 +355,8 @@ struct ValueSlider: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color(hex: 0x48484A))
                 Capsule().fill(Color.white).frame(width: max(height, w * CGFloat(min(max(value, 0), 1))))
+                    // Keys and outside changes glide; a drag follows the pointer directly.
+                    .animation(dragged ? nil : .levelGlide, value: value)
             }
             .frame(height: height)
             .frame(maxHeight: .infinity)

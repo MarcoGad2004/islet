@@ -8,6 +8,8 @@ final class ScanModel {
     enum Phase: Equatable { case looking, match, noMatch, failed(String) }
     var phase = Phase.looking
     var faceVisible = false
+    /// The face matches; it only needs to blink (photo protection).
+    var waitingForBlink = false
     /// Bumped on each "not recognized" so the grid shakes.
     var shakes = 0
     /// When the face matched: the lock starts opening shortly after, and the check flies left at `flown`.
@@ -16,7 +18,7 @@ final class ScanModel {
 
     var label: String {
         switch phase {
-        case .looking: return faceVisible ? "Checking" : "Looking for you"
+        case .looking: return !faceVisible ? "Looking for you" : waitingForBlink ? "Blink to unlock" : "Checking"
         case .match: return "Welcome back"
         case .noMatch: return "Not recognized"
         case .failed(let message): return message
@@ -34,6 +36,8 @@ final class FaceUnlockService {
     /// Match -> check flies at 0.65 s (the shape folds into the wide bar) -> hold ~2 s -> disappear.
     private static let sequenceLength = 0.65 + 0.5 + 2.0
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
+    /// Mean camera brightness below this (a few samples in a row) counts as a dark room.
+    private static let darkLuma = 0.25
 
     var enabled: Bool { didSet { UserDefaults.standard.set(enabled, forKey: Self.enabledKey); if !enabled { stop(collapseAfter: 0) } } }
     /// The stored password was typed and the Mac stayed locked: stop typing it until it is re-entered.
@@ -52,6 +56,10 @@ final class FaceUnlockService {
     private var model: ScanModel?
     private var timeout: Task<Void, Never>?
     private var unlockWaiter: CheckedContinuation<Bool, Never>?
+    /// The live matching sample, learned once the Mac actually unlocks.
+    private var pendingLearn: [Float]?
+    private var darkSamples = 0
+    private var brightened = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
 
     init(owner: FaceUnlockCoordinator, island: IslandStore) {
@@ -105,6 +113,12 @@ final class FaceUnlockService {
         locked = false
         syncLockScreen()
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
+        if model?.matchedAt != nil, !simulated, let sample = pendingLearn {
+            // The password went in and the Mac opened: the live sample really was the owner.
+            let kept = owner.faces.learn(sample)
+            Self.log.info("learned=\(kept) looks=\(self.owner.faces.learned.count)")
+        }
+        pendingLearn = nil
         if let model, let matched = model.matchedAt {
             // Face unlock: the scan sequence is the unlock animation. Let it finish (1.8 s from the match).
             stop(collapseAfter: max(0, matched.addingTimeInterval(Self.sequenceLength).timeIntervalSinceNow))
@@ -144,15 +158,20 @@ final class FaceUnlockService {
             island.scan = model
             island.setBase(.scan)
 
-            let engine = ScanEngine(embedder: embedder, enrolled: owner.faces.embeddings, threshold: owner.faces.threshold) { event in
+            let faces = owner.faces
+            let engine = ScanEngine(embedder: embedder, enrolled: faces.allEmbeddings, threshold: faces.threshold,
+                                    requireBlink: faces.requireBlink) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine
+            pendingLearn = nil
+            darkSamples = 0
             let analyzer = owner.analyzer
             let camera = FaceCamera()
+            let lightCounter = FrameCounter(every: 6)
             do {
                 try camera.start { pb in
-                    engine.handle(analyzer.analyze(pb))
+                    engine.handle(analyzer.analyze(pb), light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
                 }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
@@ -171,8 +190,14 @@ final class FaceUnlockService {
         switch event {
         case .face(let visible):
             model.faceVisible = visible
-        case .match(let score):
-            Self.log.info("match score=\(score)")
+        case .waitingForBlink(let waiting):
+            model.waitingForBlink = waiting
+        case .light(let luma):
+            brightenIfDark(luma)
+        case .match(let score, let embedding, let live):
+            Self.log.info("match score=\(score) live=\(live)")
+            model.waitingForBlink = false
+            pendingLearn = live ? embedding : nil
             model.phase = .match
             model.matchedAt = Date()
             camera?.stop(); camera = nil
@@ -196,6 +221,16 @@ final class FaceUnlockService {
                 }
             }
         }
+    }
+
+    /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.
+    private func brightenIfDark(_ luma: Double) {
+        guard owner.faces.brightenInDark, !brightened else { return }
+        darkSamples = luma < Self.darkLuma ? darkSamples + 1 : 0
+        guard darkSamples >= 3 else { return }
+        Self.log.info("dark room luma=\(luma), brightening")
+        brightened = true
+        island.levels?.boostForFaceScan()
     }
 
     private func completeMatch() async {
@@ -240,6 +275,8 @@ final class FaceUnlockService {
         timeout?.cancel(); timeout = nil
         camera?.stop(); camera = nil
         engine?.pause(); engine = nil
+        if brightened { brightened = false; island.levels?.endFaceScanBoost() }
+        darkSamples = 0
         let finished = model
         guard finished != nil else { return }
         let collapse = { [weak self] in

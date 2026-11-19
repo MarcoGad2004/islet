@@ -149,7 +149,11 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 
 - **Looking**: a face-shaped grid of dots (7 × 7 grid at 8 pt spacing, keeping the dots within a
   26 pt radius of the centre: about 33 dots, shown at ≈1.35×) inside a thin ring (`#2C2C2E`). A
-  cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you".
+  cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
+  "Checking" once a face is in view, and "Blink to unlock" when the face matches but hasn't blinked yet
+  (photo protection, on by default).
+- **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
+  face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),
   turning green; the ring turns green; label "Welcome back". After ≈0.9 s the shape pulls up and
   the **lock opens** animation plays.
@@ -187,6 +191,10 @@ Short events; each shows, then hands back to what was showing.
 - Always the chin: icon (speaker or sun), a 16-step bar (steps 9 × 6 pt, 3 pt gaps, on
   `#F5F5F7`, off `#3A3A3C`), the value 0–100 on the right. Both use the same white.
 - Muted: speaker with a cross, bar dims (on `#636366`, off `#2C2C2E`) but keeps the level, value "Off".
+- Motion: the fill glides across the steps on a spring (response 0.32, damping 0.82) rather than steps
+  snapping, the number's digits roll up or down to the new value, and the speaker icon swaps with a
+  symbol transition. The Control Center sliders and their percentages do the same for key presses
+  (a drag follows the pointer directly).
 - Clicking it opens the expanded panel's Display and Sound page, even while media plays.
 
 ### Expanded panel
