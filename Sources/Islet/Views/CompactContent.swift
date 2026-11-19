@@ -7,19 +7,30 @@ struct CompactContentView: View {
     let wings: Bool
     /// The lock-screen bar is a little taller than the notch.
     var lockBar = false
+    /// Volume/brightness in the wide bar: the step bar sits in a short body under the wings.
+    var levelBody = false
 
     var body: some View {
         let nw = store.geometry?.width ?? 190, nh = store.geometry?.height ?? 34
         let barH = lockBar ? nh + IslandLayout.lockBarExtra : nh
         Group {
             if wings {
-                HStack(spacing: 0) {
-                    // ZStack + clear keeps an empty wing at full width (an EmptyView would be dropped from the row).
-                    ZStack { Color.clear; left }.frame(width: 60, height: barH)
-                    Spacer().frame(width: nw)
-                    ZStack { Color.clear; right }.frame(width: 60, height: barH)
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        // ZStack + clear keeps an empty wing at full width (an EmptyView would be dropped from the row).
+                        ZStack { Color.clear; left }.frame(width: 60, height: barH)
+                        Spacer().frame(width: nw)
+                        ZStack { Color.clear; right }.frame(width: 60, height: barH)
+                    }
+                    .frame(width: nw + IslandLayout.wingsExtra, height: barH)
+                    if levelBody, case .level(let l) = content {
+                        // 16 steps spanning the bar with the same side inset as the icon and number above.
+                        let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
+                        StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16)
+                            .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
+                    }
                 }
-                .frame(width: nw + IslandLayout.wingsExtra, height: barH)
+                .frame(width: nw + IslandLayout.wingsExtra)
             } else {
                 chin
                     .padding(.horizontal, 16)
@@ -38,7 +49,10 @@ struct CompactContentView: View {
             if let m = store.media { ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing) }
         case .charge(let c): chargeIcon(c)
         case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.checkInset)
-        case .locked, .level: EmptyView()
+        case .level(let l):
+            Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                .frame(width: 18).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
+        case .locked: EmptyView()
         }
     }
 
@@ -49,7 +63,10 @@ struct CompactContentView: View {
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
-        case .level: EmptyView()
+        case .level(let l):
+            Text(l.muted ? "Off" : "\(Int((l.value * 100).rounded()))")
+                .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         }
     }
 
@@ -75,7 +92,7 @@ struct CompactContentView: View {
         case .level(let l):
             HStack(spacing: 10) {
                 Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).frame(width: 18)
-                StepBar(steps: l.steps, muted: l.muted)
+                StepBar(value: l.value, muted: l.muted)
                 Spacer(minLength: 2)
                 Text(l.muted ? "Off" : "\(Int((l.value * 100).rounded()))")
                     .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)

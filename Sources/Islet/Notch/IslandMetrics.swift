@@ -12,6 +12,9 @@ enum IslandLayout {
     static let checkInset: CGFloat = 9.5 // check centre, outward from the wing centre
     static let peekExtraWidth: Double = 16
     static let peekExtraHeight: Double = 6
+    /// Volume and brightness in the wide bar: icon left, number right, and the 16-step bar in a short body below.
+    static let levelBodyHeight: CGFloat = 26
+    static let levelSideInset: CGFloat = 20
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150
@@ -21,7 +24,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, lockWings, chin, scan, expanded, enrol
+    case closed, peek, wings, lockWings, levelWings, chin, scan, expanded, enrol
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -78,6 +81,9 @@ extension Presentation {
         case .lockWings:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: 0, tr: 0, br: 14, ic: 0)
+        case .levelWings:
+            let w = nw + L.wingsExtra
+            return IslandMetrics(sw: w, sh: nh, bw: w, bh: Double(L.levelBodyHeight), tr: 0, br: 18, ic: 0)
         case .chin:
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 10, br: 16, ic: 10)
         case .scan:

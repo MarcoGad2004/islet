@@ -70,28 +70,31 @@ final class LevelsController {
         let key = (ns.data1 & 0xFFFF0000) >> 16
         let flags = ns.data1 & 0x0000FFFF
         let isDown = ((flags & 0xFF00) >> 8) == 0xA
+        // Option + Shift: quarter steps (64 instead of 16), like the system's fine adjustment.
+        let fine = ns.modifierFlags.contains(.option) && ns.modifierFlags.contains(.shift)
         // NX_KEYTYPE: 0 sound up, 1 sound down, 7 mute, 2 brightness up, 3 brightness down
         switch key {
         case 0, 1, 7:
             guard Audio.volume() != nil else { return false } // output without software volume: let the system handle it
-            if isDown { volumeKey(key) }
+            if isDown { volumeKey(key, fine: fine) }
             return true
         case 2, 3:
             guard displayServices.available else { return false }
-            if isDown { brightnessKey(up: key == 2) }
+            if isDown { brightnessKey(up: key == 2, fine: fine) }
             return true
         default:
             return false
         }
     }
 
-    private func volumeKey(_ key: Int) {
+    private func volumeKey(_ key: Int, fine: Bool) {
         var v = Double(Audio.volume() ?? 0)
         var m = Audio.muted() ?? false
-        let step = (v * 16).rounded()
+        let n = fine ? 64.0 : 16.0
+        let step = (v * n).rounded()
         switch key {
-        case 0: v = min(16, step + 1) / 16; if m { m = false }
-        case 1: v = max(0, step - 1) / 16
+        case 0: v = min(n, step + 1) / n; if m { m = false }
+        case 1: v = max(0, step - 1) / n
         default: m.toggle()
         }
         Audio.setVolume(Float(v))
@@ -100,9 +103,10 @@ final class LevelsController {
         onChange?(LevelState(kind: .volume, value: v, muted: m || v == 0 && key == 7))
     }
 
-    private func brightnessKey(up: Bool) {
-        let step = ((displayServices.get(displayID).map(Double.init) ?? brightness) * 16).rounded()
-        let b = (up ? min(16, step + 1) : max(0, step - 1)) / 16
+    private func brightnessKey(up: Bool, fine: Bool) {
+        let n = fine ? 64.0 : 16.0
+        let step = ((displayServices.get(displayID).map(Double.init) ?? brightness) * n).rounded()
+        let b = (up ? min(n, step + 1) : max(0, step - 1)) / n
         displayServices.set(displayID, Float(b))
         brightness = b
         onChange?(LevelState(kind: .brightness, value: b))

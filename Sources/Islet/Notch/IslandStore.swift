@@ -72,7 +72,7 @@ final class IslandStore {
         }
         if expanded { return .expanded }
         if let c = content {
-            if case .level = c { return .chin } // volume and brightness always use the chin
+            if case .level = c { return wingsFit ? .levelWings : .chin } // wide bar with the step bar below when it fits
             if case .locked = c { return .lockWings } // the lock screen has no menus: always the wide bar
             if case .unlock = c { return wingsFit ? .lockWings : .chin }
             return compactLayout

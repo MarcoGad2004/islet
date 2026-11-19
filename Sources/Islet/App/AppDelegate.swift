@@ -53,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
         case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
         case "volume": notch.store.showLevel(LevelState(kind: .volume, value: 0.5))
+        case "levelwide":
+            notch.store.layoutCheck = { true }
+            notch.store.recomputeLayout()
+            notch.store.showLevel(LevelState(kind: .brightness, value: 21.0 / 32))
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
         case "unlock": notch.store.playUnlock()

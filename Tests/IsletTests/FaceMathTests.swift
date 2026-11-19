@@ -93,3 +93,21 @@ final class UpdaterTests: XCTestCase {
         XCTAssertFalse(Updater.isNewer("1.0", than: "1.0.1"))
     }
 }
+
+final class LevelLayoutTests: XCTestCase {
+    @MainActor func testLevelsUseTheWideBarWhenItFitsAndTheChinOtherwise() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.showLevel(LevelState(kind: .volume, value: 0.5))
+        XCTAssertEqual(store.presentation, .chin)
+        store.layoutCheck = { true }
+        store.recomputeLayout()
+        XCTAssertEqual(store.presentation, .levelWings)
+        let m = Presentation.levelWings.metrics(notchWidth: 190, notchHeight: 34)
+        XCTAssertEqual(m.sw, 310); XCTAssertEqual(m.bw, 310); XCTAssertEqual(m.bh, 26)
+    }
+
+    func testFineStepsFillPartially() {
+        XCTAssertEqual(LevelState(kind: .volume, value: 21.0 / 64).value * 16, 5.25, accuracy: 0.0001)
+    }
+}

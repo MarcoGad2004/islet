@@ -45,7 +45,9 @@ When the wings don't fit, a **stem** exactly the size of the notch runs through 
 
 - Body: 300 × 36, directly under the stem. Corners: top 10, bottom 16.
 - 10 pt concave curves join the stem to the body's top edge on both sides.
-- Volume and brightness **always** use the chin (so the 16-step bar fits), even when wings fit.
+- Volume and brightness use the wide bar when wings fit (icon left, number right, the 16-step bar in a short body
+  below, 20 pt side inset all round); they use the chin only when the menu bar has no room. Option + Shift with the
+  keys adjusts in quarter steps (64 levels).
 
 ### Stem and body (large)
 

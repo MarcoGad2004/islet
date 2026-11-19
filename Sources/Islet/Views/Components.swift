@@ -93,17 +93,23 @@ private struct WidthKey: PreferenceKey {
 
 /// The 16-step bar (steps 9 x 6 pt, 3 pt gaps).
 struct StepBar: View {
-    var steps: Int
+    /// 0...1; the last lit step is partly filled between whole steps (fine adjustment).
+    var value: Double
     var muted: Bool
+    var stepWidth: CGFloat = 9
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<16, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(i < steps ? (muted ? Color(hex: 0x636366) : Color.isletText) : (muted ? Color.isletRing : Color(hex: 0x3A3A3C)))
-                    .frame(width: 9, height: 6)
-                    .animation(.easeOut(duration: 0.12), value: steps)
+                let f = min(max(value * 16 - Double(i), 0), 1)
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1.5).fill(muted ? Color.isletRing : Color(hex: 0x3A3A3C))
+                    Rectangle().fill(muted ? Color(hex: 0x636366) : Color.isletText).frame(width: stepWidth * f)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 1.5))
+                .frame(width: stepWidth, height: 6)
             }
         }
+        .animation(.easeOut(duration: 0.12), value: value)
     }
 }
 
