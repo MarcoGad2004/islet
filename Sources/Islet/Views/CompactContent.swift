@@ -9,20 +9,23 @@ struct CompactContentView: View {
     var lockBar = false
     /// Volume/brightness in the wide bar: the step bar sits in a short body under the wings.
     var levelBody = false
+    /// Focus / Wi-Fi / Bluetooth events: wings wide enough for a name.
+    var eventBar = false
 
     var body: some View {
         let nw = store.geometry?.width ?? 190, nh = store.geometry?.height ?? 34
         let barH = lockBar ? nh + IslandLayout.lockBarExtra : nh
+        let wingW: CGFloat = eventBar ? CGFloat(IslandLayout.eventWing) : 60
         Group {
             if wings {
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
                         // ZStack + clear keeps an empty wing at full width (an EmptyView would be dropped from the row).
-                        ZStack { Color.clear; left }.frame(width: 60, height: barH)
+                        ZStack { Color.clear; left }.frame(width: wingW, height: barH)
                         Spacer().frame(width: nw)
-                        ZStack { Color.clear; right }.frame(width: 60, height: barH)
+                        ZStack { Color.clear; right }.frame(width: wingW, height: barH)
                     }
-                    .frame(width: nw + IslandLayout.wingsExtra, height: barH)
+                    .frame(width: nw + 2 * wingW, height: barH)
                     if levelBody, case .level(let l) = content {
                         // 16 steps spanning the bar with the same side inset as the icon and number above.
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
@@ -30,7 +33,7 @@ struct CompactContentView: View {
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
                     }
                 }
-                .frame(width: nw + IslandLayout.wingsExtra)
+                .frame(width: nw + 2 * wingW)
             } else {
                 chin
                     .padding(.horizontal, 16)
@@ -53,6 +56,9 @@ struct CompactContentView: View {
             Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                 .frame(width: 18).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
         case .locked: EmptyView()
+        case .event(let e):
+            PopIcon(name: e.icon, color: eventTint(e))
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
         }
     }
 
@@ -66,6 +72,11 @@ struct CompactContentView: View {
         case .level(let l):
             Text(l.muted ? "Off" : "\(Int((l.value * 100).rounded()))")
                 .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+        case .event(let e):
+            Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(e.kind == .focusOff ? Color.isletSecondary : Color.isletText)
+                .lineLimit(1).minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         }
     }
@@ -98,6 +109,13 @@ struct CompactContentView: View {
                     .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
                     .frame(width: 30, alignment: .trailing)
             }
+        case .event(let e):
+            HStack(spacing: 10) {
+                PopIcon(name: e.icon, color: eventTint(e)).frame(width: 18)
+                Text(e.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(e.detail).font(.system(size: 13, weight: .semibold)).foregroundStyle(eventTint(e))
+            }
         case .locked:
             PadlockView(start: nil)
         case .unlock(let start):
@@ -116,6 +134,15 @@ struct CompactContentView: View {
     /// When this content has faded in: the animation's own clock starts then, so the closed lock is seen.
     /// Wings content fades in after 0.12 s, body shapes after 0.36 s (DESIGN.md "Motion").
     private func appears(_ start: Date) -> Date { start.addingTimeInterval(wings ? 0.12 : 0.36) }
+
+    private func eventTint(_ e: IslandEvent) -> Color {
+        switch e.kind {
+        case .focusOn: Color(hex: 0xBF5AF2)
+        case .focusOff: .isletSecondary
+        case .wifi: .isletCyan
+        case .bluetooth: Color(hex: 0x0A84FF)
+        }
+    }
 
     private func chargeColor(_ c: ChargeEvent, text: Bool) -> Color { c.kind == .low ? (text ? .isletRedText : .isletRed) : .isletGreen }
 

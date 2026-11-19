@@ -194,10 +194,7 @@ Short events; each shows, then hands back to what was showing.
 One page, no tabs. Opened by clicking the island.
 
 - **Media playing**: media only (see Media).
-- **Nothing playing**: "DISPLAY AND SOUND". A narrow battery block on the left (112 pt wide:
-  bolt or battery icon, big percentage, state, time to full or left), and on the right two wide
-  cards: Display (sun, slider, %) and Volume (speaker, slider, output device name that opens an
-  output picker).
+- **Nothing playing**: the Control Center page (see below).
 - Closes 1 s after the pointer leaves, on a click outside, on Esc, or on a two-finger swipe up.
 
 ### Control Center page (planned for v1.1, owner request 2026-11-19)

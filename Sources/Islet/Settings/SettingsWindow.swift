@@ -8,9 +8,11 @@ final class SettingsWindowController {
     private let face: FaceUnlockCoordinator
     private let levels: LevelsController
     private let media: MediaMonitor
+    private let focus: FocusMonitor
+    private let wifi: WiFiController
 
-    init(face: FaceUnlockCoordinator, levels: LevelsController, media: MediaMonitor) {
-        self.face = face; self.levels = levels; self.media = media
+    init(face: FaceUnlockCoordinator, levels: LevelsController, media: MediaMonitor, focus: FocusMonitor, wifi: WiFiController) {
+        self.face = face; self.levels = levels; self.media = media; self.focus = focus; self.wifi = wifi
     }
 
     func show() {
@@ -19,7 +21,7 @@ final class SettingsWindowController {
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Islet Settings"
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView(face: face, levels: levels, media: media, runSetup: { [weak self] in self?.runSetup?() }))
+            w.contentView = NSHostingView(rootView: SettingsView(face: face, levels: levels, media: media, focus: focus, wifi: wifi, runSetup: { [weak self] in self?.runSetup?() }))
             w.center()
             window = w
         }

@@ -11,19 +11,21 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private let face: FaceUnlockCoordinator
     private let levels: LevelsController
     private let media: MediaMonitor
+    private let focus: FocusMonitor
+    private let wifi: WiFiController
 
-    init(face: FaceUnlockCoordinator, levels: LevelsController, media: MediaMonitor) {
-        self.face = face; self.levels = levels; self.media = media
+    init(face: FaceUnlockCoordinator, levels: LevelsController, media: MediaMonitor, focus: FocusMonitor, wifi: WiFiController) {
+        self.face = face; self.levels = levels; self.media = media; self.focus = focus; self.wifi = wifi
     }
 
     func show() {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 600),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Welcome to Islet"
             w.isReleasedWhenClosed = false
             w.delegate = self
-            w.contentView = NSHostingView(rootView: OnboardingView(face: face, levels: levels, media: media) { [weak self] in
+            w.contentView = NSHostingView(rootView: OnboardingView(face: face, levels: levels, media: media, focus: focus, wifi: wifi) { [weak self] in
                 self?.window?.close()
             })
             w.center()

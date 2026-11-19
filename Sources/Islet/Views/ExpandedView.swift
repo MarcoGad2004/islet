@@ -8,7 +8,7 @@ struct ExpandedView: View {
         Group {
             switch store.expandedPage {
             case .media: MediaPage(store: store)
-            case .displaySound: DisplaySoundPage(store: store)
+            case .displaySound: ControlsPage(store: store)
             }
         }
         .padding(16)
@@ -97,88 +97,9 @@ private struct Scrubber: View {
     }
 }
 
-// MARK: - Display and Sound
-
-private struct DisplaySoundPage: View {
-    let store: IslandStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("DISPLAY AND SOUND").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
-                Spacer()
-                if let m = store.media, let monitor = store.mediaMonitor { MiniPlayer(media: m, monitor: monitor, store: store) }
-                SettingsGear(store: store)
-            }
-            HStack(spacing: 10) {
-                if let power = store.power, power.state.hasBattery { BatteryBlock(state: power.state) }
-                if let levels = store.levels {
-                    VStack(spacing: 10) {
-                        card {
-                            Image(systemName: "sun.max.fill").frame(width: 20)
-                            Slider(value: Binding(get: { levels.brightness }, set: { levels.setBrightness($0) }), in: 0...1)
-                                .disabled(!levels.brightnessAvailable)
-                            Text("\(Int((levels.brightness * 100).rounded()))%").monospacedDigit().frame(width: 40, alignment: .trailing)
-                        }
-                        card {
-                            Image(systemName: levels.muted ? "speaker.slash.fill" : "speaker.wave.2.fill").frame(width: 20)
-                            Slider(value: Binding(get: { levels.volume }, set: { levels.setVolume($0) }), in: 0...1)
-                            Menu {
-                                ForEach(levels.devices) { d in
-                                    Button(d.name) { levels.selectOutput(d) }
-                                }
-                            } label: {
-                                Text(levels.outputName.isEmpty ? "Output" : levels.outputName).lineLimit(1).frame(width: 104, alignment: .trailing)
-                            }
-                            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func card<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        HStack(spacing: 8) { content() }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.isletText)
-            .tint(.white)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x1C1C1E)))
-    }
-}
-
-private struct BatteryBlock: View {
-    let state: PowerMonitor.State
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: state.charging || state.onAC ? "bolt.fill" : "battery.75")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(state.charging ? Color.isletGreen : Color.isletSecondary)
-            Spacer(minLength: 0)
-            Text("\(state.percent)%").font(.system(size: 28, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
-            Text(status).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
-            Text(timeText).font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
-        }
-        .padding(12)
-        .frame(width: 112)
-        .frame(maxHeight: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x1C1C1E)))
-    }
-
-    private var status: String { state.charged ? "Fully charged" : state.charging ? "Charging" : state.onAC ? "Plugged in" : "On battery" }
-    private var timeText: String {
-        func hm(_ m: Int) -> String { "\(m / 60):\(String(format: "%02d", m % 60))" }
-        if state.charging, let m = state.minutesToFull { return "\(hm(m)) to full" }
-        if !state.onAC, let m = state.minutesToEmpty { return "\(hm(m)) left" }
-        return " "
-    }
-}
-
 /// Paused (or otherwise idle) media, collapsed into the panel's header so it can be resumed from the notch
 /// without the media taking over the island.
-private struct MiniPlayer: View {
+struct MiniPlayer: View {
     let media: MediaInfo
     let monitor: MediaMonitor
     let store: IslandStore

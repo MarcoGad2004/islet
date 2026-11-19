@@ -119,6 +119,11 @@ final class LevelsController {
         if muted && v > 0 { Audio.setMuted(false); muted = false }
     }
 
+    func toggleMute() {
+        let m = !muted
+        Audio.setMuted(m); muted = m
+    }
+
     func setBrightness(_ b: Double) { displayServices.set(displayID, Float(b)); brightness = b }
 
     func selectOutput(_ device: OutputDevice) {

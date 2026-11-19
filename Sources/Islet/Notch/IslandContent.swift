@@ -7,6 +7,7 @@ enum IslandContent {
     case locked
     case level(LevelState)
     case charge(ChargeEvent)
+    case event(IslandEvent)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -16,6 +17,7 @@ enum IslandContent {
         case .locked: "locked"
         case .level: "level"
         case .charge(let c): "charge-\(c.kind)"
+        case .event(let e): "event-\(e.kind)"
         case .media: "media"
         }
     }
@@ -45,4 +47,16 @@ struct ChargeEvent: Equatable {
         case .low: 4
         }
     }
+}
+
+/// Focus on/off, Wi-Fi connected, Bluetooth device connected: shown like a charging event.
+struct IslandEvent: Equatable {
+    enum Kind { case focusOn, focusOff, wifi, bluetooth }
+    var kind: Kind
+    var icon: String
+    /// The name: the Focus, the network or the device.
+    var title: String
+    /// Short status word for the chin: "On", "Off", "Connected".
+    var detail: String
+    var seconds: Double { 3 }
 }

@@ -134,7 +134,11 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
     attempt, 3 s after a disconnect, did not connect within 10 s, the second did). Treat connect as asynchronous: show
     "Connecting..." and poll `isConnected` for ~20 s. The paired-device name changed from "Marco's AirPods Pro" to
     "AirPods Pro" and back, so key devices by address.
-  - Still untested: AirDrop mode taking effect live, mirroring, Wi-Fi join with a password.
+  - **AirDrop mode (verified):** `defaults write com.apple.sharingd DiscoverableMode` alone changes only the stored value;
+    the Mac's real setting did not change until `killall sharingd` (launchd restarts it). With the restart, Finder's AirDrop
+    window showed "No One" for Off and "Contacts Only" after restoring. `SFAirDropDiscoveryController` (Sharing.framework)
+    exists but read mode 0 from a command-line process and did nothing, so not used.
+  - Still untested: mirroring, Wi-Fi join with a password.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,
 developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/forums/thread/738748.

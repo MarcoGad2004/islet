@@ -7,8 +7,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let power = PowerMonitor()
     private let levels = LevelsController()
     private let media = MediaMonitor()
-    private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media)
-    private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media)
+    private let focus = FocusMonitor()
+    private let wifi = WiFiController()
+    private let bluetooth = BluetoothController()
+    private let display = DisplayToggles()
+    private let airdrop = AirDropController()
+    private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
+    private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
     private var menuBarObserver: NSKeyValueObservation?
     private var menuBarShown = true
@@ -58,6 +63,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
+        case "focuson", "wificonnect", "btconnect", "eventchin":
+            let wide = UserDefaults.standard.string(forKey: "IsletDebugShape") != "eventchin"
+            notch.store.layoutCheck = { wide }
+            notch.store.eventLayoutCheck = { wide }
+            notch.store.recomputeLayout()
+            let e: IslandEvent
+            switch UserDefaults.standard.string(forKey: "IsletDebugShape") {
+            case "focuson": e = IslandEvent(kind: .focusOn, icon: "moon.fill", title: "Do Not Disturb", detail: "On")
+            case "wificonnect": e = IslandEvent(kind: .wifi, icon: "wifi", title: "NLDeco_MLO", detail: "Connected")
+            case "btconnect": e = IslandEvent(kind: .bluetooth, icon: "airpodspro", title: "Marco’s AirPods Pro", detail: "Connected")
+            default: e = IslandEvent(kind: .wifi, icon: "wifi", title: "NLDeco_MLO", detail: "Connected")
+            }
+            notch.store.showEvent(e)
         case "levelwide":
             notch.store.layoutCheck = { true }
             notch.store.recomputeLayout()
@@ -92,6 +110,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let g = store?.geometry else { return false }
             return LayoutChecker.wingsFit(g)
         }
+
+        store.eventLayoutCheck = { [weak store] in
+            guard let g = store?.geometry else { return false }
+            return LayoutChecker.eventWingsFit(g)
+        }
+        store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop
+
+        focus.onChange = { [weak store] old, new in
+            if let new { store?.showEvent(IslandEvent(kind: .focusOn, icon: new.symbol, title: new.name, detail: "On")) }
+            else if let old { store?.showEvent(IslandEvent(kind: .focusOff, icon: old.symbol, title: old.name, detail: "Off")) }
+        }
+        focus.start()
+        wifi.onConnected = { [weak store] ssid in store?.showEvent(IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected")) }
+        wifi.start()
+        bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
+        bluetooth.start()
+        display.refresh()
+        airdrop.refresh()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()

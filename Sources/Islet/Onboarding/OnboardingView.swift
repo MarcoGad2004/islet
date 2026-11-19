@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreLocation
 import ServiceManagement
 import SwiftUI
 
@@ -7,6 +8,8 @@ struct OnboardingView: View {
     let face: FaceUnlockCoordinator
     let levels: LevelsController
     let media: MediaMonitor
+    let focus: FocusMonitor
+    let wifi: WiFiController
     var finish: () -> Void
 
     private enum Step: Int, CaseIterable { case welcome, permissions, face, done }
@@ -39,7 +42,7 @@ struct OnboardingView: View {
             Divider()
             footer
         }
-        .frame(width: 520, height: 600)
+        .frame(width: 520, height: 700)
         .onReceive(tick) { _ in refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
         .onChange(of: face.enrolment?.phase) { _, phase in
@@ -75,6 +78,14 @@ struct OnboardingView: View {
                 permission("Camera", icon: "camera.fill", ok: camera == .authorized,
                            detail: "Only used for face unlock, and only while you set it up or the Mac is locked.",
                            action: cameraAction)
+                Divider()
+                permission("Location", icon: "location.fill", ok: wifi.locationAllowed,
+                           detail: "Only so macOS lets Islet read the names of nearby Wi-Fi networks. Your location is never used.",
+                           action: locationAction)
+                Divider()
+                permission("Full Disk Access", icon: "internaldrive.fill", ok: focus.accessGranted,
+                           detail: "Only to see which Focus is on. Islet reads it and never changes it. Restart Islet after allowing.",
+                           action: { SystemSettings.open(SystemSettings.fullDisk) })
                 Divider()
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "waveform").frame(width: 22).foregroundStyle(.secondary)
@@ -159,6 +170,8 @@ struct OnboardingView: View {
                 bullet("cursorarrow.motionlines", "Hover the notch and it bubbles out. Click it to open the controls.")
                 bullet("gearshape.fill", "The gear in the open notch is Settings: updates, face unlock and more.")
                 bullet("hand.draw.fill", "Swipe up over the notch with two fingers to hide it, down to bring it back.")
+                bullet("switch.2", "The notch now has Wi-Fi, Bluetooth, AirDrop, volume and brightness. To use it instead of Control Center, hide that icon in System Settings.")
+                Button("Open Control Center settings…") { SystemSettings.open(SystemSettings.controlCenter) }.controlSize(.small)
             }
             Spacer(minLength: 0)
         }
@@ -236,12 +249,18 @@ struct OnboardingView: View {
         face.unlock.refreshPermission()
         accessibility = AXIsProcessTrusted()
         camera = AVCaptureDevice.authorizationStatus(for: .video)
+        wifi.refresh()
+        focus.retry()
         if accessibility { levels.retryTap() }
     }
 
     private func accessibilityAction() {
         face.unlock.requestPermission()
         open("Privacy_Accessibility")
+    }
+
+    private func locationAction() {
+        if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
     }
 
     private func cameraAction() {

@@ -7,6 +7,8 @@ struct SettingsView: View {
     let face: FaceUnlockCoordinator
     let levels: LevelsController
     let media: MediaMonitor
+    let focus: FocusMonitor
+    let wifi: WiFiController
     var runSetup: () -> Void = {}
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
@@ -34,12 +36,18 @@ struct SettingsView: View {
             permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
                           detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
             permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)
+            permissionRow("Location (Wi-Fi network names)", ok: wifi.locationAllowed, detail: "Lets Islet list nearby Wi-Fi networks") {
+                if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
+            }
+            permissionRow("Full Disk Access (Focus)", ok: focus.accessGranted, detail: "Lets Islet see which Focus is on; restart Islet after allowing") {
+                SystemSettings.open(SystemSettings.fullDisk)
+            }
             permissionRow("Now playing", ok: media.available, detail: media.available ? "Working" : "Adapter unavailable", action: nil)
             Divider().padding(.top, 4)
             updates
             Divider().padding(.top, 4)
         }
-        .onAppear { face.unlock.refreshPermission(); levels.retryTap() }
+        .onAppear { face.unlock.refreshPermission(); levels.retryTap(); wifi.refresh(); focus.retry() }
     }
 
     private var updates: some View {

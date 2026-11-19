@@ -25,6 +25,8 @@ final class IslandStore {
     /// mini player in the expanded panel.
     private(set) var mediaFresh = false
     private(set) var wingsFit = false
+    private(set) var eventWingsFit = false
+    private(set) var event: IslandEvent?
     /// The Mac is locked with the screen on: the island shows the closed padlock in the wings.
     private(set) var lockScreen = false
     var enrolment: EnrolmentModel?
@@ -33,12 +35,19 @@ final class IslandStore {
     // Modules the expanded panel reads from.
     var power: PowerMonitor?
     var levels: LevelsController?
+    var focus: FocusMonitor?
+    var wifi: WiFiController?
+    var bluetooth: BluetoothController?
+    var display: DisplayToggles?
+    var airdrop: AirDropController?
     var mediaMonitor: MediaMonitor?
 
     let animator = IslandAnimator()
     @ObservationIgnored var onExpandedChange: ((Bool) -> Void)?
     /// Decides wings vs chin (menu bar width check). nil or false means chin.
     @ObservationIgnored var layoutCheck: (() -> Bool)?
+    @ObservationIgnored var eventLayoutCheck: (() -> Bool)?
+    @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var leaveTask: Task<Void, Never>?
     @ObservationIgnored private var chargeTask: Task<Void, Never>?
     @ObservationIgnored private var levelTask: Task<Void, Never>?
@@ -55,6 +64,7 @@ final class IslandStore {
         if let unlockStart { return .unlock(start: unlockStart) }
         if lockScreen { return .locked }
         if let level { return .level(level) }
+        if let event { return .event(event) }
         if let charge { return .charge(charge) }
         if mediaVisible { return .media }
         return nil
@@ -75,6 +85,7 @@ final class IslandStore {
             if case .level = c { return wingsFit ? .levelWings : .chin } // wide bar with the step bar below when it fits
             if case .locked = c { return .lockWings } // the lock screen has no menus: always the wide bar
             if case .unlock = c { return wingsFit ? .lockWings : .chin }
+            if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
             return compactLayout
         }
         if let base { return base }
@@ -95,8 +106,10 @@ final class IslandStore {
     /// Re-run the menu bar width check (app switch, event start, display change).
     func recomputeLayout() {
         let fits = layoutCheck?() ?? false
-        guard fits != wingsFit else { return }
+        let eventFits = eventLayoutCheck?() ?? false
+        guard fits != wingsFit || eventFits != eventWingsFit else { return }
         wingsFit = fits
+        eventWingsFit = eventFits
         refresh()
     }
 
@@ -150,6 +163,11 @@ final class IslandStore {
         expandedPage = (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
         power?.refresh()
+        display?.refresh()
+        airdrop?.refresh()
+        bluetooth?.refresh()
+        wifi?.refresh()
+        focus?.retry()
         setExpanded(true)
     }
 
@@ -167,7 +185,7 @@ final class IslandStore {
 
     func swipeUp() {
         if expanded { collapse(); return }
-        if mediaVisible && charge == nil && level == nil && unlockStart == nil {
+        if mediaVisible && charge == nil && level == nil && event == nil && unlockStart == nil {
             mediaHidden = true // stays hidden until swiped back or a different app starts playing
             refresh()
         }
@@ -210,6 +228,19 @@ final class IslandStore {
             try? await Task.sleep(for: .seconds(event.seconds))
             guard !Task.isCancelled else { return }
             self?.charge = nil
+            self?.refresh()
+        }
+        refresh()
+    }
+
+    func showEvent(_ e: IslandEvent) {
+        recomputeLayout()
+        event = e
+        eventTask?.cancel()
+        eventTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(e.seconds))
+            guard !Task.isCancelled else { return }
+            self?.event = nil
             self?.refresh()
         }
         refresh()

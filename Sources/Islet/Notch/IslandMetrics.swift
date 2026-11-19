@@ -10,6 +10,8 @@ enum IslandLayout {
     static let lockBarExtra: CGFloat = 8
     static let lockInset: CGFloat = 13   // padlock centre, outward from the wing centre
     static let checkInset: CGFloat = 9.5 // check centre, outward from the wing centre
+    /// Wing width for Focus / Wi-Fi / Bluetooth events: wide enough for a name.
+    static let eventWing: Double = 120
     static let peekExtraWidth: Double = 16
     static let peekExtraHeight: Double = 6
     /// Volume and brightness in the wide bar: icon left, number right, and the 16-step bar in a short body below.
@@ -24,7 +26,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, lockWings, levelWings, chin, scan, expanded, enrol
+    case closed, peek, wings, lockWings, levelWings, eventWings, chin, scan, expanded, enrol
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -81,6 +83,9 @@ extension Presentation {
         case .lockWings:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: 0, tr: 0, br: 14, ic: 0)
+        case .eventWings:
+            let w = nw + 2 * L.eventWing
+            return IslandMetrics(sw: w, sh: nh, bw: w, bh: 0, tr: 0, br: 12, ic: 0)
         case .levelWings:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: Double(L.levelBodyHeight), tr: 0, br: 18, ic: 0)

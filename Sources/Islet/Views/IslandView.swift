@@ -37,9 +37,9 @@ struct IslandView: View {
                 case .expanded:
                     ExpandedView(store: store).padding(.top, nh)
                         .transition(fade())
-                case .wings, .lockWings, .levelWings, .chin:
+                case .wings, .lockWings, .levelWings, .eventWings, .chin:
                     if let c = content {
-                        CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings, levelBody: pres == .levelWings)
+                        CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings, levelBody: pres == .levelWings, eventBar: pres == .eventWings)
                             .id(key).transition(fade(pres == .chin ? 0.36 : pres == .levelWings ? 0.2 : 0.12))
                     }
                 case .peek, .closed:

@@ -8,9 +8,29 @@ import ApplicationServices
 enum LayoutChecker {
     static let needed: CGFloat = 68
 
+    /// The wide event bar (names) needs its 120 pt wings plus the same 8 pt margin on both sides.
+    static let neededForEvents: CGFloat = CGFloat(IslandLayout.eventWing) + 8
+
+    /// Free space left and right of the notch. Measured once per 0.25 s so asking for both layouts costs one pass.
+    private static var cache: (time: CFTimeInterval, free: (CGFloat, CGFloat)?)?
+
+    static func free(_ g: NotchGeometry) -> (left: CGFloat, right: CGFloat)? {
+        let now = CACurrentMediaTime()
+        if let c = cache, now - c.time < 0.25 { return c.free }
+        var result: (CGFloat, CGFloat)?
+        if AXIsProcessTrusted(), let l = freeLeft(g), let r = freeRight(g) { result = (l, r) }
+        cache = (now, result)
+        return result
+    }
+
     static func wingsFit(_ g: NotchGeometry) -> Bool {
-        guard AXIsProcessTrusted(), let freeLeft = freeLeft(g), let freeRight = freeRight(g) else { return false }
-        return freeLeft >= needed && freeRight >= needed
+        guard let f = free(g) else { return false }
+        return f.left >= needed && f.right >= needed
+    }
+
+    static func eventWingsFit(_ g: NotchGeometry) -> Bool {
+        guard let f = free(g) else { return false }
+        return f.left >= neededForEvents && f.right >= neededForEvents
     }
 
     private static func freeLeft(_ g: NotchGeometry) -> CGFloat? {

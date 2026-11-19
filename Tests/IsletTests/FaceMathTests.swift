@@ -111,3 +111,22 @@ final class LevelLayoutTests: XCTestCase {
         XCTAssertEqual(LevelState(kind: .volume, value: 21.0 / 64).value * 16, 5.25, accuracy: 0.0001)
     }
 }
+
+final class EventLayoutTests: XCTestCase {
+    @MainActor func testEventsUseTheWideBarOnlyWhenItFits() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.showEvent(IslandEvent(kind: .wifi, icon: "wifi", title: "Home", detail: "Connected"))
+        XCTAssertEqual(store.presentation, .chin)
+        store.layoutCheck = { true }          // narrow wings fit, but not the 128 pt the event bar needs
+        store.recomputeLayout()
+        XCTAssertEqual(store.presentation, .chin)
+        store.eventLayoutCheck = { true }
+        store.recomputeLayout()
+        XCTAssertEqual(store.presentation, .eventWings)
+        let m = Presentation.eventWings.metrics(notchWidth: 190, notchHeight: 34)
+        XCTAssertEqual(m.sw, 190 + 240); XCTAssertEqual(m.bh, 0)
+    }
+
+    func testVersionOrderingStillWorks() { XCTAssertTrue(Updater.isNewer("v1.1", than: "1.0")) }
+}
