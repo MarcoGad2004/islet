@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var paused = false
+    #if DEBUG
+    private lazy var spike = LockSpike(notch: notch)
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.start()
@@ -44,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         debug.submenu = sub
         menu.addItem(debug)
+        let spikeItem = menu.addItem(withTitle: "Face unlock spike (M2)", action: #selector(toggleSpike(_:)), keyEquivalent: "")
+        spikeItem.target = self
         #endif
 
         menu.addItem(.separator())
@@ -61,6 +66,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     #if DEBUG
+    @objc private func toggleSpike(_ sender: NSMenuItem) {
+        spike.setEnabled(!spike.enabled)
+        sender.state = spike.enabled ? .on : .off
+    }
+
     @objc private func debugShape(_ sender: NSMenuItem) {
         let store = notch.store
         store.collapse()

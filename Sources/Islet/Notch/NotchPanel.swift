@@ -86,6 +86,11 @@ final class NotchController {
         screenChanged()
     }
 
+    /// Debug: change the window level (nil restores the normal one). Used by the M2 lock-screen spike.
+    func setDebugLevel(_ level: NSWindow.Level?) {
+        panel?.level = level ?? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+    }
+
     func setPaused(_ paused: Bool) {
         store.setPaused(paused)
         updatePanelVisibility()

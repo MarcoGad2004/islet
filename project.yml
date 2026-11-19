@@ -21,11 +21,13 @@ targets:
       properties:
         CFBundleName: Islet
         LSUIElement: true   # menu-bar/agent app, no Dock icon
+        NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
     entitlements:
       path: Sources/Islet/Islet.entitlements
       properties:
         com.apple.security.app-sandbox: false
+        com.apple.security.device.camera: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet

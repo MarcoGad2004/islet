@@ -61,3 +61,27 @@ If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation stil
 
 16. Personal use only: run from Xcode builds, or sign with a Developer ID. Accessibility and camera
     permissions are tied to the signature, so keep signing stable to avoid re-granting.
+
+### M2 spike: how to run it, and results
+
+Debug-only harness in `Sources/Islet/Spike/LockSpike.swift`. It never types a password, only the
+letters z and q.
+
+1. Run Islet from Xcode (Debug). Menu bar item → **Face unlock spike (M2)**. Allow Camera and
+   Accessibility when asked (Accessibility: System Settings → Privacy & Security; add the built app).
+2. Lock the Mac (ctrl-cmd-Q). Wake the lock screen, **don't type**, and watch it for ~25 s:
+   - Does the black scan shape show above the lock screen? At first the normal level; from +6 s the
+     shielding level. Note which moment it appears (Q13).
+   - From +12 s three `z` and from +16 s three `q` are posted. Count the dots in the password field:
+     0, 3 or 6 (Q12).
+3. Unlock normally, then read `~/Library/Logs/Islet-M2-spike.log` (Q10 timing, Q11 frames, Q14 face
+   detections, window layers).
+
+Results (fill in): 
+
+| Q  | Result |
+|----|--------|
+| 10 | |
+| 11 | |
+| 12 | |
+| 13 | |
