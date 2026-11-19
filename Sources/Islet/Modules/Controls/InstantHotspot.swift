@@ -61,25 +61,26 @@ final class InstantHotspotBrowser: NSObject {
         case failed(String)
     }
 
-    /// Asks the phone to turn on its hotspot. sharingd answers with an SFRemoteHotspotInfo (name, password,
-    /// channel) and an error; the caller joins the network with them, as Control Center does.
+    /// Asks the phone to turn on its hotspot. sharingd answers with the network's name and password (or an error);
+    /// the caller joins the network with them, as Control Center does.
     func enable(_ h: InstantHotspot) async -> EnableResult {
         let sel = NSSelectorFromString("enableHotspotForDevice:withCompletionHandler:")
         guard let s = session, s.responds(to: sel) else { return .failed("Couldn't reach \(h.name).") }
-        // Block signature from SFRemoteHotspotProtocol: v@?@"SFRemoteHotspotInfo"@"NSError". It escapes: sharingd
-        // calls it later, on its own queue.
-        typealias Handler = @convention(block) (NSObject?, NSError?) -> Void
+        // The protocol's handler is (SFRemoteHotspotInfo, NSError), but SFRemoteHotspotSession's own wrapper unpacks
+        // the info and calls ours with (name, password, error): three values (read from its disassembly on macOS
+        // 27.2). Each is checked before use, so a different shape fails cleanly instead of crashing.
+        typealias Handler = @convention(block) (AnyObject?, AnyObject?, AnyObject?) -> Void
         typealias Enable = @convention(c) (NSObject, Selector, NSObject, @escaping Handler) -> Void
         let imp = unsafeBitCast(s.method(for: sel), to: Enable.self)
         let device = h.device.object, name = h.name
         return await withCheckedContinuation { cont in
             let once = Once(cont)
-            imp(s, sel, device) { info, error in
-                if let error {
+            imp(s, sel, device) { ssid, password, error in
+                if let error = error as? NSError {
                     NSLog("Islet: hotspot enable failed: %@", error.localizedDescription)
                     once.resume(.failed("\(name) couldn't turn on its hotspot."))
                 } else {
-                    once.resume(.on(ssid: info?.value(forKey: "name") as? String, password: info?.value(forKey: "password") as? String))
+                    once.resume(.on(ssid: ssid as? String, password: password as? String))
                 }
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + 30) { once.resume(.failed("\(name) didn't answer. Unlock it and try again.")) }
