@@ -23,6 +23,11 @@ Not in v1: timer (macOS already does it), file shelf, calendar.
 The island is always black (`#000`) and always attached to the top edge of the screen. It never
 fades in or out; it only changes shape. It has three layouts.
 
+### Top corners (added 2026-11-19, owner feedback)
+
+Every shape's stem flares outward by 6 pt at the top edge (a small concave curve), like the real
+notch, instead of meeting the top edge at a hard right angle.
+
 ### Wings
 
 Content sits beside the camera, 60 pt to each side of the notch, inside the menu bar. The middle

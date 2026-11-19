@@ -70,13 +70,19 @@ final class LockSpike {
         logWindows("lock +0s (normal level)")
 
         tasks = [Task { [self] in
-            await sleep(6)
+            await sleep(5)
             notch.setDebugLevel(NSWindow.Level(rawValue: Int(CGShieldingWindowLevel())))
-            SpikeLog.write("Q13: panel raised to shielding level. Is the scan shape visible now?")
-            logWindows("lock +6s (shielding level)")
+            SpikeLog.write("Q13: panel raised to shielding level (phase 2)")
+            await sleep(0.5)
+            logWindows("lock +5.5s (shielding level)")
+
+            await sleep(5)
+            SkyLightProbe.raise(window: notch.windowNumber)
+            await sleep(0.5)
+            logWindows("lock +10.5s (SkyLight space)")
 
             // Q12: keystrokes. Three z via the HID tap, then three q via the session tap.
-            await sleep(6)
+            await sleep(5)
             SpikeLog.write("Q12: secureInput=\(IsSecureEventInputEnabled()) trusted=\(AXIsProcessTrusted())")
             post(key: CGKeyCode(kVK_ANSI_Z), tap: .cghidEventTap, count: 3)
             SpikeLog.write("Q12: posted 3x z via cghidEventTap")
@@ -167,6 +173,35 @@ final class CameraProbe: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate,
         let req = VNDetectFaceLandmarksRequest()
         try? VNImageRequestHandler(cvPixelBuffer: pb).perform([req])
         if let r = req.results, !r.isEmpty { lock.lock(); faces += 1; lock.unlock() }
+    }
+}
+
+/// Private SkyLight route: put the window in its own space with an absurdly high level, which is how
+/// lock-screen overlay tools get above loginwindow. Private API: personal use only, may break per macOS.
+enum SkyLightProbe {
+    @MainActor static func raise(window: Int) {
+        guard let h = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW) else {
+            SpikeLog.write("Q13: SkyLight dlopen failed"); return
+        }
+        func sym<T>(_ name: String, _ type: T.Type) -> T? {
+            dlsym(h, name).map { unsafeBitCast($0, to: type) }
+        }
+        typealias MainConn = @convention(c) () -> Int32
+        typealias Create = @convention(c) (Int32, Int32, CFDictionary?) -> Int32
+        typealias SetLevel = @convention(c) (Int32, Int32, Int32) -> Int32
+        typealias Show = @convention(c) (Int32, CFArray) -> Void
+        typealias AddWin = @convention(c) (Int32, Int32, CFArray, Int32) -> Void
+        guard let conn = sym("SLSMainConnectionID", MainConn.self), let create = sym("SLSSpaceCreate", Create.self),
+              let setLevel = sym("SLSSpaceSetAbsoluteLevel", SetLevel.self), let show = sym("SLSShowSpaces", Show.self),
+              let add = sym("SLSSpaceAddWindowsAndRemoveFromSpaces", AddWin.self) else {
+            SpikeLog.write("Q13: SkyLight symbols missing"); return
+        }
+        let cid = conn()
+        let space = create(cid, 1, nil)
+        let r = setLevel(cid, space, 2_147_483_647)
+        show(cid, [space] as CFArray)
+        add(cid, space, [window] as CFArray, 7)
+        SpikeLog.write("Q13: SkyLight space=\(space) setLevel=\(r) window=\(window). Is the scan shape visible now?")
     }
 }
 

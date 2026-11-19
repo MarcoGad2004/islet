@@ -4,6 +4,7 @@ import SwiftUI
 /// Drawn centred horizontally in its rect and attached to the top edge.
 struct IslandShape: Shape {
     var m: IslandMetrics
+    static let topFlare: Double = 6
 
     func path(in rect: CGRect) -> Path {
         let k = 0.5523 // circle approximation for cubic curves
@@ -15,7 +16,9 @@ struct IslandShape: Shape {
         // Inner curve and top corner share the flat top of the body; shrink both if it is too short.
         var ic = max(m.ic, 0), tr = max(m.tr, 0)
         if ic + tr > 0 { let s = min(1, avail / (ic + tr)); ic *= s; tr *= s }
-        ic = min(ic, sh)
+        // The real notch flares outward where it meets the top edge; mimic that with a small concave curve.
+        let tf = min(IslandShape.topFlare, sh / 2)
+        ic = min(ic, sh - tf)
 
         let yS = sh, yB = sh + bh
         let maxBR = (bw - sw > 0.5) ? bh : yB
@@ -25,8 +28,11 @@ struct IslandShape: Shape {
         let BL = cx - bw / 2, BR = cx + bw / 2
 
         var p = Path()
-        p.move(to: CGPoint(x: L, y: 0))
-        p.addLine(to: CGPoint(x: R, y: 0))
+        p.move(to: CGPoint(x: L - tf, y: 0))
+        p.addLine(to: CGPoint(x: R + tf, y: 0))
+        p.addCurve(to: CGPoint(x: R, y: tf),
+                   control1: CGPoint(x: R + tf - k * tf, y: 0),
+                   control2: CGPoint(x: R, y: tf - k * tf))
         p.addLine(to: CGPoint(x: R, y: yS - ic))
         // concave curve out to the body top (right)
         p.addCurve(to: CGPoint(x: R + ic, y: yS),
@@ -53,6 +59,10 @@ struct IslandShape: Shape {
         p.addCurve(to: CGPoint(x: L, y: yS - ic),
                    control1: CGPoint(x: L - ic + k * ic, y: yS),
                    control2: CGPoint(x: L, y: yS - ic + k * ic))
+        p.addLine(to: CGPoint(x: L, y: tf))
+        p.addCurve(to: CGPoint(x: L - tf, y: 0),
+                   control1: CGPoint(x: L, y: tf - k * tf),
+                   control2: CGPoint(x: L - tf + k * tf, y: 0))
         p.closeSubpath()
         return p
     }

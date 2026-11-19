@@ -91,6 +91,8 @@ final class NotchController {
         panel?.level = level ?? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
     }
 
+    var windowNumber: Int { panel?.windowNumber ?? 0 }
+
     func setPaused(_ paused: Bool) {
         store.setPaused(paused)
         updatePanelVisibility()
