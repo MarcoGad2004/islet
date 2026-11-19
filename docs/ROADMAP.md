@@ -62,10 +62,12 @@ the unlock animation still ships.
 ## M10: Control Center page (v1.1)
 - [ ] Spike on this Mac (RESEARCH.md Q16-Q21): Wi-Fi scan/join (Location), Bluetooth connect and power, Focus read and
       set, AirDrop mode, mirroring, Night Shift / True Tone / Dark Mode. Record what works, per control.
-- [ ] Layout: header battery chip, five tiles, two condensed sliders; tap vs drag; expand and back
+- [ ] Layout: header battery chip + read-only Focus icon, four tiles (Wi-Fi, Bluetooth, AirDrop, Mirroring), two
+      condensed sliders; tap vs drag; expand and back
 - [ ] Display detail (brightness, Dark Mode, Night Shift, True Tone) and Sound detail (volume, output devices)
-- [ ] Wi-Fi, Bluetooth, Focus, AirDrop, Mirroring tiles and their detail views, each with a Settings-pane fallback
-- [ ] Permissions in onboarding and Settings (Location, Full Disk Access for reading Focus if needed); how to hide the
+- [ ] Wi-Fi, Bluetooth, AirDrop, Mirroring tiles and their detail views, each with a Settings-pane fallback
+- [ ] Event animations like charging: Focus on/off, Wi-Fi connected, Bluetooth device connected (RESEARCH.md Q22-Q23)
+- [ ] Permissions in onboarding and Settings (Location, Bluetooth, Automation, Full Disk Access for reading Focus); how to hide the
       system Control Center icon
 - [ ] Ship as v1.1 (`scripts/release.sh 1.1`)
 

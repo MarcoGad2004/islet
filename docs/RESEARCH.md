@@ -101,8 +101,18 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
     applies it live is not visible from here; check in the AirDrop window during the build, with the Settings-pane
     fallback if it is ignored.
   - Still untested (disruptive): Wi-Fi power/associate, Bluetooth connect/power, Focus via shortcut, mirroring.
+- **Q22 System banners (desk research, not tested).** No API lets an app suppress another process's notification or the
+  AirPods connect card. AirPods popups come from the auto-switching feature; the workable fix is per device, in Bluetooth
+  settings: Options > "Connect to this Mac" > "When last connected to this Mac"
+  (discussions.apple.com/thread/254640801, support.airbuddy.app). Nothing found for the Focus banner; check System Settings >
+  Notifications and Focus on this Mac. Plan: show the island animation and tell the owner which system toggles remove the duplicate.
+- **Q23 Event sources (desk research, to verify).** Wi-Fi: `CWWiFiClient` delegate with `startMonitoringEvent(.ssidDidChange)`
+  (public; sandbox issues only). Bluetooth: `IOBluetoothDevice.register(forConnectNotifications:)` (public; fires on connect
+  attempts too, so confirm with `isConnected`; reported dead for root daemons on Sonoma, fine for a user app).
+  Focus: watch Assertions.json with FSEvents once Full Disk Access is granted.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
-github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423.
+github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,
+developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/forums/thread/738748.
 
 ## Distribution
 

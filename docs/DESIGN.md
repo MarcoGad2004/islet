@@ -205,19 +205,20 @@ Replaces the Display and Sound page. Same 500 x 216 panel, nothing grows; the ba
 up their space.
 
 ```
-DISPLAY & SOUND           ⚡85%   [♪ Song title  ▶]  ⚙
-[ Wi-Fi ][ Bluetooth ][ AirDrop ][ Focus ][ Mirroring ]    5 tiles, about 88 x 58 pt: icon, name, status line
+DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
+[ Wi-Fi ][ Bluetooth ][ AirDrop ][ Mirroring ]    4 tiles, about 110 x 58 pt: icon, name, status line
 [ ☀ ━━━●━━━ 38% ]        [ 🔊 ━━●━━━━ MacBook Pro S… ]     two condensed sliders, half width each
 ```
 
 - **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile.
-- **Tiles** mimic Control Center: a tap toggles (Wi-Fi on/off, Bluetooth on/off, Focus on/off with the last used
-  mode, AirDrop off/contacts/everyone via its menu); a chevron or long press opens that tile's detail in place.
+- **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
+  state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
+- **Tiles** mimic Control Center: a tap toggles (Wi-Fi on/off, Bluetooth on/off, AirDrop off/contacts/everyone via
+  its menu); a chevron or long press opens that tile's detail in place.
   - Wi-Fi detail: on/off, the connected network, nearby networks (join; password prompt for new secured ones), a
     link to Wi-Fi settings.
   - Bluetooth detail: on/off, paired devices with connected check and battery where known (tap to connect or
     disconnect), a link to Bluetooth settings.
-  - Focus detail: the list of Focus modes (tap to turn one on or off), a link to Focus settings.
   - AirDrop detail: Receiving Off / Contacts Only / Everyone, and "Open AirDrop" for sending.
   - Mirroring detail: available displays and AirPlay targets where reachable, otherwise it opens the system picker.
 - **Sliders** stay draggable when condensed. A tap that does not move the slider (or its chevron) expands the card
@@ -225,6 +226,10 @@ DISPLAY & SOUND           ⚡85%   [♪ Song title  ▶]  ⚙
   - Display detail: large brightness slider, Dark Mode, Night Shift, True Tone (keyboard backlight if available).
   - Sound detail: large volume slider and the output device list (MacBook Speakers, Bluetooth headphones, ...),
     tap to switch.
+- **Event animations** use the charger treatment (wings when the menu bar has room, otherwise the chin; icon pops in,
+  text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
+  network), Bluetooth device connected (device name, battery if known). The system's own banners for these are
+  not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings.
 - Lists scroll inside the fixed panel height. The same hover bubble, morph and fade timings apply.
 - Any tile whose native control fails on a macOS version falls back to opening its System Settings pane, so a tile
   never becomes a dead button.
