@@ -46,6 +46,7 @@ final class BluetoothController: NSObject {
         devices = paired.compactMap { d in
             guard let address = d.addressString, let name = d.name, !name.isEmpty else { return nil }
             registerDisconnect(d, address: address)
+            guard Self.isAccessory(name: name, major: d.deviceClassMajor) else { return nil }
             return BTDevice(id: address, name: name, connected: d.isConnected(), icon: Self.icon(name: name, major: d.deviceClassMajor))
         }.sorted { ($0.connected ? 0 : 1, $0.name) < ($1.connected ? 0 : 1, $1.name) }
     }
@@ -98,12 +99,24 @@ final class BluetoothController: NSObject {
     }
 
     private func connected(address: String, name: String, major: UInt32) async {
-        guard !name.isEmpty, !connectedNow.contains(address) else { return }
+        guard !name.isEmpty, Self.isAccessory(name: name, major: major), !connectedNow.contains(address) else { return }
         try? await Task.sleep(for: .seconds(1.5))
         guard !connectedNow.contains(address), IOBluetoothDevice(addressString: address)?.isConnected() == true else { return }
         connectedNow.insert(address)
         refresh()
         onConnected?(name, Self.icon(name: name, major: major))
+    }
+
+    /// Devices one connects to a Mac on purpose: headphones, speakers, mice, keyboards, controllers. Phones, tablets,
+    /// watches and computers are paired for other reasons and are left out. Most Bluetooth LE accessories report
+    /// class 0, so the name decides too.
+    static func isAccessory(name: String, major: UInt32) -> Bool {
+        let n = name.lowercased()
+        for no in ["iphone", "ipad", "watch", "macbook", "imac", "mac mini", "mac studio", "mac pro", "apple tv", "iphone duo"] where n.contains(no) { return false }
+        if major == 4 || major == 5 { return true }
+        for yes in ["airpods", "beats", "headphone", "headset", "earbud", "buds", "speaker", "soundbar", "keyboard", "mouse", "trackpad",
+                    "controller", "gamepad", "dualsense", "dualshock", "xbox", "bose", "sony", "jbl", "wh-", "wf-", "pods", "boom"] where n.contains(yes) { return true }
+        return false
     }
 
     static func icon(name: String, major: UInt32) -> String {
@@ -115,7 +128,9 @@ final class BluetoothController: NSObject {
         if n.contains("iphone") { return "iphone" }
         if n.contains("keyboard") { return "keyboard" }
         if n.contains("mouse") || n.contains("trackpad") { return "magicmouse" }
-        if n.contains("homepod") || n.contains("speaker") || n.contains("bedroom") { return "hifispeaker.fill" }
+        if n.contains("homepod") || n.contains("speaker") || n.contains("soundbar") || n.contains("boom") || n.contains("jbl") { return "hifispeaker.fill" }
+        if n.contains("controller") || n.contains("gamepad") || n.contains("dualsense") || n.contains("dualshock") || n.contains("xbox") { return "gamecontroller.fill" }
+        if n.contains("headphone") || n.contains("headset") || n.contains("beats") || n.contains("bose") || n.contains("sony") || n.contains("wh-") { return "headphones" }
         switch major {
         case 1: return "laptopcomputer"
         case 2: return "iphone"

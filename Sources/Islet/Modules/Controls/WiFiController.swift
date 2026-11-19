@@ -63,22 +63,31 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         guard locationAllowed else { return }
         scanning = true; defer { scanning = false }
         let current = ssid
+        // A full scan takes several seconds; show what macOS already knows straight away.
+        if networks.isEmpty, let iface = CWWiFiClient.shared().interface() {
+            let known = Set(iface.configuration()?.networkProfiles.array.compactMap { ($0 as? CWNetworkProfile)?.ssid } ?? [])
+            networks = Self.convert(Array(iface.cachedScanResults() ?? []), known: known, current: current)
+        }
         let result: [WiFiNetwork] = await withCheckedContinuation { cont in
             DispatchQueue.global(qos: .userInitiated).async {
                 let iface = CWWiFiClient.shared().interface()
                 let known = Set(iface?.configuration()?.networkProfiles.array.compactMap { ($0 as? CWNetworkProfile)?.ssid } ?? [])
                 let found = (try? iface?.scanForNetworks(withSSID: nil)) ?? []
-                var best: [String: WiFiNetwork] = [:]
-                for n in found {
-                    guard let s = n.ssid, !s.isEmpty else { continue }
-                    let item = WiFiNetwork(ssid: s, rssi: n.rssiValue, secured: !n.supportsSecurity(.none), known: known.contains(s))
-                    if let old = best[s], old.rssi >= item.rssi { continue }
-                    best[s] = item
-                }
-                cont.resume(returning: best.values.sorted { ($0.ssid == current ? 0 : 1, -$0.rssi) < ($1.ssid == current ? 0 : 1, -$1.rssi) })
+                cont.resume(returning: Self.convert(Array(found), known: known, current: current))
             }
         }
         networks = result
+    }
+
+    nonisolated static func convert(_ found: [CWNetwork], known: Set<String>, current: String?) -> [WiFiNetwork] {
+        var best: [String: WiFiNetwork] = [:]
+        for n in found {
+            guard let s = n.ssid, !s.isEmpty else { continue }
+            let item = WiFiNetwork(ssid: s, rssi: n.rssiValue, secured: !n.supportsSecurity(.none), known: known.contains(s))
+            if let old = best[s], old.rssi >= item.rssi { continue }
+            best[s] = item
+        }
+        return best.values.sorted { ($0.ssid == current ? 0 : 1, -$0.rssi) < ($1.ssid == current ? 0 : 1, -$1.rssi) }
     }
 
     /// Joins a network. Returns an error message, or nil. Secured networks need the password.

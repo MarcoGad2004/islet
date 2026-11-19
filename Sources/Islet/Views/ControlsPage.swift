@@ -15,7 +15,6 @@ struct ControlsPage: View {
         switch UserDefaults.standard.string(forKey: "IsletDebugDetail") {
         case "wifi": .wifi
         case "bluetooth": .bluetooth
-        case "airdrop": .airdrop
         case "mirroring": .mirroring
         case "display": .display
         case "sound": .sound
@@ -100,10 +99,9 @@ struct ControlsPage: View {
                             toggle: { bt.setPower(!bt.powerOn) }, open: { detail = .bluetooth })
             }
             if let ad = store.airdrop {
-                ControlTile(icon: "dot.radiowaves.left.and.right", title: "AirDrop",
-                            status: ad.mode == .contacts ? "Contacts" : ad.mode.rawValue,
+                ControlTile(icon: "dot.radiowaves.left.and.right", title: "AirDrop", status: ad.mode.status,
                             on: ad.mode != .off, accent: Color(hex: 0x0A84FF),
-                            toggle: { ad.toggle() }, open: { detail = .airdrop })
+                            toggle: { ad.openAirDrop(); store.collapse() }, open: { ad.openAirDrop(); store.collapse() })
             }
             ControlTile(icon: "rectangle.on.rectangle", title: "Mirroring",
                         status: Self.mirroringStatus(), on: false, accent: Color(hex: 0x0A84FF),
@@ -134,14 +132,13 @@ struct ControlsPage: View {
 }
 
 enum ControlDetail {
-    case display, sound, wifi, bluetooth, airdrop, mirroring
+    case display, sound, wifi, bluetooth, mirroring
     var title: String {
         switch self {
         case .display: "Display"
         case .sound: "Sound"
         case .wifi: "Wi-Fi"
         case .bluetooth: "Bluetooth"
-        case .airdrop: "AirDrop"
         case .mirroring: "Screen Mirroring"
         }
     }

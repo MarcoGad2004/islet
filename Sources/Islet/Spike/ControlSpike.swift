@@ -59,7 +59,7 @@ final class ControlSpike: NSObject, CLLocationManagerDelegate, CWEventDelegate {
         log("CBManager authorization: \(CBCentralManager.authorization.rawValue) (3 allowedAlways)")
         let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []
         log("paired devices: \(devices.count)")
-        for d in devices { log("  \(d.name ?? "?")  connected=\(d.isConnected())  addr=\(d.addressString ?? "?")") }
+        for d in devices { log("  \(d.name ?? "?")  connected=\(d.isConnected())  major=\(d.deviceClassMajor) minor=\(d.deviceClassMinor)") }
         let h = dlopen("/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", RTLD_NOW)
         for sym in ["IOBluetoothPreferenceGetControllerPowerState", "IOBluetoothPreferenceSetControllerPowerState"] {
             log("private symbol \(sym): \(h.flatMap { dlsym($0, sym) } != nil ? "present" : "missing")")

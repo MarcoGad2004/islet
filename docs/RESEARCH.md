@@ -138,6 +138,11 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
     the Mac's real setting did not change until `killall sharingd` (launchd restarts it). With the restart, Finder's AirDrop
     window showed "No One" for Off and "Contacts Only" after restoring. `SFAirDropDiscoveryController` (Sharing.framework)
     exists but read mode 0 from a command-line process and did nothing, so not used.
+  - Decision (owner, 2026-11-19): the AirDrop tile is read-only and opens Finder's AirDrop window; restarting sharingd
+    from a tile is too disruptive.
+  - Bluetooth class of device is only reliable for AirPods (major 4); phones, tablets, the watch and the HomePod report
+    0, so the accessory filter uses class and name. A full Wi-Fi scan takes about 8 s, so the list shows
+    `cachedScanResults()` first.
   - Still untested: mirroring, Wi-Fi join with a password.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,

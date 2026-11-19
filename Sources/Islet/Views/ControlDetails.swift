@@ -13,7 +13,6 @@ struct ControlDetailView: View {
         case .sound: SoundDetail(store: store)
         case .wifi: if let w = store.wifi { WiFiDetail(wifi: w) }
         case .bluetooth: if let b = store.bluetooth { BluetoothDetail(bt: b) }
-        case .airdrop: if let a = store.airdrop { AirDropDetail(airdrop: a) }
         case .mirroring: MirroringDetail()
         }
     }
@@ -186,6 +185,7 @@ private struct WiFiDetail: View {
                 Spacer(minLength: 0)
                 HStack {
                     if let e = wifi.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
+                    if wifi.scanning && !wifi.networks.isEmpty { ProgressView().controlSize(.mini) }
                     Spacer()
                     SettingsLink(title: "Wi-Fi Settings…", pane: SystemSettings.wifi)
                 }.padding(.bottom, 6)
@@ -296,43 +296,6 @@ private struct BluetoothDetail: View {
             }
         }
         .onAppear { bt.refresh() }
-    }
-}
-
-// MARK: - AirDrop
-
-private struct AirDropDetail: View {
-    let airdrop: AirDropController
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                ForEach(AirDropController.Mode.allCases) { m in
-                    Button { airdrop.set(m) } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: m.icon).font(.system(size: 18, weight: .semibold))
-                            Text(m.title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
-                        }
-                        .foregroundStyle(airdrop.mode == m ? Color.white : Color.isletText)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(airdrop.mode == m ? Color(hex: 0x0A84FF) : cardFill))
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }.buttonStyle(.plain)
-                }
-            }
-            .frame(height: 70)
-            Card {
-                HStack {
-                    Button { airdrop.openAirDrop() } label: {
-                        Label("Open AirDrop", systemImage: "arrow.up.forward.app").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
-                    }.buttonStyle(.plain)
-                    Spacer()
-                    SettingsLink(title: "AirDrop Settings…", pane: SystemSettings.airdrop)
-                }
-            }.frame(height: 44)
-            Spacer(minLength: 0)
-        }
-        .onAppear { airdrop.refresh() }
     }
 }
 

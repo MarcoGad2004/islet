@@ -210,13 +210,13 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
 - **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
-- **Tiles** mimic Control Center: a tap toggles (Wi-Fi on/off, Bluetooth on/off, AirDrop off/contacts/everyone via
-  its menu); a chevron or long press opens that tile's detail in place.
+- **Tiles** mimic Control Center: tapping the round icon toggles (Wi-Fi on/off, Bluetooth on/off); tapping the rest of
+  the tile opens its detail in place. The AirDrop tile is the exception: it only shows the receiving mode (No One,
+  Contacts, Everyone) and opens Finder's AirDrop window, because the mode cannot be changed without restarting sharingd.
   - Wi-Fi detail: on/off, the connected network, nearby networks (join; password prompt for new secured ones), a
     link to Wi-Fi settings.
-  - Bluetooth detail: on/off, paired devices with connected check and battery where known (tap to connect or
-    disconnect), a link to Bluetooth settings.
-  - AirDrop detail: Receiving Off / Contacts Only / Everyone, and "Open AirDrop" for sending.
+  - Bluetooth detail: on/off and only the accessories one connects on purpose (headphones, speakers, keyboards, mice,
+    controllers; not phones, tablets, watches or Macs), tap to connect or disconnect, a link to Bluetooth settings.
   - Mirroring detail: available displays and AirPlay targets where reachable, otherwise it opens the system picker.
 - **Sliders** stay draggable when condensed. A tap that does not move the slider (or its chevron) expands the card
   to fill the body; a back chevron returns. Drags never expand.
