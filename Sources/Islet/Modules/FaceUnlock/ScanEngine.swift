@@ -1,47 +1,60 @@
 import Foundation
 
 /// Compares live frames with the enrolled face. Two good frames in a row is a match, once the face has shown it is
-/// live (a blink, when required) and isn't framed by a photo or screen edge. About half a second of a visible face
-/// that doesn't match is a "not recognized" verdict, and so is a face that stays framed. Runs on the camera queue.
+/// live (a blink, a smile or a head turn, when required) and isn't framed by a photo or screen edge. About half a
+/// second of a visible face that doesn't match is a "not recognized" verdict, and so is a face that stays framed.
+/// Once the face matches and the challenge is shown, it has `challengeSeconds` to do it (looking away to turn
+/// doesn't count as a miss). Runs on the camera queue.
 final class ScanEngine: @unchecked Sendable {
     enum Event: Sendable {
         case face(Bool)
-        /// The face matches but hasn't blinked yet.
-        case waitingForBlink(Bool)
-        /// `live` is true when a blink was seen in this scan (the sample is then safe to learn from).
+        /// The face matches and now has to do this to unlock; nil once it isn't waiting.
+        case challenge(LivenessChallenge?)
+        /// `live` is true when the challenge was done in this scan (the sample is then safe to learn from).
         case match(score: Float, embedding: [Float], live: Bool)
         case noMatch(score: Float)
         /// Mean frame brightness, a few times a second.
         case light(Double)
     }
 
+    static let challengeSeconds = 8.0
+
     private let embedder: FaceEmbedder
     private let enrolled: [[Float]]
     private let threshold: Float
-    private let requireBlink: Bool
+    private let liveness: LivenessMode
     private let onEvent: @Sendable (Event) -> Void
     private let lock = NSLock()
     private var matches = 0, misses = 0, best: Float = 0
     private var paused = false
     private var lastFace: Bool?
-    private var lastWaiting = false
-    private var blink = BlinkDetector()
+    private var lastPrompt: LivenessChallenge?
+    private var detector: ChallengeDetector
+    /// When the challenge was shown in this attempt.
+    private var promptedAt: Date?
     private var faceLost = 0
     /// Recent frames that showed the face inside a rectangle (true) or not.
     private var framedHistory: [Bool] = []
 
-    init(embedder: FaceEmbedder, enrolled: [[Float]], threshold: Float, requireBlink: Bool,
+    init(embedder: FaceEmbedder, enrolled: [[Float]], threshold: Float, liveness: LivenessMode,
          onEvent: @escaping @Sendable (Event) -> Void) {
         self.embedder = embedder
         self.enrolled = enrolled
         self.threshold = threshold
-        self.requireBlink = requireBlink
+        self.liveness = liveness
         self.onEvent = onEvent
+        detector = ChallengeDetector(Self.pick(liveness))
+    }
+
+    /// Blink mode always asks for a blink; random mode picks again for every attempt.
+    private static func pick(_ mode: LivenessMode) -> LivenessChallenge {
+        mode == .random ? LivenessChallenge.allCases.randomElement() ?? .blink : .blink
     }
 
     /// After a verdict the engine ignores frames until `resume()`.
     func resume() {
-        lock.lock(); paused = false; matches = 0; misses = 0; best = 0; framedHistory = []; blink.reset(); lock.unlock()
+        lock.lock(); paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
+        detector = ChallengeDetector(Self.pick(liveness)); promptedAt = nil; lock.unlock()
     }
     func pause() { lock.lock(); paused = true; lock.unlock() }
 
@@ -53,14 +66,19 @@ final class ScanEngine: @unchecked Sendable {
         guard let a = analysis, a.boxWidth > 0.14, let image = a.alignedImage(), let e = embedder.embed(image) else {
             matches = 0; misses = 0
             faceLost += 1
-            // A face gone for a moment (not one dropped frame) has to blink again: no blinking, then swapping in a photo.
-            if faceLost >= 5 { blink.reset(); framedHistory = [] }
+            // A face gone for a moment (not one dropped frame) has to do the challenge again: no doing it, then
+            // swapping in a photo.
+            if faceLost >= 5 { detector.reset(); framedHistory = [] }
             report(face: false)
             return
         }
         faceLost = 0
         report(face: true)
-        blink.add(a.eyeOpenness)
+        let required = liveness != .off
+        // Random challenges only count once asked for, so a video can't have done it beforehand by chance.
+        if !(liveness == .random && promptedAt == nil) {
+            detector.add(openness: a.eyeOpenness, mouth: a.mouthWidth, yaw: a.proxyX)
+        }
         framedHistory.append(a.framed)
         if framedHistory.count > 10 { framedHistory.removeFirst() }
         let framed = framedHistory.filter { $0 }.count >= 4
@@ -73,30 +91,33 @@ final class ScanEngine: @unchecked Sendable {
         } else if score >= threshold {
             matches += 1; misses = 0
             if matches >= 2 {
-                if !requireBlink || blink.blinked {
+                if !required || detector.done {
                     paused = true
-                    reportWaiting(false)
-                    onEvent(.match(score: score, embedding: e, live: blink.blinked))
+                    prompt(nil)
+                    onEvent(.match(score: score, embedding: e, live: required && detector.done))
                     return
                 }
-                reportWaiting(true)
+                if promptedAt == nil { promptedAt = Date() }
+                prompt(detector.challenge)
             }
         } else {
-            matches = 0; misses += 1
+            matches = 0
+            // While the challenge is up a turned or smiling face may not match; only the time limit ends it.
+            if promptedAt == nil { misses += 1 }
         }
-        if misses >= 8 { paused = true; reportWaiting(false); onEvent(.noMatch(score: framed ? 0 : best)); best = 0 }
+        if let at = promptedAt, Date().timeIntervalSince(at) > Self.challengeSeconds { misses = 8 }
+        if misses >= 8 { paused = true; prompt(nil); onEvent(.noMatch(score: framed ? 0 : best)); best = 0 }
     }
 
     private func report(face: Bool) {
         guard lastFace != face else { return }
         lastFace = face
         onEvent(.face(face))
-        if !face { reportWaiting(false) }
     }
 
-    private func reportWaiting(_ waiting: Bool) {
-        guard lastWaiting != waiting else { return }
-        lastWaiting = waiting
-        onEvent(.waitingForBlink(waiting))
+    private func prompt(_ challenge: LivenessChallenge?) {
+        guard lastPrompt != challenge else { return }
+        lastPrompt = challenge
+        onEvent(.challenge(challenge))
     }
 }

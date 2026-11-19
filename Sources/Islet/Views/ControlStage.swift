@@ -148,7 +148,8 @@ struct ControlStage: View {
         let inControls = mode == .controls
         if let wifi = store.wifi {
             card(index: 0, active: mode == .wifi, mode: mode, detailHeight: 232) {
-                TileFace(icon: wifi.powerOn ? "wifi" : "wifi.slash", title: "Wi-Fi",
+                TileFace(icon: !wifi.powerOn ? "wifi.slash" : wifi.hotspot ? "personalhotspot" : "wifi",
+                         title: wifi.hotspot ? "Hotspot" : "Wi-Fi",
                          status: wifi.powerOn ? (wifi.ssid ?? "Not connected") : "Off", on: wifi.powerOn,
                          toggle: { wifi.setPower(!wifi.powerOn) }, open: { store.setControlDetail(.wifi) })
             } detail: { WiFiContent(wifi: wifi).frame(width: W, height: 232, alignment: .topLeading) }
@@ -196,13 +197,20 @@ struct ControlStage: View {
     private func card<Face: View, Detail: View>(index: Int, active: Bool, mode: Mode, detailHeight: CGFloat,
                                                 @ViewBuilder face: () -> Face, @ViewBuilder detail: () -> Detail) -> some View {
         let r = active ? below : tile(index)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(cardFill)
             face().frame(width: tileW, height: 74, alignment: .topLeading)
                 .opacity(mode == .controls ? 1 : 0).allowsHitTesting(mode == .controls)
             detail().opacity(active ? 1 : 0).allowsHitTesting(active)
         }
-        .slot(r, visible: mode == .controls || active, clip: 14)
+        .frame(width: r.width, height: r.height, alignment: .topLeading)
+        // The fill is the card's own background, sized by the card's frame, and drawn afresh on each page change:
+        // a fill that shrank back from the detail page sometimes stopped drawing, leaving the tile without its card.
+        .background(shape.fill(cardFill).id(active).transition(.identity))
+        .clipShape(shape)
+        .offset(x: r.minX, y: r.minY)
+        .opacity(mode == .controls || active ? 1 : 0)
+        .allowsHitTesting(mode == .controls || active)
     }
 
     private static func mirroringStatus(_ sidecar: SidecarController?) -> String {

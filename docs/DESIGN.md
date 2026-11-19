@@ -153,8 +153,9 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 - **Looking**: a face-shaped grid of dots (7 × 7 grid at 8 pt spacing, keeping the dots within a
   26 pt radius of the centre: about 33 dots, shown at ≈1.35×) inside a thin ring (`#2C2C2E`). A
   cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
-  "Checking" once a face is in view, and "Blink to unlock" when the face matches but hasn't blinked yet
-  (photo protection, on by default).
+  "Checking" once a face is in view, and the liveness challenge once the face matches: by default one of
+  "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at random each
+  attempt, with 8 s to do it (Settings: Random, Blink only, or Off).
 - **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),
@@ -240,8 +241,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
 - **Tiles** mimic Control Center: tapping the round icon toggles (Wi-Fi on/off, Bluetooth on/off); tapping the rest of
   the tile opens its detail in place. The AirDrop tile is the exception: it only shows the receiving mode (No One,
   Contacts, Everyone) and opens Finder's AirDrop window, because the mode cannot be changed without restarting sharingd.
-  - Wi-Fi detail: on/off, the connected network, nearby networks (join; password prompt for new secured ones), a
-    link to Wi-Fi settings.
+  - Wi-Fi detail: on/off, the connected network, nearby networks (join; saved networks join directly; password
+    prompt for new secured ones, username and password for Enterprise ones), a link to Wi-Fi settings. A Personal
+    Hotspot shows as one: the tile reads "Hotspot" with the hotspot icon, the network gets a green "Hotspot" tag.
   - Bluetooth detail: on/off and only the accessories one connects on purpose (headphones, speakers, keyboards, mice,
     controllers; not phones, tablets, watches or Macs), tap to connect or disconnect, a link to Bluetooth settings.
   - Mirroring detail: available displays and AirPlay targets where reachable, otherwise it opens the system picker.
@@ -252,7 +254,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
     tap to switch.
 - **Event animations** use the charger treatment (wings when the menu bar has room, otherwise the chin; icon pops in,
   text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
-  network), Bluetooth device connected (device name, battery if known). The system's own banners for these are
+  network), Bluetooth device connected (device name, battery if known). Joining a Personal Hotspot instead uses the
+  volume treatment: the wide bar (hotspot icon left, cellular bars right, both green) with the phone's name in the
+  short body under it, or the chin when the menu bar has no room. The system's own banners for these are
   not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings.
 - **Glide between pages:** the expanded panel is one stage. Every element (the two sliders, the tiles and their detail
   cards, the media artwork and title) is always present and has a rectangle for each page, so changing page moves it there

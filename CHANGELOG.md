@@ -3,6 +3,27 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.2 (unreleased)
+
+**Face unlock**
+- New "Prove it's live" setting: **Random** (the default) asks for a blink, a smile, or a head turn left or right,
+  picked at random for each attempt, once your face matches. The scan says which ("Smile to unlock", "Turn your head
+  left"...) and gives 8 s to do it; a recorded video is unlikely to do the right thing in time. **Blink** keeps the
+  old behaviour, **Off** matches the face only. Turning blink off before carries over as Off.
+- Settings → Test recognition ticks Blink, Smile, Left and Right as each is seen, to check they work on your face.
+
+**Wi-Fi**
+- Networks that sign in with a username and password (WPA/WPA2/WPA3 Enterprise, as at work or university) now ask for
+  both, marked with a person-and-key icon instead of a padlock.
+- Saved networks join straight away with what macOS stored, asking for the password only if that fails.
+- A phone's Personal Hotspot is shown as one: the tile says "Hotspot" with the hotspot icon, the detail says
+  "Personal Hotspot · <name>" and tags the network in green.
+- Joining a Personal Hotspot (including when the Mac does it by itself) shows in the notch like volume does: the
+  wide bar with the hotspot icon and cellular bars, and the phone's name under it (the chin when the menu bar is full).
+
+**Controls**
+- After opening a tile's detail and going back, the tile kept its icon and text but lost its grey card. Fixed.
+
 ## 1.1.3 (2026-11-19)
 
 **Face unlock**

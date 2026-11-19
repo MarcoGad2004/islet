@@ -135,11 +135,12 @@ struct SoundOutputList: View {
 struct WiFiContent: View {
     let wifi: WiFiController
     @State private var asking: WiFiNetwork?
+    @State private var username = ""
     @State private var password = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SwitchRow(title: "Wi-Fi", subtitle: wifi.powerOn ? (wifi.ssid ?? "Not connected") : "Off", on: wifi.powerOn) { on in
+            SwitchRow(title: "Wi-Fi", subtitle: Self.status(wifi), on: wifi.powerOn) { on in
                 wifi.setPower(on)
                 if on { Task { try? await Task.sleep(for: .seconds(2)); await wifi.scan() } }
             }.padding(.top, 8)
@@ -158,6 +159,13 @@ struct WiFiContent: View {
             }.padding(.bottom, 6)
         }
         .padding(.horizontal, 12)
+    }
+
+    /// "Off", "Not connected", the network, or "Personal Hotspot · Marco's iPhone".
+    static func status(_ wifi: WiFiController) -> String {
+        guard wifi.powerOn else { return "Off" }
+        guard let ssid = wifi.ssid else { return "Not connected" }
+        return wifi.hotspot ? "Personal Hotspot · \(ssid)" : ssid
     }
 
     private func message(_ text: String) -> some View {
@@ -180,9 +188,14 @@ struct WiFiContent: View {
                 ForEach(wifi.networks) { n in
                     Button { tap(n) } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "wifi", variableValue: Double(n.bars) / 3).font(.system(size: 12)).frame(width: 20).foregroundStyle(Color.isletSecondary)
+                            let isHotspot = n.ssid == wifi.ssid && wifi.hotspot
+                            Group {
+                                if isHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
+                                else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3).foregroundStyle(Color.isletSecondary) }
+                            }.font(.system(size: 12)).frame(width: 20)
                             Text(n.ssid).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            if n.secured { Image(systemName: "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary) }
+                            if n.secured { Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary) }
+                            if isHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
                             Spacer()
                             if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                             else if n.ssid == wifi.ssid { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF)) }
@@ -197,24 +210,46 @@ struct WiFiContent: View {
 
     private func tap(_ n: WiFiNetwork) {
         guard n.ssid != wifi.ssid, wifi.joining == nil else { return }
-        if n.secured { asking = n; password = "" }
-        else { Task { _ = await wifi.join(n, password: nil); await wifi.scan() } }
+        if !n.secured || n.known {
+            // A saved network joins with what macOS stored; ask only if that fails.
+            Task {
+                if await wifi.join(n, password: nil) == nil { await wifi.scan() }
+                else if n.secured { ask(n) }
+            }
+        } else {
+            ask(n)
+        }
     }
+
+    private func ask(_ n: WiFiNetwork) { asking = n; username = ""; password = ""; wifi.error = nil }
 
     private func passwordPrompt(_ n: WiFiNetwork) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Password for “\(n.ssid)”").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+            Text(n.enterprise ? "Sign in to “\(n.ssid)”" : "Password for “\(n.ssid)”")
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+            if n.enterprise {
+                TextField("Username", text: $username).textFieldStyle(.roundedBorder).controlSize(.small)
+                    .textContentType(.username).autocorrectionDisabled()
+            }
             HStack {
-                SecureField("Password", text: $password).textFieldStyle(.roundedBorder).controlSize(.small).onSubmit { join(n) }
-                Button("Join") { join(n) }.controlSize(.small).disabled(password.isEmpty || wifi.joining != nil)
+                SecureField("Password", text: $password).textFieldStyle(.roundedBorder).controlSize(.small)
+                    .textContentType(.password).onSubmit { join(n) }
+                Button("Join") { join(n) }.controlSize(.small).disabled(!ready(n) || wifi.joining != nil)
                 Button("Cancel") { asking = nil; wifi.error = nil }.controlSize(.small)
             }
         }.frame(maxHeight: .infinity)
     }
 
+    private func ready(_ n: WiFiNetwork) -> Bool { !password.isEmpty && (!n.enterprise || !username.isEmpty) }
+
     private func join(_ n: WiFiNetwork) {
-        let pw = password
-        Task { if await wifi.join(n, password: pw) == nil { asking = nil; password = ""; await wifi.scan() } }
+        guard ready(n) else { return }
+        let user = n.enterprise ? username : nil, pw = password
+        Task {
+            if await wifi.join(n, username: user, password: pw) == nil {
+                asking = nil; username = ""; password = ""; await wifi.scan()
+            }
+        }
     }
 }
 

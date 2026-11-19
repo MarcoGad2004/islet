@@ -28,6 +28,13 @@ struct CompactContentView: View {
                         ZStack { Color.clear; right }.frame(width: wingW, height: barH)
                     }
                     .frame(width: nw + 2 * wingW, height: barH)
+                    if levelBody, case .event(let e) = content {
+                        // Personal Hotspot: the phone's name under the wings.
+                        Text(e.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
+                    }
                     if levelBody, case .level(let l) = content {
                         // 16 steps spanning the bar with the same side inset as the icon and number above.
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
@@ -91,6 +98,10 @@ struct CompactContentView: View {
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level(let l):
             RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
+                .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+        case .event(let e) where levelBody:
+            // The wing is too narrow for a word: the phone's cellular link, with the name in the body below.
+            PopIcon(name: "cellularbars", color: eventTint(e))
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .event(let e):
             Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
@@ -159,6 +170,7 @@ struct CompactContentView: View {
         case .focusOn: Color(hex: 0xBF5AF2)
         case .focusOff: .isletSecondary
         case .wifi: .isletCyan
+        case .hotspot: .isletGreen
         case .bluetooth: Color(hex: 0x0A84FF)
         }
     }

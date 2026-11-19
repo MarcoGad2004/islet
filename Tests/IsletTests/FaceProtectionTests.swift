@@ -23,6 +23,28 @@ final class FaceProtectionTests: XCTestCase {
         XCTAssertFalse(b.blinked)
     }
 
+    func testSmileNeedsAWiderMouth() {
+        var d = ChallengeDetector(.smile)
+        for _ in 0..<10 { d.add(openness: 0.3, mouth: 1.00 + Double.random(in: -0.02...0.02), yaw: 0) }
+        XCTAssertFalse(d.done)
+        d.add(openness: 0.3, mouth: 1.2, yaw: 0)
+        d.add(openness: 0.3, mouth: 1.22, yaw: 0)
+        XCTAssertTrue(d.done)
+    }
+
+    func testTurnMustGoTheAskedWay() {
+        var left = ChallengeDetector(.turnLeft), right = ChallengeDetector(.turnRight)
+        for _ in 0..<3 { left.add(openness: 0.3, mouth: 1, yaw: 0.05); right.add(openness: 0.3, mouth: 1, yaw: 0.05) }
+        for _ in 0..<3 { left.add(openness: 0.3, mouth: 1, yaw: 0.35); right.add(openness: 0.3, mouth: 1, yaw: 0.35) }
+        XCTAssertTrue(left.done)   // raw camera x grows when you turn to your left
+        XCTAssertFalse(right.done)
+    }
+
+    func testHotspotAddressRange() {
+        XCTAssertTrue(WiFiController.isPhoneHotspotAddress("172.20.10.3"))
+        XCTAssertFalse(WiFiController.isPhoneHotspotAddress("192.168.1.20"))
+    }
+
     func testHeldPhotoEdgeIsDetected() {
         let face = CGRect(x: 0.40, y: 0.40, width: 0.20, height: 0.25)
         // A phone screen just around the face.

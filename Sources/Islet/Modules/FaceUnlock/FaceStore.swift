@@ -38,7 +38,9 @@ final class FaceStore {
     private static let learnedAccount = "face-learned"
     private static let passwordAccount = "login-password"
     private static let thresholdKey = "faceUnlockThreshold"
+    /// Before 1.2 liveness was a blink on/off switch; turning it off is carried over.
     private static let requireBlinkKey = "faceUnlockRequireBlink"
+    private static let livenessKey = "faceUnlockLiveness"
     private static let learnKey = "faceUnlockLearn"
     private static let brightenKey = "faceUnlockBrighten"
     /// Learned looks kept on top of the enrolment; the oldest is dropped past this.
@@ -55,8 +57,8 @@ final class FaceStore {
         didSet { UserDefaults.standard.set(threshold, forKey: Self.thresholdKey) }
     }
 
-    /// Only unlock after a blink, so a still photo can't.
-    var requireBlink: Bool { didSet { UserDefaults.standard.set(requireBlink, forKey: Self.requireBlinkKey) } }
+    /// What the face has to do before it unlocks, so a photo (or, with random challenges, a video) can't.
+    var liveness: LivenessMode { didSet { UserDefaults.standard.set(liveness.rawValue, forKey: Self.livenessKey) } }
     /// Add new looks from successful unlocks.
     var learnFromUnlocks: Bool { didSet { UserDefaults.standard.set(learnFromUnlocks, forKey: Self.learnKey) } }
     /// Raise the screen brightness while scanning in a dark room.
@@ -68,10 +70,12 @@ final class FaceStore {
     var allEmbeddings: [[Float]] { embeddings + learned }
 
     init() {
-        UserDefaults.standard.register(defaults: [Self.requireBlinkKey: true, Self.learnKey: true, Self.brightenKey: true])
+        UserDefaults.standard.register(defaults: [Self.learnKey: true, Self.brightenKey: true])
         let t = UserDefaults.standard.float(forKey: Self.thresholdKey)
         threshold = t > 0 ? t : 0.45
-        requireBlink = UserDefaults.standard.bool(forKey: Self.requireBlinkKey)
+        let d = UserDefaults.standard
+        liveness = d.string(forKey: Self.livenessKey).flatMap(LivenessMode.init(rawValue:))
+            ?? (d.object(forKey: Self.requireBlinkKey) as? Bool == false ? .off : .random)
         learnFromUnlocks = UserDefaults.standard.bool(forKey: Self.learnKey)
         brightenInDark = UserDefaults.standard.bool(forKey: Self.brightenKey)
         reload()

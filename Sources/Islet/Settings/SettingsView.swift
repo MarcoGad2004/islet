@@ -233,8 +233,11 @@ struct SettingsView: View {
             }
             if face.testingFace {
                 HStack(spacing: 16) {
-                    Label(face.testBlinked ? "Blink seen" : "Blink once", systemImage: face.testBlinked ? "eye.fill" : "eye")
-                        .foregroundStyle(face.testBlinked ? .green : .secondary)
+                    ForEach(LivenessChallenge.allCases, id: \.self) { c in
+                        let seen = face.testSeen.contains(c)
+                        Label(Self.testLabel(c), systemImage: seen ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(seen ? .green : .secondary)
+                    }
                     if let light = face.testLight {
                         Label(String(format: "Light %.2f%@", light, light < 0.25 ? " (dark)" : ""), systemImage: "sun.min")
                             .foregroundStyle(.secondary).monospacedDigit()
@@ -248,8 +251,17 @@ struct SettingsView: View {
                        in: 0.25...0.75)
                 Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 40)
             }
-            Text("Try your face, then someone else's. Set the threshold between the two scores. Hold up a photo of yourself: it should say Photo edge, or never see a blink.")
+            Text("Try your face, then someone else's. Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. Hold up a photo of yourself: it should say Photo edge, and tick nothing.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private static func testLabel(_ c: LivenessChallenge) -> String {
+        switch c {
+        case .blink: "Blink"
+        case .smile: "Smile"
+        case .turnLeft: "Left"
+        case .turnRight: "Right"
         }
     }
 
@@ -257,7 +269,12 @@ struct SettingsView: View {
         let faces = face.faces
         return VStack(alignment: .leading, spacing: 8) {
             Text("Protection and learning").font(.headline)
-            Toggle("Require a blink (stops a still photo)", isOn: Binding(get: { faces.requireBlink }, set: { faces.requireBlink = $0 }))
+            Picker("Prove it's live", selection: Binding(get: { faces.liveness }, set: { faces.liveness = $0 })) {
+                Text("Random: blink, smile or turn your head").tag(LivenessMode.random)
+                Text("Blink").tag(LivenessMode.blink)
+                Text("Off").tag(LivenessMode.off)
+            }
+            .fixedSize()
             Toggle("Brighten the screen to light my face in the dark", isOn: Binding(get: { faces.brightenInDark }, set: { faces.brightenInDark = $0 }))
             Toggle("Learn from successful unlocks", isOn: Binding(get: { faces.learnFromUnlocks }, set: { faces.learnFromUnlocks = $0 }))
             HStack {
@@ -266,7 +283,7 @@ struct SettingsView: View {
                 Spacer()
                 if !faces.learned.isEmpty { Button("Forget learned looks") { faces.forgetLearned() } }
             }
-            Text("A photo or phone held up to the camera is always refused. Learning only keeps unlocks that included a blink and matched your original scan well, so it adapts to new light, glasses or a haircut without drifting.")
+            Text("A photo or phone held up to the camera is always refused. Random asks for a blink, a smile or a head turn after your face matches, so a video is unlikely to do the right thing in time. Learning only keeps unlocks that passed this check and matched your original scan well, so it adapts to new light, glasses or a haircut without drifting.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }

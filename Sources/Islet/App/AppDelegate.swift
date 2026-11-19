@@ -155,7 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else if let old { store?.showEvent(IslandEvent(kind: .focusOff, icon: old.symbol, title: old.name, detail: "Off")) }
         }
         focus.start()
-        wifi.onConnected = { [weak store] ssid in store?.showEvent(IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected")) }
+        wifi.onConnected = { [weak store] ssid, hotspot in
+            store?.showEvent(hotspot ? IslandEvent(kind: .hotspot, icon: "personalhotspot", title: ssid, detail: "Hotspot")
+                                     : IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected"))
+        }
         wifi.start()
         bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
         bluetooth.start()

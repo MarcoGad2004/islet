@@ -8,8 +8,8 @@ final class ScanModel {
     enum Phase: Equatable { case looking, match, noMatch, failed(String) }
     var phase = Phase.looking
     var faceVisible = false
-    /// The face matches; it only needs to blink (photo protection).
-    var waitingForBlink = false
+    /// The face matches; it only needs to do this (blink, smile, turn) to show it is live.
+    var challenge: LivenessChallenge?
     /// Bumped on each "not recognized" so the grid shakes.
     var shakes = 0
     /// When the face matched: the lock starts opening shortly after, and the check flies left at `flown`.
@@ -18,7 +18,7 @@ final class ScanModel {
 
     var label: String {
         switch phase {
-        case .looking: return !faceVisible ? "Looking for you" : waitingForBlink ? "Blink to unlock" : "Checking"
+        case .looking: return challenge?.prompt ?? (faceVisible ? "Checking" : "Looking for you")
         case .match: return "Welcome back"
         case .noMatch: return "Not recognized"
         case .failed(let message): return message
@@ -208,7 +208,7 @@ final class FaceUnlockService {
 
             let faces = owner.faces
             let engine = ScanEngine(embedder: embedder, enrolled: faces.allEmbeddings, threshold: faces.threshold,
-                                    requireBlink: faces.requireBlink) { event in
+                                    liveness: faces.liveness) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine
@@ -259,13 +259,13 @@ final class FaceUnlockService {
         switch event {
         case .face(let visible):
             model.faceVisible = visible
-        case .waitingForBlink(let waiting):
-            model.waitingForBlink = waiting
+        case .challenge(let c):
+            model.challenge = c
         case .light(let luma):
             brightenIfDark(luma)
         case .match(let score, let embedding, let live):
             Self.log.info("match score=\(score) live=\(live)")
-            model.waitingForBlink = false
+            model.challenge = nil
             pendingLearn = live ? embedding : nil
             model.phase = .match
             model.matchedAt = Date()

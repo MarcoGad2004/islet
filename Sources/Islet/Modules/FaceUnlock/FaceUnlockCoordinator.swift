@@ -26,8 +26,8 @@ final class FaceUnlockCoordinator {
     private(set) var enrolment: EnrolmentModel?
     private(set) var testScore: Float?
     private(set) var testingFace = false
-    /// Test recognition: a blink was seen since the test started.
-    private(set) var testBlinked = false
+    /// Test recognition: the liveness challenges done since the test started.
+    private(set) var testSeen: Set<LivenessChallenge> = []
     /// Test recognition: the face is inside a photo or screen edge right now.
     private(set) var testFramed = false
     /// Test recognition: mean camera brightness, 0...1.
@@ -126,13 +126,13 @@ final class FaceUnlockCoordinator {
         guard await FaceCamera.requestAccess() else { return "Camera access is off." }
         stopCamera()
         testScore = nil
-        testBlinked = false; testFramed = false; testLight = nil
+        testSeen = []; testFramed = false; testLight = nil
         testingFace = true
         let enrolled = faces.allEmbeddings
         let analyzer = self.analyzer
         // Every other frame: often enough to catch a blink (~100-150 ms).
         let counter = FrameCounter(every: 2)
-        let blink = TestBlink()
+        let liveness = TestLiveness()
         let camera = FaceCamera()
         do {
             try camera.start { [weak self] pb in
@@ -143,12 +143,12 @@ final class FaceUnlockCoordinator {
                     score = FaceMatcher.score(e, enrolled: enrolled)
                     framed = a.framed
                 }
-                let blinked = blink.add(a?.eyeOpenness)
+                let seen = liveness.add(a)
                 let light = FrameLight.luma(pb)
                 Task { @MainActor in
                     guard let self, self.testingFace else { return }
                     self.testScore = score; self.testFramed = framed; self.testLight = light
-                    if blinked { self.testBlinked = true }
+                    self.testSeen.formUnion(seen)
                 }
             }
         } catch { testingFace = false; return "Couldn't start the camera." }
@@ -160,20 +160,22 @@ final class FaceUnlockCoordinator {
         stopCamera()
         testingFace = false
         testScore = nil
-        testBlinked = false; testFramed = false; testLight = nil
+        testSeen = []; testFramed = false; testLight = nil
     }
 
     private func stopCamera() { camera?.stop(); camera = nil }
 }
 
-/// A blink detector the camera queue can share.
-final class TestBlink: @unchecked Sendable {
-    private var detector = BlinkDetector()
+/// One detector per liveness challenge, which the camera queue can share.
+final class TestLiveness: @unchecked Sendable {
+    private var detectors = LivenessChallenge.allCases.map(ChallengeDetector.init)
     private let lock = NSLock()
-    func add(_ openness: Double?) -> Bool {
+    func add(_ a: FaceAnalysis?) -> Set<LivenessChallenge> {
         lock.lock(); defer { lock.unlock() }
-        if let openness { detector.add(openness) }
-        return detector.blinked
+        if let a {
+            for i in detectors.indices { detectors[i].add(openness: a.eyeOpenness, mouth: a.mouthWidth, yaw: a.proxyX) }
+        }
+        return Set(detectors.filter(\.done).map(\.challenge))
     }
 }
 

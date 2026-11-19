@@ -13,6 +13,8 @@ struct FaceAnalysis: @unchecked Sendable {
     var points: [CGPoint]
     /// Eye height over eye width along the eye axis, both eyes averaged. Drops sharply during a blink.
     var eyeOpenness: Double
+    /// Mouth corner to corner, in eye distances. Widens with a smile.
+    var mouthWidth: Double
     /// The face sits inside a rectangle that hugs it: the edge of a held-up photo, phone or tablet.
     var framed: Bool
     var pixelBuffer: CVPixelBuffer
@@ -72,6 +74,7 @@ struct FaceAnalyzer: Sendable {
                             boxWidth: Double(face.boundingBox.width),
                             points: [eL, eR, nose, m1, m2],
                             eyeOpenness: eyeOpenness,
+                            mouthWidth: Double(hypot(m2.x - m1.x, m2.y - m1.y) / eyeDist),
                             framed: framed,
                             pixelBuffer: pb)
     }
@@ -108,6 +111,77 @@ struct BlinkDetector {
         peak = max(openness, peak * 0.985)
         guard frames >= 4 else { return }
         if openness < peak * 0.6 { closed = true } else if closed && openness > peak * 0.82 { blinked = true; closed = false }
+    }
+}
+
+/// What a scan can ask the face to do to show it is live. A photo can't do any of them; a video could only by
+/// chance, since the request is picked at random for each attempt.
+enum LivenessChallenge: CaseIterable, Sendable {
+    case blink, smile, turnLeft, turnRight
+
+    var prompt: String {
+        switch self {
+        case .blink: "Blink to unlock"
+        case .smile: "Smile to unlock"
+        case .turnLeft: "Turn your head left"
+        case .turnRight: "Turn your head right"
+        }
+    }
+}
+
+/// How face unlock checks the face is live (Settings > Face Unlock).
+enum LivenessMode: String, CaseIterable, Sendable {
+    /// Match only (a held-up photo or screen is still refused by the edge check).
+    case off
+    /// Always a blink.
+    case blink
+    /// A blink, a smile or a head turn, picked at random each attempt.
+    case random
+}
+
+/// Watches the frames for one challenge. Each measure is compared with the face's own resting level in this scan,
+/// so it works whatever the face's proportions.
+struct ChallengeDetector {
+    let challenge: LivenessChallenge
+    private var blink = BlinkDetector()
+    /// Resting mouth width: follows the narrowest recent value, rising slowly.
+    private var restingMouth = 0.0
+    /// Resting head turn: the average of the first frames.
+    private var restingYaw: [Double] = []
+    private var frames = 0
+    private var streak = 0
+    private(set) var done = false
+
+    /// Mouth wider than this times its resting width is a smile.
+    static let smileRatio = 1.12
+    /// Nose moved sideways this far (eye distances) from where it rested is a head turn.
+    static let turn = 0.18
+
+    init(_ challenge: LivenessChallenge) { self.challenge = challenge }
+
+    mutating func reset() { self = ChallengeDetector(challenge) }
+
+    /// `yaw` is FaceAnalysis.proxyX: raw camera x, so turning to your left makes it larger.
+    mutating func add(openness: Double, mouth: Double, yaw: Double) {
+        guard !done else { return }
+        frames += 1
+        switch challenge {
+        case .blink:
+            blink.add(openness)
+            done = blink.blinked
+        case .smile:
+            guard mouth > 0 else { return }
+            restingMouth = restingMouth == 0 ? mouth : min(mouth, restingMouth * 1.003)
+            guard frames >= 4 else { return }
+            streak = mouth > restingMouth * Self.smileRatio ? streak + 1 : 0
+            done = streak >= 2
+        case .turnLeft, .turnRight:
+            if restingYaw.count < 3 { restingYaw.append(yaw); return }
+            let rest = restingYaw.reduce(0, +) / Double(restingYaw.count)
+            let moved = (yaw - rest) * (challenge == .turnLeft ? 1 : -1)
+            streak = moved > Self.turn ? streak + 1 : 0
+            done = streak >= 2
+        }
     }
 }
 

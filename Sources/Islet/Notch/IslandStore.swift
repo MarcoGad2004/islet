@@ -99,6 +99,7 @@ final class IslandStore {
             if case .level = c { return wingsFit ? .levelWings : .chin } // wide bar with the step bar below when it fits
             if case .locked = c { return lockHint && lockHintFull ? .lockHint : .lockWings } // no menus here: always the wide bar
             if case .unlock = c { return wingsFit ? .lockWings : .chin }
+            if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
             return compactLayout
         }
