@@ -84,6 +84,7 @@ struct SettingsView: View {
             }
         }
         .onAppear { unlock.refreshPermission() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in unlock.refreshPermission() }
     }
 
     private var overview: some View {
