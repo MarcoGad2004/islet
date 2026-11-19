@@ -286,21 +286,22 @@ struct TileFace: View {
     var open: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        // Icon and text centred in the tile, both ways.
+        VStack(alignment: .center, spacing: 5) {
             Button(action: toggle) {
                 ZStack {
                     Circle().fill(on ? Color(hex: 0x0A84FF) : Color(hex: 0x3A3A3C))
                     glyph.foregroundStyle(.white)
                 }.frame(width: 28, height: 28)
             }.buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .center, spacing: 0) {
                 Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
                 Text(status).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
     }
