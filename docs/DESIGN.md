@@ -200,6 +200,37 @@ One page, no tabs. Opened by clicking the island.
   output picker).
 - Closes 1 s after the pointer leaves, on a click outside, on Esc, or on a two-finger swipe up.
 
+### Control Center page (planned for v1.1, owner request 2026-11-19)
+Replaces the Display and Sound page. Same 500 x 216 panel, nothing grows; the battery block and tall sliders give
+up their space.
+
+```
+DISPLAY & SOUND           ⚡85%   [♪ Song title  ▶]  ⚙
+[ Wi-Fi ][ Bluetooth ][ AirDrop ][ Focus ][ Mirroring ]    5 tiles, about 88 x 58 pt: icon, name, status line
+[ ☀ ━━━●━━━ 38% ]        [ 🔊 ━━●━━━━ MacBook Pro S… ]     two condensed sliders, half width each
+```
+
+- **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile.
+- **Tiles** mimic Control Center: a tap toggles (Wi-Fi on/off, Bluetooth on/off, Focus on/off with the last used
+  mode, AirDrop off/contacts/everyone via its menu); a chevron or long press opens that tile's detail in place.
+  - Wi-Fi detail: on/off, the connected network, nearby networks (join; password prompt for new secured ones), a
+    link to Wi-Fi settings.
+  - Bluetooth detail: on/off, paired devices with connected check and battery where known (tap to connect or
+    disconnect), a link to Bluetooth settings.
+  - Focus detail: the list of Focus modes (tap to turn one on or off), a link to Focus settings.
+  - AirDrop detail: Receiving Off / Contacts Only / Everyone, and "Open AirDrop" for sending.
+  - Mirroring detail: available displays and AirPlay targets where reachable, otherwise it opens the system picker.
+- **Sliders** stay draggable when condensed. A tap that does not move the slider (or its chevron) expands the card
+  to fill the body; a back chevron returns. Drags never expand.
+  - Display detail: large brightness slider, Dark Mode, Night Shift, True Tone (keyboard backlight if available).
+  - Sound detail: large volume slider and the output device list (MacBook Speakers, Bluetooth headphones, ...),
+    tap to switch.
+- Lists scroll inside the fixed panel height. The same hover bubble, morph and fade timings apply.
+- Any tile whose native control fails on a macOS version falls back to opening its System Settings pane, so a tile
+  never becomes a dead button.
+- The system Control Center icon cannot be removed by an app: the owner hides it in System Settings > Control Center
+  (onboarding explains how).
+
 ### Face unlock
 
 Convenience, explicitly weaker than Touch ID. Agreed by the owner.

@@ -73,6 +73,25 @@ If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation stil
   Brightness uses private DisplayServices (`DisplayServicesGet/SetBrightness`), which works for the
   built-in display.
 
+## Control Center page (v1.1 spike, not yet run)
+Desk research only (web, 2026-11-19); verify each on this Mac before building.
+- **Q16 Wi-Fi.** CoreWLAN is public: power, scan, associate. Network names need Location Services and an authorised,
+  properly bundled app; some reports of nil SSIDs even when authorised (macOS 15.1). Turning Wi-Fi off may ask for an
+  admin password.
+- **Q17 Bluetooth.** IOBluetooth lists paired devices and connects them (public). Power on/off is private
+  (IOBluetoothPreference*, what blueutil uses); reported flaky on macOS 26.
+- **Q18 Focus.** No public set API. State is readable from ~/Library/DoNotDisturb/DB (Assertions.json,
+  ModeConfigurations.json; may need Full Disk Access). Setting works through a Shortcuts "Set Focus" shortcut run
+  with `shortcuts run`; editing the files does not switch Focus.
+- **Q19 AirDrop.** `com.apple.sharingd DiscoverableMode` (Everyone / Contacts Only / Off) is folklore and may be
+  ignored by current macOS. Opening the AirDrop window is easy.
+- **Q20 Screen mirroring.** No public AirPlay target picker; wired and Sidecar mirroring is public
+  (CGConfigureDisplayMirrorOfDisplay). Otherwise private APIs or opening the system picker.
+- **Q21 Display toggles.** Dark Mode (AppleScript/System Events), Night Shift and True Tone (private CoreBrightness),
+  keyboard backlight (private). Each needs a probe.
+Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
+github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423.
+
 ## Distribution
 
 16. Personal use only. `scripts/make-dmg.sh` makes a DMG signed with the Apple Development certificate
