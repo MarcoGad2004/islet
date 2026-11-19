@@ -26,7 +26,7 @@ targets:
       properties:
         CFBundleName: Islet
         CFBundleShortVersionString: "1.2.3"
-        CFBundleVersion: "59"
+        CFBundleVersion: "61"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSLocationWhenInUseUsageDescription: "Islet reads nearby Wi-Fi network names for the Wi-Fi control."
         NSBluetoothAlwaysUsageDescription: "Islet lists and connects your Bluetooth devices from the notch."
