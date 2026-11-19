@@ -62,28 +62,14 @@ If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation stil
 16. Personal use only: run from Xcode builds, or sign with a Developer ID. Accessibility and camera
     permissions are tied to the signature, so keep signing stable to avoid re-granting.
 
-### M2 spike: how to run it, and results
+### M2 spike results (the harness was removed once it had answered Q10-Q13; see git history)
 
-Debug-only harness in `Sources/Islet/Spike/LockSpike.swift`. It never types a password, only the
-letters z and q.
-
-1. Run Islet from Xcode (Debug). Menu bar item → **Face unlock spike (M2)**. Allow Camera and
-   Accessibility when asked (Accessibility: System Settings → Privacy & Security; add the built app).
-2. Lock the Mac (ctrl-cmd-Q). Wake the lock screen, **don't type**, and watch it for ~25 s:
-   - Does the black scan shape show above the lock screen? At first the normal level; from +6 s the
-     shielding level. Note which moment it appears (Q13).
-   - From +12 s three `z` and from +16 s three `q` are posted. Count the dots in the password field:
-     0, 3 or 6 (Q12).
-3. Unlock normally, then read `~/Library/Logs/Islet-M2-spike.log` (Q10 timing, Q11 frames, Q14 face
-   detections, window layers).
-
-Results (fill in): 
 
 | Q  | Result |
 |----|--------|
 | 10 | **Yes.** `screenIsLocked` arrives immediately; the app keeps running. |
 | 11 | **Yes.** ~30 fps camera frames while locked; Vision finds a face in every sampled frame. |
 | 12 | **Yes (needs Accessibility).** Both `cghidEventTap` and `cgSessionEventTap` keystrokes reached the password field (6 of 6) even with secure input on. Fails silently if the app isn't trusted: signing must be stable (set `DEVELOPMENT_TEAM`). |
-| 13 | **No.** Neither the shielding level nor a private SkyLight space showed the island over the lock screen. The scan runs without visuals; only the unlock animation shows (after unlock). |
+| 13 | First try failed (high window level, and a private space at a wrong level with no `canBecomeVisibleWithoutLogin`). Second try copies the SkyLightWindow library's recipe: window level `Int32.max - 2`, `canBecomeVisibleWithoutLogin = true`, private SkyLight space at absolute level 400 (NotificationCenterAtScreenLock), window added with mask 7. In `Support/SkyLightSpace.swift`. **Unverified while locked: needs a lock test.** |
 | 14 | **Solved in principle:** AuraFace-v1 (Apache-2.0) Core ML, 112×112 aligned input, 512-d embedding, cosine score. The threshold (default 0.45) must be tuned with Settings → Test recognition, including on someone else's face. Liveness (blink) not built yet. |
 | 15 | Done in `FaceStore`: generic-password Keychain items, never logged. |

@@ -62,7 +62,9 @@ final class NotchController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+        // Far above everything, and allowed on the login/lock screen (see SkyLightSpace).
+        panel.level = NSWindow.Level(rawValue: Int(Int32.max - 2))
+        panel.canBecomeVisibleWithoutLogin = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
@@ -86,13 +88,6 @@ final class NotchController {
         screenChanged()
     }
 
-    /// Debug: change the window level (nil restores the normal one). Used by the M2 lock-screen spike.
-    func setDebugLevel(_ level: NSWindow.Level?) {
-        panel?.level = level ?? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
-    }
-
-    var windowNumber: Int { panel?.windowNumber ?? 0 }
-
     func setPaused(_ paused: Bool) {
         store.setPaused(paused)
         updatePanelVisibility()
@@ -110,6 +105,7 @@ final class NotchController {
         guard let panel else { return }
         if store.geometry != nil && !store.paused {
             panel.orderFrontRegardless()
+            SkyLightSpace.shared.attach(panel) // so it also shows over the lock screen
         } else {
             panel.orderOut(nil)
         }

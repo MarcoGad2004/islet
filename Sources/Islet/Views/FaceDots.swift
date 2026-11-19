@@ -8,6 +8,8 @@ struct FaceDots: View {
     var shift: CGSize = .zero
     var checked = false
     var showSweep = true
+    /// Colour of the resting dots (red for "not recognized").
+    var dotColor = Color(hex: 0x48484A)
 
     private static let grid: [(row: Int, p: CGPoint)] = {
         var out: [(Int, CGPoint)] = []
@@ -38,7 +40,7 @@ struct FaceDots: View {
                     let target = checked ? Self.check[i] : CGPoint(x: dot.p.x * scale, y: dot.p.y * scale)
                     let near = showSweep && !checked && abs(Double(dot.row) - sweep) < 0.9
                     Circle()
-                        .fill(checked ? Color.isletGreen : (near ? Color.isletCyan : Color(hex: 0x48484A)))
+                        .fill(checked ? Color.isletGreen : (near ? Color.isletCyan : dotColor))
                         .frame(width: checked ? 4 : 3.2, height: checked ? 4 : 3.2)
                         .offset(x: target.x, y: target.y)
                         .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(checked ? Double(i) * 0.008 : 0), value: checked)

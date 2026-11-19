@@ -12,6 +12,8 @@ final class IslandStore {
     private(set) var paused = false
     /// Set while face enrolment is running; the enrol presentation draws from it.
     var enrolment: EnrolmentModel?
+    /// Set while the lock-screen face scan runs.
+    var scan: ScanModel?
 
     let animator = IslandAnimator()
     /// Called when `expanded` changes, so the panel can take or give up key status (for Esc).
@@ -19,7 +21,8 @@ final class IslandStore {
     @ObservationIgnored private var leaveTask: Task<Void, Never>?
 
     var presentation: Presentation {
-        if base == .enrol { return .enrol } // enrolment can't be interrupted by hover or clicks
+        // Enrolment and the face scan can't be interrupted by hover or clicks.
+        if let b = base, b == .enrol || b == .scan { return b }
         if expanded { return .expanded }
         if let base { return base }
         return pointerInside ? .peek : .closed
@@ -75,7 +78,7 @@ final class IslandStore {
     func click() { expand() }
 
     func expand() {
-        guard !expanded, base != .enrol else { return }
+        guard !expanded, base != .enrol, base != .scan else { return }
         setExpanded(true)
     }
 

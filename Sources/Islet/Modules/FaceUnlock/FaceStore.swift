@@ -72,6 +72,9 @@ final class FaceStore {
         return ok
     }
 
+    /// The stored login password, for the unlock service only.
+    func password() -> String? { KeychainStore.load(account: Self.passwordAccount).flatMap { String(data: $0, encoding: .utf8) } }
+
     func removeFace() { KeychainStore.delete(account: Self.facesAccount); embeddings = [] }
     func removePassword() { KeychainStore.delete(account: Self.passwordAccount); hasPassword = false }
     func removeAll() { removeFace(); removePassword() }

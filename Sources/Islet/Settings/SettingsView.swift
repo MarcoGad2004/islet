@@ -19,6 +19,7 @@ struct SettingsView: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
 
             statusRows
+            unlockControls
 
             switch step {
             case .overview: overview
@@ -34,7 +35,7 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
-        .frame(width: 460, height: 520, alignment: .topLeading)
+        .frame(width: 460, height: 640, alignment: .topLeading)
         .onChange(of: face.enrolment?.phase) { _, phase in
             if step == .scanning, phase != nil, phase != .scanning { step = .overview }
         }
@@ -60,6 +61,29 @@ struct SettingsView: View {
             Spacer()
             Text(detail).foregroundStyle(.secondary)
         }
+    }
+
+    private var unlockControls: some View {
+        let unlock = face.unlock
+        return VStack(alignment: .leading, spacing: 8) {
+            Toggle("Unlock this Mac's lock screen with my face", isOn: Binding(get: { unlock.enabled }, set: { unlock.enabled = $0 }))
+            HStack {
+                Image(systemName: unlock.accessibilityTrusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(unlock.accessibilityTrusted ? .green : .orange)
+                Text(unlock.accessibilityTrusted ? "Accessibility allowed (needed to type the password)" : "Accessibility is off: needed to type the password")
+                    .font(.callout)
+                Spacer()
+                if !unlock.accessibilityTrusted { Button("Allow…") { unlock.requestPermission() } }
+            }
+            if unlock.passwordRejected {
+                HStack {
+                    Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                    Text("The stored password wasn't accepted, so face unlock is paused. Change the password to resume.")
+                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .onAppear { unlock.refreshPermission() }
     }
 
     private var overview: some View {
@@ -150,6 +174,7 @@ struct SettingsView: View {
         guard IdentityCheck.verifyLoginPassword(password) else { message = "That isn't your login password."; return }
         guard face.faces.savePassword(password) else { message = "Couldn't save to the Keychain."; return }
         password = ""; message = nil
+        face.unlock.clearPasswordRejected()
         if face.faces.isEnrolled { step = .overview } else { await startScan() }
     }
 

@@ -8,12 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var paused = false
-    #if DEBUG
-    private lazy var spike = LockSpike(notch: notch)
-    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.start()
+        faceUnlock.unlock.start()
         buildMenuBarItem()
         #if DEBUG
         // `Islet -IsletDebugShape chin` starts with a shape showing (wings, chin, scan, expanded).
@@ -23,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
         case "enrol": previewEnrolment()
+        case "scanlive": faceUnlock.unlock.simulate()
         default: break
         }
         #endif
@@ -42,15 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         let debug = NSMenuItem(title: "Show shape", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5)] {
+        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5), ("Simulate lock scan (no typing)", 6)] {
             let i = sub.addItem(withTitle: title, action: #selector(debugShape(_:)), keyEquivalent: "")
             i.target = self
             i.tag = tag
         }
         debug.submenu = sub
         menu.addItem(debug)
-        let spikeItem = menu.addItem(withTitle: "Face unlock spike (M2)", action: #selector(toggleSpike(_:)), keyEquivalent: "")
-        spikeItem.target = self
+
         #endif
 
         menu.addItem(.separator())
@@ -92,11 +90,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func toggleSpike(_ sender: NSMenuItem) {
-        spike.setEnabled(!spike.enabled)
-        sender.state = spike.enabled ? .on : .off
-    }
-
     @objc private func debugShape(_ sender: NSMenuItem) {
         let store = notch.store
         store.collapse()
@@ -106,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 3: store.setBase(.scan)
         case 4: store.setBase(nil); store.expand()
         case 5: previewEnrolment()
+        case 6: faceUnlock.unlock.simulate()
         default: store.setBase(nil)
         }
     }

@@ -29,10 +29,11 @@ final class FaceUnlockCoordinator {
     private(set) var modelAvailable = false
 
     private let island: IslandStore
-    private let embedder = FaceEmbedder()
+    let embedder = FaceEmbedder()
     private var camera: FaceCamera?
     private var timeout: Task<Void, Never>?
-    private let analyzer = FaceAnalyzer()
+    let analyzer = FaceAnalyzer()
+    @ObservationIgnored private(set) lazy var unlock = FaceUnlockService(owner: self, island: island)
 
     init(island: IslandStore) {
         self.island = island
