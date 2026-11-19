@@ -243,7 +243,7 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
 - **Tiles** mimic Control Center: tapping the round icon toggles (Wi-Fi on/off, Bluetooth on/off); tapping the rest of
   the tile opens its detail in place. The AirDrop tile is the exception: it only shows the receiving mode (No One,
   Contacts, Everyone) and opens Finder's AirDrop window, because the mode cannot be changed without restarting sharingd.
-  - Wi-Fi detail: on/off, the connected network, nearby networks (join; saved networks join directly; password
+  - Wi-Fi detail: on/off, the connected network (always first, with a Disconnect button), nearby networks (join; saved networks join directly; password
     prompt for new secured ones, username and password for Enterprise ones), a link to Wi-Fi settings. A Personal
     Hotspot shows as one: the tile reads "Hotspot" with the hotspot icon, the network gets a green "Hotspot" tag.
   - Bluetooth detail: on/off and only the accessories one connects on purpose (headphones, speakers, keyboards, mice,

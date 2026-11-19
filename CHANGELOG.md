@@ -15,6 +15,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 **Wi-Fi**
 - Networks that sign in with a username and password (WPA/WPA2/WPA3 Enterprise, as at work or university) now ask for
   both, marked with a person-and-key icon instead of a padlock.
+- The connected network is always at the top of the list, with a **Disconnect** button. (Turning auto-join on or
+  off for a network isn't possible: macOS only lets its own apps change that, so use Wi-Fi Settings.)
 - Saved networks join straight away with what macOS stored, asking for the password only if that fails.
 - Phones offering Instant Hotspot (your iPhone, or family members') are listed even when they aren't broadcasting,
   like Wi-Fi Settings' "Personal Hotspots": hotspot icon, cellular bars and a battery icon (phones only report

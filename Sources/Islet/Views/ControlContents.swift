@@ -191,6 +191,7 @@ struct WiFiContent: View {
         ScrollView {
             VStack(spacing: 0) {
                 if wifi.scanning && wifi.networks.isEmpty && phones.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
+                ForEach(wifi.networks.filter { $0.ssid == wifi.ssid }) { n in row(n) }
                 ForEach(phones) { h in
                     Button { Task { await wifi.join(h) } } label: {
                         HStack(spacing: 10) {
@@ -203,30 +204,41 @@ struct WiFiContent: View {
                         .frame(height: 26).contentShape(Rectangle())
                     }.buttonStyle(.plain)
                 }
-                ForEach(wifi.networks) { n in
-                    let phone = wifi.instantHotspots.first { $0.name == n.ssid }
-                    Button { tap(n) } label: {
-                        HStack(spacing: 10) {
-                            let connectedHotspot = n.ssid == wifi.ssid && wifi.hotspot
-                            Group {
-                                if connectedHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
-                                else if n.hotspot || phone != nil { Image(systemName: "personalhotspot").foregroundStyle(Color.isletSecondary) }
-                                else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3).foregroundStyle(Color.isletSecondary) }
-                            }.font(.system(size: 12)).frame(width: 20)
-                            Text(n.ssid).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            if n.secured && phone == nil { Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary) }
-                            if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
-                            Spacer()
-                            if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
-                            else if n.ssid == wifi.ssid { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF)) }
-                            else if let phone { hotspotDetail(bars: phone.bars, battery: phone.battery) }
-                            else if n.known { Text("Saved").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
-                        }
-                        .frame(height: 26).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
-                }
+                ForEach(wifi.networks.filter { $0.ssid != wifi.ssid }) { n in row(n) }
             }
         }
+    }
+
+    /// One scanned network. The connected one (always first) gets a Disconnect button.
+    @ViewBuilder private func row(_ n: WiFiNetwork) -> some View {
+        let phone = wifi.instantHotspots.first { $0.name == n.ssid }
+        let connected = n.ssid == wifi.ssid
+        let connectedHotspot = connected && wifi.hotspot
+        Button { tap(n) } label: {
+            HStack(spacing: 10) {
+                Group {
+                    if connectedHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
+                    else if n.hotspot || phone != nil { Image(systemName: "personalhotspot").foregroundStyle(Color.isletSecondary) }
+                    else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3).foregroundStyle(Color.isletSecondary) }
+                }.font(.system(size: 12)).frame(width: 20)
+                Text(n.ssid).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                if n.secured && phone == nil {
+                    Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary)
+                }
+                if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
+                Spacer()
+                if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
+                else if connected {
+                    Button("Disconnect") { Task { await wifi.disconnect() } }
+                        .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletCyan)
+                        .padding(.horizontal, 8).frame(height: 18).background(Capsule().fill(Color(hex: 0x2C2C2E)))
+                    Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF))
+                }
+                else if let phone { hotspotDetail(bars: phone.bars, battery: phone.battery) }
+                else if n.known { Text("Saved").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
+            }
+            .frame(height: 26).contentShape(Rectangle())
+        }.buttonStyle(.plain)
     }
 
     /// Cellular bars and a battery icon, as Wi-Fi Settings shows them for a phone. The phone only reports its battery

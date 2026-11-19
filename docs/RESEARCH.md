@@ -78,6 +78,10 @@ lock screen. Each question below can block it:
     `v@?@"SFRemoteHotspotInfo"@"NSError"`, but `-[SFRemoteHotspotSession enableHotspotForDevice:withCompletionHandler:]`
     wraps it and calls the caller's block with `(name, password, error)` (disassembly, macOS 27.2). It escapes. macOS does not join by itself: the caller associates with CoreWLAN, retrying
     while the phone starts broadcasting. Browsing verified on macOS 27.2; joining needs testing.
+15b. **Wi-Fi auto-join** (1.1.4): not settable. CoreWiFi's private `CWFNetworkProfile.setAutoJoinDisabled:` +
+    `CWFInterface updateKnownNetworkProfile:properties:error:` fail with Cocoa error 4097 (connection to
+    `com.apple.private.corewifi-xpc` refused: Apple-only entitlement). CoreWLAN's public profile has no auto-join flag.
+    Disconnect uses public `CWInterface.disassociate()`.
 15. **Keychain**: store the password as a generic password item only this app can read; never log it.
 
 If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation still ships.

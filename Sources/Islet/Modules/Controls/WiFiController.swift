@@ -41,12 +41,15 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     /// A join started from the panel, step by step, for the notch to show once the panel closes.
     @ObservationIgnored var onProgress: ((ConnectionProgress) -> Void)?
     @ObservationIgnored private let path = NWPathMonitor(requiredInterfaceType: .wifi)
-    @ObservationIgnored private var pathExpensive = false
+    /// The network macOS marked expensive (metered), taken when the path changed. Tied to a name so a stale flag from
+    /// the last network (a hotspot) doesn't stick to the next one.
+    @ObservationIgnored private var expensiveSSID: String?
     @ObservationIgnored private let location = CLLocationManager()
     @ObservationIgnored private var lastAnnounced: String?
     /// The network the user just picked in the panel: joining it isn't news, so no notice.
     @ObservationIgnored private var requested: String?
-    private static let hotspotsKey = "wifiKnownHotspots"
+    /// v2: the first version could record an ordinary network right after leaving a hotspot.
+    private static let hotspotsKey = "wifiKnownHotspots2"
     /// Networks seen as a Personal Hotspot while connected, so the list can mark them when they're only in range.
     @ObservationIgnored private var knownHotspots = Set(UserDefaults.standard.stringArray(forKey: hotspotsKey) ?? [])
     @ObservationIgnored private var settleTask: Task<Void, Never>?
@@ -63,7 +66,10 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         for t in [CWEventType.ssidDidChange, .powerDidChange, .linkDidChange] { try? client.startMonitoringEvent(with: t) }
         path.pathUpdateHandler = { [weak self] p in
             let expensive = p.status == .satisfied && p.isExpensive
-            Task { @MainActor in self?.pathExpensive = expensive; self?.refresh() }
+            Task { @MainActor in
+                self?.expensiveSSID = expensive ? CWWiFiClient.shared().interface()?.ssid() : nil
+                self?.refresh()
+            }
         }
         path.start(queue: .global(qos: .utility))
     }
@@ -74,8 +80,12 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         powerOn = i?.powerOn() ?? false
         ssid = powerOn ? i?.ssid() : nil
         let address = i?.interfaceName.flatMap(Self.ipv4)
-        hotspot = ssid != nil && (pathExpensive || address.map(Self.isPhoneHotspotAddress) == true)
-        if hotspot, let ssid, !knownHotspots.contains(ssid) {
+        let phoneAddress = address.map(Self.isPhoneHotspotAddress) == true
+        let phone = ssid.map { s in instantHotspots.contains { $0.name == s } } ?? false
+        hotspot = ssid != nil && (phoneAddress || phone || expensiveSSID == ssid)
+        // Remembered only on firm evidence (an iPhone hotspot address, or a phone offering Instant Hotspot), never
+        // on the metered flag alone.
+        if let ssid, phoneAddress || phone, !knownHotspots.contains(ssid) {
             knownHotspots.insert(ssid)
             UserDefaults.standard.set(Array(knownHotspots), forKey: Self.hotspotsKey)
         }
@@ -188,6 +198,22 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
                 cont.resume(returning: last)
             }
         }
+    }
+
+    /// Leaves the current network. macOS may join another saved one on its own afterwards.
+    func disconnect() async {
+        guard let current = ssid else { return }
+        joining = current; error = nil
+        defer { joining = nil }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                CWWiFiClient.shared().interface()?.disassociate()
+                cont.resume()
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(500))
+        refresh()
+        await scan()
     }
 
     func requestLocation() { location.requestWhenInUseAuthorization() }
