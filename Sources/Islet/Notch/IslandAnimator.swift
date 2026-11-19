@@ -49,7 +49,9 @@ final class IslandAnimator {
             // Reverse: width pulls in first, then the body slides up behind the stem from 0.18 s.
             let inward = Spring(response: 0.26, damping: 1)
             let up = Spring(response: 0.32, damping: 1)
-            specs = [(inward, 0), (up, 0.18), (inward, 0), (up, 0.18), (inward, 0), (inward, 0), (inward, 0)]
+            // Corner radii ride with the height (same delay and spring), so the shape stays rounded all the
+            // way up instead of snapping boxy first. The inner curves shrink with the width.
+            specs = [(inward, 0), (up, 0.18), (inward, 0), (up, 0.18), (up, 0.18), (up, 0.18), (inward, 0)]
         } else {
             let width = Spring(response: 0.5, damping: 0.62) // wings spring out with overshoot
             let other = Spring(response: 0.35, damping: 0.9)
