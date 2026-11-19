@@ -8,14 +8,19 @@ Xcode on the MacBook Pro before moving on.
 - [x] v1 design locked (DESIGN.md, mockup canvas)
 
 ## M1: Notch window and island shape
-- [ ] Generate the Xcode project; app launches as an agent app with a menu bar item (Settings, Pause, Quit)
-- [ ] Measure the notch from `NSScreen`; handle display changes and lid closed
-- [ ] Non-activating panel above the menu bar, on all Spaces and over full-screen apps
+- [x] Generate the Xcode project; app launches as an agent app with a menu bar item (Settings, Pause, Quit)
+- [x] Measure the notch from `NSScreen`; handle display changes and lid closed
+- [x] Non-activating panel above the menu bar, on all Spaces and over full-screen apps
 - [ ] Clicks outside the island pass through
-- [ ] Island `Shape` with stem, body and inner curves, all animatable
-- [ ] Closed, hover peek, wings, chin, expanded shapes with the flow-down/bubble-out motion
+- [x] Island `Shape` with stem, body and inner curves, all animatable
+- [x] Closed, hover peek, wings, chin, expanded shapes with the flow-down/bubble-out motion (shapes checked on screen; tune the motion by eye)
 - [ ] Click to open, collapse on leave (1 s), click outside, Esc
 - [ ] Two-finger swipe up/down
+
+> M1 status: everything above is built. Still to try by hand on the MacBook: click-through outside the
+> island, hover peek, click/Esc/click-outside/1 s collapse, and the two-finger swipe direction (see
+> RESEARCH.md items 3 and 4). In Debug builds the menu bar item has a "Show shape" menu, and
+> `-IsletDebugShape wings|chin|scan|expanded` starts with a shape showing.
 
 ## M2: Face unlock spike (highest risk, do early)
 Throwaway test app or debug menu, no UI polish. Answer each question in RESEARCH.md §Face unlock

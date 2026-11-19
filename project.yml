@@ -34,5 +34,8 @@ targets:
     platform: macOS
     sources:
       - Tests/IsletTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: Islet
