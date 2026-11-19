@@ -8,10 +8,16 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Updates no longer need the GitHub CLI or a GitHub account: Settings → Updates reads the latest release straight from
   GitHub and downloads it. It still runs only when you click Check for updates, and installs the update only if it is
   signed by the same developer as the copy you have.
-- Updating shows in the notch: each step as it happens (downloading with a percentage, checking, installing,
-  restarting), then the island draws back in while Islet restarts. When the new copy opens it says "Updated to …"
-  with a What's new button; click it for the release notes in their own window. Settings → Updates also has a
-  Release notes button before you install, and an update that didn't take says so in the notch.
+- Updating plays out in the notch without a break, with one progress bar for the whole job: downloading (with the
+  real percentage), verifying, installing and restarting. When it's done the bar turns green and draws itself into a
+  check. The island stays on screen through the restart. The new version is put in
+  place and opened while the old one is still showing "Restarting Islet…"; it takes over the island in the same
+  shape, the old one quits, and the island carries straight on into "Updated to …" with a What's new button (click
+  it for the release notes in their own window). The wide bar is used when the menu bar has room, the chin
+  otherwise. If the new version doesn't start, the old one is put back and keeps running. Settings → Updates also
+  has a Release notes button before you install.
+- The chin (the bar under the notch used when the menu bar has no room) has the same 16 pt rounding on all four
+  corners, instead of tighter corners at the top.
 
 ## 1.2.1 (2026-11-19)
 

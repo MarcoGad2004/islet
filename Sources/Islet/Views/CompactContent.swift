@@ -28,12 +28,24 @@ struct CompactContentView: View {
                         ZStack { Color.clear; right }.frame(width: wingW, height: barH)
                     }
                     .frame(width: nw + 2 * wingW, height: barH)
-                    if levelBody, case .progress(let p) = content {
+                    if levelBody, case .progress(let p) = content, let f = p.fraction {
+                        // An update: the step and the bar for the whole job, under the wings.
+                        HStack(spacing: 10) {
+                            Text(p.state == .done && p.actionLabel != nil ? "\(p.text) · \(p.actionLabel!) ›" : p.text)
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .monospacedDigit().contentTransition(rolls(p) ? .numericText() : .opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                            Spacer(minLength: 4)
+                            UpdateBar(fraction: f, done: p.state == .done, failed: isFailed(p), width: 84)
+                        }
+                        .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                               height: IslandLayout.levelBodyHeight).offset(y: -1)
+                    } else if levelBody, case .progress(let p) = content {
                         // The step, then the result, under the wings.
                         Text(p.state == .done && p.actionLabel != nil ? "\(p.text) · \(p.actionLabel!) ›" : p.text)
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
                             .lineLimit(1).minimumScaleFactor(0.75)
-                            .monospacedDigit().contentTransition(.numericText()).animation(.easeInOut(duration: 0.2), value: p.text)
+                            .monospacedDigit().contentTransition(rolls(p) ? .numericText() : .opacity).animation(.easeInOut(duration: 0.2), value: p.text)
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                    height: IslandLayout.levelBodyHeight).offset(y: -1)
                     }
@@ -110,6 +122,12 @@ struct CompactContentView: View {
         case .level(let l):
             RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+        case .progress(let p) where p.fraction != nil:
+            // An update: the bar below turns into the check, so the wing only spins while it works.
+            if case .working = p.state {
+                ProgressView().controlSize(.small).scaleEffect(0.8).frame(width: 16, height: 16)
+                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+            }
         case .progress(let p):
             progressMark(p).frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .event(let e) where levelBody:
@@ -164,9 +182,14 @@ struct CompactContentView: View {
                 progressIcon(p).frame(width: 18)
                 Text(p.text).font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
                     .lineLimit(1).minimumScaleFactor(0.8)
-                    .monospacedDigit().contentTransition(.numericText()).animation(.easeInOut(duration: 0.2), value: p.text)
+                    .monospacedDigit().contentTransition(rolls(p) ? .numericText() : .opacity).animation(.easeInOut(duration: 0.2), value: p.text)
                 Spacer(minLength: 4)
-                progressMark(p)
+                if let f = p.fraction {
+                    if p.state == .done, let label = p.actionLabel { actionPill(label) }
+                    UpdateBar(fraction: f, done: p.state == .done, failed: isFailed(p), width: 64)
+                } else {
+                    progressMark(p)
+                }
             }
         case .locked:
             PadlockView(start: nil)
@@ -207,6 +230,17 @@ struct CompactContentView: View {
         }
     }
 
+    /// Only a count (the download's percent) rolls its digits; a new step cross-fades.
+    private func rolls(_ p: ConnectionProgress) -> Bool { p.text.hasSuffix("%") }
+
+    private func isFailed(_ p: ConnectionProgress) -> Bool { if case .failed = p.state { true } else { false } }
+
+    private func actionPill(_ label: String) -> some View {
+        Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
+            .padding(.horizontal, 9).frame(height: 22).background(Capsule().fill(Color.white.opacity(0.16)))
+            .fixedSize().transition(.opacity.animation(.easeOut(duration: 0.25)))
+    }
+
     private func progressTextColor(_ p: ConnectionProgress) -> Color {
         if case .failed = p.state { return .isletRedText }
         return .isletText
@@ -227,9 +261,7 @@ struct CompactContentView: View {
         switch p.state {
         case .working: ProgressView().controlSize(.small).scaleEffect(0.8).frame(width: 16, height: 16)
         case .done where !wings && p.actionLabel != nil:
-            Text(p.actionLabel!).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
-                .padding(.horizontal, 9).frame(height: 22).background(Capsule().fill(Color.white.opacity(0.16)))
-                .fixedSize().transition(.opacity.animation(.easeOut(duration: 0.25)))
+            actionPill(p.actionLabel!)
         case .done: PopIcon(name: "checkmark.circle.fill", color: .isletGreen, delay: 0)
         case .failed: PopIcon(name: "xmark.circle.fill", color: .isletRed, delay: 0)
         }

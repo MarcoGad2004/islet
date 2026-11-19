@@ -43,7 +43,7 @@ notch-width area stays empty (camera).
 When the wings don't fit, a **stem** exactly the size of the notch runs through the menu bar and a
 **body** hangs below it, over the desktop, so no menu or status icon is ever covered.
 
-- Body: 300 × 36, directly under the stem. Corners: top 10, bottom 16.
+- Body: 300 × 36, directly under the stem. Corners: 16 all round (top and bottom equal, owner 2026-11-19).
 - 10 pt concave curves join the stem to the body's top edge on both sides.
 - Volume and brightness use the wide bar when wings fit (icon left, number right, the 16-step bar in a short body
   below, 20 pt side inset all round); they use the chin only when the menu bar has no room. Option + Shift with the
@@ -65,7 +65,7 @@ Used for the face scan and the expanded panel, regardless of the width check:
 | Closed        | the notch (≈190 × 34, measured)   | bottom 10          |
 | Hover peek    | notch + 16 wide, + 6 tall         | bottom 14          |
 | Wings         | notch + 120 wide, notch height    | bottom 12          |
-| Chin          | stem + 300 × 36 body              | top 10, bottom 16  |
+| Chin          | stem + 300 × 36 body              | 16 all round       |
 | Face scan     | stem + notch-wide × 150 body      | bottom 44          |
 | Expanded      | stem + 500 × 216 body             | top 16, bottom 30  |
 

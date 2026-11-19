@@ -53,6 +53,9 @@ final class NotchController {
     /// The island is under the menu bar icon rather than in a notch.
     var inMenuBar: Bool { store.geometry?.mode == .menuBar }
 
+    /// An update's handoff: the new copy draws its island unseen under the old one's, then shows it in one step.
+    func setIslandVisible(_ visible: Bool) { panel?.alphaValue = visible ? 1 : 0 }
+
     func start() {
         let host = IslandHostingView(rootView: IslandView(store: store))
         host.sizingOptions = []

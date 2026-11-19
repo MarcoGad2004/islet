@@ -108,7 +108,7 @@ extension Presentation {
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: Double(L.levelBodyHeight), tr: 0, br: 18, ic: 0)
         case .chin:
-            return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 10, br: 16, ic: 10)
+            return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 16, br: 16, ic: 10) // all four corners 16
         case .scan:
             // The wide notch expanded downward, so the padlock in the wings stays visible above the scan.
             let w = nw + L.wingsExtra

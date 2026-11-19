@@ -25,10 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
+    #if DEBUG
+    private var debugUpdater: Updater?
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
         notch.start()
+        if UserDefaults.standard.bool(forKey: "IsletHandoff") { notch.setIslandVisible(false) } // shown once fully drawn
         faceUnlock.unlock.start()
         startModules()
         buildMenuBarItem()
@@ -141,19 +145,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Updater.pending = Updater.Pending(from: "1.2.1", to: Updater.currentVersion, notes: section)
             Updater.announceIfJustUpdated()
             if UserDefaults.standard.bool(forKey: "IsletDebugNotes") { ReleaseNotesWindow.show(version: Updater.currentVersion, notes: section) }
-        case "updating":
-            // The steps of an install, without downloading or quitting.
+        case "selfupdate":
+            // The real update, start to finish (pair with IsletDebugUpdateDMG for a local test release).
+            let u = Updater(); debugUpdater = u
             Task { @MainActor in
-                let show = { (s: ConnectionProgress.State) in
+                u.check()
+                while u.state == .checking || u.state == .idle { try? await Task.sleep(for: .milliseconds(200)) }
+                if case .available(let tag) = u.state { u.install(tag) }
+            }
+        case "updating", "updatingwide":
+            // The steps of an install and the handoff's ending, without downloading or quitting. "updatingwide" pretends
+            // the menu bar has room for the wide bar.
+            if UserDefaults.standard.string(forKey: "IsletDebugShape") == "updatingwide" {
+                notch.store.layoutCheck = { true }
+                notch.store.recomputeLayout()
+            }
+            Task { @MainActor in
+                let show = { (s: ConnectionProgress.State, f: Double) in
                     Updater.showInIsland?(ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: "arrow.down.circle.fill",
-                                                             tint: Color(hex: 0x0A84FF)), nil)
+                                                             tint: Color(hex: 0x0A84FF), fraction: f), nil)
                 }
                 try? await Task.sleep(for: .seconds(1.5))
-                for pct in stride(from: 0, through: 100, by: 7) { show(.working("Downloading 1.2.2 · \(pct)%")); try? await Task.sleep(for: .milliseconds(180)) }
-                show(.working("Checking the update…")); try? await Task.sleep(for: .seconds(1.2))
-                show(.working("Installing 1.2.2…")); try? await Task.sleep(for: .seconds(1))
-                show(.working("Restarting Islet…")); try? await Task.sleep(for: .seconds(1.2))
-                Updater.clearIsland?()
+                for pct in stride(from: 0, through: 100, by: 5) {
+                    show(.working("Downloading 1.2.2 · \(pct)%"), Updater.downloadShare * Double(pct) / 100)
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+                show(.working("Verifying the update…"), 0.78); try? await Task.sleep(for: .seconds(1.2))
+                show(.working("Installing 1.2.2…"), 0.88); try? await Task.sleep(for: .seconds(1))
+                show(.working("Restarting Islet…"), Updater.restartFraction); try? await Task.sleep(for: .seconds(1.5))
+                Updater.showInIsland?(ConnectionProgress(name: "Islet", hotspot: false, state: .done, icon: "sparkles", tint: .isletGreen,
+                                                         doneText: "Updated to 1.2.2", actionLabel: "What's new", hold: 8, fraction: 1), nil)
             }
         case "scanlive": faceUnlock.unlock.simulate()
         default: break
@@ -178,7 +199,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.power = power
         store.levels = levels
         store.mediaMonitor = media
+        // An update's handoff: start in the old copy's layout so the two islands match, then measure as usual.
+        let handoffWide = UserDefaults.standard.string(forKey: "IsletHandoffWide").map { $0 == "YES" }
+        let handoffUntil = Date().addingTimeInterval(5)
         store.layoutCheck = { [weak store] in
+            if let handoffWide, Date() < handoffUntil { return handoffWide }
+            #if DEBUG
+            if UserDefaults.standard.bool(forKey: "IsletDebugWide") { return true }
+            #endif
             guard let g = store?.geometry else { return false }
             return g.virtual || LayoutChecker.wingsFit(g) // under the menu bar nothing can be covered
         }
@@ -201,6 +229,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wifi.onProgress = { [weak store] in store?.showProgress($0) }
         Updater.showInIsland = { [weak store] p, action in store?.showProgress(p, action: action) }
         Updater.clearIsland = { [weak store] in store?.clearProgress() }
+        Updater.revealIsland = { [weak self] in self?.notch.setIslandVisible(true) }
+        Updater.islandIsWide = { [weak store] in store?.wingsFit == true }
+        Updater.pauseForHandoff = { [weak self] in self?.levels.stopTap(); self?.media.stop() }
+        Updater.resumeAfterHandoff = { [weak self] in self?.levels.retryTap(); self?.media.start() }
         Updater.announceIfJustUpdated()
         wifi.start()
         bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }

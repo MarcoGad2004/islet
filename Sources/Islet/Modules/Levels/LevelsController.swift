@@ -37,6 +37,15 @@ final class LevelsController {
     /// Retry installing the tap (e.g. after Accessibility was granted).
     func retryTap() { if tap == nil { installTap() } }
 
+    /// Lets the keys go to the system (an update's handoff, while the new copy takes over).
+    func stopTap() {
+        guard let t = tap else { return }
+        CGEvent.tapEnable(tap: t, enable: false)
+        CFMachPortInvalidate(t)
+        tap = nil
+        tapActive = false
+    }
+
     func refresh() {
         if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }),
            let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID { displayID = n }

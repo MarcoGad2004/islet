@@ -85,6 +85,8 @@ struct ConnectionProgress: Equatable {
     var actionLabel: String? = nil
     /// How long the result stays; nil for the usual 2.5 s.
     var hold: Double? = nil
+    /// The whole job's progress, 0...1 (an update): shown as a bar that becomes a check when it is done.
+    var fraction: Double? = nil
 
     /// The line under the wings, or beside the icon in the chin.
     var text: String {

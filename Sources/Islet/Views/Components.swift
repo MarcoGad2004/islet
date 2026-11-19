@@ -236,3 +236,29 @@ struct CheckPop: View {
         }
     }
 }
+
+/// An update's progress across all its steps (download, verify, install, restart). When it finishes, the bar fills
+/// green and draws itself up into a round check at its right end; a failure does the same in red with a cross.
+struct UpdateBar: View {
+    var fraction: Double
+    var done: Bool
+    var failed: Bool
+    var width: CGFloat
+
+    var body: some View {
+        let ended = done || failed
+        let tint: Color = failed ? .isletRed : done ? .isletGreen : Color(hex: 0x0A84FF)
+        ZStack(alignment: .leading) {
+            Capsule().fill(Color(hex: 0x3A3A3C)).opacity(ended ? 0 : 1)
+            Capsule().fill(tint).frame(width: ended ? 18 : max(6, width * min(max(fraction, 0), 1)))
+        }
+        .frame(width: ended ? 18 : width, height: ended ? 18 : 6)
+        .overlay {
+            Image(systemName: failed ? "xmark" : "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                .scaleEffect(ended ? 1 : 0.2).opacity(ended ? 1 : 0)
+        }
+        .frame(width: ended ? 18 : width, alignment: .trailing) // the check gives the text its room back
+        .animation(.spring(response: 0.5, dampingFraction: 0.68), value: ended)
+        .animation(.easeOut(duration: 0.35), value: fraction)
+    }
+}

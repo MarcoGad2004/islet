@@ -27,6 +27,12 @@ final class Updater {
     /// Shows a step in the island, and takes it away. Set by the app delegate.
     static var showInIsland: ((ConnectionProgress, (() -> Void)?) -> Void)?
     static var clearIsland: (() -> Void)?
+    static var revealIsland: (() -> Void)?
+    /// Whether the island is using the wide bar right now (rather than the chin).
+    static var islandIsWide: (() -> Bool)?
+    /// Stop and restart what must not run in two copies at once (the key tap, the media helper).
+    static var pauseForHandoff: (() -> Void)?
+    static var resumeAfterHandoff: (() -> Void)?
 
     var currentVersion: String { Self.currentVersion }
     nonisolated static var currentVersion: String {
@@ -65,7 +71,7 @@ final class Updater {
         state = .downloading(tag)
         Task {
             do {
-                island(.working("Downloading \(version)…"))
+                island(.working("Downloading \(version)…"), 0.02)
                 shownPercent = -1
                 let file = try await Self.download(dmg) { fraction in
                     Task { @MainActor in
@@ -73,38 +79,68 @@ final class Updater {
                         let pct = Int(fraction * 100)
                         guard pct != self.shownPercent, case .downloading = self.state else { return }
                         self.shownPercent = pct
-                        self.island(.working("Downloading \(version) · \(pct)%"))
+                        self.island(.working("Downloading \(version) · \(pct)%"), Self.downloadShare * fraction)
                     }
                 }
-                island(.working("Checking the update…"))
+                island(.working("Verifying the update…"), 0.78)
                 let staged = try await Self.unpackAndVerify(file, against: Bundle.main.bundlePath)
-                island(.working("Installing \(version)…"))
-                try Self.scheduleSwap(staged, dest: Bundle.main.bundlePath)
-                // The new copy reads this when it opens and says how it went.
-                Self.pending = Pending(from: currentVersion, to: version, notes: notes)
-                island(.working("Restarting Islet…"))
-                try? await Task.sleep(for: .seconds(1.2))
-                // Let the island draw back into the notch, then quit; the swap script reopens Islet.
-                Self.clearIsland?()
-                try? await Task.sleep(for: .seconds(0.7))
-                NSApp.terminate(nil)
+                island(.working("Installing \(version)…"), 0.88)
+                try await handOff(to: staged, version: version)
             } catch {
                 let message = (error as? UpdateError)?.message ?? error.localizedDescription
                 state = .failed(message)
-                island(.failed("Update failed"), hold: 4)
+                island(.failed("Update failed"), lastFraction, hold: 4)
             }
         }
     }
 
-    private func island(_ s: ConnectionProgress.State, hold: Double? = nil) {
-        Self.showInIsland?(Self.progress(s, hold: hold), nil)
+    /// The handoff: the notch never goes blank. This copy keeps drawing while the new one is put in place and
+    /// launched; the new one opens in the same "Restarting…" shape, says when it is on screen, and only then does this
+    /// copy quit, so the island carries straight on into "Updated to …". If the new copy never checks in, the old app
+    /// goes back and stays running.
+    private func handOff(to staged: URL, version: String) async throws {
+        let dest = URL(fileURLWithPath: Bundle.main.bundlePath)
+        // Two copies are briefly up at once: stop the ones that must not run twice (key tap, media helper).
+        Self.pauseForHandoff?()
+        let backup: URL
+        do { backup = try await Self.swapIn(staged, at: dest) }
+        catch { Self.resumeAfterHandoff?(); throw error }
+        Self.pending = Pending(from: currentVersion, to: version, notes: notes)
+        island(.working("Restarting Islet…"), Self.restartFraction)
+        try? await Task.sleep(for: .seconds(0.5))
+
+        let (ready, newCopy) = await Self.launchAndWait(dest)
+        if ready {
+            try? FileManager.default.removeItem(at: staged.deletingLastPathComponent())
+            NSApp.terminate(nil)
+            return
+        }
+        // Roll back: close the new copy if it is up, and put this version back where it was.
+        newCopy?.forceTerminate()
+        try? await Task.sleep(for: .seconds(0.3))
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.moveItem(at: backup, to: dest)
+        Self.pending = nil
+        Self.resumeAfterHandoff?()
+        throw UpdateError(message: "The new version didn't start, so Islet put the old one back.")
     }
 
-    private static func progress(_ s: ConnectionProgress.State, done: String? = nil, action: String? = nil, hold: Double? = nil) -> ConnectionProgress {
+    /// The download is most of the bar; verifying, installing and restarting fill the rest.
+    nonisolated static let downloadShare = 0.7
+    nonisolated static let restartFraction = 0.95
+    @ObservationIgnored private var lastFraction = 0.0
+
+    private func island(_ s: ConnectionProgress.State, _ fraction: Double, hold: Double? = nil) {
+        lastFraction = fraction
+        Self.showInIsland?(Self.progress(s, fraction: fraction, hold: hold), nil)
+    }
+
+    private static func progress(_ s: ConnectionProgress.State, fraction: Double, done: String? = nil, action: String? = nil,
+                                 hold: Double? = nil) -> ConnectionProgress {
         let finished = s == .done
-        return ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: finished ? "checkmark.circle.fill" : "arrow.down.circle.fill",
+        return ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: finished ? "sparkles" : "arrow.down.circle.fill",
                            tint: finished ? Color.isletGreen : Color(hex: 0x0A84FF),
-                           doneText: done, actionLabel: action, hold: hold)
+                           doneText: done, actionLabel: action, hold: hold, fraction: fraction)
     }
 
     // MARK: After the relaunch
@@ -117,22 +153,69 @@ final class Updater {
         set { UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: pendingKey) }
     }
 
-    /// Called once at launch: if Islet just updated itself, the island says so (or that it didn't work), with the
-    /// release notes a click away.
+    nonisolated static let handoffReady = Notification.Name("com.marcogad.islet.handoffReady")
+    /// Set by the old copy when it launches this one to take over the island.
+    private static var launchedForHandoff: Bool { UserDefaults.standard.bool(forKey: "IsletHandoff") }
+
+    /// Called once at launch. Launched by an update, it takes the island over from the old copy (same "Restarting…"
+    /// shape, then tells it to quit) and goes on to say "Updated to …", with the release notes a click away.
     static func announceIfJustUpdated() {
-        guard let p = pending else { return }
+        let handoff = launchedForHandoff
+        #if DEBUG
+        // Testing the rollback: a new copy that never checks in.
+        if handoff && UserDefaults.standard.bool(forKey: "IsletDebugNoHandoff") { return }
+        #endif
+        guard let p = pending else {
+            if handoff { revealIsland?(); DistributedNotificationCenter.default().postNotificationName(handoffReady, object: nil, deliverImmediately: true) }
+            removeOldCopies()
+            return
+        }
         pending = nil
         Task { @MainActor in
-            // Let the island settle after launch, so it grows out of the notch on its own.
-            try? await Task.sleep(for: .seconds(1.5))
+            if handoff {
+                // Draw the same shape the old copy is showing, unseen, until it has fully settled; then show it in one
+                // step on top of the old one (identical, so nothing changes on screen) and let the old one go.
+                showInIsland?(progress(.working("Restarting Islet…"), fraction: restartFraction), nil)
+                try? await Task.sleep(for: .seconds(1.2))
+                revealIsland?()
+                DistributedNotificationCenter.default().postNotificationName(handoffReady, object: nil, deliverImmediately: true)
+                try? await Task.sleep(for: .seconds(0.6))
+            } else {
+                // Let the island settle after launch, so it grows out of the notch on its own.
+                try? await Task.sleep(for: .seconds(1.5))
+            }
             if !isNewer(p.to, than: currentVersion) {
                 let notes = p.notes
-                showInIsland?(progress(.done, done: "Updated to \(currentVersion)", action: notes.isEmpty ? nil : "What's new", hold: 8),
+                showInIsland?(progress(.done, fraction: 1, done: "Updated to \(currentVersion)", action: notes.isEmpty ? nil : "What's new", hold: 8),
                               notes.isEmpty ? nil : { ReleaseNotesWindow.show(version: p.to, notes: notes) })
             } else {
-                showInIsland?(progress(.failed("Update to \(p.to) didn't install"), hold: 6), nil)
+                showInIsland?(progress(.failed("Update to \(p.to) didn't install"), fraction: restartFraction, hold: 6), nil)
             }
+            try? await Task.sleep(for: .seconds(3))
+            removeOldCopies()
         }
+    }
+
+    /// The previous version's app, moved aside during an update (".Islet-old-….app" next to this one).
+    private static func removeOldCopies() {
+        let dir = URL(fileURLWithPath: Bundle.main.bundlePath).deletingLastPathComponent()
+        let fm = FileManager.default
+        for name in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where name.hasPrefix(".Islet-old-") && name.hasSuffix(".app") {
+            try? fm.removeItem(at: dir.appendingPathComponent(name))
+        }
+    }
+
+    /// Opens the new copy as a second instance and waits up to 15 s for it to say its island is on screen.
+    private static func launchAndWait(_ app: URL) async -> (ready: Bool, app: NSRunningApplication?) {
+        let waiter = HandoffWaiter() // listening before the launch, so a quick check-in isn't missed
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        config.activates = false
+        // The new copy starts in the same layout (wide bar or chin) as this one, so the two islands match exactly.
+        config.arguments = ["-IsletHandoff", "YES", "-IsletHandoffWide", islandIsWide?() == true ? "YES" : "NO"]
+        let running = try? await NSWorkspace.shared.openApplication(at: app, configuration: config)
+        guard running != nil else { return (false, nil) }
+        return (await waiter.wait(seconds: 15), running)
     }
 
     // MARK: - Work off the main actor
@@ -147,6 +230,13 @@ final class Updater {
     }
 
     nonisolated private static func latestRelease() async throws -> (tag: String, dmg: URL?, notes: String) {
+        #if DEBUG
+        // Testing the whole update without GitHub: a local DMG and the version it holds.
+        if let dmg = UserDefaults.standard.string(forKey: "IsletDebugUpdateDMG") {
+            let v = UserDefaults.standard.string(forKey: "IsletDebugUpdateVersion") ?? "9.9.9"
+            return ("v\(v)", URL(fileURLWithPath: dmg), "- A test update, installed from a local DMG.")
+        }
+        #endif
         var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Islet-updater", forHTTPHeaderField: "User-Agent")
@@ -174,7 +264,7 @@ final class Updater {
             let task = URLSession.shared.downloadTask(with: url) { tmp, response, error in
                 box.observation?.invalidate()
                 if let error { cont.resume(throwing: UpdateError(message: "Download failed: \(error.localizedDescription)")); return }
-                guard let tmp, (response as? HTTPURLResponse)?.statusCode == 200 else {
+                guard let tmp, url.isFileURL || (response as? HTTPURLResponse)?.statusCode == 200 else {
                     cont.resume(throwing: UpdateError(message: "Download failed.")); return
                 }
                 do { try FileManager.default.moveItem(at: tmp, to: dest); cont.resume(returning: dest) }
@@ -210,21 +300,20 @@ final class Updater {
         return staged
     }
 
-    /// After this process exits: swap the app and reopen it.
-    nonisolated private static func scheduleSwap(_ staged: URL, dest: String) throws {
-        let work = staged.deletingLastPathComponent()
-        let script = work.appendingPathComponent("swap.sh")
-        let body = """
-        #!/bin/sh
-        while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done
-        rm -rf "\(dest)" && /usr/bin/ditto "\(staged.path)" "\(dest)" && open "\(dest)"
-        rm -rf "\(work.path)"
-        """
-        try body.write(to: script, atomically: true, encoding: .utf8)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = [script.path]
-        try p.run()
+    /// Puts the new app where this one is. This copy's bundle is renamed aside, not deleted, so it keeps running
+    /// from it and can be put back if the new one never starts.
+    nonisolated private static func swapIn(_ staged: URL, at dest: URL) async throws -> URL {
+        let fm = FileManager.default
+        let backup = dest.deletingLastPathComponent().appendingPathComponent(".Islet-old-\(UUID().uuidString.prefix(8)).app")
+        do { try fm.moveItem(at: dest, to: backup) }
+        catch { throw UpdateError(message: "Couldn't replace Islet in \(dest.deletingLastPathComponent().path).") }
+        let copy = await run("/usr/bin/ditto", [staged.path, dest.path])
+        guard copy.status == 0 else {
+            try? fm.removeItem(at: dest)
+            try? fm.moveItem(at: backup, to: dest)
+            throw UpdateError(message: "Couldn't install the update.")
+        }
+        return backup
     }
 
     /// The signing team of an app, or nil when it has none (ad-hoc or unsigned).
@@ -264,5 +353,37 @@ final class Updater {
             if x != y { return x > y }
         }
         return false
+    }
+}
+
+/// Waits for the new copy's "my island is up" during an update's handoff.
+@MainActor private final class HandoffWaiter {
+    private var ready = false
+    private var cont: CheckedContinuation<Bool, Never>?
+    private var observer: NSObjectProtocol?
+
+    init() {
+        observer = DistributedNotificationCenter.default().addObserver(forName: Updater.handoffReady, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fire(true) }
+        }
+    }
+
+    func wait(seconds: Double) async -> Bool {
+        defer { if let o = observer { DistributedNotificationCenter.default().removeObserver(o); observer = nil } }
+        if ready { return true }
+        return await withCheckedContinuation { c in
+            cont = c
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(seconds))
+                self?.fire(false)
+            }
+        }
+    }
+
+    private func fire(_ ok: Bool) {
+        if ok { ready = true }
+        guard let c = cont else { return }
+        cont = nil
+        c.resume(returning: ok)
     }
 }
