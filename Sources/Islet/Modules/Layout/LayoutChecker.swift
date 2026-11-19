@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 
 /// Menu bar width check (DESIGN.md): wings only when 68 pt (60 + 8 margin) is free on both sides of the notch.
-/// Left: the front app's menus, via Accessibility. Right: other apps' status item windows.
+/// Left: the menu bar owner's menus, via Accessibility (Islet's own menus are measured directly). Right: other apps' status item windows.
 /// No Accessibility permission, or any failure: false, meaning the chin. Runs on events, never in a loop.
 @MainActor
 enum LayoutChecker {
@@ -34,7 +34,15 @@ enum LayoutChecker {
     }
 
     private static func freeLeft(_ g: NotchGeometry) -> CGFloat? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+        // The app whose menus are in the bar (usually the front app).
+        guard let app = NSWorkspace.shared.menuBarOwningApplication ?? NSWorkspace.shared.frontmostApplication else { return nil }
+        let notchLeft = g.screenFrame.midX - g.width / 2
+        // Islet itself (Settings or onboarding open): asking our own process through Accessibility from the main
+        // thread can't be answered (the main thread is the one waiting), so it always failed and fell back to the
+        // chin. Measure our own menu titles instead.
+        if app.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+            return notchLeft - ownMenuRightEdge(g)
+        }
         let ax = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(ax, 0.15)
         var bar: CFTypeRef?
@@ -54,7 +62,21 @@ enum LayoutChecker {
             rightEdge = max(rightEdge, p.x + s.width)
         }
         guard rightEdge > 0 else { return nil }
-        return (g.screenFrame.midX - g.width / 2) - rightEdge
+        return notchLeft - rightEdge
+    }
+
+    /// Right edge of Islet's own menus: the Apple menu plus each title, with the menu bar's spacing. Generous on
+    /// purpose, so an estimate never lets the wings cover a menu.
+    private static func ownMenuRightEdge(_ g: NotchGeometry) -> CGFloat {
+        let font = NSFont.menuBarFont(ofSize: 0)
+        var edge = g.screenFrame.minX + 50 // Apple menu
+        for item in NSApp.mainMenu?.items ?? [] where !item.isHidden {
+            let title = item.title.isEmpty ? (item.submenu?.title ?? "") : item.title
+            let bold = item == NSApp.mainMenu?.items.first // the app menu is bold
+            let f = bold ? NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) : font
+            edge += (title as NSString).size(withAttributes: [.font: f]).width + 24
+        }
+        return edge
     }
 
     private static func freeRight(_ g: NotchGeometry) -> CGFloat? {

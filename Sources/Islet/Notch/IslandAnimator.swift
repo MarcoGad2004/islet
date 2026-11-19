@@ -32,7 +32,17 @@ final class IslandAnimator {
         metrics = target
     }
 
+    /// Where the channels are heading.
+    private var target: IslandMetrics {
+        var t = metrics
+        for i in 0..<IslandMetrics.channelCount { t[i] = channels[i].target }
+        return t
+    }
+
     func go(to target: IslandMetrics) {
+        // Same destination (the pointer crossing the edge mid-morph, a refresh that changed nothing): leave the
+        // running motion alone. Re-planning it would restart the delays and swap springs halfway through.
+        if target == self.target { return }
         let current = metrics
         let growsBody = target.bh > current.bh + 0.5
         let shrinksBody = target.bh < current.bh - 0.5
@@ -80,7 +90,11 @@ final class IslandAnimator {
         for i in 0..<IslandMetrics.channelCount {
             channels[i].target = target[i]
             channels[i].spring = specs[i].0
-            channels[i].delay = specs[i].1
+            // Delays stage a motion from rest. A channel that is already moving (hover bubble interrupted by the
+            // chin, or the chin by the hover) turns toward the new target straight away with its momentum,
+            // instead of freezing mid-air for the delay and then jumping on.
+            let moving = abs(channels[i].velocity) > 1
+            channels[i].delay = moving ? 0 : specs[i].1
         }
         startTimer()
     }

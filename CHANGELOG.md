@@ -3,6 +3,16 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.1.2 (unreleased)
+
+**Notch motion**
+- Hovering over the notch while the chin grows out of it or folds back in no longer restarts the motion halfway: the
+  shape keeps going, and a part that is already moving turns toward its new size with its momentum instead of pausing.
+
+**Wide bar vs chin**
+- With Islet's own Settings (or setup) in front, the menu bar check always failed and fell back to the chin. It now
+  measures Islet's menus directly, so the wide bar is used whenever there is room, the same as in any other app.
+
 ## 1.1.1 (2026-11-19)
 
 **Face unlock**
