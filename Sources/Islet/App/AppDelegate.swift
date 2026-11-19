@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let levels = LevelsController()
     private let media = MediaMonitor()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media)
+    private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media)
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var paused = false
@@ -19,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startModules()
         buildMenuBarItem()
         notch.store.openSettings = { [weak self] in self?.settings.show() }
+        settings.runSetup = { [weak self] in self?.onboarding.show() }
+        if OnboardingWindowController.needed { onboarding.show() }
         applyMenuBarVisibility()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyMenuBarVisibility() }

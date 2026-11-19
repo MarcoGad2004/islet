@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    var runSetup: (() -> Void)?
     private let face: FaceUnlockCoordinator
     private let levels: LevelsController
     private let media: MediaMonitor
@@ -18,7 +19,7 @@ final class SettingsWindowController {
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Islet Settings"
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView(face: face, levels: levels, media: media))
+            w.contentView = NSHostingView(rootView: SettingsView(face: face, levels: levels, media: media, runSetup: { [weak self] in self?.runSetup?() }))
             w.center()
             window = w
         }

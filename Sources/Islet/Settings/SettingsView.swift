@@ -7,6 +7,7 @@ struct SettingsView: View {
     let face: FaceUnlockCoordinator
     let levels: LevelsController
     let media: MediaMonitor
+    var runSetup: () -> Void = {}
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @State private var updater = Updater()
@@ -60,7 +61,10 @@ struct SettingsView: View {
             case .downloading: Text("Downloading, Islet will restart…").font(.caption).foregroundStyle(.secondary)
             default: EmptyView()
             }
-            Button("Quit Islet") { NSApp.terminate(nil) }.padding(.top, 4)
+            HStack {
+                Button("Run setup again…") { runSetup() }
+                Button("Quit Islet") { NSApp.terminate(nil) }
+            }.padding(.top, 4)
         }
     }
 
