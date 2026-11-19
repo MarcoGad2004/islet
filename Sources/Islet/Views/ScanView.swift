@@ -19,24 +19,25 @@ struct ScanView: View {
 
     var body: some View {
         let nh = notchHeight, nw = notchWidth
+        let barH = nh + IslandLayout.lockBarExtra
         // The ring's centre sits at (0, nh + bodyTop + ringSize/2) from the top centre; the landing spot is the
         // middle of the left wing.
-        let fly = CGSize(width: -(nw / 2 + 30 + IslandLayout.wingInset), height: -(nh / 2 + bodyTop + ringSize / 2))
+        let fly = CGSize(width: -(nw / 2 + 30 + IslandLayout.checkInset), height: -(barH / 2 + bodyTop + ringSize / 2))
         ZStack(alignment: .top) {
             // Wings row: the padlock (closed until the match) on the right, the check's landing spot on the left.
             HStack(spacing: 0) {
                 ZStack {
-                    Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.isletGreen)
+                    CheckMark()
                         .opacity(model.flown ? 1 : 0)
                         .scaleEffect(model.flown ? 1 : 0.5)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6).delay(model.flown ? 0.28 : 0), value: model.flown)
                 }
-                .offset(x: -IslandLayout.wingInset)
-                .frame(width: 60, height: nh)
+                .offset(x: -IslandLayout.checkInset)
+                .frame(width: 60, height: barH)
                 Spacer().frame(width: nw)
                 PadlockView(start: model.matchedAt?.addingTimeInterval(0.1))
-                    .offset(x: IslandLayout.wingInset)
-                    .frame(width: 60, height: nh)
+                    .offset(x: IslandLayout.lockInset)
+                    .frame(width: 60, height: barH)
             }
 
             VStack(spacing: 8) {
@@ -49,7 +50,7 @@ struct ScanView: View {
                         .animation(.easeIn(duration: 0.18).delay(model.flown ? 0.32 : 0), value: model.flown)
                 }
                 .frame(width: ringSize, height: ringSize)
-                .scaleEffect(model.flown ? 0.34 : 1)
+                .scaleEffect(model.flown ? 0.43 : 1)
                 .offset(model.flown ? fly : .zero)
                 .animation(.spring(response: 0.5, dampingFraction: 0.78), value: model.flown)
                 .animation(.easeOut(duration: 0.25), value: model.phase)
@@ -62,10 +63,10 @@ struct ScanView: View {
                     .animation(.easeInOut(duration: 0.2), value: model.label)
                     .animation(.easeOut(duration: 0.15), value: model.flown)
             }
-            .padding(.top, nh + bodyTop)
+            .padding(.top, barH + bodyTop)
             .animation(.linear(duration: 0.45), value: model.shakes)
         }
-        .frame(width: nw + IslandLayout.wingsExtra, height: nh + IslandLayout.scanHeight, alignment: .top)
+        .frame(width: nw + IslandLayout.wingsExtra, height: barH + IslandLayout.scanHeight, alignment: .top)
     }
 }
 

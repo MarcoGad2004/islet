@@ -34,9 +34,10 @@ struct IslandView: View {
                     EmptyView()
                 case .expanded:
                     ExpandedView(store: store).padding(.top, nh).transition(fade())
-                case .wings, .chin:
+                case .wings, .lockWings, .chin:
                     if let c = content {
-                        CompactContentView(content: c, store: store, wings: pres == .wings).id(key).transition(fade(pres == .wings ? 0.12 : 0.36))
+                        CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings)
+                            .id(key).transition(fade(pres != .chin ? 0.12 : 0.36))
                     }
                 case .peek, .closed:
                     if store.showsHiddenMediaDot {

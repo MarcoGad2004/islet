@@ -5,17 +5,21 @@ struct CompactContentView: View {
     let content: IslandContent
     let store: IslandStore
     let wings: Bool
+    /// The lock-screen bar is a little taller than the notch.
+    var lockBar = false
 
     var body: some View {
         let nw = store.geometry?.width ?? 190, nh = store.geometry?.height ?? 34
+        let barH = lockBar ? nh + IslandLayout.lockBarExtra : nh
         Group {
             if wings {
                 HStack(spacing: 0) {
-                    left.frame(width: 60)
+                    // ZStack + clear keeps an empty wing at full width (an EmptyView would be dropped from the row).
+                    ZStack { Color.clear; left }.frame(width: 60, height: barH)
                     Spacer().frame(width: nw)
-                    right.frame(width: 60)
+                    ZStack { Color.clear; right }.frame(width: 60, height: barH)
                 }
-                .frame(width: nw + IslandLayout.wingsExtra, height: nh)
+                .frame(width: nw + IslandLayout.wingsExtra, height: barH)
             } else {
                 chin
                     .padding(.horizontal, 16)
@@ -33,7 +37,7 @@ struct CompactContentView: View {
         case .media:
             if let m = store.media { ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing) }
         case .charge(let c): chargeIcon(c)
-        case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.wingInset)
+        case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.checkInset)
         case .locked, .level: EmptyView()
         }
     }
@@ -43,8 +47,8 @@ struct CompactContentView: View {
         case .media: LevelBars(playing: store.media?.playing ?? false)
         case .charge(let c):
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
-        case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.wingInset)
-        case .locked: PadlockView(start: nil).offset(x: IslandLayout.wingInset)
+        case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
+        case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level: EmptyView()
         }
     }

@@ -108,8 +108,9 @@ scan expands the wide bar **downward** (wings width × notch height + 150, botto
 stays visible. On a match the dots fly into a check (0.5 s), then the check **flies to the left wing**
 (spring, from 0.65 s) while the right-hand padlock opens and turns green (starting 0.1 s after the match).
 At the same moment the tall shape folds up into the wide bar, which holds the green check (left) and the open
-green padlock (right) for about 2 s, then folds back to the notch. The padlock and check sit 8 pt toward the
-outer edge of their wing so the notch never covers them. Any other unlock (Touch ID, Apple Watch, password) plays the
+green padlock (right) for about 2 s, then folds back to the notch. The lock-screen bar (locked, scan top, hold, unlock) is 8 pt taller than the notch so each icon has equal
+padding on all sides: padlock ~8-9 pt, check ~13 pt (the check is an exact 18 x 13 stroked shape). The
+padlock and check sit toward the outer edge of their wings so the notch never covers them. Any other unlock (Touch ID, Apple Watch, password) plays the
 same layout without the scan: padlock on the right opens, check pops in on the left. This replaces the
 old "lock on the left, check on the right" wings layout below.
 

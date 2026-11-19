@@ -65,13 +65,14 @@ final class IslandStore {
         if let b = base, b == .enrol || b == .scan {
             // Once the check starts flying, the scan folds up into the wide bar, which then holds the check
             // (left) and the opening padlock (right) for a moment.
-            if b == .scan, scan?.flown == true { return .wings }
+            if b == .scan, scan?.flown == true { return .lockWings }
             return b
         }
         if expanded { return .expanded }
         if let c = content {
             if case .level = c { return .chin } // volume and brightness always use the chin
-            if case .locked = c { return .wings } // the lock screen has no menus: always wings
+            if case .locked = c { return .lockWings } // the lock screen has no menus: always the wide bar
+            if case .unlock = c { return wingsFit ? .lockWings : .chin }
             return compactLayout
         }
         if let base { return base }

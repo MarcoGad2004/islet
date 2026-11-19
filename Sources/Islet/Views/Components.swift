@@ -123,7 +123,7 @@ private extension Color {
 struct PadlockView: View {
     /// nil keeps the lock closed and white (the lock screen's resting state).
     var start: Date?
-    var size: CGFloat = 1
+    var size: CGFloat = 0.9
 
     private func ease(_ x: Double) -> Double { let c = min(max(x, 0), 1); return c * c * (3 - 2 * c) }
 
@@ -168,6 +168,26 @@ private struct Shackle: Shape {
     }
 }
 
+/// A check mark of exact size (18 x 13 before the stroke), so its padding can be set precisely.
+struct CheckShape: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY + r.height * 0.55))
+        p.addLine(to: CGPoint(x: r.minX + r.width * 0.36, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
+        return p
+    }
+}
+
+struct CheckMark: View {
+    var color: Color = .isletGreen
+    var body: some View {
+        CheckShape()
+            .stroke(color, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
+            .frame(width: 18, height: 13)
+    }
+}
+
 /// Green check that pops in from scale 0 with overshoot (0.4 s).
 struct CheckPop: View {
     var start: Date
@@ -177,7 +197,7 @@ struct CheckPop: View {
             let x = min(max((ctx.date.timeIntervalSince(start) - delay) / 0.4, 0), 1)
             let c1 = 1.70158, c3 = c1 + 1
             let s = x == 0 ? 0 : 1 + c3 * pow(x - 1, 3) + c1 * pow(x - 1, 2) // easeOutBack
-            Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(Color.isletGreen).scaleEffect(s)
+            CheckMark().scaleEffect(s)
         }
     }
 }

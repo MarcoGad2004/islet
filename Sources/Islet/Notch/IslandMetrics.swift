@@ -5,6 +5,11 @@ enum IslandLayout {
     static let wingsExtra: Double = 120
     /// The padlock and check sit this far toward the outer edge of their wing, clear of the notch's edge.
     static let wingInset: CGFloat = 8
+    /// The lock-screen bar is a little taller than the notch so the padlock and check have equal padding on all
+    /// sides: icon extent + 2 x pad. Lock: 24 pt tall open, pad 9. Check: 18 x 13 (+stroke), pad 13.
+    static let lockBarExtra: CGFloat = 8
+    static let lockInset: CGFloat = 13   // padlock centre, outward from the wing centre
+    static let checkInset: CGFloat = 9.5 // check centre, outward from the wing centre
     static let peekExtraWidth: Double = 16
     static let peekExtraHeight: Double = 6
     static let chinWidth: Double = 300
@@ -16,7 +21,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, chin, scan, expanded, enrol
+    case closed, peek, wings, lockWings, chin, scan, expanded, enrol
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -70,12 +75,15 @@ extension Presentation {
         case .wings:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: 0, tr: 0, br: 12, ic: 0)
+        case .lockWings:
+            let w = nw + L.wingsExtra
+            return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: 0, tr: 0, br: 14, ic: 0)
         case .chin:
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 10, br: 16, ic: 10)
         case .scan:
             // The wide notch expanded downward, so the padlock in the wings stays visible above the scan.
             let w = nw + L.wingsExtra
-            return IslandMetrics(sw: w, sh: nh, bw: w, bh: L.scanHeight, tr: 0, br: 40, ic: 0)
+            return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: L.scanHeight, tr: 0, br: 40, ic: 0)
         case .enrol:
             return IslandMetrics(sw: nw, sh: nh, bw: 380, bh: 214, tr: 16, br: 30, ic: 10)
         case .expanded:
