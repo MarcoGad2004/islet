@@ -152,6 +152,71 @@ final class ControlSpike: NSObject, CLLocationManagerDelegate {
         log(r.map { "dark mode = \($0.booleanValue)" } ?? "failed: \(err ?? [:])")
     }
 
+    // MARK: Write probes (each change is reverted)
+
+    func runWrites() async {
+        log("# Islet M10 write probes \(Date())")
+        // Dark Mode
+        log("\n## Dark Mode")
+        func dark() -> Bool? {
+            var e: NSDictionary?
+            return NSAppleScript(source: "tell application \"System Events\" to tell appearance preferences to get dark mode")?.executeAndReturnError(&e).booleanValue
+        }
+        func setDark(_ v: Bool) -> String {
+            var e: NSDictionary?
+            NSAppleScript(source: "tell application \"System Events\" to tell appearance preferences to set dark mode to \(v)")?.executeAndReturnError(&e)
+            return e.map { "error \($0)" } ?? "ok"
+        }
+        if let before = dark() {
+            log("before \(before); set \(!before): \(setDark(!before))")
+            try? await Task.sleep(for: .seconds(2)); log("after: \(dark().map(String.init) ?? "?")")
+            log("revert: \(setDark(before))"); try? await Task.sleep(for: .seconds(1.5)); log("final: \(dark().map(String.init) ?? "?")")
+        }
+        // Night Shift
+        log("\n## Night Shift (CBBlueLightClient)")
+        if let cls = NSClassFromString("CBBlueLightClient") as? NSObject.Type {
+            let c = cls.init()
+            typealias Get = @convention(c) (AnyObject, Selector, UnsafeMutableRawPointer) -> Bool
+            typealias Set = @convention(c) (AnyObject, Selector, Bool) -> Bool
+            func status() -> (active: UInt8, enabled: UInt8) {
+                let sel = NSSelectorFromString("getBlueLightStatus:")
+                let buf = UnsafeMutableRawPointer.allocate(byteCount: 128, alignment: 8); buf.initializeMemory(as: UInt8.self, repeating: 0, count: 128)
+                _ = unsafeBitCast(c.method(for: sel), to: Get.self)(c, sel, buf)
+                defer { buf.deallocate() }
+                return (buf.load(fromByteOffset: 0, as: UInt8.self), buf.load(fromByteOffset: 1, as: UInt8.self))
+            }
+            func call(_ name: String, _ v: Bool) { let sel = NSSelectorFromString(name); _ = unsafeBitCast(c.method(for: sel), to: Set.self)(c, sel, v) }
+            let before = status()
+            log("before active=\(before.active) enabled=\(before.enabled)")
+            call("setActive:", before.active == 0); try? await Task.sleep(for: .seconds(2))
+            let mid = status(); log("after setActive:\(before.active == 0): active=\(mid.active) enabled=\(mid.enabled)")
+            call("setActive:", before.active != 0); try? await Task.sleep(for: .seconds(2))
+            let end = status(); log("reverted: active=\(end.active) enabled=\(end.enabled)")
+        }
+        // True Tone
+        log("\n## True Tone (CBTrueToneClient)")
+        if let cls = NSClassFromString("CBTrueToneClient") as? NSObject.Type {
+            let c = cls.init()
+            typealias Get = @convention(c) (AnyObject, Selector) -> Bool
+            typealias Set = @convention(c) (AnyObject, Selector, Bool) -> Bool
+            func enabled() -> Bool { let sel = NSSelectorFromString("enabled"); return unsafeBitCast(c.method(for: sel), to: Get.self)(c, sel) }
+            func set(_ v: Bool) { let sel = NSSelectorFromString("setEnabled:"); _ = unsafeBitCast(c.method(for: sel), to: Set.self)(c, sel, v) }
+            let before = enabled()
+            set(!before); try? await Task.sleep(for: .seconds(2)); log("before \(before); after toggle: \(enabled())")
+            set(before); try? await Task.sleep(for: .seconds(2)); log("reverted: \(enabled())")
+        }
+        // AirDrop mode (written back to the same value)
+        log("\n## AirDrop DiscoverableMode")
+        let orig = shell("/usr/bin/defaults", ["read", "com.apple.sharingd", "DiscoverableMode"])
+        log("original: \(orig)")
+        _ = shell("/usr/bin/defaults", ["write", "com.apple.sharingd", "DiscoverableMode", "-string", "Everyone"])
+        log("after write Everyone: \(shell("/usr/bin/defaults", ["read", "com.apple.sharingd", "DiscoverableMode"]))")
+        _ = shell("/usr/bin/defaults", ["write", "com.apple.sharingd", "DiscoverableMode", "-string", orig])
+        log("reverted: \(shell("/usr/bin/defaults", ["read", "com.apple.sharingd", "DiscoverableMode"]))")
+        log("NOTE: whether sharingd honours the written value is only visible in System Settings / the AirDrop window")
+        try? out.write(to: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-writes.log"), atomically: true, encoding: .utf8)
+    }
+
     // MARK: helpers
 
     private func shell(_ path: String, _ args: [String]) -> String {

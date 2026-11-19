@@ -93,6 +93,14 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   enabled=0) and has `setEnabled:`/`setActive:`. `CBTrueToneClient` has supported/available/enabled (all true) and
   `setEnabled:`. `KeyboardBrightnessClient` exists. Dark Mode reads via `AppleInterfaceStyle` and via System Events (Automation
   prompt granted); setting is untested.
+- **Write probes (same Mac, each change reverted, `-IsletDebugShape spikewrites`):**
+  - Dark Mode via System Events `set dark mode`: works, read back immediately, reverted cleanly.
+  - Night Shift `CBBlueLightClient setActive:`: works (active 1 to 0 and back). `enabled` (the schedule) was not touched.
+  - True Tone `CBTrueToneClient setEnabled:`: works and reads back.
+  - AirDrop `defaults write com.apple.sharingd DiscoverableMode`: the value writes and reads back, but whether sharingd
+    applies it live is not visible from here; check in the AirDrop window during the build, with the Settings-pane
+    fallback if it is ignored.
+  - Still untested (disruptive): Wi-Fi power/associate, Bluetooth connect/power, Focus via shortcut, mirroring.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423.
 
