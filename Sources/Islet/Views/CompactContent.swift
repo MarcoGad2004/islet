@@ -64,7 +64,8 @@ struct CompactContentView: View {
 
     @ViewBuilder private var right: some View {
         switch content {
-        case .media: LevelBars(playing: store.media?.playing ?? false)
+        case .media:
+            if let m = store.media { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
         case .charge(let c):
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
@@ -90,7 +91,7 @@ struct CompactContentView: View {
                 HStack(spacing: 10) {
                     ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing)
                     MarqueeText(text: m.artist.isEmpty ? m.title : "\(m.title) · \(m.artist)")
-                    LevelBars(playing: m.playing)
+                    SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing)
                 }
             }
         case .charge(let c):

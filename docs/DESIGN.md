@@ -227,6 +227,13 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
   network), Bluetooth device connected (device name, battery if known). The system's own banners for these are
   not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings.
+- **Glide between pages:** the expanded panel is one stage. Every element (the two sliders, the tiles and their detail
+  cards, the media artwork and title) is always present and has a rectangle for each page, so changing page moves it there
+  with a spring (response 0.46, damping 0.72, the same family as the notch bubble); inner content cross-fades. The mini
+  player's artwork and title grow into the Now Playing page. Mirroring lists Sidecar iPads (SidecarCore) and connects
+  them; AirPlay targets (TVs) stay in Display Settings.
+- **Audio source icon:** the right wing and chin of the media content show the playing app's icon (dimmed when paused)
+  instead of level bars; the Now Playing page shows it beside the gear.
 - Wi-Fi and Bluetooth details make the panel taller (216 to 300 pt) and it bubbles to the new size with a soft overshoot (the
   hover-bubble spring family); every other page keeps 216 pt. Lists scroll inside the panel. The Now Playing page has the
   same header as the details (back arrow to the controls, gear). The same hover bubble, morph and fade timings apply.

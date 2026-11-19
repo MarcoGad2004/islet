@@ -143,7 +143,10 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   - Bluetooth class of device is only reliable for AirPods (major 4); phones, tablets, the watch and the HomePod report
     0, so the accessory filter uses class and name. A full Wi-Fi scan takes about 8 s, so the list shows
     `cachedScanResults()` first.
-  - Still untested: mirroring, Wi-Fi join with a password.
+  - Sidecar: `SidecarCore.framework` (private) loads from an app; `SidecarDisplayManager.sharedManager` lists "Marco's iPad
+    Pro" in `devices`, with `connectToDevice:completion:` and `disconnectFromDevice:completion:`. Listing verified;
+    connecting not yet tried. AirPlay targets (Roku) are not in this list.
+  - Still untested: Sidecar connect, Wi-Fi join with a password.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,
 developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/forums/thread/738748.

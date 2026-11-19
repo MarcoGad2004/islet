@@ -42,6 +42,7 @@ final class IslandStore {
     var bluetooth: BluetoothController?
     var display: DisplayToggles?
     var airdrop: AirDropController?
+    var sidecar: SidecarController?
     var mediaMonitor: MediaMonitor?
 
     let animator = IslandAnimator()

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let bluetooth = BluetoothController()
     private let display = DisplayToggles()
     private let airdrop = AirDropController()
+    private let sidecar = SidecarController()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
@@ -61,6 +62,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "spike": runSpike()
         case "spikeactive": let s = ControlSpike(); controlSpike = s; Task { await s.runActive() }
         case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
+        case "mediapage":
+            let store = notch.store
+            store.expand()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2.5))
+                store.showMediaPage()
+            }
+        case "modecycle":
+            let store = notch.store
+            store.expand()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                store.setControlDetail(.sound)
+                try? await Task.sleep(for: .seconds(3))
+                store.setControlDetail(nil)
+                try? await Task.sleep(for: .seconds(3))
+                store.showMediaPage()
+                try? await Task.sleep(for: .seconds(3))
+                store.showControlsPage()
+            }
         case "detailcycle":
             let store = notch.store
             store.expand()
@@ -126,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let g = store?.geometry else { return false }
             return LayoutChecker.eventWingsFit(g)
         }
-        store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop
+        store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
         focus.onChange = { [weak store] old, new in
             if let new { store?.showEvent(IslandEvent(kind: .focusOn, icon: new.symbol, title: new.name, detail: "On")) }
@@ -139,6 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bluetooth.start()
         display.refresh()
         airdrop.refresh()
+        sidecar.start()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()
