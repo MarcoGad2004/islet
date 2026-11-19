@@ -61,7 +61,7 @@ struct ControlStage: View {
             switch now {
             case .wifi: store.wifi?.refresh(); store.wifi?.browseHotspots(); Task { await store.wifi?.scan() }
             case .bluetooth: store.bluetooth?.refresh()
-            case .display: store.display?.refresh()
+            case .display: store.display?.refresh(); store.levels?.refresh()
             case .sound: store.levels?.refresh()
             case .mirroring: store.sidecar?.refresh()
             default: break
@@ -135,7 +135,7 @@ struct ControlStage: View {
     }
 
     private func focusIcon(_ f: FocusMode) -> some View {
-        Image(systemName: f.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: 0xBF5AF2))
+        Image(systemName: f.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(f.color)
             .frame(width: 22, height: 22).background(Circle().fill(cardFill)).help(f.name)
     }
 
@@ -181,6 +181,10 @@ struct ControlStage: View {
                        iconAction: { if !bright { store.setControlDetail(.display) } },
                        set: { levels.setBrightness($0) }, expand: { store.setControlDetail(.display) })
                 .slot(bright ? sliderBig : brightSmall, visible: inControls || bright)
+            // Keyboard backlight: only on the Display page, under the screen's slider, when the Mac has one.
+            SliderCard(icon: levels.keyboard == 0 ? "light.min" : "light.max", value: levels.keyboard, enabled: true, large: true,
+                       iconAction: {}, set: { levels.setKeyboard($0) }, expand: {})
+                .slot(CGRect(x: 0, y: 102, width: W, height: 56), visible: bright && levels.keyboardAvailable)
             let loud = mode == .sound
             SliderCard(icon: levels.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", value: levels.muted ? 0 : levels.volume,
                        enabled: true, large: loud,
@@ -190,7 +194,8 @@ struct ControlStage: View {
             SoundOutputList(levels: levels).slot(CGRect(x: 0, y: 102, width: W, height: max(H - 102, 60)), visible: loud)
         }
         if let d = store.display {
-            DisplayToggleRow(display: d).slot(CGRect(x: 0, y: 102, width: W, height: 62), visible: mode == .display)
+            let y: CGFloat = store.levels?.keyboardAvailable == true ? 168 : 102
+            DisplayToggleRow(display: d).slot(CGRect(x: 0, y: y, width: W, height: 62), visible: mode == .display)
         }
     }
 

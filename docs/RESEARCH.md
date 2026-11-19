@@ -120,7 +120,11 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   private route is found.
 - **Q21 Display toggles: all present.** CoreBrightness loads. `CBBlueLightClient` status call works (Night Shift active=1,
   enabled=0) and has `setEnabled:`/`setActive:`. `CBTrueToneClient` has supported/available/enabled (all true) and
-  `setEnabled:`. `KeyboardBrightnessClient` exists. Dark Mode reads via `AppleInterfaceStyle` and via System Events (Automation
+  `setEnabled:`. `KeyboardBrightnessClient` exists. It works from an app (2026-11-19): `copyKeyboardBacklightIDs`, `isKeyboardBuiltIn:`,
+  `brightnessForKeyboard:` read the level (0.19, matching Control Center); writes use
+  `setBrightness:fadeSpeed:commit:forKeyboard:`. Focus: `ModeConfigurations.json` modes carry `tintColorName`
+  (an NSColor class method name); a Focus on by schedule has no assertion record, only a
+  `DNDModeConfigurationScheduleTrigger` (weekday bit order assumed Sunday first, not yet checked). Dark Mode reads via `AppleInterfaceStyle` and via System Events (Automation
   prompt granted); setting is untested.
 - **Write probes (same Mac, each change reverted, `-IsletDebugShape spikewrites`):**
   - Dark Mode via System Events `set dark mode`: works, read back immediately, reverted cleanly.

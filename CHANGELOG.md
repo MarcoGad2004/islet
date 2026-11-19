@@ -8,6 +8,12 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Macs without a notch: the drop that hangs from the top edge when you hover under the camera is now shaped like the
   notch, square at the top and flaring into the edge with rounded corners only at the bottom, instead of a pill that
   didn't quite meet the bezel.
+- Keyboard brightness: the Display page of the panel has a keyboard backlight slider under the screen's
+  (on Macs with a backlit keyboard), and the keyboard backlight keys, on Macs that have them, show the level in the
+  island like screen brightness instead of the system's display.
+- Focus: the icon next to the battery chip and the "on" notice now use the Focus's own colour and symbol from System
+  Settings (orange for School, and so on), not always purple. A Focus turned on by its schedule now shows too; before,
+  only one turned on by hand did. When two are on, the most recent one shows.
 
 ## 1.2 (2026-11-19)
 

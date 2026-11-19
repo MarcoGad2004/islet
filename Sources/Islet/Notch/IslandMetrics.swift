@@ -29,6 +29,8 @@ enum IslandLayout {
     static let expandedBodyHeight: CGFloat = 216
     /// Wi-Fi and Bluetooth lists get a taller body so they are not cramped.
     static let expandedListBodyHeight: CGFloat = 300
+    /// The Display page with a keyboard backlight slider under the screen's.
+    static let expandedDisplayBodyHeight: CGFloat = 280
     /// Bezel mode: the floating panel's top margin (no notch to clear).
     static let floatingContentTop: CGFloat = 14
 }

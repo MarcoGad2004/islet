@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// A short event or persistent state shown in the wings or chin.
 enum IslandContent {
@@ -29,7 +29,7 @@ enum IslandContent {
 enum ExpandedPage { case media, displaySound }
 
 struct LevelState: Equatable {
-    enum Kind { case volume, brightness }
+    enum Kind { case volume, brightness, keyboard }
     var kind: Kind
     /// 0...1
     var value: Double
@@ -62,6 +62,8 @@ struct IslandEvent: Equatable {
     var title: String
     /// Short status word for the chin: "On", "Off", "Connected".
     var detail: String
+    /// A Focus's own colour; the kind's colour when nil.
+    var tint: Color? = nil
     var seconds: Double { 3 }
 }
 

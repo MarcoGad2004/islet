@@ -76,8 +76,12 @@ final class IslandStore {
 
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
-        expandedPage == .displaySound && (controlDetail == .wifi || controlDetail == .bluetooth)
-            ? IslandLayout.expandedListBodyHeight : IslandLayout.expandedBodyHeight
+        guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
+        switch controlDetail {
+        case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
+        case .display? where levels?.keyboardAvailable == true: return IslandLayout.expandedDisplayBodyHeight
+        default: return IslandLayout.expandedBodyHeight
+        }
     }
 
     /// Bezel mode (no notch): a card floating on screen can't stay up all the time, so the constant ones (music while

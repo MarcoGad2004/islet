@@ -12,6 +12,8 @@ final class LevelsController {
     private(set) var muted = false
     private(set) var brightness = 0.5
     private(set) var brightnessAvailable = false
+    private(set) var keyboard = 0.5
+    private(set) var keyboardAvailable = false
     private(set) var outputName = ""
     private(set) var devices: [OutputDevice] = []
     private(set) var tapActive = false
@@ -20,6 +22,7 @@ final class LevelsController {
     @ObservationIgnored fileprivate var tap: CFMachPort?
     @ObservationIgnored private var displayID: CGDirectDisplayID = CGMainDisplayID()
     @ObservationIgnored private let displayServices = DisplayServices()
+    @ObservationIgnored private let backlight = KeyboardBacklight()
     /// Brightness to return to after a face scan raised it; nil when nothing is raised.
     @ObservationIgnored private var boostRestore: Double?
     @ObservationIgnored private var rampTask: Task<Void, Never>?
@@ -40,6 +43,7 @@ final class LevelsController {
         volume = Double(Audio.volume() ?? 0.5)
         muted = Audio.muted() ?? false
         if let b = displayServices.get(displayID) { brightness = Double(b); brightnessAvailable = true } else { brightnessAvailable = false }
+        if let k = backlight.get() { keyboard = Double(k); keyboardAvailable = true } else { keyboardAvailable = false }
         devices = Audio.outputDevices().map { OutputDevice(id: $0.0, name: $0.1) }
         outputName = Audio.defaultOutput().flatMap { id in devices.first { $0.id == id }?.name } ?? ""
     }
@@ -75,7 +79,8 @@ final class LevelsController {
         let isDown = ((flags & 0xFF00) >> 8) == 0xA
         // Option + Shift: quarter steps (64 instead of 16), like the system's fine adjustment.
         let fine = ns.modifierFlags.contains(.option) && ns.modifierFlags.contains(.shift)
-        // NX_KEYTYPE: 0 sound up, 1 sound down, 7 mute, 2 brightness up, 3 brightness down
+        // NX_KEYTYPE: 0 sound up, 1 sound down, 7 mute, 2 brightness up, 3 brightness down,
+        // 21 keyboard backlight up, 22 down, 23 toggle (Macs with backlight keys on the top row)
         switch key {
         case 0, 1, 7:
             guard Audio.volume() != nil else { return false } // output without software volume: let the system handle it
@@ -84,6 +89,10 @@ final class LevelsController {
         case 2, 3:
             guard displayServices.available else { return false }
             if isDown { brightnessKey(up: key == 2, fine: fine) }
+            return true
+        case 21, 22, 23:
+            guard backlight.get() != nil else { return false }
+            if isDown { keyboardKey(key, fine: fine) }
             return true
         default:
             return false
@@ -117,6 +126,25 @@ final class LevelsController {
         onChange?(LevelState(kind: .brightness, value: b))
     }
 
+    /// Remembered by the toggle key so a second press brings the backlight back where it was.
+    @ObservationIgnored private var keyboardBeforeOff: Double?
+
+    private func keyboardKey(_ key: Int, fine: Bool) {
+        let n = fine ? 64.0 : 16.0
+        let now = backlight.get().map(Double.init) ?? keyboard
+        var k: Double
+        switch key {
+        case 21: k = min(n, (now * n).rounded() + 1) / n
+        case 22: k = max(0, (now * n).rounded() - 1) / n
+        default:
+            if now > 0 { keyboardBeforeOff = now; k = 0 } else { k = keyboardBeforeOff ?? 0.5 }
+        }
+        if key != 23 { keyboardBeforeOff = nil }
+        backlight.set(Float(k))
+        keyboard = k
+        onChange?(LevelState(kind: .keyboard, value: k))
+    }
+
     // MARK: Sliders and output picker (expanded panel)
 
     func setVolume(_ v: Double) {
@@ -132,6 +160,10 @@ final class LevelsController {
     func setBrightness(_ b: Double) {
         rampTask?.cancel(); boostRestore = nil
         displayServices.set(displayID, Float(b)); brightness = b
+    }
+
+    func setKeyboard(_ k: Double) {
+        backlight.set(Float(k)); keyboard = k; keyboardBeforeOff = nil
     }
 
     // MARK: Face scan light
@@ -199,6 +231,56 @@ private struct DisplayServices {
     }
 
     @discardableResult func set(_ display: CGDirectDisplayID, _ v: Float) -> Bool { setFn?(display, v) == 0 }
+}
+
+// MARK: - Keyboard backlight (private CoreBrightness KeyboardBrightnessClient, resolved at runtime)
+
+/// The built-in keyboard's backlight, 0...1. `get()` is nil on Macs without one (or if the private class changes).
+private struct KeyboardBacklight {
+    private let client: NSObject?
+
+    init() {
+        _ = dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_NOW)
+        client = (NSClassFromString("KeyboardBrightnessClient") as? NSObject.Type)?.init()
+    }
+
+    /// The first keyboard with a backlight, preferring the built-in one.
+    private var keyboardID: UInt64? {
+        guard let c = client else { return nil }
+        let idsSel = NSSelectorFromString("copyKeyboardBacklightIDs")
+        guard c.responds(to: idsSel), let ids = c.perform(idsSel)?.takeRetainedValue() as? [NSNumber], !ids.isEmpty else { return nil }
+        let builtInSel = NSSelectorFromString("isKeyboardBuiltIn:")
+        if c.responds(to: builtInSel) {
+            typealias B = @convention(c) (AnyObject, Selector, UInt64) -> Bool
+            let f = unsafeBitCast(c.method(for: builtInSel), to: B.self)
+            if let id = ids.first(where: { f(c, builtInSel, $0.uint64Value) }) { return id.uint64Value }
+        }
+        return ids[0].uint64Value
+    }
+
+    func get() -> Float? {
+        guard let c = client, let id = keyboardID else { return nil }
+        let sel = NSSelectorFromString("brightnessForKeyboard:")
+        guard c.responds(to: sel) else { return nil }
+        typealias G = @convention(c) (AnyObject, Selector, UInt64) -> Float
+        return min(max(unsafeBitCast(c.method(for: sel), to: G.self)(c, sel, id), 0), 1)
+    }
+
+    func set(_ v: Float) {
+        guard let c = client, let id = keyboardID else { return }
+        let value = min(max(v, 0), 1)
+        // The committing form saves the level the way Control Center does; the plain one is the fallback.
+        let commit = NSSelectorFromString("setBrightness:fadeSpeed:commit:forKeyboard:")
+        if c.responds(to: commit) {
+            typealias S = @convention(c) (AnyObject, Selector, Float, Int32, Bool, UInt64) -> Bool
+            _ = unsafeBitCast(c.method(for: commit), to: S.self)(c, commit, value, 0, true, id)
+            return
+        }
+        let sel = NSSelectorFromString("setBrightness:forKeyboard:")
+        guard c.responds(to: sel) else { return }
+        typealias S = @convention(c) (AnyObject, Selector, Float, UInt64) -> Bool
+        _ = unsafeBitCast(c.method(for: sel), to: S.self)(c, sel, value, id)
+    }
 }
 
 // MARK: - CoreAudio helpers
