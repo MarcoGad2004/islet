@@ -61,6 +61,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "spike": runSpike()
         case "spikeactive": let s = ControlSpike(); controlSpike = s; Task { await s.runActive() }
         case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
+        case "detailcycle":
+            let store = notch.store
+            store.expand()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2.5))
+                store.setControlDetail(.bluetooth)
+                try? await Task.sleep(for: .seconds(2.5))
+                store.setControlDetail(nil)
+                try? await Task.sleep(for: .seconds(2))
+                store.setControlDetail(.wifi)
+            }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
         case "focuson", "wificonnect", "btconnect", "eventchin":

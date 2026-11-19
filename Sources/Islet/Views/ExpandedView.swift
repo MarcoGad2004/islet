@@ -5,14 +5,21 @@ struct ExpandedView: View {
     let store: IslandStore
 
     var body: some View {
-        Group {
-            switch store.expandedPage {
-            case .media: MediaPage(store: store)
-            case .displaySound: ControlsPage(store: store)
+        // Pages and details cross-fade while the shape bubbles to its new size (both start together).
+        let key = "\(store.expandedPage)-\(String(describing: store.controlDetail))"
+        ZStack(alignment: .top) {
+            Group {
+                switch store.expandedPage {
+                case .media: MediaPage(store: store)
+                case .displaySound: ControlsPage(store: store)
+                }
             }
+            .id(key)
+            .transition(.opacity)
         }
+        .animation(.easeInOut(duration: 0.28), value: key)
         .padding(16)
-        .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight)
+        .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .top)
     }
 }
 
