@@ -53,8 +53,12 @@ the unlock animation still ships.
 - [x] Settings: enrol face (after Touch ID/password), store login password in the Keychain (island enrolment animation, test recognition and threshold slider included)
 - [x] On lock: scan, match, type password; 3 tries (needs a real lock test)
 - [x] 1.1.1: blink liveness, photo/phone edge check, learning from live unlocks, dark-room brightness ramp (all need testing on the Mac)
-- [x] 1.1.4: random liveness challenges (blink, smile, head turn), Enterprise Wi-Fi sign-in, Personal Hotspot status and notice (need testing on the Mac)
+- [x] 1.2: random liveness challenges (blink, smile, head turn), Enterprise Wi-Fi sign-in, Personal Hotspot status and notice (need testing on the Mac)
 - [x] Face scan animation (looking, match, no match); visible over the lock screen only if the SkyLight space works (RESEARCH.md Q13)
+
+## 1.2: Macs without a notch
+- [x] "Without a notch" setting: the island drops down from the menu bar icon (wide-bar notices, panel on click), or off
+- [ ] Try it on a Mac without a notch (tested on a notched Mac with `-IsletNoNotch YES`)
 
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status

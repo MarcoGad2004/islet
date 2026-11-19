@@ -63,14 +63,14 @@ lock screen. Each question below can block it:
     against the original enrolment (not against learned ones, so it can't drift) and aren't near-duplicates
     (cosine < 0.92). It helps recognition in new conditions; false positives are held back by the anchor
     rule, the liveness checks and the threshold, not by learning itself.
-    **1.1.4:** random challenges against a replayed video: after the match the scan asks for one of blink, smile
+    **1.2:** random challenges against a replayed video: after the match the scan asks for one of blink, smile
     (mouth corner-to-corner width, in eye distances, over 1.12× its narrowest recent value for 2 frames) or a head
     turn left/right (nose offset from the eye midpoint moves 0.18 eye distances from its first 3 frames, the asked
     way; raw camera x grows when you turn to your left). Random challenges only count after they are shown, and
     while one is up, non-matching frames don't count as misses (a turned face may not match); an 8 s limit ends
     the attempt instead, and the next attempt picks again. Thresholds unverified on real faces: Test recognition
     ticks each one.
-15a. **Instant Hotspot** (1.1.4): phones offering their hotspot aren't in a CoreWLAN scan until they start
+15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
     the delegate gets `session:updatedFoundDevices:` with `SFRemoteHotspotDevice`s (`deviceName`,
@@ -78,7 +78,7 @@ lock screen. Each question below can block it:
     `v@?@"SFRemoteHotspotInfo"@"NSError"`, but `-[SFRemoteHotspotSession enableHotspotForDevice:withCompletionHandler:]`
     wraps it and calls the caller's block with `(name, password, error)` (disassembly, macOS 27.2). It escapes. macOS does not join by itself: the caller associates with CoreWLAN, retrying
     while the phone starts broadcasting. Browsing verified on macOS 27.2; joining needs testing.
-15b. **Wi-Fi auto-join** (1.1.4): not settable. CoreWiFi's private `CWFNetworkProfile.setAutoJoinDisabled:` +
+15b. **Wi-Fi auto-join** (1.2): not settable. CoreWiFi's private `CWFNetworkProfile.setAutoJoinDisabled:` +
     `CWFInterface updateKnownNetworkProfile:properties:error:` fail with Cocoa error 4097 (connection to
     `com.apple.private.corewifi-xpc` refused: Apple-only entitlement). CoreWLAN's public profile has no auto-join flag.
     Disconnect uses public `CWInterface.disassociate()`.

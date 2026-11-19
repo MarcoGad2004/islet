@@ -12,6 +12,7 @@ struct SettingsView: View {
     var runSetup: () -> Void = {}
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @AppStorage(NotchlessStyle.key) private var notchlessStyle = NotchlessStyle.menuBar.rawValue
     @State private var updater = Updater()
 
     private enum Step { case overview, password, scanning }
@@ -31,8 +32,17 @@ struct SettingsView: View {
             Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
             Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
             if !showMenuBarIcon {
-                Text("Open settings from the gear in the expanded notch (click the notch).").font(.caption).foregroundStyle(.secondary)
+                Text("Open settings from the gear in the expanded notch (click the notch). Without a notch the icon always shows.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
+            Picker("Without a notch", selection: $notchlessStyle) {
+                Text("Drop down from the menu bar icon").tag(NotchlessStyle.menuBar.rawValue)
+                Text("Off").tag(NotchlessStyle.off.rawValue)
+            }
+            Text(notchlessStyle == NotchlessStyle.off.rawValue
+                 ? "On a Mac without a notch (or with the lid closed) there is no island. Face unlock and the rest keep working; Settings is in the menu bar icon."
+                 : "On a Mac without a notch (or with the lid closed) the island drops down from Islet's menu bar icon: click it to open the panel, right-click for the menu.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
                           detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
             permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)

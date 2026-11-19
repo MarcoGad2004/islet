@@ -138,7 +138,16 @@ final class IslandStore {
 
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
-        return presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        let m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        return g.virtual ? Self.underMenuBar(m, presentation) : m
+    }
+
+    /// Without a notch there is nothing to hide the stem behind, so the island is a plain card hanging from the
+    /// menu bar: as wide as its body, no inner curves, and nothing at all when idle (it grows out of the bar).
+    static func underMenuBar(_ m: IslandMetrics, _ p: Presentation) -> IslandMetrics {
+        if p == .closed || p == .peek { return IslandMetrics(sw: m.sw, sh: 0, bw: m.sw, bh: 0, tr: 0, br: 0, ic: 0) }
+        let w = max(m.sw, m.bw)
+        return IslandMetrics(sw: w, sh: m.sh, bw: w, bh: m.bh, tr: 0, br: m.br, ic: 0)
     }
 
     private func refresh() {
@@ -151,6 +160,7 @@ final class IslandStore {
         guard let g = geometry, !paused else { return false }
         let p = g.panelPoint(fromGlobal: globalPoint)
         let m = animator.metrics
+        if g.virtual && m.height < 1 { return false } // nothing showing under the menu bar
         let slop = 2.0
         let rect = CGRect(x: NotchGeometry.panelWidth / 2 - m.width / 2 - slop, y: -slop,
                           width: m.width + 2 * slop, height: m.height + slop)

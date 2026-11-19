@@ -322,6 +322,18 @@ With the pointer over the island:
 - Wings only when both sides ≥ 68 pt. Re-check on app switch, menu changes and display changes.
 - No Accessibility permission, or the check fails: always use the chin.
 
+## Without a notch (1.2)
+
+Setting "Without a notch": **menu bar** (default) or **off**. It applies whenever no screen has a notch, including
+the lid closed on an external display.
+- Menu bar: the island hangs from the bottom of the menu bar under Islet's icon (moved in to stay 8 pt clear of the
+  screen edge). The stand-in notch is 100 x 32 pt and invisible: idle is zero height, and every shape is a card as
+  wide as its body (no stem, no inner curves), flat on top with the top flare melting into the menu bar. Nothing can
+  be covered there, so compact content always uses the wide bar, never the chin. Click the icon to open or close
+  the panel; right-click or Control-click for the menu. There is no hover peek.
+- Off: no island. Face unlock and the modules keep running.
+- With no island in a notch the menu bar icon always shows.
+
 ## Visual tokens
 
 | Token          | Value     | Use                                  |

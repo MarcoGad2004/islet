@@ -3,7 +3,16 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.1.4 (unreleased)
+## 1.2 (unreleased)
+
+**Macs without a notch**
+- Islet now runs on MacBooks without a notch (and with the lid closed on an external display). New setting, General →
+  **Without a notch**:
+  - **Drop down from the menu bar icon** (the default): click Islet's menu bar icon and the panel drops down under it;
+    right-click (or Control-click) for the menu. Charging, volume, media and connection notices grow out of the menu
+    bar under the icon as a wide bar and fold back into it, invisible when there's nothing to show.
+  - **Off**: no island at all, for using Islet just for face unlock.
+- Without a notch the menu bar icon always shows, since it's the way to Settings.
 
 **Face unlock**
 - New "Prove it's live" setting: **Random** (the default) asks for a blink, a smile, or a head turn left or right,

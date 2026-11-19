@@ -66,6 +66,30 @@ final class IslandContentTests: XCTestCase {
         XCTAssertEqual(store.presentation, .lockWings) // the unlock animation uses the lock-screen bar
     }
 
+    @MainActor func testNoNotchHangsUnderTheMenuBarIcon() {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        // An icon near the right edge: the island moves in so the 500 pt panel stays on screen.
+        let g = NotchGeometry.underMenuBar(anchorX: 1400, menuBarBottom: 876, screen: screen)
+        XCTAssertTrue(g.virtual)
+        XCTAssertEqual(g.screenFrame.maxY, 876)
+        XCTAssertEqual(g.screenFrame.midX, 1440 - 258)
+        XCTAssertEqual(NotchGeometry.underMenuBar(anchorX: 900, menuBarBottom: 876, screen: screen).screenFrame.midX, 900)
+
+        // Idle: nothing shows. Open: a flat card as wide as its body, with no stem or inner curves.
+        let closed = IslandStore.underMenuBar(Presentation.closed.metrics(notchWidth: 100, notchHeight: 32), .closed)
+        XCTAssertEqual(closed.height, 0)
+        let open = IslandStore.underMenuBar(Presentation.expanded.metrics(notchWidth: 100, notchHeight: 32), .expanded)
+        XCTAssertEqual(open.sw, open.bw)
+        XCTAssertEqual(open.ic, 0)
+
+        // Nothing to cover under the menu bar: notices use the wide bar, not the chin.
+        let store = IslandStore()
+        store.layoutCheck = { store.geometry?.virtual == true }
+        store.setGeometry(g)
+        store.showCharge(ChargeEvent(kind: .connected, percent: 50))
+        XCTAssertEqual(store.presentation, .wings)
+    }
+
     @MainActor func testLockScreenShowsTheLockBar() {
         let store = IslandStore()
         store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))

@@ -45,6 +45,13 @@ final class NotchController {
     private var panel: NotchPanel?
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
+    /// Without a notch: where the island hangs, from Islet's menu bar icon (its centre x, the menu bar's bottom
+    /// and its screen). nil when the icon isn't on screen.
+    var menuBarAnchor: (() -> (x: CGFloat, bottom: CGFloat, screen: CGRect)?)?
+    /// The last place the icon was seen, kept for when its window is away (the lock screen has no status items).
+    private var lastAnchor: (x: CGFloat, bottom: CGFloat, screen: CGRect)?
+    /// The island is under the menu bar icon rather than in a notch.
+    var inMenuBar: Bool { store.geometry?.virtual == true }
 
     func start() {
         let host = IslandHostingView(rootView: IslandView(store: store))
@@ -95,10 +102,28 @@ final class NotchController {
 
     // MARK: Screen
 
-    private func screenChanged() {
-        store.setGeometry(NotchGeometry.current())
-        if let g = store.geometry { panel?.setFrame(g.panelFrame, display: true) }
+    func screenChanged() {
+        let g = NotchGeometry.current() ?? menuBarGeometry()
+        if g != store.geometry { store.setGeometry(g) }
+        if let g { panel?.setFrame(g.panelFrame, display: true) }
         updatePanelVisibility()
+    }
+
+    /// No notch: the island under the menu bar icon, or none when the owner turned that off.
+    private func menuBarGeometry() -> NotchGeometry? {
+        guard NotchlessStyle.current == .menuBar else { return nil }
+        if let a = menuBarAnchor?(), a.screen.contains(CGPoint(x: a.x, y: a.bottom)) { lastAnchor = a }
+        guard let a = lastAnchor ?? NSScreen.main.map({ s in
+            (x: s.frame.maxX - 200, bottom: s.visibleFrame.maxY, screen: s.frame)
+        }) else { return nil }
+        return NotchGeometry.underMenuBar(anchorX: a.x, menuBarBottom: a.bottom, screen: a.screen)
+    }
+
+    /// The menu bar icon was clicked (menu bar mode): open or close the island under it.
+    func toggleFromMenuBar() {
+        if store.expanded { store.collapse(); return }
+        screenChanged() // the icon may have moved since
+        store.expand()
     }
 
     private func updatePanelVisibility() {

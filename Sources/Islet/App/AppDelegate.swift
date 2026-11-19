@@ -17,16 +17,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
     private var menuBarObserver: NSKeyValueObservation?
+    private var notchlessObserver: NSKeyValueObservation?
+    private var statusMenu: NSMenu?
     private var menuBarShown = true
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
         notch.start()
         faceUnlock.unlock.start()
         startModules()
         buildMenuBarItem()
+        // Without a notch the island hangs from the icon, which only has a place once the menu bar lays it out.
+        Task { @MainActor [weak self] in self?.notch.screenChanged(); self?.applyMenuBarVisibility() }
         notch.store.openSettings = { [weak self] in self?.settings.show() }
         settings.runSetup = { [weak self] in self?.onboarding.show() }
         if OnboardingWindowController.needed { onboarding.show() }
@@ -34,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Watch only this key. (Setting `isVisible` itself writes to UserDefaults, so observing every change recursed.)
         menuBarObserver = UserDefaults.standard.observe(\.showMenuBarIcon, options: [.new]) { [weak self] _, _ in
             Task { @MainActor in self?.applyMenuBarVisibility() }
+        }
+        notchlessObserver = UserDefaults.standard.observe(\.notchlessStyle, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.notch.screenChanged(); self?.applyMenuBarVisibility() }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyMenuBarVisibility() }
         }
         #if DEBUG
         // `Islet -IsletDebugShape chin` starts with a shape showing (wings, chin, scan, expanded).
@@ -141,12 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.mediaMonitor = media
         store.layoutCheck = { [weak store] in
             guard let g = store?.geometry else { return false }
-            return LayoutChecker.wingsFit(g)
+            return g.virtual || LayoutChecker.wingsFit(g) // under the menu bar nothing can be covered
         }
 
         store.eventLayoutCheck = { [weak store] in
             guard let g = store?.geometry else { return false }
-            return LayoutChecker.eventWingsFit(g)
+            return g.virtual || LayoutChecker.eventWingsFit(g)
         }
         store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
@@ -216,12 +227,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Islet", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        item.menu = menu
+        // The menu opens from the click handler: in menu bar mode a plain click opens the island instead.
+        statusMenu = menu
+        item.button?.target = self
+        item.button?.action = #selector(statusItemClicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
     }
 
+    @objc private func statusItemClicked() {
+        let e = NSApp.currentEvent
+        let wantsMenu = e?.type == .rightMouseUp || e?.modifierFlags.contains(.control) == true || e?.modifierFlags.contains(.option) == true
+        if notch.inMenuBar && !wantsMenu {
+            notch.toggleFromMenuBar()
+            return
+        }
+        guard let item = statusItem, let menu = statusMenu else { return }
+        item.menu = menu
+        item.button?.performClick(nil) // shows the menu with the icon highlighted
+        item.menu = nil
+    }
+
+    /// Where the island hangs without a notch: under the icon, from the menu bar's bottom edge.
+    private func statusItemAnchor() -> (x: CGFloat, bottom: CGFloat, screen: CGRect)? {
+        guard let item = statusItem, item.isVisible, let w = item.button?.window, let screen = w.screen else { return nil }
+        return (x: w.frame.midX, bottom: w.frame.minY, screen: screen.frame)
+    }
+
+    /// Without a notch island (no notch, or the owner turned the menu bar mode off) the icon is the only way to
+    /// Settings, so it stays.
     private func applyMenuBarVisibility() {
-        let show = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
+        let wanted = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
+        let show = wanted || !(notch.store.geometry.map { !$0.virtual } ?? false)
         guard show != menuBarShown else { return }
         menuBarShown = show
         statusItem?.isVisible = show
@@ -317,4 +354,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension UserDefaults {
     /// KVO key for the "Show menu bar icon" setting.
     @objc dynamic var showMenuBarIcon: Bool { bool(forKey: "showMenuBarIcon") }
+    /// KVO key for what Islet does without a notch (`NotchlessStyle`).
+    @objc dynamic var notchlessStyle: String? { string(forKey: "notchlessStyle") }
 }
