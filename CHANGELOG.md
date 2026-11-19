@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.1.1 (unreleased)
+## 1.1.1 (2026-11-19)
 
 **Face unlock**
 - Photo protection: a face has to blink before it unlocks (Settings, on by default), and a face inside the edge of a
