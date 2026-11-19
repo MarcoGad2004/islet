@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media)
     private var statusItem: NSStatusItem?
+    private var menuBarObserver: NSKeyValueObservation?
+    private var menuBarShown = true
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
@@ -23,8 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.runSetup = { [weak self] in self?.onboarding.show() }
         if OnboardingWindowController.needed { onboarding.show() }
         applyMenuBarVisibility()
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyMenuBarVisibility() }
+        // Watch only this key. (Setting `isVisible` itself writes to UserDefaults, so observing every change recursed.)
+        menuBarObserver = UserDefaults.standard.observe(\.showMenuBarIcon, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.applyMenuBarVisibility() }
         }
         #if DEBUG
         // `Islet -IsletDebugShape chin` starts with a shape showing (wings, chin, scan, expanded).
@@ -134,7 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyMenuBarVisibility() {
         let show = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
-        if statusItem?.isVisible != show { statusItem?.isVisible = show }
+        guard show != menuBarShown else { return }
+        menuBarShown = show
+        statusItem?.isVisible = show
     }
 
     @objc private func openSettings() { settings.show() }
@@ -213,4 +218,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     #endif
+}
+
+
+extension UserDefaults {
+    /// KVO key for the "Show menu bar icon" setting.
+    @objc dynamic var showMenuBarIcon: Bool { bool(forKey: "showMenuBarIcon") }
 }
