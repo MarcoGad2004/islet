@@ -12,5 +12,6 @@ extension Color {
     static let isletGreen = Color(hex: 0x32D74B)
     static let isletCyan = Color(hex: 0x64D2FF)
     static let isletRed = Color(hex: 0xFF453A)
+    static let isletRedText = Color(hex: 0xFF6961)
     static let isletRing = Color(hex: 0x2C2C2E)
 }

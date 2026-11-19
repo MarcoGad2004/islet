@@ -32,3 +32,7 @@ Local.xcconfig
 # Face model (130 MB, fetched by scripts/fetch-model.sh)
 Models/*.mlmodel
 Models/*.mlmodelc
+
+# Build output
+dist/
+build/

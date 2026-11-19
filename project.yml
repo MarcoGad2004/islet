@@ -11,6 +11,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: L4Y6A9NY9T   # stable signature so Accessibility/Camera grants survive rebuilds
     ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
 targets:
   Islet:
     type: application
@@ -26,6 +27,11 @@ targets:
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
+    postBuildScripts:
+      - name: Build media adapter
+        basedOnDependencyAnalysis: false
+        script: |
+          "$SRCROOT/scripts/build-mediaremote.sh" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
     entitlements:
       path: Sources/Islet/Islet.entitlements
       properties:

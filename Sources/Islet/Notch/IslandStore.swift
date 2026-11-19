@@ -1,38 +1,85 @@
 import AppKit
 
 /// Single source of truth for what the island shows (ARCHITECTURE.md layer 5).
-/// Feature modules set `base`; hover, click and gestures drive the rest.
+/// Modules publish events and state; priority is: face scan > unlock animation > volume/brightness >
+/// charging/battery > media. Short events cover media and hand back when they end.
 @MainActor @Observable
 final class IslandStore {
     private(set) var geometry: NotchGeometry?
-    /// What a feature is showing right now (media, charging, ...). nil when nothing is.
+    /// Enrolment, the lock-screen scan and debug shapes. Enrol and scan override everything.
     private(set) var base: Presentation?
     private(set) var expanded = false
+    private(set) var expandedPage = ExpandedPage.displaySound
     private(set) var pointerInside = false
     private(set) var paused = false
-    /// Set while face enrolment is running; the enrol presentation draws from it.
+
+    // Content sources
+    private(set) var charge: ChargeEvent?
+    private(set) var level: LevelState?
+    private(set) var unlockStart: Date?
+    private(set) var media: MediaInfo?
+    private(set) var mediaHidden = false
+    private(set) var wingsFit = false
     var enrolment: EnrolmentModel?
-    /// Set while the lock-screen face scan runs.
     var scan: ScanModel?
 
+    // Modules the expanded panel reads from.
+    var power: PowerMonitor?
+    var levels: LevelsController?
+    var mediaMonitor: MediaMonitor?
+
     let animator = IslandAnimator()
-    /// Called when `expanded` changes, so the panel can take or give up key status (for Esc).
     @ObservationIgnored var onExpandedChange: ((Bool) -> Void)?
+    /// Decides wings vs chin (menu bar width check). nil or false means chin.
+    @ObservationIgnored var layoutCheck: (() -> Bool)?
     @ObservationIgnored private var leaveTask: Task<Void, Never>?
+    @ObservationIgnored private var chargeTask: Task<Void, Never>?
+    @ObservationIgnored private var levelTask: Task<Void, Never>?
+    @ObservationIgnored private var unlockTask: Task<Void, Never>?
+
+    // MARK: Derived
+
+    var mediaVisible: Bool { media != nil && !mediaHidden }
+
+    var content: IslandContent? {
+        if let unlockStart { return .unlock(start: unlockStart) }
+        if let level { return .level(level) }
+        if let charge { return .charge(charge) }
+        if mediaVisible { return .media }
+        return nil
+    }
+
+    private var compactLayout: Presentation { wingsFit ? .wings : .chin }
 
     var presentation: Presentation {
         // Enrolment and the face scan can't be interrupted by hover or clicks.
         if let b = base, b == .enrol || b == .scan { return b }
         if expanded { return .expanded }
+        if let c = content {
+            if case .level = c { return .chin } // volume and brightness always use the chin
+            return compactLayout
+        }
         if let base { return base }
         return pointerInside ? .peek : .closed
     }
 
-    // MARK: Geometry
+    /// Green dot hint under the camera while media is hidden and the pointer is over the notch.
+    var showsHiddenMediaDot: Bool { mediaHidden && media != nil && pointerInside && content == nil && !expanded && base == nil }
+
+    // MARK: Geometry and layout
 
     func setGeometry(_ g: NotchGeometry?) {
         geometry = g
+        recomputeLayout()
         if let m = targetMetrics() { animator.snap(to: m) }
+    }
+
+    /// Re-run the menu bar width check (app switch, event start, display change).
+    func recomputeLayout() {
+        let fits = layoutCheck?() ?? false
+        guard fits != wingsFit else { return }
+        wingsFit = fits
+        refresh()
     }
 
     private func targetMetrics() -> IslandMetrics? {
@@ -46,7 +93,6 @@ final class IslandStore {
 
     // MARK: Pointer and hit testing
 
-    /// True when a global pointer position is over the island's current shape.
     func isOverIsland(globalPoint: CGPoint) -> Bool {
         guard let g = geometry, !paused else { return false }
         let p = g.panelPoint(fromGlobal: globalPoint)
@@ -63,7 +109,6 @@ final class IslandStore {
         if inside {
             leaveTask?.cancel()
         } else if expanded {
-            // Close 1 s after the pointer leaves.
             leaveTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
@@ -75,10 +120,18 @@ final class IslandStore {
 
     // MARK: Actions
 
-    func click() { expand() }
+    private var locked: Bool { base == .enrol || base == .scan }
+
+    /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is).
+    func click() {
+        expand()
+    }
 
     func expand() {
-        guard !expanded, base != .enrol, base != .scan else { return }
+        guard !expanded, !locked else { return }
+        expandedPage = (level == nil && mediaVisible) ? .media : .displaySound
+        levels?.refresh()
+        power?.refresh()
         setExpanded(true)
     }
 
@@ -95,16 +148,18 @@ final class IslandStore {
     }
 
     func swipeUp() {
-        if expanded { collapse() }
-        // M6: hides media when it is showing.
+        if expanded { collapse(); return }
+        if mediaVisible && charge == nil && level == nil && unlockStart == nil {
+            mediaHidden = true // stays hidden until swiped back or a different app starts playing
+            refresh()
+        }
     }
 
     func swipeDown() {
-        // M6: brings hidden media back first. With nothing hidden, open the panel.
+        if mediaHidden { mediaHidden = false; refresh(); return }
         expand()
     }
 
-    /// Clear everything transient (click outside, Esc).
     func dismiss() { collapse() }
 
     func setBase(_ p: Presentation?) {
@@ -115,6 +170,57 @@ final class IslandStore {
     func setPaused(_ value: Bool) {
         paused = value
         if value { expanded = false; pointerInside = false; base = nil; onExpandedChange?(false) }
+        refresh()
+    }
+
+    // MARK: Content from modules
+
+    func showCharge(_ event: ChargeEvent) {
+        recomputeLayout()
+        charge = event
+        chargeTask?.cancel()
+        chargeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(event.seconds))
+            guard !Task.isCancelled else { return }
+            self?.charge = nil
+            self?.refresh()
+        }
+        refresh()
+    }
+
+    /// Volume and brightness hide 1.5 s after the last press.
+    func showLevel(_ state: LevelState) {
+        level = state
+        levelTask?.cancel()
+        levelTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            self?.level = nil
+            self?.refresh()
+        }
+        refresh()
+    }
+
+    /// The lock-opens animation, 1.8 s.
+    func playUnlock() {
+        recomputeLayout()
+        unlockStart = Date()
+        unlockTask?.cancel()
+        unlockTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled else { return }
+            self?.unlockStart = nil
+            self?.refresh()
+        }
+        refresh()
+    }
+
+    func setMedia(_ info: MediaInfo?) {
+        // A different app starting to play brings hidden media back.
+        if let info, info.playing, media?.bundleID != info.bundleID || media?.playing == false, mediaHidden { mediaHidden = false }
+        let appeared = (media == nil) != (info == nil)
+        media = info
+        if appeared { recomputeLayout() }
         refresh()
     }
 }

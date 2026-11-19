@@ -42,3 +42,14 @@ Requires Xcode (full app, not just Command Line Tools).
 
 ## License
 MIT, see [LICENSE](LICENSE).
+
+
+## Install (DMG)
+
+```bash
+scripts/make-dmg.sh      # builds a Release app and writes dist/Islet.dmg
+```
+
+Open `dist/Islet.dmg`, drag Islet to Applications, launch it, then allow Accessibility (Settings in the
+menu bar item shows what is missing) and turn on "Open Islet at login". The face model is fetched by
+`scripts/fetch-model.sh` (the DMG script runs it for you). Not notarized: it is for this Mac.

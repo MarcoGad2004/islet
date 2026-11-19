@@ -94,8 +94,15 @@ final class FaceUnlockService {
         Self.log.info("unlocked")
         locked = false
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
-        // Let a "Welcome back" check finish before folding away.
-        stop(collapseAfter: model?.phase == .match ? 0.9 : 0)
+        // After a face match, let "Welcome back" finish and fold up, then play the lock-opens animation.
+        // Any other unlock (Touch ID, Apple Watch, password) plays it straight away.
+        let delay = model?.phase == .match ? 0.9 : 0
+        stop(collapseAfter: delay)
+        if delay > 0 {
+            Task { try? await Task.sleep(for: .seconds(delay + 0.05)); island.playUnlock() }
+        } else {
+            island.playUnlock()
+        }
     }
 
     private static func sessionIsLocked() -> Bool {

@@ -1,0 +1,21 @@
+import AppKit
+
+struct MediaInfo: Equatable {
+    var bundleID: String
+    var title: String
+    var artist: String
+    var album: String
+    var playing: Bool
+    var duration: Double
+    /// Elapsed seconds at `timestamp`.
+    var elapsed: Double
+    var timestamp: Date
+    var rate: Double
+    var artwork: NSImage?
+
+    /// Elapsed seconds now, advancing while playing.
+    func position(at date: Date = Date()) -> Double {
+        let e = playing ? elapsed + date.timeIntervalSince(timestamp) * max(rate, 1) : elapsed
+        return duration > 0 ? min(max(e, 0), duration) : max(e, 0)
+    }
+}

@@ -1,9 +1,13 @@
+import ServiceManagement
 import SwiftUI
 
 /// Settings. For now: face unlock setup (M8 builds the unlock itself). Launch at login and permissions
 /// status arrive with M9.
 struct SettingsView: View {
     let face: FaceUnlockCoordinator
+    let levels: LevelsController
+    let media: MediaMonitor
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     private enum Step { case overview, password, scanning }
     @State private var step = Step.overview
@@ -13,7 +17,44 @@ struct SettingsView: View {
     @State private var confirmRemove = false
 
     var body: some View {
+        ScrollView { content }
+    }
+
+    private var general: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("General").font(.title2.weight(.semibold))
+            Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+            permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
+                          detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
+            permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)
+            permissionRow("Now playing", ok: media.available, detail: media.available ? "Working" : "Adapter unavailable", action: nil)
+            Divider().padding(.top, 4)
+        }
+        .onAppear { face.unlock.refreshPermission(); levels.retryTap() }
+    }
+
+    private func permissionRow(_ title: String, ok: Bool, detail: String, action: (() -> Void)?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").foregroundStyle(ok ? .green : .orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if !ok, let action { Button("Allow…", action: action) }
+        }
+    }
+
+    private func setLaunchAtLogin(_ on: Bool) {
+        do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch {
+            message = "Couldn't change launch at login: \(error.localizedDescription)"
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
+            general
             Text("Face unlock").font(.title2.weight(.semibold))
             Text("Unlocks this Mac's lock screen with the camera. It is convenient, not as strong as Touch ID, and only ever types your login password into the lock screen.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -35,7 +76,7 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
-        .frame(width: 460, height: 640, alignment: .topLeading)
+        .frame(width: 460, alignment: .topLeading)
         .onChange(of: face.enrolment?.phase) { _, phase in
             if step == .scanning, phase != nil, phase != .scanning { step = .overview }
         }

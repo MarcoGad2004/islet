@@ -4,32 +4,46 @@ import SwiftUI
 struct IslandView: View {
     let store: IslandStore
 
+    private var fade: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.3).delay(0.36)),
+            removal: .opacity.animation(.easeOut(duration: 0.12)))
+    }
+
     var body: some View {
         let m = store.animator.metrics
-        let showEnrol = store.presentation == .enrol
-        let showScan = store.presentation == .scan
+        let pres = store.presentation
+        let nh = store.geometry?.height ?? 34
+        let content = store.content
+        let key = "\(pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
             IslandShape(m: m).fill(Color.black)
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
-            if showEnrol, let enrolment = store.enrolment {
-                EnrolView(model: enrolment)
-                    .frame(width: 380, height: 214)
-                    .padding(.top, store.geometry?.height ?? 34)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.3).delay(0.36)),
-                        removal: .opacity.animation(.easeOut(duration: 0.12))))
+            Group {
+                switch pres {
+                case .enrol:
+                    if let e = store.enrolment {
+                        EnrolView(model: e).frame(width: 380, height: 214).padding(.top, nh).transition(fade)
+                    }
+                case .scan:
+                    if let s = store.scan {
+                        ScanView(model: s).frame(width: store.geometry?.width ?? 190, height: 150).padding(.top, nh).transition(fade)
+                    }
+                case .expanded:
+                    ExpandedView(store: store).padding(.top, nh).transition(fade)
+                case .wings, .chin:
+                    if let c = content {
+                        CompactContentView(content: c, store: store, wings: pres == .wings).id(key).transition(fade)
+                    }
+                case .peek, .closed:
+                    if store.showsHiddenMediaDot {
+                        Circle().fill(Color.isletGreen).frame(width: 4, height: 4)
+                            .padding(.top, nh + 1).transition(.opacity)
+                    }
+                }
             }
-            if showScan, let scan = store.scan {
-                ScanView(model: scan)
-                    .frame(width: store.geometry?.width ?? 190, height: 150)
-                    .padding(.top, store.geometry?.height ?? 34)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.3).delay(0.36)),
-                        removal: .opacity.animation(.easeOut(duration: 0.12))))
-            }
+            .animation(.easeOut(duration: 0.3), value: key)
         }
-        .animation(.easeOut(duration: 0.3), value: showEnrol)
-        .animation(.easeOut(duration: 0.3), value: showScan)
         .clipShape(IslandShape(m: m))
         .contentShape(IslandShape(m: m))
         .onTapGesture { store.click() }

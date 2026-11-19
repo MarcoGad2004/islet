@@ -4,7 +4,10 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notch = NotchController()
     private lazy var faceUnlock = FaceUnlockCoordinator(island: notch.store)
-    private lazy var settings = SettingsWindowController(face: faceUnlock)
+    private let power = PowerMonitor()
+    private let levels = LevelsController()
+    private let media = MediaMonitor()
+    private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media)
     private var statusItem: NSStatusItem?
     private var pauseItem: NSMenuItem?
     private var paused = false
@@ -12,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.start()
         faceUnlock.unlock.start()
+        startModules()
         buildMenuBarItem()
         #if DEBUG
         // `Islet -IsletDebugShape chin` starts with a shape showing (wings, chin, scan, expanded).
@@ -21,10 +25,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
         case "enrol": previewEnrolment()
+        case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
+        case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
+        case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
+        case "volume": notch.store.showLevel(LevelState(kind: .volume, value: 0.5))
+        case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
+        case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
+        case "unlock": notch.store.playUnlock()
         case "scanlive": faceUnlock.unlock.simulate()
         default: break
         }
         #endif
+    }
+
+    /// Wires each module to the island store. A failing module must not take down the others.
+    private func startModules() {
+        let store = notch.store
+        store.power = power
+        store.levels = levels
+        store.mediaMonitor = media
+        store.layoutCheck = { [weak store] in
+            guard let g = store?.geometry else { return false }
+            return LayoutChecker.wingsFit(g)
+        }
+
+        power.onEvent = { [weak store] in store?.showCharge($0) }
+        power.start()
+
+        levels.onChange = { [weak store] in store?.showLevel($0) }
+        levels.start()
+
+        media.onChange = { [weak store] in store?.setMedia($0) }
+        media.start()
+
+        // Re-run the width check on app switch, and retry permission-gated things when we come to the front.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak store] _ in
+            MainActor.assumeIsolated { store?.recomputeLayout() }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak store] _ in
+            MainActor.assumeIsolated { store?.recomputeLayout() }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.levels.retryTap() }
+        }
     }
 
     private func buildMenuBarItem() {
@@ -41,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         let debug = NSMenuItem(title: "Show shape", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5), ("Simulate lock scan (no typing)", 6)] {
+        for (title, tag) in [("Automatic (hover)", 0), ("Wings", 1), ("Chin", 2), ("Face scan", 3), ("Expanded", 4), ("Enrolment preview", 5), ("Simulate lock scan (no typing)", 6), ("Preview unlock animation", 7), ("Preview charging", 8), ("Preview low battery", 9), ("Preview volume", 10)] {
             let i = sub.addItem(withTitle: title, action: #selector(debugShape(_:)), keyEquivalent: "")
             i.target = self
             i.tag = tag
@@ -100,6 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case 4: store.setBase(nil); store.expand()
         case 5: previewEnrolment()
         case 6: faceUnlock.unlock.simulate()
+        case 7: store.playUnlock()
+        case 8: store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
+        case 9: store.showCharge(ChargeEvent(kind: .low, percent: 20))
+        case 10: store.showLevel(LevelState(kind: .volume, value: 0.5))
         default: store.setBase(nil)
         }
     }

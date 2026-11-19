@@ -57,10 +57,27 @@ lock screen. Each question below can block it:
 
 If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation still ships.
 
+## Findings (M3 to M6)
+
+- **5/6 Width check**: front app menus via Accessibility (`AXMenuBar` children, position + size); status
+  items via `CGWindowListCopyWindowInfo` windows at layer 25 on the notch screen, bounds only, no Screen
+  Recording needed. Re-checked on app switch, Space change, display change and when an event starts.
+- **7 Now playing**: MediaRemote called directly returns nothing on macOS 27. The vendored
+  mediaremote-adapter (BSD-3, pinned commit 14eed93, `vendor/`) works: Apple's `/usr/bin/perl` loads our
+  helper framework. Works for any app (it picked up a browser video). Controls and seek go through the
+  same script. A future macOS update could break it; fallback would be Music/Spotify scripting.
+- **8 Volume keys**: `CGEvent` tap on NX system-defined events (subtype 8), consumed so the system HUD
+  doesn't show. Needs Accessibility (the tap fails without it; Settings shows its status). Outputs without
+  software volume pass through to the system.
+- **9 Volume and brightness**: CoreAudio `VirtualMainVolume` and mute on the default output device.
+  Brightness uses private DisplayServices (`DisplayServicesGet/SetBrightness`), which works for the
+  built-in display.
+
 ## Distribution
 
-16. Personal use only: run from Xcode builds, or sign with a Developer ID. Accessibility and camera
-    permissions are tied to the signature, so keep signing stable to avoid re-granting.
+16. Personal use only. `scripts/make-dmg.sh` makes a DMG signed with the Apple Development certificate
+    (`DEVELOPMENT_TEAM` in `project.yml`). Accessibility and camera grants are tied to the signature, so
+    keep signing stable to avoid re-granting.
 
 ### M2 spike results (the harness was removed once it had answered Q10-Q13; see git history)
 
