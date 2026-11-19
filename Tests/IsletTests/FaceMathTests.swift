@@ -63,6 +63,23 @@ final class IslandContentTests: XCTestCase {
         store.recomputeLayout()
         store.playUnlock()
         guard case .unlock = store.content else { return XCTFail("unlock should outrank level") }
-        XCTAssertEqual(store.presentation, .wings)
+        XCTAssertEqual(store.presentation, .lockWings) // the unlock animation uses the lock-screen bar
+    }
+
+    @MainActor func testLockScreenShowsTheLockBar() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.setLockScreen(true)
+        guard case .locked = store.content else { return XCTFail("locked content expected") }
+        XCTAssertEqual(store.presentation, .lockWings) // always the wide bar on the lock screen, never the chin
+    }
+
+    func testLockBarIsTallerThanTheNotchAndScanKeepsIt() {
+        let bar = Presentation.lockWings.metrics(notchWidth: 190, notchHeight: 34)
+        XCTAssertEqual(bar.height, 34 + Double(IslandLayout.lockBarExtra))
+        XCTAssertEqual(bar.width, 190 + IslandLayout.wingsExtra)
+        let scan = Presentation.scan.metrics(notchWidth: 190, notchHeight: 34)
+        XCTAssertEqual(scan.sh, bar.sh) // the padlock must not move when the scan drops down
+        XCTAssertEqual(scan.width, bar.width)
     }
 }
