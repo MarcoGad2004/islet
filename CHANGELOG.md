@@ -3,6 +3,12 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.2.2 (2026-11-19)
+
+- Updates no longer need the GitHub CLI or a GitHub account: Settings → Updates reads the latest release straight from
+  GitHub and downloads it. It still runs only when you click Check for updates, and installs the update only if it is
+  signed by the same developer as the copy you have.
+
 ## 1.2.1 (2026-11-19)
 
 - Macs without a notch: the drop that hangs from the top edge when you hover under the camera is now shaped like the
