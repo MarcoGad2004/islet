@@ -25,9 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
-    #if DEBUG
-    private var debugUpdater: Updater?
-    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
@@ -147,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if UserDefaults.standard.bool(forKey: "IsletDebugNotes") { ReleaseNotesWindow.show(version: Updater.currentVersion, notes: section) }
         case "selfupdate":
             // The real update, start to finish (pair with IsletDebugUpdateDMG for a local test release).
-            let u = Updater(); debugUpdater = u
+            let u = Updater.shared
             Task { @MainActor in
                 u.check()
                 while u.state == .checking || u.state == .idle { try? await Task.sleep(for: .milliseconds(200)) }
@@ -234,6 +231,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Updater.pauseForHandoff = { [weak self] in self?.levels.stopTap(); self?.media.stop() }
         Updater.resumeAfterHandoff = { [weak self] in self?.levels.retryTap(); self?.media.start() }
         Updater.announceIfJustUpdated()
+        store.updater = Updater.shared
+        Updater.shared.startAutomaticChecks()
         wifi.start()
         bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
         bluetooth.start()

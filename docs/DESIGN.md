@@ -240,6 +240,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
 - **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
+- **Update pill** (1.2.3): when an automatic check finds a new version, a blue "Update x.y.z" pill sits right of the
+  battery chip (just the icon while the mini player is in the header). Clicking it closes the panel and runs the
+  update with its progress in the notch. Nothing installs without that click.
 - **Tiles** mimic Control Center: tapping the round icon toggles (Wi-Fi on/off, Bluetooth on/off); tapping the rest of
   the tile opens its detail in place. The AirDrop tile is the exception: it only shows the receiving mode (No One,
   Contacts, Everyone) and opens Finder's AirDrop window, because the mode cannot be changed without restarting sharingd.

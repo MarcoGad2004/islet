@@ -44,6 +44,7 @@ final class IslandStore {
     // Modules the expanded panel reads from.
     var power: PowerMonitor?
     var levels: LevelsController?
+    var updater: Updater?
     var focus: FocusMonitor?
     var wifi: WiFiController?
     var bluetooth: BluetoothController?

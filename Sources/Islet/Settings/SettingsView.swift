@@ -12,7 +12,8 @@ struct SettingsView: View {
     var runSetup: () -> Void = {}
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
-    @State private var updater = Updater()
+    private let updater = Updater.shared
+    @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
 
     private enum Step { case overview, password, scanning }
     @State private var step = Step.overview
@@ -67,6 +68,9 @@ struct SettingsView: View {
                 case .downloading: ProgressView().controlSize(.small)
                 }
             }
+            Toggle("Check for updates automatically", isOn: $autoCheckUpdates)
+            Text("Looks at GitHub about every 6 hours. When there's a new version, an Update pill appears next to the battery in the panel.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             switch updater.state {
             case .upToDate: Text("You're up to date.").font(.caption).foregroundStyle(.secondary)
             case .failed(let m): Text(m).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)

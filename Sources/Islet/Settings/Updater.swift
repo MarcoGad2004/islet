@@ -45,18 +45,73 @@ final class Updater {
         return p.hasPrefix("/Applications/") || p.hasPrefix(NSHomeDirectory() + "/Applications/")
     }
 
-    func check() {
+    /// The one updater: Settings, the panel's update pill and the automatic checks share it.
+    static let shared = Updater()
+
+    /// Settings → Updates → "Check for updates automatically" (on unless turned off).
+    static let autoCheckKey = "checkUpdatesAutomatically"
+    /// Automatic checks: once a minute after launch, then whenever 6 hours have passed since the last one.
+    nonisolated static let autoCheckInterval: TimeInterval = 6 * 60 * 60
+    private static let lastCheckKey = "IsletLastUpdateCheck"
+    @ObservationIgnored private var autoTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+
+    private init() {
+        UserDefaults.standard.register(defaults: [Self.autoCheckKey: true])
+    }
+
+    /// A tag the user can install now: what the panel's update pill offers.
+    var availableTag: String? { if case .available(let t) = state { t } else { nil } }
+
+    /// `silent` is an automatic check: a failure leaves things as they were instead of showing an error in Settings.
+    func check(silent: Bool = false) {
+        if case .downloading = state { return }
+        if silent, case .checking = state { return }
+        let before = state
         state = .checking
         Task {
             do {
                 let latest = try await Self.latestRelease()
                 dmgURL = latest.dmg
                 notes = latest.notes
+                UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
                 state = Self.isNewer(latest.tag, than: currentVersion) ? .available(latest.tag) : .upToDate
             } catch {
+                if silent { state = before == .checking ? .idle : before; return }
                 state = .failed((error as? UpdateError)?.message ?? "Couldn't reach GitHub: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Starts the automatic checks (called once at launch). Each tick only looks at the clock; GitHub is asked only
+    /// when a check is due and the setting is on. Waking from sleep looks again soon after, once the network is back.
+    func startAutomaticChecks() {
+        guard autoTask == nil else { return }
+        var first: TimeInterval = 60
+        #if DEBUG
+        if UserDefaults.standard.string(forKey: "IsletDebugUpdateDMG") != nil { first = 0.5 }
+        #endif
+        autoTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(first))
+            self?.autoCheck(force: true)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10 * 60))
+                self?.autoCheck(force: false)
+            }
+        }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(20))
+                self?.autoCheck(force: false)
+            }
+        }
+    }
+
+    private func autoCheck(force: Bool) {
+        guard UserDefaults.standard.bool(forKey: Self.autoCheckKey) else { return }
+        let last = UserDefaults.standard.object(forKey: Self.lastCheckKey) as? Date ?? .distantPast
+        guard force || Date().timeIntervalSince(last) >= Self.autoCheckInterval else { return }
+        check(silent: true)
     }
 
     func showNotes(_ tag: String) { ReleaseNotesWindow.show(version: Self.plain(tag), notes: notes) }

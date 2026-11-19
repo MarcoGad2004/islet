@@ -85,9 +85,10 @@ struct ControlStage: View {
 
     private func header(_ mode: Mode) -> some View {
         ZStack(alignment: .leading) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Text("CONTROLS").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
+                if let u = store.updater, let tag = u.availableTag { updatePill(u, tag) }
                 if let f = store.focus?.active { focusIcon(f) }
             }
             .opacity(mode == .controls ? 1 : 0)
@@ -104,7 +105,31 @@ struct ControlStage: View {
             .opacity(mode == .controls ? 0 : 1)
             .allowsHitTesting(mode != .controls)
         }
-        .frame(width: 190, height: 26, alignment: .leading)
+        // The mini player starts at x 198 when music is playing; otherwise the header can run up to the gear.
+        .frame(width: store.media != nil ? 196 : W - 40, height: 26, alignment: .leading)
+    }
+
+    /// A new version is out: click to close the panel and update, the progress playing out in the notch. Next to
+    /// the mini player there is only room for the icon.
+    private func updatePill(_ u: Updater, _ tag: String) -> some View {
+        let compact = store.media != nil
+        let version = Updater.plain(tag)
+        return Button {
+            store.collapse()
+            u.install(tag)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.down.circle.fill").font(.system(size: 11, weight: .semibold))
+                if !compact { Text("Update \(version)").font(.system(size: 11, weight: .semibold)).fixedSize() }
+            }
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, compact ? 0 : 8).frame(width: compact ? 22 : nil, height: 22)
+            .background(Capsule().fill(Color(hex: 0x0A84FF)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Islet \(version) is available. Click to update and restart.")
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
     }
 
     private func title(_ mode: Mode) -> String {

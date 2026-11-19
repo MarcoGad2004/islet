@@ -3,6 +3,13 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.2.3 (2026-11-19)
+
+- Islet checks for updates on its own: about a minute after it opens, then every 6 hours (and again after the Mac
+  wakes if that long has passed). When a new version is out, a blue **Update** pill appears next to the battery in
+  the panel; click it and the update plays out in the notch, progress bar, restart and all. It never installs
+  without that click. Turn it off in Settings → Updates → "Check for updates automatically".
+
 ## 1.2.2 (2026-11-19)
 
 - Updates no longer need the GitHub CLI or a GitHub account: Settings → Updates reads the latest release straight from

@@ -60,7 +60,7 @@ Add `NSCameraUsageDescription` to the Info.plist (in `project.yml`).
 ## Principles
 
 - Modules are independent; one failing must not take down the rest.
-- No network access, except the user-initiated "Check for updates" (the latest GitHub release, read from GitHub's public API with no account; the update installs only if signed by the same developer).
+- No network access except updates: the latest GitHub release, read from GitHub's public API with no account, when "Check for updates" is clicked and automatically (a minute after launch, then every 6 hours, re-checked after wake; can be turned off in Settings). Installing only ever starts from a click, and only if the update is signed by the same developer.
 - CPU near zero when the island is closed: no timers or polling while idle; the layout check runs
   on events, not a loop.
 - Face data and the stored password never leave the Mac.

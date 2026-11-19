@@ -21,7 +21,7 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
 - The Xcode project is generated: edit `project.yml`, then run `xcodegen generate`. Don't commit
   `Islet.xcodeproj`.
 - Build: `xcodegen generate && xcodebuild -scheme Islet -destination 'platform=macOS' build`.
-- No analytics. No network access except Settings > Updates, which only runs when clicked and reads this public repo's latest release from GitHub's API (no account or `gh` needed) (`scripts/release.sh <version>` publishes one, using the matching section of CHANGELOG.md as its notes; keep CHANGELOG.md up to date as features land).
+- No analytics. No network access except updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/release.sh <version>` publishes one, using the matching section of CHANGELOG.md as its notes; keep CHANGELOG.md up to date as features land).
 
 ## Decisions already made
 
