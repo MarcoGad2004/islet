@@ -31,6 +31,7 @@ final class IslandStore {
     private(set) var event: IslandEvent?
     private(set) var progress: ConnectionProgress?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
+    @ObservationIgnored private var progressAction: (() -> Void)?
     /// The Mac is locked with the screen on: the island shows the closed padlock in the wings.
     private(set) var lockScreen = false
     /// On the lock screen, the scan waits for Command+Shift: "⌘⇧" in the left wing, and now and then the wide bar
@@ -222,8 +223,15 @@ final class IslandStore {
 
     private var locked: Bool { base == .enrol || base == .scan }
 
-    /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is).
+    /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is). A result with a
+    /// button (the update's "What's new") does that instead.
     func click() {
+        if progress?.state == .done, let action = progressAction {
+            progressTask?.cancel(); progress = nil; progressAction = nil
+            refresh()
+            action()
+            return
+        }
         expand()
     }
 
@@ -331,19 +339,27 @@ final class IslandStore {
 
     /// A join's progress. It shows whenever the panel isn't open, unlike connection notices: the user is waiting on
     /// it. The result stays a moment (an error longer), then hands back.
-    func showProgress(_ p: ConnectionProgress) {
+    func showProgress(_ p: ConnectionProgress, action: (() -> Void)? = nil) {
         recomputeLayout()
         progress = p
+        progressAction = action
         progressTask?.cancel()
-        let hold: Double? = switch p.state { case .working: nil; case .done: 2.5; case .failed: 4 }
+        let hold: Double? = switch p.state { case .working: nil; case .done: p.hold ?? 2.5; case .failed: p.hold ?? 4 }
         if let hold {
             progressTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(hold))
                 guard !Task.isCancelled else { return }
                 self?.progress = nil
+                self?.progressAction = nil
                 self?.refresh()
             }
         }
+        refresh()
+    }
+
+    /// Takes the progress away at once (the update, just before Islet quits), so the island draws back in.
+    func clearProgress() {
+        progressTask?.cancel(); progress = nil; progressAction = nil
         refresh()
     }
 

@@ -8,6 +8,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Updates no longer need the GitHub CLI or a GitHub account: Settings → Updates reads the latest release straight from
   GitHub and downloads it. It still runs only when you click Check for updates, and installs the update only if it is
   signed by the same developer as the copy you have.
+- Updating shows in the notch: each step as it happens (downloading with a percentage, checking, installing,
+  restarting), then the island draws back in while Islet restarts. When the new copy opens it says "Updated to …"
+  with a What's new button; click it for the release notes in their own window. Settings → Updates also has a
+  Release notes button before you install, and an update that didn't take says so in the notch.
 
 ## 1.2.1 (2026-11-19)
 

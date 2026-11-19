@@ -61,14 +61,16 @@ struct SettingsView: View {
                 switch updater.state {
                 case .idle, .upToDate, .failed: Button("Check for updates") { updater.check() }
                 case .checking: ProgressView().controlSize(.small)
-                case .available(let tag): Button("Install \(tag) and restart") { updater.install(tag) }.buttonStyle(.borderedProminent)
+                case .available(let tag):
+                    if !updater.notes.isEmpty { Button("Release notes…") { updater.showNotes(tag) } }
+                    Button("Install \(tag) and restart") { updater.install(tag) }.buttonStyle(.borderedProminent)
                 case .downloading: ProgressView().controlSize(.small)
                 }
             }
             switch updater.state {
             case .upToDate: Text("You're up to date.").font(.caption).foregroundStyle(.secondary)
             case .failed(let m): Text(m).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-            case .downloading: Text("Downloading, Islet will restart…").font(.caption).foregroundStyle(.secondary)
+            case .downloading: Text("Updating; follow along in the notch. Islet restarts when it's done.").font(.caption).foregroundStyle(.secondary)
             default: EmptyView()
             }
             HStack {

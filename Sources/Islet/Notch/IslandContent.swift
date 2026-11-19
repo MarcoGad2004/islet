@@ -67,7 +67,7 @@ struct IslandEvent: Equatable {
     var seconds: Double { 3 }
 }
 
-/// A join in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
+/// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
 struct ConnectionProgress: Equatable {
     enum State: Equatable {
         case working(String)
@@ -77,12 +77,20 @@ struct ConnectionProgress: Equatable {
     var name: String
     var hotspot: Bool
     var state: State
+    /// Not a network join: its own symbol and colour, and what the result says.
+    var icon: String? = nil
+    var tint: Color? = nil
+    var doneText: String? = nil
+    /// The result can be clicked (the update's "What's new"): the button's label.
+    var actionLabel: String? = nil
+    /// How long the result stays; nil for the usual 2.5 s.
+    var hold: Double? = nil
 
     /// The line under the wings, or beside the icon in the chin.
     var text: String {
         switch state {
         case .working(let step): step
-        case .done: "Connected to \(name)"
+        case .done: doneText ?? "Connected to \(name)"
         case .failed(let message): message
         }
     }

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -131,6 +132,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
         case "unlock": notch.store.playUnlock()
+        case "updated":
+            // What the new copy shows after updating itself (notes from CHANGELOG.md's newest section).
+            let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().deletingLastPathComponent()
+            let log = (try? String(contentsOf: repo.appendingPathComponent("CHANGELOG.md"), encoding: .utf8)) ?? ""
+            let section = log.components(separatedBy: "\n## ").dropFirst().first.map { $0.components(separatedBy: "\n").dropFirst().joined(separator: "\n") } ?? ""
+            Updater.pending = Updater.Pending(from: "1.2.1", to: Updater.currentVersion, notes: section)
+            Updater.announceIfJustUpdated()
+            if UserDefaults.standard.bool(forKey: "IsletDebugNotes") { ReleaseNotesWindow.show(version: Updater.currentVersion, notes: section) }
+        case "updating":
+            // The steps of an install, without downloading or quitting.
+            Task { @MainActor in
+                let show = { (s: ConnectionProgress.State) in
+                    Updater.showInIsland?(ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: "arrow.down.circle.fill",
+                                                             tint: Color(hex: 0x0A84FF)), nil)
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+                for pct in stride(from: 0, through: 100, by: 7) { show(.working("Downloading 1.2.2 · \(pct)%")); try? await Task.sleep(for: .milliseconds(180)) }
+                show(.working("Checking the update…")); try? await Task.sleep(for: .seconds(1.2))
+                show(.working("Installing 1.2.2…")); try? await Task.sleep(for: .seconds(1))
+                show(.working("Restarting Islet…")); try? await Task.sleep(for: .seconds(1.2))
+                Updater.clearIsland?()
+            }
         case "scanlive": faceUnlock.unlock.simulate()
         default: break
         }
@@ -175,6 +199,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                      : IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected"))
         }
         wifi.onProgress = { [weak store] in store?.showProgress($0) }
+        Updater.showInIsland = { [weak store] p, action in store?.showProgress(p, action: action) }
+        Updater.clearIsland = { [weak store] in store?.clearProgress() }
+        Updater.announceIfJustUpdated()
         wifi.start()
         bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
         bluetooth.start()

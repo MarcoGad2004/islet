@@ -30,9 +30,10 @@ struct CompactContentView: View {
                     .frame(width: nw + 2 * wingW, height: barH)
                     if levelBody, case .progress(let p) = content {
                         // The step, then the result, under the wings.
-                        Text(p.text).font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                        Text(p.state == .done && p.actionLabel != nil ? "\(p.text) · \(p.actionLabel!) ›" : p.text)
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
                             .lineLimit(1).minimumScaleFactor(0.75)
-                            .contentTransition(.opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                            .monospacedDigit().contentTransition(.numericText()).animation(.easeInOut(duration: 0.2), value: p.text)
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                    height: IslandLayout.levelBodyHeight).offset(y: -1)
                     }
@@ -163,7 +164,7 @@ struct CompactContentView: View {
                 progressIcon(p).frame(width: 18)
                 Text(p.text).font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
                     .lineLimit(1).minimumScaleFactor(0.8)
-                    .contentTransition(.opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                    .monospacedDigit().contentTransition(.numericText()).animation(.easeInOut(duration: 0.2), value: p.text)
                 Spacer(minLength: 4)
                 progressMark(p)
             }
@@ -202,7 +203,7 @@ struct CompactContentView: View {
     private func progressTint(_ p: ConnectionProgress) -> Color {
         switch p.state {
         case .failed: .isletRed
-        case .done, .working: p.hotspot ? .isletGreen : .isletCyan
+        case .done, .working: p.tint ?? (p.hotspot ? .isletGreen : .isletCyan)
         }
     }
 
@@ -214,16 +215,21 @@ struct CompactContentView: View {
     /// The network's icon, breathing while it works.
     private func progressIcon(_ p: ConnectionProgress) -> some View {
         let working = if case .working = p.state { true } else { false }
-        return Image(systemName: p.hotspot ? "personalhotspot" : "wifi")
+        return Image(systemName: p.icon ?? (p.hotspot ? "personalhotspot" : "wifi"))
             .font(.system(size: 14, weight: .semibold)).foregroundStyle(progressTint(p))
             .symbolEffect(.pulse, options: .repeating, isActive: working)
             .animation(.easeOut(duration: 0.25), value: p.state)
     }
 
-    /// A spinner while it works, then a check or a cross that pops in.
+    /// A spinner while it works, then a check or a cross that pops in. In the chin, a result that can be clicked shows
+    /// its button instead of the check.
     @ViewBuilder private func progressMark(_ p: ConnectionProgress) -> some View {
         switch p.state {
         case .working: ProgressView().controlSize(.small).scaleEffect(0.8).frame(width: 16, height: 16)
+        case .done where !wings && p.actionLabel != nil:
+            Text(p.actionLabel!).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
+                .padding(.horizontal, 9).frame(height: 22).background(Capsule().fill(Color.white.opacity(0.16)))
+                .fixedSize().transition(.opacity.animation(.easeOut(duration: 0.25)))
         case .done: PopIcon(name: "checkmark.circle.fill", color: .isletGreen, delay: 0)
         case .failed: PopIcon(name: "xmark.circle.fill", color: .isletRed, delay: 0)
         }
