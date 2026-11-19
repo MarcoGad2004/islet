@@ -21,7 +21,11 @@ struct IslandShape: Shape {
         ic = min(ic, sh - tf)
 
         let yS = sh, yB = sh + bh
-        let maxBR = (bw - sw > 0.5) ? bh : yB
+        // A body wider than the stem can only round its own height; one flush with the stem rounds the whole
+        // island. Blend between the two over the last 3 pt, so the corners don't jump when a closing chin's width
+        // lands on the notch's while the body is already sliding up.
+        let flush = max(0, 1 - avail / 3)
+        let maxBR = bh + sh * flush
         let br = min(max(m.br, 0), bw / 2, maxBR)
 
         let L = cx - sw / 2, R = cx + sw / 2

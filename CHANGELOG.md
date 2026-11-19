@@ -3,9 +3,11 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.1.2 (unreleased)
+## 1.1.2 (2026-11-19)
 
 **Notch motion**
+- Closing works like the iPhone's island: the chin or the expanded panel folds into a pill a little bigger than the
+  notch, its corners staying round the whole way, then the pill eases down into the notch.
 - Hovering over the notch while the chin grows out of it or folds back in no longer restarts the motion halfway: the
   shape keeps going, and a part that is already moving turns toward its new size with its momentum instead of pausing.
 

@@ -82,8 +82,11 @@ Any change that puts a body below the stem:
 3. Corners settle from 0.12 s; the inner curves fade in from 0.22 s.
 4. Content fades in (opacity, plus scale from 96%) at ≈0.36 s, after the shape has mostly settled.
 
-Going back up runs in reverse: content fades (0.12 s), width pulls in (0.26 s, ease-in), then the
-body slides up behind the stem (0.32 s, starting at 0.18 s).
+Going back up: content fades (0.12 s), then the island closes like the iPhone's island: it first
+lands in a pill a little bigger than the notch (notch + 18 wide, + 6 tall, bottom radius + 4). The stem swells while the
+body pulls in (0.18 s) just ahead of rising into it (0.26 s from 0.06 s), so the corners stay round throughout. Once the
+body is gone the pill eases down to the notch (0.38 s, soft settle). Closing into the chin instead (from the expanded
+panel) pulls the width in first, then rolls the body up.
 
 Wings: width springs out with the same overshoot (0.55 s); content fades in after 0.12 s.
 

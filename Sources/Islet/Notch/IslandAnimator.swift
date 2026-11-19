@@ -18,6 +18,8 @@ final class IslandAnimator {
     private var channels = [Channel](repeating: Channel(), count: IslandMetrics.channelCount)
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
+    /// Closing into the notch runs in two legs: into a slightly swollen pill, then down to this.
+    @ObservationIgnored private var then: IslandMetrics?
 
     init(initial: IslandMetrics = IslandMetrics(sw: 190, sh: 34, bw: 190, bh: 0, tr: 0, br: 10, ic: 0)) {
         metrics = initial
@@ -42,7 +44,9 @@ final class IslandAnimator {
     func go(to target: IslandMetrics) {
         // Same destination (the pointer crossing the edge mid-morph, a refresh that changed nothing): leave the
         // running motion alone. Re-planning it would restart the delays and swap springs halfway through.
-        if target == self.target { return }
+        if target == (then ?? self.target) { return }
+        then = nil
+        var goal = target
         let current = metrics
         let growsBody = target.bh > current.bh + 0.5
         let shrinksBody = target.bh < current.bh - 0.5
@@ -66,13 +70,31 @@ final class IslandAnimator {
             let out = Spring(response: 0.5, damping: 0.62)
             let corner = Spring(response: 0.35, damping: 1)
             specs = [(out, 0.2), (down, 0), (out, 0.2), (down, 0), (corner, 0.12), (corner, 0.12), (corner, 0.22)]
+        } else if shrinksBody && target.bh < 0.5 && current.bw > target.sw + 20 {
+            // Chin or panel closing into the notch (DESIGN.md "Closing"). Like the iPhone's island it lands in a
+            // pill a little bigger than the notch first: the stem swells while the body pulls in just ahead of
+            // rising into it, so the body's corners stay round the whole way (tuned so they never dip below
+            // 14 pt). When the body is gone, `tick` eases the pill down to the real notch.
+            goal.sw = target.sw + 18
+            goal.sh = target.sh + 6
+            goal.bw = goal.sw
+            goal.bh = 0
+            goal.tr = 0
+            goal.br = target.br + 4
+            goal.ic = 0
+            then = target
+            let swell = Spring(response: 0.3, damping: 0.8)
+            let inward = Spring(response: 0.18, damping: 1)
+            let up = Spring(response: 0.26, damping: 1)
+            specs = [(swell, 0), (swell, 0), (inward, 0), (up, 0.06), (inward, 0), (up, 0.06), (inward, 0)]
         } else if shrinksBody {
-            // Reverse: width pulls in first, then the body slides up behind the stem from 0.18 s.
-            let inward = Spring(response: 0.26, damping: 1)
-            let up = Spring(response: 0.32, damping: 1)
+            // Reverse, as two separate steps so they never fight: the width pulls in to the notch's (settled by
+            // 0.22 s), then the body rolls straight up behind the stem.
+            let inward = Spring(response: 0.18, damping: 1)
+            let up = Spring(response: 0.3, damping: 1)
             // Corner radii ride with the height (same delay and spring), so the shape stays rounded all the
             // way up instead of snapping boxy first. The inner curves shrink with the width.
-            specs = [(inward, 0), (up, 0.18), (inward, 0), (up, 0.18), (up, 0.18), (up, 0.18), (inward, 0)]
+            specs = [(inward, 0), (up, 0.22), (inward, 0), (up, 0.22), (up, 0.22), (up, 0.22), (inward, 0)]
         } else if widthChange > 40 {
             // Wings spring out with the soft overshoot (~0.55 s).
             let width = Spring(response: 0.5, damping: 0.62)
@@ -87,8 +109,12 @@ final class IslandAnimator {
             specs = [(settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0), (settle, 0)]
         }
 
+        apply(goal, specs)
+    }
+
+    private func apply(_ goal: IslandMetrics, _ specs: [(Spring, Double)]) {
         for i in 0..<IslandMetrics.channelCount {
-            channels[i].target = target[i]
+            channels[i].target = goal[i]
             channels[i].spring = specs[i].0
             // Delays stage a motion from rest. A channel that is already moving (hover bubble interrupted by the
             // chin, or the chin by the hover) turns toward the new target straight away with its momentum,
@@ -146,6 +172,13 @@ final class IslandAnimator {
             next[i] = c.value
         }
         metrics = next
+        // Second leg of a close: once the body has been absorbed into the swollen pill, it eases down to the notch.
+        if let final = then, next.bh < 2, next.bw - next.sw < 1 {
+            then = nil
+            let settle = Spring(response: 0.38, damping: 0.9)
+            apply(final, Array(repeating: (settle, 0), count: IslandMetrics.channelCount))
+            moving = true
+        }
         if !moving { timer?.invalidate(); timer = nil }
     }
 }
