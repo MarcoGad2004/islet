@@ -133,24 +133,23 @@ struct PadlockView: View {
             let lift = ease((t - 0.4) / 0.3)
             let swing = ease((t - 0.55) / 0.6)
             let green = ease((t - 0.8) / 0.2)
-            let color = Color.isletText.opacity(1 - green).opacity(1)
             ZStack {
-                // Shackle: an inverted U anchored on its right leg.
+                // Shackle: an inverted U whose right leg stays seated in the body; the left leg swings out.
+                // Its bottom sits 2.5 pt inside the body (hidden behind it) so the lift never detaches it.
                 Shackle()
-                    .stroke(Color.isletText, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                    .overlay(Shackle().stroke(Color.isletGreen, style: StrokeStyle(lineWidth: 2.2, lineCap: .round)).opacity(green))
-                    .frame(width: 10, height: 8)
+                    .stroke(Color.isletText, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+                    .overlay(Shackle().stroke(Color.isletGreen, style: StrokeStyle(lineWidth: 2.4, lineCap: .round)).opacity(green))
+                    .frame(width: 11.5, height: 10)
                     .rotationEffect(.degrees(-28 * swing), anchor: .bottomTrailing)
-                    .offset(y: -8.5 - 2.5 * lift + dip)
-                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                    .offset(y: -5 - 2.5 * lift + dip)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Color.isletText)
-                    .overlay(RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.isletGreen).opacity(green))
-                    .frame(width: 14, height: 11)
-                    .offset(y: dip)
+                    .overlay(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.isletGreen).opacity(green))
+                    .frame(width: 17, height: 13)
+                    .offset(y: 4 + dip)
             }
-            .frame(width: 20, height: 26) // headroom so the lifted shackle is never clipped
+            .frame(width: 24, height: 30) // headroom so the lifted shackle is never clipped
             .scaleEffect(size)
-            .foregroundStyle(color)
         }
     }
 }

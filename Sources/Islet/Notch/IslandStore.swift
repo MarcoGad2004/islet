@@ -201,13 +201,13 @@ final class IslandStore {
         refresh()
     }
 
-    /// The lock-opens animation, 1.8 s.
+    /// The lock-opens animation: 1.8 s once the content is in (plus its fade-in delay).
     func playUnlock() {
         recomputeLayout()
         unlockStart = Date()
         unlockTask?.cancel()
         unlockTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.8))
+            try? await Task.sleep(for: .seconds(2.1))
             guard !Task.isCancelled else { return }
             self?.unlockStart = nil
             self?.refresh()

@@ -33,7 +33,7 @@ struct CompactContentView: View {
         case .media:
             if let m = store.media { ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing) }
         case .charge(let c): chargeIcon(c)
-        case .unlock(let start): PadlockView(start: start)
+        case .unlock(let start): PadlockView(start: appears(start))
         case .level: EmptyView()
         }
     }
@@ -43,7 +43,7 @@ struct CompactContentView: View {
         case .media: LevelBars(playing: store.media?.playing ?? false)
         case .charge(let c):
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
-        case .unlock(let start): CheckPop(start: start)
+        case .unlock(let start): CheckPop(start: appears(start))
         case .level: EmptyView()
         }
     }
@@ -78,9 +78,9 @@ struct CompactContentView: View {
             }
         case .unlock(let start):
             HStack(spacing: 10) {
-                PadlockView(start: start)
+                PadlockView(start: appears(start))
                 TimelineView(.animation) { ctx in
-                    let a = min(max((ctx.date.timeIntervalSince(start) - 0.8) / 0.3, 0), 1)
+                    let a = min(max((ctx.date.timeIntervalSince(appears(start)) - 0.8) / 0.3, 0), 1)
                     Text("Unlocked").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletGreen).opacity(a)
                 }
             }
@@ -88,6 +88,10 @@ struct CompactContentView: View {
     }
 
     // MARK: Helpers
+
+    /// When this content has faded in: the animation's own clock starts then, so the closed lock is seen.
+    /// Wings content fades in after 0.12 s, body shapes after 0.36 s (DESIGN.md "Motion").
+    private func appears(_ start: Date) -> Date { start.addingTimeInterval(wings ? 0.12 : 0.36) }
 
     private func chargeColor(_ c: ChargeEvent, text: Bool) -> Color { c.kind == .low ? (text ? .isletRedText : .isletRed) : .isletGreen }
 
