@@ -11,6 +11,14 @@ struct IslandView: View {
             removal: .opacity.animation(.easeOut(duration: 0.12)))
     }
 
+    /// Wings content leaving: it draws in toward the notch with the wings as it fades, instead of vanishing in place
+    /// while the shape is still moving.
+    private func wingsFade(_ delay: Double) -> AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.3).delay(delay)),
+            removal: .opacity.combined(with: .scale(scale: 0.82)).animation(.easeIn(duration: 0.2)))
+    }
+
     var body: some View {
         let m = store.animator.metrics
         let pres = store.presentation
@@ -42,7 +50,7 @@ struct IslandView: View {
                     if let c = content {
                         CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings || pres == .lockHint,
                                            levelBody: pres == .levelWings, hintBody: pres == .lockHint, eventBar: pres == .eventWings)
-                            .id(key).transition(fade(pres == .chin ? 0.36 : pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
+                            .id(key).transition(pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
                 case .peek, .closed:
                     if store.showsHiddenMediaDot {

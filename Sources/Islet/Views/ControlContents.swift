@@ -229,11 +229,16 @@ struct WiFiContent: View {
         }
     }
 
-    /// Cellular bars and battery, as Wi-Fi Settings shows them for a phone.
+    /// Cellular bars and a battery icon, as Wi-Fi Settings shows them for a phone. The phone only reports its battery
+    /// in quarters, so it's an icon rather than a misleading percentage.
     private func hotspotDetail(bars: Int, battery: Int?) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "cellularbars", variableValue: Double(bars) / 4)
-            if let battery { Text("\(battery)%").monospacedDigit() }
+            if let battery {
+                Image(systemName: battery >= 100 ? "battery.100" : battery >= 75 ? "battery.75" : battery >= 50 ? "battery.50"
+                      : battery >= 25 ? "battery.25" : "battery.0")
+                    .font(.system(size: 12))
+            }
         }
         .font(.system(size: 10)).foregroundStyle(Color.isletTertiary)
     }

@@ -88,7 +88,9 @@ body pulls in (0.18 s) just ahead of rising into it (0.26 s from 0.06 s), so the
 body is gone the pill eases down to the notch (0.38 s, soft settle). Closing into the chin instead (from the expanded
 panel) pulls the width in first, then rolls the body up.
 
-Wings: width springs out with the same overshoot (0.55 s); content fades in after 0.12 s.
+Wings: width springs out with the same overshoot (0.55 s); content fades in after 0.12 s. Closing, the wings pull in
+(0.3 s spring) to a pill 12 pt wider and 3 pt taller than the notch, which then eases down into it like the chin's
+close; the content draws in toward the notch (scale 0.82) as it fades over 0.2 s.
 
 SwiftUI starting point (tune by eye on the real display):
 - phase 1 (top/height): `.spring(response: 0.32, dampingFraction: 1.0)`

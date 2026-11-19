@@ -17,7 +17,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   both, marked with a person-and-key icon instead of a padlock.
 - Saved networks join straight away with what macOS stored, asking for the password only if that fails.
 - Phones offering Instant Hotspot (your iPhone, or family members') are listed even when they aren't broadcasting,
-  like Wi-Fi Settings' "Personal Hotspots": hotspot icon, cellular bars and battery. Tap one and the phone turns its
+  like Wi-Fi Settings' "Personal Hotspots": hotspot icon, cellular bars and a battery icon (phones only report
+  their battery in quarters, so there's no percentage). Tap one and the phone turns its
   hotspot on and the Mac joins it.
 - A phone's Personal Hotspot is shown as one: the tile says "Hotspot" with the hotspot icon, the detail says
   "Personal Hotspot · <name>" and tags the network in green. Hotspots in the network list get the hotspot icon
@@ -26,6 +27,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   wide bar with the hotspot icon and cellular bars, and the phone's name under it (the chin when the menu bar is full).
 - Connection notices (Wi-Fi, hotspot, Bluetooth, Focus) are passive: they don't show while the panel is open or in
   the few seconds after it closes, and joining a network from the panel never shows one.
+
+**Notch motion**
+- The wings (charging, media, events) close more smoothly: they pull in to a pill just bigger than the notch and
+  ease down into it, like the chin does, and the icon and text draw in toward the notch as they fade instead of
+  vanishing while the shape is still moving.
 
 **Controls**
 - After opening a tile's detail and going back, the tile kept its icon and text but lost its grey card. Fixed.

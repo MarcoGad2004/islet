@@ -20,6 +20,8 @@ final class IslandAnimator {
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
     /// Closing into the notch runs in two legs: into a slightly swollen pill, then down to this.
     @ObservationIgnored private var then: IslandMetrics?
+    /// For a wings close (no body to wait for): start the second leg once the width is this close to the pill's.
+    @ObservationIgnored private var thenAtWidth: Double?
 
     init(initial: IslandMetrics = IslandMetrics(sw: 190, sh: 34, bw: 190, bh: 0, tr: 0, br: 10, ic: 0)) {
         metrics = initial
@@ -45,7 +47,7 @@ final class IslandAnimator {
         // Same destination (the pointer crossing the edge mid-morph, a refresh that changed nothing): leave the
         // running motion alone. Re-planning it would restart the delays and swap springs halfway through.
         if target == (then ?? self.target) { return }
-        then = nil
+        then = nil; thenAtWidth = nil
         var goal = target
         let current = metrics
         let growsBody = target.bh > current.bh + 0.5
@@ -95,6 +97,19 @@ final class IslandAnimator {
             // Corner radii ride with the height (same delay and spring), so the shape stays rounded all the
             // way up instead of snapping boxy first. The inner curves shrink with the width.
             specs = [(inward, 0), (up, 0.22), (inward, 0), (up, 0.22), (up, 0.22), (up, 0.22), (inward, 0)]
+        } else if widthChange < -40 && current.bh < 0.5 && target.bh < 0.5 {
+            // Wings closing (a charge, media or an event ending): the same tuck as the chin. The wings pull in with
+            // their momentum to a pill a touch bigger than the notch, which then eases down into it, instead of
+            // stopping dead at the notch's edge.
+            goal.sw = target.sw + 12
+            goal.bw = goal.sw
+            goal.sh = target.sh + 3
+            goal.br = target.br + 3
+            then = target
+            thenAtWidth = goal.sw
+            let inward = Spring(response: 0.3, damping: 0.86)
+            let swell = Spring(response: 0.26, damping: 0.8)
+            specs = [(inward, 0), (swell, 0), (inward, 0), (swell, 0), (swell, 0), (swell, 0), (swell, 0)]
         } else if widthChange > 40 {
             // Wings spring out with the soft overshoot (~0.55 s).
             let width = Spring(response: 0.5, damping: 0.62)
@@ -173,8 +188,9 @@ final class IslandAnimator {
         }
         metrics = next
         // Second leg of a close: once the body has been absorbed into the swollen pill, it eases down to the notch.
-        if let final = then, next.bh < 2, next.bw - next.sw < 1 {
-            then = nil
+        let legDone = thenAtWidth.map { next.sw - $0 < 3 } ?? (next.bh < 2 && next.bw - next.sw < 1)
+        if let final = then, legDone {
+            then = nil; thenAtWidth = nil
             let settle = Spring(response: 0.38, damping: 0.9)
             apply(final, Array(repeating: (settle, 0), count: IslandMetrics.channelCount))
             moving = true

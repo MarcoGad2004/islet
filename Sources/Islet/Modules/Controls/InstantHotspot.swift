@@ -7,6 +7,7 @@ struct InstantHotspot: Identifiable, Equatable, Sendable {
     var name: String
     /// 0...4 bars of cellular signal.
     var bars: Int
+    /// Battery in 25% steps, rounded up (sharingd only gets this much from the phone): 75 means 51-75%.
     var battery: Int?
     fileprivate var device: SendableObject
 
@@ -58,7 +59,8 @@ final class InstantHotspotBrowser: NSObject {
     func enable(_ h: InstantHotspot) -> Bool {
         let sel = NSSelectorFromString("enableHotspotForDevice:withCompletionHandler:")
         guard let s = session, s.responds(to: sel) else { return false }
-        typealias Enable = @convention(c) (NSObject, Selector, NSObject, @convention(block) () -> Void) -> Void
+        // The handler escapes: sharingd calls it later, after the call returns.
+        typealias Enable = @convention(c) (NSObject, Selector, NSObject, @escaping @convention(block) () -> Void) -> Void
         let imp = unsafeBitCast(s.method(for: sel), to: Enable.self)
         // The handler's arguments aren't known, so it takes none (extra ones are ignored); success shows up as the
         // Wi-Fi network changing.
