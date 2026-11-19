@@ -8,6 +8,8 @@ struct SettingsView: View {
     let levels: LevelsController
     let media: MediaMonitor
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @State private var updater = Updater()
 
     private enum Step { case overview, password, scanning }
     @State private var step = Step.overview
@@ -24,13 +26,42 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("General").font(.title2.weight(.semibold))
             Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+            Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
+            if !showMenuBarIcon {
+                Text("Open settings from the gear in the expanded notch (click the notch).").font(.caption).foregroundStyle(.secondary)
+            }
             permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
                           detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
             permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)
             permissionRow("Now playing", ok: media.available, detail: media.available ? "Working" : "Adapter unavailable", action: nil)
             Divider().padding(.top, 4)
+            updates
+            Divider().padding(.top, 4)
         }
         .onAppear { face.unlock.refreshPermission(); levels.retryTap() }
+    }
+
+    private var updates: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Updates").font(.title2.weight(.semibold))
+            HStack {
+                Text("Version \(updater.currentVersion)")
+                Spacer()
+                switch updater.state {
+                case .idle, .upToDate, .failed: Button("Check for updates") { updater.check() }
+                case .checking: ProgressView().controlSize(.small)
+                case .available(let tag): Button("Install \(tag) and restart") { updater.install(tag) }.buttonStyle(.borderedProminent)
+                case .downloading: ProgressView().controlSize(.small)
+                }
+            }
+            switch updater.state {
+            case .upToDate: Text("You're up to date.").font(.caption).foregroundStyle(.secondary)
+            case .failed(let m): Text(m).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            case .downloading: Text("Downloading, Islet will restart…").font(.caption).foregroundStyle(.secondary)
+            default: EmptyView()
+            }
+            Button("Quit Islet") { NSApp.terminate(nil) }.padding(.top, 4)
+        }
     }
 
     private func permissionRow(_ title: String, ok: Bool, detail: String, action: (() -> Void)?) -> some View {

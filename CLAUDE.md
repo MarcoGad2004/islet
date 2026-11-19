@@ -21,7 +21,7 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
 - The Xcode project is generated: edit `project.yml`, then run `xcodegen generate`. Don't commit
   `Islet.xcodeproj`.
 - Build: `xcodegen generate && xcodebuild -scheme Islet -destination 'platform=macOS' build`.
-- No network access, no analytics.
+- No analytics. No network access except Settings > Updates, which only runs when clicked and goes through `gh` to this repo's releases (`scripts/release.sh <version>` publishes one).
 
 ## Decisions already made
 

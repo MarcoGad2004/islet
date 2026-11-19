@@ -60,7 +60,7 @@ Add `NSCameraUsageDescription` to the Info.plist (in `project.yml`).
 ## Principles
 
 - Modules are independent; one failing must not take down the rest.
-- No network access.
+- No network access, except the user-initiated "Check for updates" (GitHub release via `gh`).
 - CPU near zero when the island is closed: no timers or polling while idle; the layout check runs
   on events, not a loop.
 - Face data and the stored password never leave the Mac.

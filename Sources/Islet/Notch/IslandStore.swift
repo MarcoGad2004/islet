@@ -12,6 +12,8 @@ final class IslandStore {
     private(set) var expandedPage = ExpandedPage.displaySound
     private(set) var pointerInside = false
     private(set) var paused = false
+    /// Set by the app; the gear in the expanded view calls it.
+    @ObservationIgnored var openSettings: (() -> Void)?
 
     // Content sources
     private(set) var charge: ChargeEvent?

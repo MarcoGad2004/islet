@@ -24,6 +24,8 @@ targets:
       path: Sources/Islet/Info.plist
       properties:
         CFBundleName: Islet
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"

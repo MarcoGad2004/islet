@@ -18,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         faceUnlock.unlock.start()
         startModules()
         buildMenuBarItem()
+        notch.store.openSettings = { [weak self] in self?.settings.show() }
+        applyMenuBarVisibility()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyMenuBarVisibility() }
+        }
         #if DEBUG
         // `Islet -IsletDebugShape chin` starts with a shape showing (wings, chin, scan, expanded).
         switch UserDefaults.standard.string(forKey: "IsletDebugShape") {
@@ -122,6 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Quit Islet", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
+    }
+
+    private func applyMenuBarVisibility() {
+        let show = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
+        if statusItem?.isVisible != show { statusItem?.isVisible = show }
     }
 
     @objc private func openSettings() { settings.show() }

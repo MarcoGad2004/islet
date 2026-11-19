@@ -27,6 +27,7 @@ private struct MediaPage: View {
                 HStack {
                     Text("NOW PLAYING").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
                     Spacer()
+                    SettingsGear(store: store)
                     Button { store.collapse() } label: {
                         Image(systemName: "chevron.up").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
                             .frame(width: 26, height: 20)
@@ -107,6 +108,7 @@ private struct DisplaySoundPage: View {
                 Text("DISPLAY AND SOUND").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
                 Spacer()
                 if let m = store.media, let monitor = store.mediaMonitor { MiniPlayer(media: m, monitor: monitor, store: store) }
+                SettingsGear(store: store)
             }
             HStack(spacing: 10) {
                 if let power = store.power, power.state.hasBattery { BatteryBlock(state: power.state) }
@@ -198,5 +200,18 @@ private struct MiniPlayer: View {
                     .background(Capsule().fill(Color(hex: 0x1C1C1E)))
             }.buttonStyle(.plain)
         }
+    }
+}
+
+
+/// Opens Islet's settings from the expanded notch (the menu bar icon can be hidden).
+struct SettingsGear: View {
+    let store: IslandStore
+    var body: some View {
+        Button { store.collapse(); store.openSettings?() } label: {
+            Image(systemName: "gearshape.fill").font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.isletSecondary).frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain).help("Settings")
     }
 }

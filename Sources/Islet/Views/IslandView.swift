@@ -35,7 +35,8 @@ struct IslandView: View {
                 case .scan:
                     EmptyView()
                 case .expanded:
-                    ExpandedView(store: store).padding(.top, nh).transition(fade())
+                    ExpandedView(store: store).padding(.top, nh)
+                        .transition(fade())
                 case .wings, .lockWings, .chin:
                     if let c = content {
                         CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings)

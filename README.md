@@ -14,7 +14,7 @@ A personal macOS app that turns the MacBook Pro notch into a dynamic, interactiv
 The island grows beside the camera when the menu bar has room, otherwise it drops below the notch
 so it never covers menus. Two-finger swipe up over it to hide, down to bring it back.
 
-Lightweight, native, no analytics, no network calls. Runs on my 14" MacBook Pro (Apple silicon).
+Lightweight, native, no analytics; the only network use is the update check you click. Runs on my 14" MacBook Pro (Apple silicon).
 
 ## Non-goals
 - App Store distribution
