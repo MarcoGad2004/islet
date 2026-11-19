@@ -2,13 +2,19 @@
 
 A personal macOS app that turns the MacBook Pro notch into a dynamic, interactive "island" (live activities, now playing, quick controls). Built for my own use as a replacement for an unmaintained notch app.
 
-> Status: **project setup only. No app code yet.**
+> Status: **v1 design locked ([docs/DESIGN.md](docs/DESIGN.md)). No app code yet.**
 
-## Goals
-- Expand/collapse smoothly from the physical notch on hover or click
-- Live activities: now playing, timers, calendar, battery/charging, file shelf
-- Lightweight, native, no analytics, no network calls by default
-- Runs on my MacBook Pro (Apple silicon, macOS 14+)
+## v1 features
+- Media: now playing with controls
+- Charging and battery: charger connected, fully charged, low battery
+- Volume and brightness: replaces the system display with a 16-step bar
+- Face unlock: unlocks this Mac's lock screen with the camera (convenience, weaker than Touch ID)
+- Unlock animation after any unlock
+
+The island grows beside the camera when the menu bar has room, otherwise it drops below the notch
+so it never covers menus. Two-finger swipe up over it to hide, down to bring it back.
+
+Lightweight, native, no analytics, no network calls. Runs on my 14" MacBook Pro (Apple silicon).
 
 ## Non-goals
 - App Store distribution
@@ -29,6 +35,7 @@ open Islet.xcodeproj
 Requires Xcode (full app, not just Command Line Tools).
 
 ## Docs
+- [docs/DESIGN.md](docs/DESIGN.md): locked v1 design (source of truth)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): planned structure
 - [docs/ROADMAP.md](docs/ROADMAP.md): milestones
 - [docs/RESEARCH.md](docs/RESEARCH.md): open technical questions to verify

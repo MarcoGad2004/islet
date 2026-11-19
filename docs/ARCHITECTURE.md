@@ -1,25 +1,66 @@
-# Architecture (planned)
+# Architecture
+
+What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how to build it.
 
 ## Layers
-1. **App shell**: agent app (`LSUIElement`), menu bar item for settings/quit, launch at login.
-2. **Notch window**: borderless, non-activating `NSPanel` pinned to the top-center of the built-in display, floating above normal windows. Hosts a SwiftUI view via `NSHostingView`.
-3. **Notch geometry**: detect the notch size per screen (safe area insets and the auxiliary top areas on `NSScreen`), recompute on display changes.
-4. **State machine**: `closed` -> `hover-peek` -> `open`, driving size/shape animation.
-5. **Modules (live activities)**: each is a small, isolated unit that publishes state and provides a compact and an expanded view.
-6. **Settings**: `UserDefaults`/`@AppStorage`, a simple settings window.
 
-## Planned folder layout
+1. **App shell**: agent app (`LSUIElement`), a menu bar item (Settings, Pause Islet, Quit), launch
+   at login via `SMAppService`.
+2. **Notch window**: one borderless, non-activating `NSPanel` at the top centre of the built-in
+   display, sized to the largest shape (expanded panel) and transparent outside the island. It sits
+   above the menu bar, joins all Spaces and shows over full-screen apps
+   (`canJoinAllSpaces`, `fullScreenAuxiliary`, `stationary`, `ignoresCycle`). Clicks outside the
+   island shape must pass through to the menu bar and apps below: toggle `ignoresMouseEvents`
+   based on whether the pointer is inside the current shape. Hosts SwiftUI via `NSHostingView`.
+3. **Notch geometry**: from `NSScreen`: notch height = `safeAreaInsets.top`; notch x-range =
+   between `auxiliaryTopLeftArea.maxX` and `auxiliaryTopRightArea.minX`. Recompute on
+   `NSApplication.didChangeScreenParametersNotification`. No built-in notched display (lid closed):
+   hide the island.
+4. **Layout check**: decides wings vs chin (see DESIGN.md "Menu bar width check"). Inputs: AX menu
+   bar frames of the frontmost app, and status-item window bounds from `CGWindowListCopyWindowInfo`.
+5. **Island state machine**: one `@Observable` store holding the current presentation
+   (closed / peek / wings(content) / chin(content) / scan / expanded(page)), the priority queue of
+   short events, the "media hidden" flag, and timers for auto-dismiss.
+6. **Island shape and views**: one custom `Shape` with animatable stem/body dimensions and inner
+   curves; content views per feature, each with a wings and a chin variant.
+7. **Modules** (each isolated; publishes events/state to the store):
+   - `Media`: now playing info and commands.
+   - `Power`: battery level, charging state, time to full/empty (IOKit power source notifications).
+   - `Levels`: volume/mute/brightness keys, setting volume and brightness, output devices.
+   - `Lock`: screen lock/unlock notifications (`com.apple.screenIsLocked` / `screenIsUnlocked` via
+     `DistributedNotificationCenter`).
+   - `FaceUnlock`: camera capture, face match, Keychain password, typing it into the lock screen.
+8. **Gestures**: two-finger swipes are `scrollWheel` events delivered to the panel while the pointer
+   is over it; use precise deltas and the gesture phase, with a threshold (≈40 pt) per gesture.
+9. **Settings**: a small SwiftUI window: launch at login, permissions status, face unlock setup.
+
+## Folder layout
+
 ```
 Sources/Islet/
   App/          entry point, app delegate, menu bar item
-  Notch/        panel, geometry, state machine, shape/animation
-  Modules/      NowPlaying/, Battery/, Calendar/, Shelf/ ...
+  Notch/        panel, geometry, layout check, island shape, state store
+  Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/
+  Views/        compact (wings/chin) and expanded views, face scan view
   Settings/
-  Support/      helpers, extensions
+  Support/      design tokens, helpers
 Tests/IsletTests/
 ```
 
+## Permissions
+
+| Permission            | Needed by                                   | Without it                    |
+|-----------------------|---------------------------------------------|-------------------------------|
+| Accessibility         | menu width check, media/volume key tap, typing the password | chin only; no key HUD; no face unlock |
+| Camera                | face unlock                                 | no face unlock                |
+| Input Monitoring      | possibly for the key event tap (verify)     | no volume/brightness HUD      |
+
+Add `NSCameraUsageDescription` to the Info.plist (in `project.yml`).
+
 ## Principles
-- Each module independent, so one can break without taking down the rest
-- No network access unless a module needs it
-- Keep CPU near zero when the notch is closed
+
+- Modules are independent; one failing must not take down the rest.
+- No network access.
+- CPU near zero when the island is closed: no timers or polling while idle; the layout check runs
+  on events, not a loop.
+- Face data and the stored password never leave the Mac.
