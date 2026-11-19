@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.2 (unreleased)
+## 1.2 (2026-11-19)
 
 **Macs without a notch**
 - Islet now runs on MacBooks without a notch, and with the lid closed on an external display. Setup has a new step,
