@@ -3,6 +3,12 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.2.1 (2026-11-19)
+
+- Macs without a notch: the drop that hangs from the top edge when you hover under the camera is now shaped like the
+  notch, square at the top and flaring into the edge with rounded corners only at the bottom, instead of a pill that
+  didn't quite meet the bezel.
+
 ## 1.2 (2026-11-19)
 
 **Macs without a notch**

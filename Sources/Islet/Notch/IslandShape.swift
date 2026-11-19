@@ -84,9 +84,39 @@ struct CardShape: Shape {
 
     static func radius(_ m: IslandMetrics, _ f: CGRect) -> CGFloat { max(0, min(m.br, f.width / 2, f.height / 2)) }
 
+    /// How attached the card is to the top edge: 1 when its top is at the edge (the orb), 0 once it is 6 pt clear.
+    static func attachment(_ f: CGRect) -> CGFloat { max(0, min(1, 1 - abs(f.minY) / 6)) }
+
+    /// The card, rounded all round when it floats. Attached to the top edge it is shaped like the notch: square
+    /// top corners that flare out into the edge, rounded only at the bottom.
+    static func path(_ f: CGRect, radius r: CGFloat) -> Path {
+        let a = attachment(f)
+        guard a > 0, f.height > 0 else { return Path(roundedRect: f, cornerRadius: r, style: .continuous) }
+        let k = 0.5523
+        let tf = min(IslandShape.topFlare * a, f.height / 2)  // flare into the edge
+        let rb = max(0, min(r, f.width / 2, f.height - tf))   // bottom corners
+        let L = f.minX, R = f.maxX, T = f.minY, B = f.maxY
+        var p = Path()
+        p.move(to: CGPoint(x: L - tf, y: T))
+        p.addLine(to: CGPoint(x: R + tf, y: T))
+        p.addCurve(to: CGPoint(x: R, y: T + tf),
+                   control1: CGPoint(x: R + tf - k * tf, y: T), control2: CGPoint(x: R, y: T + tf - k * tf))
+        p.addLine(to: CGPoint(x: R, y: B - rb))
+        p.addCurve(to: CGPoint(x: R - rb, y: B),
+                   control1: CGPoint(x: R, y: B - rb + k * rb), control2: CGPoint(x: R - rb + k * rb, y: B))
+        p.addLine(to: CGPoint(x: L + rb, y: B))
+        p.addCurve(to: CGPoint(x: L, y: B - rb),
+                   control1: CGPoint(x: L + rb - k * rb, y: B), control2: CGPoint(x: L, y: B - rb + k * rb))
+        p.addLine(to: CGPoint(x: L, y: T + tf))
+        p.addCurve(to: CGPoint(x: L - tf, y: T),
+                   control1: CGPoint(x: L, y: T + tf - k * tf), control2: CGPoint(x: L - tf + k * tf, y: T))
+        p.closeSubpath()
+        return p
+    }
+
     func path(in rect: CGRect) -> Path {
         let f = Self.frame(m, in: rect)
-        return Path(roundedRect: f, cornerRadius: Self.radius(m, f), style: .continuous)
+        return Self.path(f, radius: Self.radius(m, f))
     }
 }
 
@@ -103,10 +133,13 @@ struct BezelBackdrop: View {
             let bounds = CGRect(origin: .zero, size: size)
             let f = CardShape.frame(m, in: bounds)
             guard f.maxY > 0, f.width > 0, f.height > 0 else { return }
-            let card = Path(roundedRect: f, cornerRadius: CardShape.radius(m, f), style: .continuous)
-            // Only near the edge: once the card floats well clear there is no neck to draw.
-            if f.minY < Self.blur * 3 {
+            let card = CardShape.path(f, radius: CardShape.radius(m, f))
+            // Only near the edge: once the card floats well clear there is no neck to draw. Attached (the orb), the
+            // card's own flare joins it to the edge, so the blurred neck fades out rather than smudging it.
+            let neck = 1 - CardShape.attachment(f)
+            if f.minY < Self.blur * 3 && neck > 0 {
                 ctx.drawLayer { layer in
+                    layer.opacity = neck
                     layer.addFilter(.alphaThreshold(min: 0.5, color: .black))
                     layer.addFilter(.blur(radius: Self.blur))
                     layer.fill(Path(CGRect(x: f.minX - 40, y: 0, width: f.width + 80, height: 4)), with: .color(.black))
