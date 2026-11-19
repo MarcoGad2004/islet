@@ -16,7 +16,8 @@ struct IslandView: View {
         let pres = store.presentation
         let nh = store.geometry?.height ?? 34
         let content = store.content
-        let key = store.base == .scan ? "scan" : "\(pres)-\(content?.kind ?? "-")"
+        // The hint's body grows and folds under the lock bar without remounting the padlock.
+        let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
             IslandShape(m: m).fill(Color.black)
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
@@ -37,10 +38,11 @@ struct IslandView: View {
                 case .expanded:
                     ExpandedView(store: store).padding(.top, nh)
                         .transition(fade())
-                case .wings, .lockWings, .levelWings, .eventWings, .chin:
+                case .wings, .lockWings, .lockHint, .levelWings, .eventWings, .chin:
                     if let c = content {
-                        CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings, levelBody: pres == .levelWings, eventBar: pres == .eventWings)
-                            .id(key).transition(fade(pres == .chin ? 0.36 : pres == .levelWings ? 0.2 : 0.12))
+                        CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings || pres == .lockHint,
+                                           levelBody: pres == .levelWings, hintBody: pres == .lockHint, eventBar: pres == .eventWings)
+                            .id(key).transition(fade(pres == .chin ? 0.36 : pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
                 case .peek, .closed:
                     if store.showsHiddenMediaDot {

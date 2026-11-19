@@ -161,7 +161,23 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   turning green; the ring turns green; label "Welcome back". After ≈0.9 s the shape pulls up and
   the **lock opens** animation plays.
 - **No match**: dots and ring turn red (`#FF453A`), the grid shakes sideways (0.45 s), label "Not
-  recognized". After 3 failed tries, stop until the next lock and leave the password field.
+  recognized". After 3 failed tries, stop and wait for Command+Shift (below).
+- **No face in view**: no face in front of the camera for 10 s: label "No face in view" (failed style),
+  fold back after 1.6 s and wait for Command+Shift.
+
+### When the scan starts (1.1.3, owner request)
+
+- **Display wakes on a locked Mac** (lid opened, display woken after it slept, screen saver dismissed): scan
+  at once.
+- **Locked with the display on** (power button, Ctrl-Cmd-Q, Apple menu → Lock Screen): don't scan, so the Mac
+  doesn't unlock straight back. Wait for **Command+Shift** (Shift alone types capitals in the password).
+- After a scan gives up (no face, 3 misses, 60 s), it also waits for Command+Shift.
+- Any display sleep clears the wait, so the next wake scans at once. Command+Shift always starts a fresh scan
+  (3 new tries) whenever the Mac is locked, the display is on and no scan is running.
+- **Hint** while waiting: "⌘⇧" (13 pt semibold, secondary grey) in the left wing of the lock bar, 8.5 pt from the
+  island's left edge (the same gap the padlock keeps on the right). After 1.5 s the bar grows a 28 pt body (bottom radius 18, like the volume bar) reading "Press ⌘ + ⇧ to
+  use Face Unlock" (12 pt semibold, white) for 4 s, folds back, and repeats every 12 s while it waits. The
+  wing glyph hides while the sentence shows. Preview: `-IsletDebugShape lockhint`.
 
 ## Features
 

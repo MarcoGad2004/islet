@@ -3,6 +3,17 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.1.3
+
+**Face unlock**
+- Locking with the power button (or Ctrl-Cmd-Q, or Apple menu → Lock Screen) no longer unlocks straight back. The
+  scan waits for **Command+Shift**: the island shows "⌘⇧" beside the padlock and now and then spells out "Press ⌘ + ⇧
+  to use Face Unlock". Opening the lid, or waking the display after it went to sleep, still scans by itself.
+- Command+Shift also starts a fresh scan after one gave up, any time the Mac is locked.
+- With no face in front of the camera for 10 s, the scan says "No face in view" and stops, instead of looking for a
+  full minute.
+- After the screen saver, the scan starts once it is dismissed, not while it is still showing.
+
 ## 1.1.2 (2026-11-19)
 
 **Notch motion**

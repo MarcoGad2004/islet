@@ -26,8 +26,15 @@ final class ScanModel {
     }
 }
 
-/// Face unlock itself: when the Mac locks and the screen is on, look for the enrolled face, and on a match
-/// type the stored login password into the lock screen. Only ever acts on the lock screen.
+/// Face unlock itself: look for the enrolled face on the lock screen, and on a match type the stored login password.
+/// Only ever acts on the lock screen.
+///
+/// When it scans (DESIGN.md "Face scan"):
+/// - The display wakes on a locked Mac (lid opened, display woken after it slept, screen saver dismissed): scan at once.
+/// - The Mac locks while the display is on (power button, Ctrl-Cmd-Q, Apple menu): don't scan, so it doesn't unlock
+///   straight back. The island shows the Command+Shift hint and the scan waits for those keys. Once the display
+///   sleeps, the next wake scans at once again.
+/// - After a scan gives up (no face in view, 3 misses, the time limit): wait for Command+Shift, until the display sleeps.
 @MainActor @Observable
 final class FaceUnlockService {
     private static let enabledKey = "faceUnlockEnabled"
@@ -38,8 +45,10 @@ final class FaceUnlockService {
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
     /// Mean camera brightness below this (a few samples in a row) counts as a dark room.
     private static let darkLuma = 0.25
+    /// No face in front of the camera for this long: say so and stop.
+    private static let noFaceSeconds = 10.0
 
-    var enabled: Bool { didSet { UserDefaults.standard.set(enabled, forKey: Self.enabledKey); if !enabled { stop(collapseAfter: 0) } } }
+    var enabled: Bool { didSet { UserDefaults.standard.set(enabled, forKey: Self.enabledKey); if !enabled { stop(collapseAfter: 0) }; syncLockScreen() } }
     /// The stored password was typed and the Mac stayed locked: stop typing it until it is re-entered.
     private(set) var passwordRejected: Bool
     private(set) var accessibilityTrusted = AXIsProcessTrusted()
@@ -49,7 +58,11 @@ final class FaceUnlockService {
     private var locked = false
     private var screenAwake = true
     private var attempts = 0
-    private var stoppedForThisLock = false
+    /// Don't scan until Command+Shift is pressed (the Mac locked with the display on, or a scan gave up).
+    /// Cleared when the display sleeps, so the next wake scans by itself.
+    private var needsKey = false
+    private var screensaverRunning = false
+    private var noFaceTimer: Task<Void, Never>?
     private var simulated = false
     private var camera: FaceCamera?
     private var engine: ScanEngine?
@@ -61,6 +74,7 @@ final class FaceUnlockService {
     private var darkSamples = 0
     private var brightened = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var keyMonitor: Any?
 
     init(owner: FaceUnlockCoordinator, island: IslandStore) {
         UserDefaults.standard.register(defaults: [Self.enabledKey: true])
@@ -83,12 +97,40 @@ final class FaceUnlockService {
         add(dnc, "com.apple.screenIsLocked") { $0.didLock() }
         add(dnc, "com.apple.screenIsUnlocked") { $0.didUnlock() }
         add(ws, NSWorkspace.screensDidWakeNotification.rawValue) { $0.screenAwake = true; $0.syncLockScreen(); $0.beginIfPossible() }
-        add(ws, NSWorkspace.screensDidSleepNotification.rawValue) { $0.screenAwake = false; $0.syncLockScreen(); $0.stop(collapseAfter: 0) }
+        add(ws, NSWorkspace.screensDidSleepNotification.rawValue) {
+            $0.screenAwake = false; $0.needsKey = false; $0.syncLockScreen(); $0.stop(collapseAfter: 0)
+        }
+        add(dnc, "com.apple.screensaver.didstart") { $0.screensaverRunning = true; $0.stop(collapseAfter: 0) }
+        add(dnc, "com.apple.screensaver.didstop") { $0.screensaverRunning = false; $0.needsKey = false; $0.beginIfPossible() }
+        // Command+Shift on the lock screen starts a scan. Modifier changes reach a global monitor while locked
+        // (RESEARCH.md Q24); it needs Accessibility, which typing the password needs anyway.
+        keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+            guard flags == [.command, .shift] else { return }
+            MainActor.assumeIsolated { self?.keysPressed() }
+        }
         syncLockScreen()
     }
 
-    /// The island shows the closed padlock whenever the Mac is locked and the screen is on.
-    private func syncLockScreen() { island.setLockScreen(locked && screenAwake) }
+    /// The island shows the closed padlock whenever the Mac is locked and the screen is on, plus the
+    /// Command+Shift hint while a scan is waiting for those keys.
+    private func syncLockScreen() {
+        island.setLockScreen(locked && screenAwake)
+        island.setLockHint(locked && screenAwake && needsKey && !screensaverRunning && model == nil && canScan)
+    }
+
+    /// Everything face unlock needs, apart from the lock state.
+    private var canScan: Bool {
+        enabled && owner.faces.isReady && owner.modelAvailable && accessibilityTrusted && !passwordRejected
+    }
+
+    private func keysPressed() {
+        guard locked, screenAwake, !screensaverRunning, model == nil else { return }
+        Self.log.info("command+shift: scanning")
+        needsKey = false
+        attempts = 0
+        beginIfPossible()
+    }
 
     func refreshPermission() { accessibilityTrusted = AXIsProcessTrusted() }
 
@@ -97,20 +139,25 @@ final class FaceUnlockService {
         refreshPermission()
     }
 
-    func clearPasswordRejected() { passwordRejected = false; UserDefaults.standard.set(false, forKey: Self.rejectedKey) }
+    func clearPasswordRejected() { passwordRejected = false; UserDefaults.standard.set(false, forKey: Self.rejectedKey); syncLockScreen() }
 
     private func didLock() {
         Self.log.info("locked")
         locked = true
         syncLockScreen()
         attempts = 0
-        stoppedForThisLock = false
+        // Locked in front of you (power button, Ctrl-Cmd-Q): wait for Command+Shift. Locked as the display went to
+        // sleep (lid closed, idle): the wake scans. The lock arrives after the display sleeps on lid close (Q26).
+        needsKey = screenAwake && !screensaverRunning
+        Self.log.info("needsKey=\(self.needsKey)")
+        syncLockScreen()
         beginIfPossible()
     }
 
     private func didUnlock() {
         Self.log.info("unlocked")
         locked = false
+        needsKey = false
         syncLockScreen()
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
         if model?.matchedAt != nil, !simulated, let sample = pendingLearn {
@@ -137,9 +184,9 @@ final class FaceUnlockService {
 
     private func beginIfPossible() {
         refreshPermission()
-        guard enabled, locked, screenAwake, !stoppedForThisLock, model == nil,
-              owner.faces.isReady, owner.modelAvailable, accessibilityTrusted, !passwordRejected else {
-            Self.log.info("not scanning: enabled=\(self.enabled) locked=\(self.locked) awake=\(self.screenAwake) ready=\(self.owner.faces.isReady) ax=\(self.accessibilityTrusted) rejected=\(self.passwordRejected)")
+        guard locked, screenAwake, !needsKey, !screensaverRunning, model == nil, canScan else {
+            Self.log.info("not scanning: enabled=\(self.enabled) locked=\(self.locked) awake=\(self.screenAwake) needsKey=\(self.needsKey) saver=\(self.screensaverRunning) ready=\(self.owner.faces.isReady) ax=\(self.accessibilityTrusted) rejected=\(self.passwordRejected)")
+            syncLockScreen()
             return
         }
         scan(simulated: false)
@@ -156,6 +203,7 @@ final class FaceUnlockService {
             let model = ScanModel()
             self.model = model
             island.scan = model
+            syncLockScreen()
             island.setBase(.scan)
 
             let faces = owner.faces
@@ -176,16 +224,37 @@ final class FaceUnlockService {
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
             Self.log.info("scan started simulated=\(simulated)")
+            startNoFaceTimer()
             timeout = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
-                self?.stoppedForThisLock = true
-                self?.stop(collapseAfter: 0)
+                self?.giveUp(collapseAfter: 0)
             }
         }
     }
 
+    /// No face for `noFaceSeconds`: "No face in view", then back to the Command+Shift hint.
+    private func startNoFaceTimer() {
+        noFaceTimer?.cancel()
+        noFaceTimer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.noFaceSeconds))
+            guard !Task.isCancelled, let self, let model = self.model, model.phase == .looking, !self.simulated else { return }
+            Self.log.info("no face in view")
+            model.phase = .failed("No face in view")
+            self.giveUp(collapseAfter: 1.6)
+        }
+    }
+
+    /// The scan stopped without a match: wait for Command+Shift (or the next wake) before scanning again.
+    private func giveUp(collapseAfter delay: Double) {
+        needsKey = true
+        stop(collapseAfter: delay)
+    }
+
     private func handle(_ event: ScanEngine.Event) {
+        if case .face(let visible) = event, model?.matchedAt == nil {
+            if visible { noFaceTimer?.cancel(); noFaceTimer = nil } else { startNoFaceTimer() }
+        }
         guard let model, model.phase == .looking else { return }
         switch event {
         case .face(let visible):
@@ -213,8 +282,7 @@ final class FaceUnlockService {
                 try? await Task.sleep(for: .milliseconds(1400))
                 guard self.model === model else { return }
                 if attempts >= Self.maxAttempts {
-                    stoppedForThisLock = true
-                    stop(collapseAfter: 0)
+                    giveUp(collapseAfter: 0)
                 } else {
                     model.phase = .looking
                     engine?.resume()
@@ -255,8 +323,7 @@ final class FaceUnlockService {
             passwordRejected = true
             UserDefaults.standard.set(true, forKey: Self.rejectedKey)
             model.phase = .failed("Password not accepted")
-            stoppedForThisLock = true
-            stop(collapseAfter: 2.5)
+            giveUp(collapseAfter: 2.5)
         }
     }
 
@@ -273,6 +340,7 @@ final class FaceUnlockService {
 
     private func stop(collapseAfter delay: Double) {
         timeout?.cancel(); timeout = nil
+        noFaceTimer?.cancel(); noFaceTimer = nil
         camera?.stop(); camera = nil
         engine?.pause(); engine = nil
         if brightened { brightened = false; island.levels?.endFaceScanBoost() }
@@ -283,6 +351,7 @@ final class FaceUnlockService {
             guard let self, self.model === finished else { return }
             self.model = nil
             self.island.setBase(nil)
+            self.syncLockScreen()
         }
         if delay <= 0 { collapse() } else { Task { try? await Task.sleep(for: .seconds(delay)); collapse() } }
     }

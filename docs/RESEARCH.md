@@ -178,3 +178,27 @@ developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/
 | 13 | First try failed (high window level, and a private space at a wrong level with no `canBecomeVisibleWithoutLogin`). Second try copies the SkyLightWindow library's recipe: window level `Int32.max - 2`, `canBecomeVisibleWithoutLogin = true`, private SkyLight space at absolute level 400 (NotificationCenterAtScreenLock), window added with mask 7. In `Support/SkyLightSpace.swift`. **Unverified while locked: needs a lock test.** |
 | 14 | **Solved in principle:** AuraFace-v1 (Apache-2.0) Core ML, 112×112 aligned input, 512-d embedding, cosine score. The threshold (default 0.45) must be tuned with Settings → Test recognition, including on someone else's face. Liveness (blink) not built yet. |
 | 15 | Done in `FaceStore`: generic-password Keychain items, never logged. |
+
+## Lock-screen trigger (1.1.3 spike)
+
+Locking with the display on (power button, Ctrl-Cmd-Q, Apple menu) should wait for Command+Shift before scanning;
+any display sleep resets that so the next wake scans on its own. Probe: `Spike/LockInputSpike.swift` (debug builds,
+logs to `~/Library/Logs/Islet-lock-spike.log`).
+
+24. **Command+Shift on the lock screen**: which of these sees it while locked: polling
+    `CGEventSource.flagsState` (HID or session), a global `flagsChanged` monitor, a listen-only session tap?
+25. **Click on the island while locked**: does the panel (SkyLight lock-screen space) receive a click once it
+    stops ignoring the mouse? Fallback trigger if Q24 fails.
+26. **Event order**: on lid open and on waking a locked display, does `screenIsLocked` arrive before or after
+    `screensDidWake`? If after, a lock within ~2 s of a wake counts as a wake.
+
+**Results (owner's Mac, macOS 27.2.1, 2026-11-19; the probe was removed afterwards):**
+- **Q24 yes, all three.** While locked, a global `flagsChanged` monitor, a listen-only session tap and polling
+  `CGEventSource.flagsState(.hidSystemState)` all saw ⌘, ⇧⌘ and ⇧ within ~50 ms, with the display on and after
+  a wake. Secure input on the password field does not hide modifier changes. Built on the global monitor.
+- **Q25 yes.** A click on the island while locked reached the panel (once it stopped ignoring the mouse). Not
+  used, kept as a fallback.
+- **Q26 lock comes after sleep, so no workaround.** Lid close: `willSleep`, `screensDidSleep`, then
+  `screenIsLocked` (display already off). Lid open: `screensDidWake`, `didWake`, still locked. Power button:
+  `screenIsLocked` with the display on, `screensDidSleep` ~5 s later. Ctrl-Cmd-Q: `screenIsLocked` with the
+  display on, then the release of ⌃ and ⌘ arrives (never ⇧⌘ on its own, so it can't start a scan by mistake).

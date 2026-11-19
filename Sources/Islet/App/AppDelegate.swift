@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 store.recomputeLayout()
             }
         case "locksequence": previewLockSequence()
+        case "lockhint": notch.store.setLockScreen(true); notch.store.setLockHint(true)
         case "enrol": previewEnrolment()
         case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))

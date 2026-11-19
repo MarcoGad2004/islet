@@ -9,6 +9,8 @@ struct CompactContentView: View {
     var lockBar = false
     /// Volume/brightness in the wide bar: the step bar sits in a short body under the wings.
     var levelBody = false
+    /// Lock screen waiting for Command+Shift: the sentence sits in a short body under the wings.
+    var hintBody = false
     /// Focus / Wi-Fi / Bluetooth events: wings wide enough for a name.
     var eventBar = false
 
@@ -32,6 +34,15 @@ struct CompactContentView: View {
                         StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16)
                             .animation(.levelGlide, value: l.value)
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
+                    }
+                    if hintBody {
+                        Text("Press ⌘ + ⇧ to use Face Unlock")
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * 12, height: IslandLayout.lockHintBodyHeight)
+                            .offset(y: -2)
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.25).delay(0.2)),
+                                                    removal: .opacity.animation(.easeOut(duration: 0.12))))
                     }
                 }
                 .frame(width: nw + 2 * wingW)
@@ -57,7 +68,13 @@ struct CompactContentView: View {
             Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                 .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l))
                 .frame(width: 18).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
-        case .locked: EmptyView()
+        case .locked:
+            if store.lockHint && !hintBody {
+                Text("⌘⇧").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletSecondary)
+                    .fixedSize()
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.lockEdgeGap)
+                    .transition(.opacity.animation(.easeOut(duration: 0.2)))
+            }
         case .event(let e):
             PopIcon(name: e.icon, color: eventTint(e))
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)

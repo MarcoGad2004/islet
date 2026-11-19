@@ -10,6 +10,9 @@ enum IslandLayout {
     static let lockBarExtra: CGFloat = 8
     static let lockInset: CGFloat = 13   // padlock centre, outward from the wing centre
     static let checkInset: CGFloat = 9.5 // check centre, outward from the wing centre
+    /// Gap between the padlock's 17 pt body and the island's outer edge (30 - 13 - 8.5). The "⌘⇧" hint keeps the
+    /// same gap on the left.
+    static let lockEdgeGap: CGFloat = 60 / 2 - lockInset - 17 / 2
     /// Wing width for Focus / Wi-Fi / Bluetooth events: wide enough for a name.
     static let eventWing: Double = 120
     static let peekExtraWidth: Double = 16
@@ -17,6 +20,8 @@ enum IslandLayout {
     /// Volume and brightness in the wide bar: icon left, number right, and the 16-step bar in a short body below.
     static let levelBodyHeight: CGFloat = 26
     static let levelSideInset: CGFloat = 20
+    /// The lock-screen bar with a short body below spelling out the Command+Shift hint.
+    static let lockHintBodyHeight: CGFloat = 28
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150
@@ -28,7 +33,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, lockWings, levelWings, eventWings, chin, scan, expanded, enrol
+    case closed, peek, wings, lockWings, lockHint, levelWings, eventWings, chin, scan, expanded, enrol
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -85,6 +90,9 @@ extension Presentation {
         case .lockWings:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: 0, tr: 0, br: 14, ic: 0)
+        case .lockHint:
+            let w = nw + L.wingsExtra
+            return IslandMetrics(sw: w, sh: nh + Double(L.lockBarExtra), bw: w, bh: Double(L.lockHintBodyHeight), tr: 0, br: 18, ic: 0)
         case .eventWings:
             let w = nw + 2 * L.eventWing
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: 0, tr: 0, br: 12, ic: 0)

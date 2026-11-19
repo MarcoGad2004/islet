@@ -31,6 +31,10 @@ final class IslandStore {
     private(set) var event: IslandEvent?
     /// The Mac is locked with the screen on: the island shows the closed padlock in the wings.
     private(set) var lockScreen = false
+    /// On the lock screen, the scan waits for Command+Shift: "⌘⇧" in the left wing, and now and then the wide bar
+    /// grows a short body that spells it out (`lockHintFull`).
+    private(set) var lockHint = false
+    private(set) var lockHintFull = false
     var enrolment: EnrolmentModel?
     var scan: ScanModel?
 
@@ -56,6 +60,7 @@ final class IslandStore {
     @ObservationIgnored private var levelTask: Task<Void, Never>?
     @ObservationIgnored private var unlockTask: Task<Void, Never>?
     @ObservationIgnored private var mediaStaleTask: Task<Void, Never>?
+    @ObservationIgnored private var lockHintTask: Task<Void, Never>?
 
     // MARK: Derived
 
@@ -92,7 +97,7 @@ final class IslandStore {
         if expanded { return .expanded }
         if let c = content {
             if case .level = c { return wingsFit ? .levelWings : .chin } // wide bar with the step bar below when it fits
-            if case .locked = c { return .lockWings } // the lock screen has no menus: always the wide bar
+            if case .locked = c { return lockHint && lockHintFull ? .lockHint : .lockWings } // no menus here: always the wide bar
             if case .unlock = c { return wingsFit ? .lockWings : .chin }
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
             return compactLayout
@@ -219,6 +224,30 @@ final class IslandStore {
     func setLockScreen(_ value: Bool) {
         guard value != lockScreen else { return }
         lockScreen = value
+        refresh()
+    }
+
+    /// Shows the Command+Shift hint: "⌘⇧" in the wing at once, the full sentence after 1.5 s for 4 s, then
+    /// every 12 s while it keeps waiting.
+    func setLockHint(_ value: Bool) {
+        guard value != lockHint else { return }
+        lockHint = value
+        lockHintFull = false
+        lockHintTask?.cancel()
+        if value {
+            lockHintTask = Task { [weak self] in
+                var wait = 1.5
+                while true {
+                    try? await Task.sleep(for: .seconds(wait))
+                    guard !Task.isCancelled, let self else { return }
+                    self.lockHintFull = true; self.refresh()
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { return }
+                    self.lockHintFull = false; self.refresh()
+                    wait = 12
+                }
+            }
+        }
         refresh()
     }
 
