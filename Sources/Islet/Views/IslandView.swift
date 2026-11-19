@@ -23,7 +23,9 @@ struct IslandView: View {
             Group {
                 if store.base == .scan, let scan = store.scan {
                     // Stays mounted through the fold into the wide bar (the shape changes, the content doesn't).
-                    ScanView(model: scan, notchWidth: store.geometry?.width ?? 190, notchHeight: nh).transition(fade(0.12))
+                    ScanView(model: scan, notchWidth: store.geometry?.width ?? 190, notchHeight: nh)
+                        .zIndex(1)
+                        .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
                 } else {
                 switch pres {
                 case .enrol:

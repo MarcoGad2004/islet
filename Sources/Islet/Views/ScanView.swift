@@ -16,6 +16,9 @@ struct ScanView: View {
 
     private let ringSize: CGFloat = 92
     private let bodyTop: CGFloat = 10
+    /// The wings row (the padlock) is drawn at full opacity from the first frame so it never blinks while the
+    /// bar above it is swapped; only the ring and label below it fade in.
+    @State private var bodyShown = false
 
     var body: some View {
         let nh = notchHeight, nw = notchWidth
@@ -64,9 +67,11 @@ struct ScanView: View {
                     .animation(.easeOut(duration: 0.15), value: model.flown)
             }
             .padding(.top, barH + bodyTop)
+            .opacity(bodyShown ? 1 : 0)
             .animation(.linear(duration: 0.45), value: model.shakes)
         }
         .frame(width: nw + IslandLayout.wingsExtra, height: barH + IslandLayout.scanHeight, alignment: .top)
+        .onAppear { withAnimation(.easeOut(duration: 0.3).delay(0.12)) { bodyShown = true } }
     }
 }
 
