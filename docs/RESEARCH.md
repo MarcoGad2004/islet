@@ -121,7 +121,20 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
     drop (Bedroom: isConnected true, then false 1.5 s later; iPad Pro likewise), and three times for AirPods (names
     "Marco's AirPods Pro" x2 and "AirPods Pro"). Rule: wait ~1.5 s, require a name and `isConnected` still true,
     dedupe by address, skip devices connected at launch. The disconnect callback is reliable (registered per device).
-  - Writes still untested (disruptive): Wi-Fi `setPower`/`associate`, Bluetooth connect and power, mirroring.
+- **Q16-Q17 write tests (2026-11-19, `spikeactive`, `spikebt`; everything put back):**
+  - Wi-Fi `setPower(false/true)`: works, no admin prompt; reconnected to the same network within seconds.
+  - Wi-Fi `associate(to:password: nil)`: **fails with -3900 "tmpErr"** even when rejoining the current secured network, and
+    `networksetup -setairportnetwork` fails the same way. So a known secured network cannot be joined without a password
+    (the saved one needs a Keychain prompt). Joining plan: open networks directly; secured ones ask for the password in
+    the notch and call `associate(to:password:)` (untested: needs a real password, which the spike never handles);
+    always offer "Wi-Fi Settings" as the fallback. Note `networksetup -getairportnetwork` wrongly says "not associated"
+    on this macOS; use CoreWLAN for the SSID.
+  - Bluetooth power via `IOBluetoothPreferenceSetControllerPowerState`: works (1 to 0 to 1, no prompt).
+  - Bluetooth `closeConnection()` disconnected the AirPods; `openConnection()` returned 0 and connected them (the first
+    attempt, 3 s after a disconnect, did not connect within 10 s, the second did). Treat connect as asynchronous: show
+    "Connecting..." and poll `isConnected` for ~20 s. The paired-device name changed from "Marco's AirPods Pro" to
+    "AirPods Pro" and back, so key devices by address.
+  - Still untested: AirDrop mode taking effect live, mirroring, Wi-Fi join with a password.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,
 developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/forums/thread/738748.

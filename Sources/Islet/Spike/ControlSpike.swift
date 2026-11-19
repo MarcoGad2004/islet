@@ -217,6 +217,81 @@ final class ControlSpike: NSObject, CLLocationManagerDelegate, CWEventDelegate {
         try? out.write(to: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-writes.log"), atomically: true, encoding: .utf8)
     }
 
+    // MARK: Active tests (disruptive; everything is put back)
+
+    func runActive() async {
+        let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-active.log")
+        func flush() { try? out.write(to: file, atomically: true, encoding: .utf8) }
+        log("# Islet M10 active tests \(Date())")
+        guard let iface = CWWiFiClient.shared().interface() else { log("no Wi-Fi"); flush(); return }
+        let original = iface.ssid()
+        log("\n## Wi-Fi power  (original ssid \(original ?? "nil"))")
+        do { try iface.setPower(false); log("setPower(false) ok, power=\(iface.powerOn())") } catch { log("setPower(false) FAILED: \(error)") }
+        try? await Task.sleep(for: .seconds(3))
+        do { try iface.setPower(true); log("setPower(true) ok") } catch { log("setPower(true) FAILED: \(error)") }
+        for _ in 0..<20 where iface.ssid() == nil { try? await Task.sleep(for: .seconds(1)) }
+        log("after power on: ssid=\(iface.ssid() ?? "nil")"); flush()
+
+        log("\n## Wi-Fi join a known network (nil password)")
+        let known = Set(iface.configuration()?.networkProfiles.array.compactMap { ($0 as? CWNetworkProfile)?.ssid } ?? [])
+        let nets = (try? iface.scanForNetworks(withSSID: nil)) ?? []
+        if let target = nets.first(where: { n in n.ssid != nil && n.ssid != iface.ssid() && known.contains(n.ssid!) }) {
+            log("target: \(target.ssid ?? "?") (known, in range)")
+            do { try iface.associate(to: target, password: nil); log("associate returned ok") } catch { log("associate FAILED: \(error)") }
+            for _ in 0..<15 where iface.ssid() != target.ssid { try? await Task.sleep(for: .seconds(1)) }
+            log("ssid now: \(iface.ssid() ?? "nil")")
+            if let orig = original, let back = ((try? iface.scanForNetworks(withSSID: Data(orig.utf8))) ?? []).first {
+                do { try iface.associate(to: back, password: nil); log("rejoin \(orig): ok") } catch { log("rejoin \(orig) FAILED: \(error)") }
+            }
+            for _ in 0..<20 where iface.ssid() != original { try? await Task.sleep(for: .seconds(1)) }
+            log("final ssid: \(iface.ssid() ?? "nil")")
+        } else { log("no other known network in range; skipped") }
+        flush()
+
+        log("\n## Bluetooth power (private symbols)")
+        let h = dlopen("/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", RTLD_NOW)
+        typealias Get = @convention(c) () -> Int32
+        typealias SetP = @convention(c) (Int32) -> Void
+        if let g = h.flatMap({ dlsym($0, "IOBluetoothPreferenceGetControllerPowerState") }),
+           let st = h.flatMap({ dlsym($0, "IOBluetoothPreferenceSetControllerPowerState") }) {
+            let get = unsafeBitCast(g, to: Get.self), set = unsafeBitCast(st, to: SetP.self)
+            log("before: \(get())")
+            set(0); try? await Task.sleep(for: .seconds(3)); log("after off: \(get())")
+            set(1); try? await Task.sleep(for: .seconds(4)); log("after on: \(get())")
+        }
+        flush()
+
+        log("\n## Bluetooth connect / disconnect AirPods")
+        let airpods = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).first { ($0.name ?? "").contains("Marco") && ($0.name ?? "").contains("AirPods") }
+        if let d = airpods {
+            log("device \(d.name ?? "?") connected=\(d.isConnected())")
+            let r = d.openConnection(); log("openConnection -> 0x\(String(UInt32(bitPattern: r), radix: 16)); connected=\(d.isConnected())")
+            try? await Task.sleep(for: .seconds(4)); log("4 s later connected=\(d.isConnected())")
+            let c = d.closeConnection(); log("closeConnection -> 0x\(String(UInt32(bitPattern: c), radix: 16)); connected=\(d.isConnected())")
+            try? await Task.sleep(for: .seconds(2)); log("2 s later connected=\(d.isConnected())")
+        } else { log("no AirPods found") }
+        log("\n# done"); flush()
+        NSWorkspace.shared.open(file)
+    }
+
+    func runBluetoothConnect() async {
+        let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-bt.log")
+        func flush() { try? out.write(to: file, atomically: true, encoding: .utf8) }
+        log("# BT connect test \(Date())")
+        try? await Task.sleep(for: .seconds(2))
+        let all = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []
+        log("paired: \(all.map { ($0.name ?? "?") + "=" + String($0.isConnected()) })")
+        guard let d = all.first(where: { ($0.name ?? "").contains("AirPods") && !($0.name ?? "").contains("Joystina") }) else { log("no AirPods"); flush(); return }
+        if d.isConnected() { let c0 = d.closeConnection(); log("was connected; close -> 0x\(String(UInt32(bitPattern: c0), radix: 16))"); try? await Task.sleep(for: .seconds(3)); log("connected after close: \(d.isConnected())") }
+        let r = d.openConnection(); log("openConnection -> 0x\(String(UInt32(bitPattern: r), radix: 16)) connected=\(d.isConnected())")
+        for _ in 0..<30 where !d.isConnected() { try? await Task.sleep(for: .seconds(1)) }
+        log("connected after wait: \(d.isConnected())"); flush()
+        try? await Task.sleep(for: .seconds(2))
+        if !d.isConnected() { log("leaving as is") } else { _ = d.closeConnection() }
+        try? await Task.sleep(for: .seconds(2)); log("connected after close: \(d.isConnected())")
+        log("# done"); flush()
+    }
+
     // MARK: Event watch (Q23): Wi-Fi, Bluetooth, Focus
 
     private var wifiClient: CWWiFiClient?

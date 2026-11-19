@@ -54,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
         case "volume": notch.store.showLevel(LevelState(kind: .volume, value: 0.5))
         case "spike": runSpike()
+        case "spikeactive": let s = ControlSpike(); controlSpike = s; Task { await s.runActive() }
+        case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
         case "levelwide":
