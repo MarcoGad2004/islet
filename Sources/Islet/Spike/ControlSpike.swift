@@ -8,7 +8,7 @@ import IOBluetooth
 /// M10 spike: read-only probes for the Control Center page (RESEARCH.md Q16-Q21). Nothing here changes a setting.
 /// Output goes to ~/Library/Logs/Islet-M10-spike.log. Removed once the questions are answered.
 @MainActor
-final class ControlSpike: NSObject, CLLocationManagerDelegate {
+final class ControlSpike: NSObject, CLLocationManagerDelegate, CWEventDelegate {
     private let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-spike.log")
     private var location: CLLocationManager?
     private var out = ""
@@ -217,6 +217,99 @@ final class ControlSpike: NSObject, CLLocationManagerDelegate {
         try? out.write(to: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-writes.log"), atomically: true, encoding: .utf8)
     }
 
+    // MARK: Event watch (Q23): Wi-Fi, Bluetooth, Focus
+
+    private var wifiClient: CWWiFiClient?
+    private var btNote: IOBluetoothUserNotification?
+    private var btDisconnectNotes: [IOBluetoothUserNotification] = []
+    private var focusSources: [DispatchSourceFileSystemObject] = []
+    private let eventLog = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-M10-events.log")
+    private var lastFocus = ""
+
+    fileprivate func event(_ s: String) {
+        let line = "\(Date().formatted(date: .omitted, time: .standard)) \(s)\n"
+        print(line, terminator: "")
+        if let h = try? FileHandle(forWritingTo: eventLog) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
+        else { try? line.write(to: eventLog, atomically: true, encoding: .utf8) }
+    }
+
+    func watch(minutes: Double = 8) async {
+        try? FileManager.default.removeItem(at: eventLog)
+        event("watching for \(minutes) min. Wi-Fi: ssid now \(CWWiFiClient.shared().interface()?.ssid() ?? "nil")")
+        let c = CWWiFiClient.shared(); wifiClient = c; c.delegate = self
+        for t in [CWEventType.ssidDidChange, .powerDidChange, .linkDidChange] {
+            do { try c.startMonitoringEvent(with: t); event("registered Wi-Fi event \(t.rawValue)") } catch { event("Wi-Fi register \(t.rawValue) failed: \(error)") }
+        }
+        btNote = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(btConnected(_:device:)))
+        event("registered Bluetooth connect notification: \(btNote != nil)")
+        for d in (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? [] {
+            if let n = d.register(forDisconnectNotification: self, selector: #selector(btDisconnected(_:device:))) { btDisconnectNotes.append(n) }
+        }
+        watchFocus()
+        try? await Task.sleep(for: .seconds(minutes * 60))
+        event("done")
+        NSWorkspace.shared.open(eventLog)
+    }
+
+    /// IOBluetooth calls these on its own queue, not the main thread.
+    @objc nonisolated private func btConnected(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        let name = device.name ?? "?", connected = device.isConnected()
+        nonisolated(unsafe) let device = device
+        Task { @MainActor in
+            self.event("BT connect callback: \(name) isConnected=\(connected)")
+            try? await Task.sleep(for: .seconds(1.5))
+            self.event("BT 1.5 s later: \(name) isConnected=\(device.isConnected())")
+            if let note = device.register(forDisconnectNotification: self, selector: #selector(self.btDisconnected(_:device:))) { self.btDisconnectNotes.append(note) }
+        }
+    }
+
+    @objc nonisolated private func btDisconnected(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        let name = device.name ?? "?"
+        Task { @MainActor in self.event("BT disconnect callback: \(name)") }
+    }
+
+    private func rawFocus() -> String {
+        let f = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/DoNotDisturb/DB/Assertions.json")
+        guard let d = try? Data(contentsOf: f) else { return "unreadable" }
+        return String(decoding: d, as: UTF8.self).replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "  ", with: "").prefix(1800).description
+    }
+
+    private func focusSummary() -> String {
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/DoNotDisturb/DB")
+        guard let a = try? Data(contentsOf: dir.appendingPathComponent("Assertions.json")) else { return "Assertions.json NOT readable (Full Disk Access?)" }
+        var names: [String: String] = [:]
+        if let m = try? Data(contentsOf: dir.appendingPathComponent("ModeConfigurations.json")),
+           let j = try? JSONSerialization.jsonObject(with: m) as? [String: Any],
+           let cfg = ((j["data"] as? [[String: Any]])?.first?["modeConfigurations"]) as? [String: Any] {
+            for (id, v) in cfg { names[id] = (((v as? [String: Any])?["mode"]) as? [String: Any])?["name"] as? String }
+        }
+        guard let j = try? JSONSerialization.jsonObject(with: a) as? [String: Any],
+              let records = (j["data"] as? [[String: Any]])?.first?["storeAssertionRecords"] as? [[String: Any]] else { return "parsed: no assertion records (\(a.count) bytes)" }
+        let ids = records.compactMap { ($0["assertionDetails"] as? [String: Any])?["assertionDetailsModeIdentifier"] as? String }
+        return ids.isEmpty ? "no active Focus" : "active: " + ids.map { names[$0] ?? $0 }.joined(separator: ", ")
+    }
+
+    private func watchFocus() {
+        event("Focus now: \(focusSummary())")
+        event("Assertions raw: \(rawFocus())")
+        lastFocus = focusSummary()
+        let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/DoNotDisturb/DB").path
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else { event("could not open the Focus DB folder for watching"); return }
+        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .attrib, .link, .rename], queue: .main)
+        src.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = self.focusSummary()
+                if now != self.lastFocus { self.event("Focus changed: \(now)"); self.lastFocus = now }
+                self.event("Assertions raw: \(self.rawFocus())")
+            }
+        }
+        src.setCancelHandler { close(fd) }
+        src.resume()
+        focusSources.append(src)
+    }
+
     // MARK: helpers
 
     private func shell(_ path: String, _ args: [String]) -> String {
@@ -226,6 +319,18 @@ final class ControlSpike: NSObject, CLLocationManagerDelegate {
         do { try p.run() } catch { return "failed to run: \(error)" }
         let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
         return String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+extension ControlSpike {
+    nonisolated func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+        Task { @MainActor in self.event("Wi-Fi ssidDidChange \(interfaceName): now \(CWWiFiClient.shared().interface(withName: interfaceName)?.ssid() ?? "nil")") }
+    }
+    nonisolated func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
+        Task { @MainActor in self.event("Wi-Fi power changed \(interfaceName): \(CWWiFiClient.shared().interface(withName: interfaceName)?.powerOn() ?? false)") }
+    }
+    nonisolated func linkDidChangeForWiFiInterface(withName interfaceName: String) {
+        Task { @MainActor in self.event("Wi-Fi link changed \(interfaceName): ssid \(CWWiFiClient.shared().interface(withName: interfaceName)?.ssid() ?? "nil")") }
     }
 }
 #endif

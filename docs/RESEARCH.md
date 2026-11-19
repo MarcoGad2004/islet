@@ -106,10 +106,22 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   settings: Options > "Connect to this Mac" > "When last connected to this Mac"
   (discussions.apple.com/thread/254640801, support.airbuddy.app). Nothing found for the Focus banner; check System Settings >
   Notifications and Focus on this Mac. Plan: show the island animation and tell the owner which system toggles remove the duplicate.
-- **Q23 Event sources (desk research, to verify).** Wi-Fi: `CWWiFiClient` delegate with `startMonitoringEvent(.ssidDidChange)`
-  (public; sandbox issues only). Bluetooth: `IOBluetoothDevice.register(forConnectNotifications:)` (public; fires on connect
-  attempts too, so confirm with `isConnected`; reported dead for root daemons on Sonoma, fine for a user app).
-  Focus: watch Assertions.json with FSEvents once Full Disk Access is granted.
+- **Q23 Event sources: verified on this Mac (2026-11-19, `-IsletDebugShape spikewatch`, Full Disk Access granted).**
+  - **Focus works.** With Full Disk Access, `~/Library/DoNotDisturb/DB/Assertions.json` is readable (11 KB). Watching the DB
+    folder with a `DispatchSource` file-system source fired within a second of toggling. Turning Do Not Disturb on parsed as
+    `data[0].storeAssertionRecords[].assertionDetails.assertionDetailsModeIdentifier` resolved to the name through
+    `ModeConfigurations.json` (`data[0].modeConfigurations[id].mode.name`), giving "Do Not Disturb". Off leaves no assertion
+    records. One change writes the file about five times: debounce ~0.3 s and compare to the previous mode.
+  - **Wi-Fi works.** `CWWiFiClient` delegate events `ssidDidChange`, `linkDidChange` and `powerDidChange` all registered
+    and fired for each network switch (the SSID passes through nil, then the new name), each event two or three times.
+    Debounce ~1 s, ignore nil, announce only when the SSID differs from the last announced one.
+  - **Bluetooth works with filtering.** `IOBluetoothDevice.register(forConnectNotifications:)` fires on the device's own
+    background queue (not the main thread; touching main-actor state there crashed the first probe). It also fires at
+    registration for already-connected devices, for unnamed nearby devices (name nil, never connected), for attempts that
+    drop (Bedroom: isConnected true, then false 1.5 s later; iPad Pro likewise), and three times for AirPods (names
+    "Marco's AirPods Pro" x2 and "AirPods Pro"). Rule: wait ~1.5 s, require a name and `isConnected` still true,
+    dedupe by address, skip devices connected at launch. The disconnect callback is reliable (registered per device).
+  - Writes still untested (disruptive): Wi-Fi `setPower`/`associate`, Bluetooth connect and power, mirroring.
 Sources: developer.apple.com/forums/thread/769950, developer.apple.com/documentation/corewlan/cwinterface/setpower(_:),
 github.com/toy/blueutil, talk.automators.fm/t/get-current-focus-mode-via-script/12423,
 developer.apple.com/documentation/corewlan/cweventdelegate, developer.apple.com/forums/thread/738748.
