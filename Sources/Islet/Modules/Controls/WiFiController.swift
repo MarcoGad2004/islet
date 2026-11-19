@@ -38,6 +38,8 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     var error: String?
 
     @ObservationIgnored var onConnected: ((_ ssid: String, _ hotspot: Bool) -> Void)?
+    /// A join started from the panel, step by step, for the notch to show once the panel closes.
+    @ObservationIgnored var onProgress: ((ConnectionProgress) -> Void)?
     @ObservationIgnored private let path = NWPathMonitor(requiredInterfaceType: .wifi)
     @ObservationIgnored private var pathExpensive = false
     @ObservationIgnored private let location = CLLocationManager()
@@ -119,20 +121,73 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         hotspotBrowser.stop()
     }
 
-    /// Asks the phone to turn on its hotspot and waits (up to 25 s) for macOS to join it.
+    /// Asks the phone to turn on its hotspot, then joins it with the name and password it hands back.
     func join(_ h: InstantHotspot) async {
         guard joining == nil else { return }
-        error = nil
-        guard hotspotBrowser.enable(h) else { error = "Couldn't reach \(h.name)."; return }
-        joining = h.name; requested = h.name
+        error = nil; joining = h.name; requested = h.name
         defer { joining = nil }
-        for _ in 0..<25 {
-            try? await Task.sleep(for: .seconds(1))
-            refresh()
-            if ssid == h.name { return }
+        report(h.name, hotspot: true, .working("Asking \(h.name)…"))
+        switch await hotspotBrowser.enable(h) {
+        case .failed(let message):
+            finish(h.name, hotspot: true, message: message)
+        case .on(let ssid, let password):
+            let target = ssid ?? h.name
+            requested = target
+            report(h.name, hotspot: true, .working("Joining \(h.name)…"))
+            // The phone takes a few seconds to start broadcasting, so keep looking for it.
+            var message = await associate(ssid: target, password: password, enterprise: false, username: nil, attempts: 8)
+            if message == nil, !(await connected(to: target)) { message = "\(h.name) didn't connect. Try again." }
+            finish(h.name, hotspot: true, message: message)
         }
-        if requested == h.name { requested = nil }
-        error = "\(h.name) didn't connect. Unlock the phone and try again."
+    }
+
+    /// Waits up to 15 s for the Mac to be on `ssid`.
+    private func connected(to ssid: String) async -> Bool {
+        for _ in 0..<15 {
+            refresh()
+            if self.ssid == ssid { return true }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        return false
+    }
+
+    private func report(_ name: String, hotspot: Bool, _ state: ConnectionProgress.State) {
+        onProgress?(ConnectionProgress(name: name, hotspot: hotspot, state: state))
+    }
+
+    private func finish(_ name: String, hotspot: Bool, message: String?) {
+        if message != nil { requested = nil }
+        error = message
+        report(name, hotspot: hotspot, message.map { .failed($0) } ?? .done)
+    }
+
+    /// Finds `ssid` and associates, off the main thread. Returns an error message, or nil. Retries a missing or
+    /// failing network `attempts` times (a hotspot that is still starting up).
+    private func associate(ssid: String, password: String?, enterprise: Bool, username: String?, attempts: Int) async -> String? {
+        let ssidData = Data(ssid.utf8)
+        return await withCheckedContinuation { cont in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var last = "\(ssid) isn't in range."
+                for attempt in 0..<attempts {
+                    if attempt > 0 { Thread.sleep(forTimeInterval: 1.5) }
+                    guard let iface = CWWiFiClient.shared().interface(),
+                          let target = ((try? iface.scanForNetworks(withSSID: ssidData)) ?? []).first else { continue }
+                    do {
+                        if enterprise {
+                            try iface.associate(toEnterpriseNetwork: target, identity: nil, username: username, password: password)
+                        } else {
+                            try iface.associate(to: target, password: password)
+                        }
+                        cont.resume(returning: nil); return
+                    } catch {
+                        if password == nil { last = enterprise ? "Sign in to join." : "This network needs a password." }
+                        else if enterprise { last = "Couldn't sign in. Check the username and password, or use Wi-Fi Settings." }
+                        else { last = "Couldn't join. Check the password." }
+                    }
+                }
+                cont.resume(returning: last)
+            }
+        }
     }
 
     func requestLocation() { location.requestWhenInUseAuthorization() }
@@ -188,33 +243,11 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     func join(_ network: WiFiNetwork, username: String? = nil, password: String?) async -> String? {
         joining = network.ssid; error = nil; requested = network.ssid
         defer { joining = nil }
-        let ssidData = Data(network.ssid.utf8)
-        let message: String? = await withCheckedContinuation { cont in
-            DispatchQueue.global(qos: .userInitiated).async {
-                guard let iface = CWWiFiClient.shared().interface(),
-                      let target = ((try? iface.scanForNetworks(withSSID: ssidData)) ?? []).first else {
-                    cont.resume(returning: "\(network.ssid) isn't in range."); return
-                }
-                do {
-                    if network.enterprise {
-                        try iface.associate(toEnterpriseNetwork: target, identity: nil, username: username, password: password)
-                    } else {
-                        try iface.associate(to: target, password: password)
-                    }
-                    cont.resume(returning: nil)
-                } catch {
-                    let msg: String
-                    if password == nil { msg = network.enterprise ? "Sign in to join." : "This network needs a password." }
-                    else if network.enterprise { msg = "Couldn't sign in. Check the username and password, or use Wi-Fi Settings." }
-                    else { msg = "Couldn't join. Check the password." }
-                    cont.resume(returning: msg)
-                }
-            }
-        }
-        refresh()
-        if message == nil { for _ in 0..<10 where ssid != network.ssid { try? await Task.sleep(for: .seconds(1)); refresh() } }
-        if message != nil, requested == network.ssid { requested = nil }
-        self.error = message
+        report(network.ssid, hotspot: network.hotspot, .working("Joining \(network.ssid)…"))
+        var message = await associate(ssid: network.ssid, password: password, enterprise: network.enterprise,
+                                      username: username, attempts: 1)
+        if message == nil, !(await connected(to: network.ssid)) { message = "\(network.ssid) didn't connect. Try again." }
+        finish(network.ssid, hotspot: network.hotspot, message: message)
         return message
     }
 

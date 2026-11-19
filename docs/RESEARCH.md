@@ -74,7 +74,10 @@ lock screen. Each question below can block it:
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
     the delegate gets `session:updatedFoundDevices:` with `SFRemoteHotspotDevice`s (`deviceName`,
-    `deviceIdentifier`, `signalStrength` 0-4, `batteryLife`). Verified browsing on macOS 27.2; enabling not yet.
+    `deviceIdentifier`, `signalStrength` 0-4, `batteryLife` in 25% steps rounded up). The enable handler is
+    `v@?@"SFRemoteHotspotInfo"@"NSError"` (from the protocol's extended type encoding) and escapes; the info has
+    `name`, `password`, `channel`. macOS does not join by itself: the caller associates with CoreWLAN, retrying
+    while the phone starts broadcasting. Browsing verified on macOS 27.2; joining needs testing.
 15. **Keychain**: store the password as a generic password item only this app can read; never log it.
 
 If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation still ships.

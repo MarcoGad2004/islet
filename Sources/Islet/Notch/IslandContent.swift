@@ -8,6 +8,8 @@ enum IslandContent {
     case level(LevelState)
     case charge(ChargeEvent)
     case event(IslandEvent)
+    /// Joining a network or hotspot picked in the panel: live progress, then the result.
+    case progress(ConnectionProgress)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -18,6 +20,7 @@ enum IslandContent {
         case .level: "level"
         case .charge(let c): "charge-\(c.kind)"
         case .event(let e): "event-\(e.kind)"
+        case .progress: "progress"
         case .media: "media"
         }
     }
@@ -60,4 +63,25 @@ struct IslandEvent: Equatable {
     /// Short status word for the chin: "On", "Off", "Connected".
     var detail: String
     var seconds: Double { 3 }
+}
+
+/// A join in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
+struct ConnectionProgress: Equatable {
+    enum State: Equatable {
+        case working(String)
+        case done
+        case failed(String)
+    }
+    var name: String
+    var hotspot: Bool
+    var state: State
+
+    /// The line under the wings, or beside the icon in the chin.
+    var text: String {
+        switch state {
+        case .working(let step): step
+        case .done: "Connected to \(name)"
+        case .failed(let message): message
+        }
+    }
 }

@@ -28,6 +28,14 @@ struct CompactContentView: View {
                         ZStack { Color.clear; right }.frame(width: wingW, height: barH)
                     }
                     .frame(width: nw + 2 * wingW, height: barH)
+                    if levelBody, case .progress(let p) = content {
+                        // The step, then the result, under the wings.
+                        Text(p.text).font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                            .lineLimit(1).minimumScaleFactor(0.75)
+                            .contentTransition(.opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
+                    }
                     if levelBody, case .event(let e) = content {
                         // Personal Hotspot: the phone's name under the wings.
                         Text(e.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
@@ -85,6 +93,8 @@ struct CompactContentView: View {
         case .event(let e):
             PopIcon(name: e.icon, color: eventTint(e))
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
+        case .progress(let p):
+            progressIcon(p).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
         }
     }
 
@@ -99,6 +109,8 @@ struct CompactContentView: View {
         case .level(let l):
             RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+        case .progress(let p):
+            progressMark(p).frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .event(let e) where levelBody:
             // The wing is too narrow for a word: the phone's cellular link, with the name in the body below.
             PopIcon(name: "cellularbars", color: eventTint(e))
@@ -146,6 +158,15 @@ struct CompactContentView: View {
                 Spacer(minLength: 4)
                 Text(e.detail).font(.system(size: 13, weight: .semibold)).foregroundStyle(eventTint(e))
             }
+        case .progress(let p):
+            HStack(spacing: 10) {
+                progressIcon(p).frame(width: 18)
+                Text(p.text).font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .contentTransition(.opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                Spacer(minLength: 4)
+                progressMark(p)
+            }
         case .locked:
             PadlockView(start: nil)
         case .unlock(let start):
@@ -172,6 +193,38 @@ struct CompactContentView: View {
         case .wifi: .isletCyan
         case .hotspot: .isletGreen
         case .bluetooth: Color(hex: 0x0A84FF)
+        }
+    }
+
+    // MARK: Connection progress
+
+    private func progressTint(_ p: ConnectionProgress) -> Color {
+        switch p.state {
+        case .failed: .isletRed
+        case .done, .working: p.hotspot ? .isletGreen : .isletCyan
+        }
+    }
+
+    private func progressTextColor(_ p: ConnectionProgress) -> Color {
+        if case .failed = p.state { return .isletRedText }
+        return .isletText
+    }
+
+    /// The network's icon, breathing while it works.
+    private func progressIcon(_ p: ConnectionProgress) -> some View {
+        let working = if case .working = p.state { true } else { false }
+        return Image(systemName: p.hotspot ? "personalhotspot" : "wifi")
+            .font(.system(size: 14, weight: .semibold)).foregroundStyle(progressTint(p))
+            .symbolEffect(.pulse, options: .repeating, isActive: working)
+            .animation(.easeOut(duration: 0.25), value: p.state)
+    }
+
+    /// A spinner while it works, then a check or a cross that pops in.
+    @ViewBuilder private func progressMark(_ p: ConnectionProgress) -> some View {
+        switch p.state {
+        case .working: ProgressView().controlSize(.small).scaleEffect(0.8).frame(width: 16, height: 16)
+        case .done: PopIcon(name: "checkmark.circle.fill", color: .isletGreen, delay: 0)
+        case .failed: PopIcon(name: "xmark.circle.fill", color: .isletRed, delay: 0)
         }
     }
 
@@ -204,10 +257,12 @@ struct CompactContentView: View {
 struct PopIcon: View {
     var name: String
     var color: Color
+    /// Waits for the shape to settle; 0 when the shape is already out (a result replacing a spinner).
+    var delay: Double = 0.36
     @State private var on = false
     var body: some View {
         Image(systemName: name).font(.system(size: 14, weight: .semibold)).foregroundStyle(color)
             .scaleEffect(on ? 1 : 0)
-            .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.55).delay(0.36)) { on = true } }
+            .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.55).delay(delay)) { on = true } }
     }
 }

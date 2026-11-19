@@ -19,12 +19,15 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Phones offering Instant Hotspot (your iPhone, or family members') are listed even when they aren't broadcasting,
   like Wi-Fi Settings' "Personal Hotspots": hotspot icon, cellular bars and a battery icon (phones only report
   their battery in quarters, so there's no percentage). Tap one and the phone turns its
-  hotspot on and the Mac joins it.
+  hotspot on, hands over the network's password, and the Mac joins it.
 - A phone's Personal Hotspot is shown as one: the tile says "Hotspot" with the hotspot icon, the detail says
   "Personal Hotspot · <name>" and tags the network in green. Hotspots in the network list get the hotspot icon
   instead of the Wi-Fi one.
 - Joining a Personal Hotspot (including when the Mac does it by itself) shows in the notch like volume does: the
   wide bar with the hotspot icon and cellular bars, and the phone's name under it (the chin when the menu bar is full).
+- Joining a network or hotspot from the panel shows live progress if you close the panel before it finishes: the
+  wide bar (or the chin) with the network's icon breathing and a spinner, the step underneath ("Asking Marco's
+  iPhone…", "Joining…"), then a green check and "Connected to …", or a red cross and what went wrong.
 - Connection notices (Wi-Fi, hotspot, Bluetooth, Focus) are passive: they don't show while the panel is open or in
   the few seconds after it closes, and joining a network from the panel never shows one.
 

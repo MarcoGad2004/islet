@@ -159,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store?.showEvent(hotspot ? IslandEvent(kind: .hotspot, icon: "personalhotspot", title: ssid, detail: "Hotspot")
                                      : IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected"))
         }
+        wifi.onProgress = { [weak store] in store?.showProgress($0) }
         wifi.start()
         bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
         bluetooth.start()

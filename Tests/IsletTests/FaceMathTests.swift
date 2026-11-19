@@ -152,5 +152,22 @@ final class EventLayoutTests: XCTestCase {
         XCTAssertFalse(WiFiController.looksLikeHotspot("eduroam"))
     }
 
+    @MainActor func testJoinProgressShowsWhenThePanelCloses() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.layoutCheck = { true }
+        store.recomputeLayout()
+        store.expand()
+        store.showProgress(ConnectionProgress(name: "Phone", hotspot: true, state: .working("Asking Phone…")))
+        XCTAssertEqual(store.presentation, .expanded)
+        store.collapse()
+        XCTAssertEqual(store.presentation, .levelWings) // unlike a notice, progress isn't held back after closing
+        store.showProgress(ConnectionProgress(name: "Phone", hotspot: true, state: .failed("Phone didn't answer.")))
+        XCTAssertEqual(store.content?.kind, "progress") // updates in place
+        store.layoutCheck = { false }
+        store.recomputeLayout()
+        XCTAssertEqual(store.presentation, .chin)
+    }
+
     func testVersionOrderingStillWorks() { XCTAssertTrue(Updater.isNewer("v1.1", than: "1.0")) }
 }

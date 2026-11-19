@@ -29,6 +29,8 @@ final class IslandStore {
     private(set) var wingsFit = false
     private(set) var eventWingsFit = false
     private(set) var event: IslandEvent?
+    private(set) var progress: ConnectionProgress?
+    @ObservationIgnored private var progressTask: Task<Void, Never>?
     /// The Mac is locked with the screen on: the island shows the closed padlock in the wings.
     private(set) var lockScreen = false
     /// On the lock screen, the scan waits for Command+Shift: "⌘⇧" in the left wing, and now and then the wide bar
@@ -82,6 +84,7 @@ final class IslandStore {
         if let unlockStart { return .unlock(start: unlockStart) }
         if lockScreen { return .locked }
         if let level { return .level(level) }
+        if let progress { return .progress(progress) }
         if let event { return .event(event) }
         if let charge { return .charge(charge) }
         if mediaVisible { return .media }
@@ -103,6 +106,7 @@ final class IslandStore {
             if case .level = c { return wingsFit ? .levelWings : .chin } // wide bar with the step bar below when it fits
             if case .locked = c { return lockHint && lockHintFull ? .lockHint : .lockWings } // no menus here: always the wide bar
             if case .unlock = c { return wingsFit ? .lockWings : .chin }
+            if case .progress = c { return wingsFit ? .levelWings : .chin } // the step goes in the body
             if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
             return compactLayout
@@ -275,6 +279,24 @@ final class IslandStore {
             guard !Task.isCancelled else { return }
             self?.charge = nil
             self?.refresh()
+        }
+        refresh()
+    }
+
+    /// A join's progress. It shows whenever the panel isn't open, unlike connection notices: the user is waiting on
+    /// it. The result stays a moment (an error longer), then hands back.
+    func showProgress(_ p: ConnectionProgress) {
+        recomputeLayout()
+        progress = p
+        progressTask?.cancel()
+        let hold: Double? = switch p.state { case .working: nil; case .done: 2.5; case .failed: 4 }
+        if let hold {
+            progressTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(hold))
+                guard !Task.isCancelled else { return }
+                self?.progress = nil
+                self?.refresh()
+            }
         }
         refresh()
     }

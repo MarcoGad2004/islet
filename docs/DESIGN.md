@@ -258,7 +258,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
   network), Bluetooth device connected (device name, battery if known). Joining a Personal Hotspot instead uses the
   volume treatment: the wide bar (hotspot icon left, cellular bars right, both green) with the phone's name in the
-  short body under it, or the chin when the menu bar has no room. The system's own banners for these are
+  short body under it, or the chin when the menu bar has no room. A join started in the panel that is still going
+  when the panel closes shows the same way, live: the network's icon pulsing on the left, a spinner on the right,
+  the step in the body; then a check and "Connected to …" (2.5 s) or a cross and the error in red (4 s). The system's own banners for these are
   not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings.
 - **Glide between pages:** the expanded panel is one stage. Every element (the two sliders, the tiles and their detail
   cards, the media artwork and title) is always present and has a rectangle for each page, so changing page moves it there

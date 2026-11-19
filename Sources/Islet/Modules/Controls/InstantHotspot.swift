@@ -55,17 +55,46 @@ final class InstantHotspotBrowser: NSObject {
         onChange?([])
     }
 
-    /// Asks the phone to turn its hotspot on; macOS then joins it by itself. Returns false if it couldn't ask.
-    func enable(_ h: InstantHotspot) -> Bool {
+    enum EnableResult: Sendable {
+        /// The phone's hotspot is on: its network name and password, for joining it (macOS doesn't join by itself).
+        case on(ssid: String?, password: String?)
+        case failed(String)
+    }
+
+    /// Asks the phone to turn on its hotspot. sharingd answers with an SFRemoteHotspotInfo (name, password,
+    /// channel) and an error; the caller joins the network with them, as Control Center does.
+    func enable(_ h: InstantHotspot) async -> EnableResult {
         let sel = NSSelectorFromString("enableHotspotForDevice:withCompletionHandler:")
-        guard let s = session, s.responds(to: sel) else { return false }
-        // The handler escapes: sharingd calls it later, after the call returns.
-        typealias Enable = @convention(c) (NSObject, Selector, NSObject, @escaping @convention(block) () -> Void) -> Void
+        guard let s = session, s.responds(to: sel) else { return .failed("Couldn't reach \(h.name).") }
+        // Block signature from SFRemoteHotspotProtocol: v@?@"SFRemoteHotspotInfo"@"NSError". It escapes: sharingd
+        // calls it later, on its own queue.
+        typealias Handler = @convention(block) (NSObject?, NSError?) -> Void
+        typealias Enable = @convention(c) (NSObject, Selector, NSObject, @escaping Handler) -> Void
         let imp = unsafeBitCast(s.method(for: sel), to: Enable.self)
-        // The handler's arguments aren't known, so it takes none (extra ones are ignored); success shows up as the
-        // Wi-Fi network changing.
-        imp(s, sel, h.device.object, {})
-        return true
+        let device = h.device.object, name = h.name
+        return await withCheckedContinuation { cont in
+            let once = Once(cont)
+            imp(s, sel, device) { info, error in
+                if let error {
+                    NSLog("Islet: hotspot enable failed: %@", error.localizedDescription)
+                    once.resume(.failed("\(name) couldn't turn on its hotspot."))
+                } else {
+                    once.resume(.on(ssid: info?.value(forKey: "name") as? String, password: info?.value(forKey: "password") as? String))
+                }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 30) { once.resume(.failed("\(name) didn't answer. Unlock it and try again.")) }
+        }
+    }
+
+    /// Resumes a continuation exactly once (the answer and the time limit race).
+    private final class Once: @unchecked Sendable {
+        private var cont: CheckedContinuation<EnableResult, Never>?
+        private let lock = NSLock()
+        init(_ c: CheckedContinuation<EnableResult, Never>) { cont = c }
+        func resume(_ r: EnableResult) {
+            lock.lock(); let c = cont; cont = nil; lock.unlock()
+            c?.resume(returning: r)
+        }
     }
 
     /// The session's delegate. sharingd calls `session:updatedFoundDevices:` on its XPC queue.
