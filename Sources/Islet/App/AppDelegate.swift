@@ -150,7 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.matchedAt = Date()
             try? await Task.sleep(for: .milliseconds(650))
             model.flown = true
-            try? await Task.sleep(for: .milliseconds(1150))
+            store.presentationChanged()
+            try? await Task.sleep(for: .seconds(2.5))
             store.setBase(nil)
             store.setLockScreen(false)
         }

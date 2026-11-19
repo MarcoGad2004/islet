@@ -21,7 +21,7 @@ struct ScanView: View {
         let nh = notchHeight, nw = notchWidth
         // The ring's centre sits at (0, nh + bodyTop + ringSize/2) from the top centre; the landing spot is the
         // middle of the left wing.
-        let fly = CGSize(width: -(nw / 2 + 30), height: -(nh / 2 + bodyTop + ringSize / 2))
+        let fly = CGSize(width: -(nw / 2 + 30 + IslandLayout.wingInset), height: -(nh / 2 + bodyTop + ringSize / 2))
         ZStack(alignment: .top) {
             // Wings row: the padlock (closed until the match) on the right, the check's landing spot on the left.
             HStack(spacing: 0) {
@@ -31,9 +31,11 @@ struct ScanView: View {
                         .scaleEffect(model.flown ? 1 : 0.5)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6).delay(model.flown ? 0.28 : 0), value: model.flown)
                 }
+                .offset(x: -IslandLayout.wingInset)
                 .frame(width: 60, height: nh)
                 Spacer().frame(width: nw)
                 PadlockView(start: model.matchedAt?.addingTimeInterval(0.1))
+                    .offset(x: IslandLayout.wingInset)
                     .frame(width: 60, height: nh)
             }
 
@@ -56,7 +58,9 @@ struct ScanView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(matched ? Color.isletGreen : rejected ? Color.isletRedText : Color.isletSecondary)
                     .contentTransition(.opacity)
+                    .opacity(model.flown ? 0 : 1)
                     .animation(.easeInOut(duration: 0.2), value: model.label)
+                    .animation(.easeOut(duration: 0.15), value: model.flown)
             }
             .padding(.top, nh + bodyTop)
             .animation(.linear(duration: 0.45), value: model.shakes)

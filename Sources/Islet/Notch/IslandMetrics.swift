@@ -3,6 +3,8 @@ import Foundation
 /// Fixed sizes from docs/DESIGN.md.
 enum IslandLayout {
     static let wingsExtra: Double = 120
+    /// The padlock and check sit this far toward the outer edge of their wing, clear of the notch's edge.
+    static let wingInset: CGFloat = 8
     static let peekExtraWidth: Double = 16
     static let peekExtraHeight: Double = 6
     static let chinWidth: Double = 300

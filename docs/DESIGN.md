@@ -107,7 +107,9 @@ On the lock screen the island sits in the **wings** with a **white closed padloc
 scan expands the wide bar **downward** (wings width × notch height + 150, bottom radius 40) so the padlock
 stays visible. On a match the dots fly into a check (0.5 s), then the check **flies to the left wing**
 (spring, from 0.65 s) while the right-hand padlock opens and turns green (starting 0.1 s after the match).
-Everything folds back 1.8 s after the match. Any other unlock (Touch ID, Apple Watch, password) plays the
+At the same moment the tall shape folds up into the wide bar, which holds the green check (left) and the open
+green padlock (right) for about 2 s, then folds back to the notch. The padlock and check sit 8 pt toward the
+outer edge of their wing so the notch never covers them. Any other unlock (Touch ID, Apple Watch, password) plays the
 same layout without the scan: padlock on the right opens, check pops in on the left. This replaces the
 old "lock on the left, check on the right" wings layout below.
 

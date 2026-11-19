@@ -31,6 +31,8 @@ final class FaceUnlockService {
     private static let enabledKey = "faceUnlockEnabled"
     private static let rejectedKey = "faceUnlockPasswordRejected"
     private static let maxAttempts = 3
+    /// Match -> check flies at 0.65 s (the shape folds into the wide bar) -> hold ~2 s -> disappear.
+    private static let sequenceLength = 0.65 + 0.5 + 2.0
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
 
     var enabled: Bool { didSet { UserDefaults.standard.set(enabled, forKey: Self.enabledKey); if !enabled { stop(collapseAfter: 0) } } }
@@ -105,7 +107,7 @@ final class FaceUnlockService {
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
         if let model, let matched = model.matchedAt {
             // Face unlock: the scan sequence is the unlock animation. Let it finish (1.8 s from the match).
-            stop(collapseAfter: max(0, matched.addingTimeInterval(1.8).timeIntervalSinceNow))
+            stop(collapseAfter: max(0, matched.addingTimeInterval(Self.sequenceLength).timeIntervalSinceNow))
         } else {
             // Touch ID, Apple Watch or password: the lock-opens animation in the wings.
             stop(collapseAfter: 0)
@@ -175,7 +177,7 @@ final class FaceUnlockService {
             model.matchedAt = Date()
             camera?.stop(); camera = nil
             // The dots become a check (0.5 s), then the check flies to the left wing as the padlock opens.
-            Task { try? await Task.sleep(for: .milliseconds(650)); if self.model === model { model.flown = true } }
+            Task { try? await Task.sleep(for: .milliseconds(650)); if self.model === model { model.flown = true; self.island.presentationChanged() } }
             Task { await completeMatch() }
         case .noMatch(let score):
             attempts += 1
@@ -200,7 +202,7 @@ final class FaceUnlockService {
         guard let model, model.phase == .match else { return }
         if simulated {
             // No typing in a simulated run: let the whole sequence play, then fold away.
-            try? await Task.sleep(for: .milliseconds(1800))
+            try? await Task.sleep(for: .seconds(Self.sequenceLength))
             stop(collapseAfter: 0); return
         }
         // Real unlock: type straight away. The check animation plays while the password goes in, and the

@@ -16,20 +16,22 @@ struct IslandView: View {
         let pres = store.presentation
         let nh = store.geometry?.height ?? 34
         let content = store.content
-        let key = "\(pres)-\(content?.kind ?? "-")"
+        let key = store.base == .scan ? "scan" : "\(pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
             IslandShape(m: m).fill(Color.black)
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
             Group {
+                if store.base == .scan, let scan = store.scan {
+                    // Stays mounted through the fold into the wide bar (the shape changes, the content doesn't).
+                    ScanView(model: scan, notchWidth: store.geometry?.width ?? 190, notchHeight: nh).transition(fade(0.12))
+                } else {
                 switch pres {
                 case .enrol:
                     if let e = store.enrolment {
                         EnrolView(model: e).frame(width: 380, height: 214).padding(.top, nh).transition(fade())
                     }
                 case .scan:
-                    if let s = store.scan {
-                        ScanView(model: s, notchWidth: store.geometry?.width ?? 190, notchHeight: nh).transition(fade(0.12))
-                    }
+                    EmptyView()
                 case .expanded:
                     ExpandedView(store: store).padding(.top, nh).transition(fade())
                 case .wings, .chin:
@@ -41,6 +43,7 @@ struct IslandView: View {
                         Circle().fill(Color.isletGreen).frame(width: 4, height: 4)
                             .padding(.top, nh + 1).transition(.opacity)
                     }
+                }
                 }
             }
             .animation(.easeOut(duration: 0.3), value: key)

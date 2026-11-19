@@ -62,7 +62,12 @@ final class IslandStore {
 
     var presentation: Presentation {
         // Enrolment and the face scan can't be interrupted by hover or clicks.
-        if let b = base, b == .enrol || b == .scan { return b }
+        if let b = base, b == .enrol || b == .scan {
+            // Once the check starts flying, the scan folds up into the wide bar, which then holds the check
+            // (left) and the opening padlock (right) for a moment.
+            if b == .scan, scan?.flown == true { return .wings }
+            return b
+        }
         if expanded { return .expanded }
         if let c = content {
             if case .level = c { return .chin } // volume and brightness always use the chin
@@ -176,6 +181,9 @@ final class IslandStore {
         base = p
         refresh()
     }
+
+    /// Something that feeds `presentation` changed without a store property changing (the scan's phases).
+    func presentationChanged() { refresh() }
 
     func setLockScreen(_ value: Bool) {
         guard value != lockScreen else { return }
