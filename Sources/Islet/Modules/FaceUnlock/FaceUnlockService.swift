@@ -132,11 +132,9 @@ final class FaceUnlockService {
             }
             self.engine = engine
             let analyzer = owner.analyzer
-            let counter = FrameCounter(every: 2)
             let camera = FaceCamera()
             do {
                 try camera.start { pb in
-                    guard counter.shouldProcess() else { return }
                     engine.handle(analyzer.analyze(pb))
                 }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
@@ -181,10 +179,14 @@ final class FaceUnlockService {
     }
 
     private func completeMatch() async {
-        // Let the check animation play (~0.9 s) before the shape pulls up.
-        try? await Task.sleep(for: .milliseconds(900))
         guard let model, model.phase == .match else { return }
-        if simulated { stop(collapseAfter: 0); return }
+        if simulated {
+            // No typing in a simulated run: just let the check animation play before folding away.
+            try? await Task.sleep(for: .milliseconds(900))
+            stop(collapseAfter: 0); return
+        }
+        // Real unlock: type straight away. The check animation plays while the password goes in, and the
+        // island folds up 0.9 s after the unlock (see didUnlock).
 
         guard locked, Self.sessionIsLocked(), let password = owner.faces.password() else {
             stop(collapseAfter: 0); return
