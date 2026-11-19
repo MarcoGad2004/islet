@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.2 (unreleased)
+## 1.1.4 (unreleased)
 
 **Face unlock**
 - New "Prove it's live" setting: **Random** (the default) asks for a blink, a smile, or a head turn left or right,

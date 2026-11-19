@@ -38,7 +38,7 @@ final class FaceStore {
     private static let learnedAccount = "face-learned"
     private static let passwordAccount = "login-password"
     private static let thresholdKey = "faceUnlockThreshold"
-    /// Before 1.2 liveness was a blink on/off switch; turning it off is carried over.
+    /// Before 1.1.4 liveness was a blink on/off switch; turning it off is carried over.
     private static let requireBlinkKey = "faceUnlockRequireBlink"
     private static let livenessKey = "faceUnlockLiveness"
     private static let learnKey = "faceUnlockLearn"

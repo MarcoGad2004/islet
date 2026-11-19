@@ -63,7 +63,7 @@ lock screen. Each question below can block it:
     against the original enrolment (not against learned ones, so it can't drift) and aren't near-duplicates
     (cosine < 0.92). It helps recognition in new conditions; false positives are held back by the anchor
     rule, the liveness checks and the threshold, not by learning itself.
-    **1.2:** random challenges against a replayed video: after the match the scan asks for one of blink, smile
+    **1.1.4:** random challenges against a replayed video: after the match the scan asks for one of blink, smile
     (mouth corner-to-corner width, in eye distances, over 1.12× its narrowest recent value for 2 frames) or a head
     turn left/right (nose offset from the eye midpoint moves 0.18 eye distances from its first 3 frames, the asked
     way; raw camera x grows when you turn to your left). Random challenges only count after they are shown, and
