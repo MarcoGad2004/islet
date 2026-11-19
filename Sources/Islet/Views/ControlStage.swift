@@ -56,9 +56,10 @@ struct ControlStage: View {
         }
         .frame(width: W, height: H, alignment: .topLeading)
         .animation(glide, value: mode)
-        .onChange(of: mode) { _, now in
+        .onChange(of: mode) { old, now in
+            if old == .wifi { store.wifi?.stopBrowsingHotspots() }
             switch now {
-            case .wifi: store.wifi?.refresh(); Task { await store.wifi?.scan() }
+            case .wifi: store.wifi?.refresh(); store.wifi?.browseHotspots(); Task { await store.wifi?.scan() }
             case .bluetooth: store.bluetooth?.refresh()
             case .display: store.display?.refresh()
             case .sound: store.levels?.refresh()

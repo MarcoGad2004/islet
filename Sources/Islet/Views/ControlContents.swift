@@ -181,24 +181,45 @@ struct WiFiContent: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Phones offering Instant Hotspot that aren't already in the scan (the phone isn't broadcasting yet).
+    private var phones: [InstantHotspot] {
+        let scanned = Set(wifi.networks.map(\.ssid))
+        return wifi.instantHotspots.filter { !scanned.contains($0.name) }
+    }
+
     private var list: some View {
         ScrollView {
             VStack(spacing: 0) {
-                if wifi.scanning && wifi.networks.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
+                if wifi.scanning && wifi.networks.isEmpty && phones.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
+                ForEach(phones) { h in
+                    Button { Task { await wifi.join(h) } } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "personalhotspot").font(.system(size: 12)).frame(width: 20).foregroundStyle(Color.isletSecondary)
+                            Text(h.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                            Spacer()
+                            if wifi.joining == h.name { ProgressView().controlSize(.small) }
+                            else { hotspotDetail(bars: h.bars, battery: h.battery) }
+                        }
+                        .frame(height: 26).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
                 ForEach(wifi.networks) { n in
+                    let phone = wifi.instantHotspots.first { $0.name == n.ssid }
                     Button { tap(n) } label: {
                         HStack(spacing: 10) {
-                            let isHotspot = n.ssid == wifi.ssid && wifi.hotspot
+                            let connectedHotspot = n.ssid == wifi.ssid && wifi.hotspot
                             Group {
-                                if isHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
+                                if connectedHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
+                                else if n.hotspot || phone != nil { Image(systemName: "personalhotspot").foregroundStyle(Color.isletSecondary) }
                                 else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3).foregroundStyle(Color.isletSecondary) }
                             }.font(.system(size: 12)).frame(width: 20)
                             Text(n.ssid).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            if n.secured { Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary) }
-                            if isHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
+                            if n.secured && phone == nil { Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary) }
+                            if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
                             Spacer()
                             if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                             else if n.ssid == wifi.ssid { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF)) }
+                            else if let phone { hotspotDetail(bars: phone.bars, battery: phone.battery) }
                             else if n.known { Text("Saved").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
                         }
                         .frame(height: 26).contentShape(Rectangle())
@@ -208,8 +229,19 @@ struct WiFiContent: View {
         }
     }
 
+    /// Cellular bars and battery, as Wi-Fi Settings shows them for a phone.
+    private func hotspotDetail(bars: Int, battery: Int?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "cellularbars", variableValue: Double(bars) / 4)
+            if let battery { Text("\(battery)%").monospacedDigit() }
+        }
+        .font(.system(size: 10)).foregroundStyle(Color.isletTertiary)
+    }
+
     private func tap(_ n: WiFiNetwork) {
         guard n.ssid != wifi.ssid, wifi.joining == nil else { return }
+        // A phone already broadcasting: let Instant Hotspot join it (no password needed).
+        if let phone = wifi.instantHotspots.first(where: { $0.name == n.ssid }) { Task { await wifi.join(phone) }; return }
         if !n.secured || n.known {
             // A saved network joins with what macOS stored; ask only if that fails.
             Task {

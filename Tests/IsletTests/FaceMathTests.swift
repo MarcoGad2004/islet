@@ -128,5 +128,29 @@ final class EventLayoutTests: XCTestCase {
         XCTAssertEqual(m.sw, 190 + 240); XCTAssertEqual(m.bh, 0)
     }
 
+    @MainActor func testNoNoticeWhileThePanelIsInUse() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.layoutCheck = { true }
+        store.recomputeLayout()
+        store.expand()
+        store.showEvent(IslandEvent(kind: .hotspot, icon: "personalhotspot", title: "Phone", detail: "Hotspot"))
+        XCTAssertNil(store.event)
+        store.collapse()
+        store.showEvent(IslandEvent(kind: .hotspot, icon: "personalhotspot", title: "Phone", detail: "Hotspot"))
+        XCTAssertNil(store.event) // just closed: still the user's own doing
+    }
+
+    @MainActor func testHotspotUsesTheLevelBar() {
+        let store = IslandStore()
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 190, height: 34))
+        store.layoutCheck = { true }
+        store.recomputeLayout()
+        store.showEvent(IslandEvent(kind: .hotspot, icon: "personalhotspot", title: "Phone", detail: "Hotspot"))
+        XCTAssertEqual(store.presentation, .levelWings)
+        XCTAssertTrue(WiFiController.looksLikeHotspot("Marco’s iPhone Duo"))
+        XCTAssertFalse(WiFiController.looksLikeHotspot("eduroam"))
+    }
+
     func testVersionOrderingStillWorks() { XCTAssertTrue(Updater.isNewer("v1.1", than: "1.0")) }
 }

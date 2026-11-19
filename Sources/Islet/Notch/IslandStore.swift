@@ -58,6 +58,10 @@ final class IslandStore {
     @ObservationIgnored private var leaveTask: Task<Void, Never>?
     @ObservationIgnored private var chargeTask: Task<Void, Never>?
     @ObservationIgnored private var levelTask: Task<Void, Never>?
+    /// When the panel last opened or closed. Connection notices are passive: none while the panel is open or just
+    /// after, when what connected is most likely what the user just picked there.
+    @ObservationIgnored private var lastInUse = Date.distantPast
+    static let quietAfterUse: TimeInterval = 6
     @ObservationIgnored private var unlockTask: Task<Void, Never>?
     @ObservationIgnored private var mediaStaleTask: Task<Void, Never>?
     @ObservationIgnored private var lockHintTask: Task<Void, Never>?
@@ -193,6 +197,8 @@ final class IslandStore {
 
     private func setExpanded(_ value: Bool) {
         expanded = value
+        lastInUse = Date()
+        if value { eventTask?.cancel(); event = nil }
         controlDetail = nil
         leaveTask?.cancel()
         onExpandedChange?(value)
@@ -274,6 +280,7 @@ final class IslandStore {
     }
 
     func showEvent(_ e: IslandEvent) {
+        guard !expanded, Date().timeIntervalSince(lastInUse) > Self.quietAfterUse else { return }
         recomputeLayout()
         event = e
         eventTask?.cancel()

@@ -70,6 +70,11 @@ lock screen. Each question below can block it:
     while one is up, non-matching frames don't count as misses (a turned face may not match); an 8 s limit ends
     the attempt instead, and the next attempt picks again. Thresholds unverified on real faces: Test recognition
     ticks each one.
+15a. **Instant Hotspot** (1.1.4): phones offering their hotspot aren't in a CoreWLAN scan until they start
+    broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
+    `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
+    the delegate gets `session:updatedFoundDevices:` with `SFRemoteHotspotDevice`s (`deviceName`,
+    `deviceIdentifier`, `signalStrength` 0-4, `batteryLife`). Verified browsing on macOS 27.2; enabling not yet.
 15. **Keychain**: store the password as a generic password item only this app can read; never log it.
 
 If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation still ships.
