@@ -31,6 +31,7 @@ targets:
         NSLocationWhenInUseUsageDescription: "Islet reads nearby Wi-Fi network names for the Wi-Fi control."
         NSBluetoothAlwaysUsageDescription: "Islet lists and connects your Bluetooth devices from the notch."
         NSAppleEventsUsageDescription: "Islet toggles Dark Mode through System Events."
+        NSContactsUsageDescription: "Islet shows the names of the people messaging you."
         NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
     postBuildScripts:

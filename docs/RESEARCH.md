@@ -305,3 +305,33 @@ subrole `AXNotificationCenterAlert`, not `…Banner`, so Islet never takes them.
 - **Several from one app close together** come as one `AXNotificationCenterBannerStack` in the banner window (texts are
   the newest one's, description ends ", stacked", actions `Show`, `Clear All`), so a stack is not a sign of the opened
   Notification Center. What marks that is its `AXNotificationListItems` group and its "Clear All" *button*.
+
+## iMessage in the notch (1.5 spike)
+
+Owner request (2026-11-20): see conversations and reply from the notch, with a mini Messages view when it's expanded.
+Probe: `-IsletDebugShape messagesspike` (read only; logs counts and yes / no, never text, names or numbers) and
+`messagessend` (one test message to the owner's own address), in `Spike/MessagesSpike.swift`, log
+`~/Library/Logs/Islet-messages-spike.log`.
+
+32. **Can the history be read?** Yes, with Full Disk Access (each copy of Islet needs its own entry; a copy without it
+    gets SQLite error 23 "authorization denied"). `~/Library/Messages/chat.db` opens read-only: 744,119 messages and
+    1,858 chats on the owner's Mac. `message` has `text`, `attributedBody`, `is_from_me`, `date` (ns since 2001),
+    `handle_id`, `associated_message_type` (reactions / edits), `cache_has_attachments`, `thread_originator_guid`,
+    `is_read`.
+33. **Is the text there?** Of the latest 300: 32 have it only in `attributedBody` (a typedstream `NSAttributedString`),
+    267 in both, 1 in neither (an attachment). `NSUnarchiver` decoded all 299 bodies; where both exist they matched in
+    264 of 267 (the rest are edits or mentions). 18 were reactions / edits, 40 had attachments.
+34. **Which conversations?** The latest 20 chats: 17 one-to-one, 3 groups (all named); services iMessage 11, RCS 5,
+    SMS 4, so iPhone texts come through as well.
+35. **Names?** With Contacts allowed (`NSContactsUsageDescription` added), 17 of the 22 people in those chats match a
+    contact, comparing the last 10 digits of numbers and lower-cased emails over one pass of all 442 contacts (the
+    phone-number predicate only matched 1: Messages stores "+1…", contacts as typed).
+36. **New messages without polling?** `chat.db-wal` changes as messages arrive, so a file watch can trigger a read.
+37. **Sending?** Yes, through Messages (Apple Events, `com.apple.security.automation.apple-events` already on; the
+    owner allowed Islet to control Messages): `send "…" to participant "<address>" of (1st account whose service type =
+    iMessage)` returned in 88 ms, and the row appeared in `chat.db` sent at once and delivered within 1 s (one test
+    message to the owner's own address, with their OK). Islet itself makes no network connection: Messages sends it.
+    Not tried: SMS / RCS (would be `service type = SMS`), a group chat (`send … to chat id "…"`), attachments.
+    `get service type of every account` fails with -10000; the `1st account whose …` form works.
+38. **The banner's own Reply?** Recording Messages banners now; see below when it's in.
+
