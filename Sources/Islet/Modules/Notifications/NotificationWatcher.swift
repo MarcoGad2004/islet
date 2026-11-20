@@ -69,7 +69,12 @@ final class NotificationWatcher {
         var obs: AXObserver?
         guard AXObserverCreate(pid, notificationCallback, &obs) == .success, let obs else { return }
         let root = AXUIElementCreateApplication(pid)
-        AXObserverAddNotification(obs, root, kAXCreatedNotification as CFString, Unmanaged.passUnretained(self).toOpaque())
+        let me = Unmanaged.passUnretained(self).toOpaque()
+        AXObserverAddNotification(obs, root, kAXCreatedNotification as CFString, me)
+        AXObserverAddNotification(obs, root, kAXLayoutChangedNotification as CFString, me)
+        // Banners already up when Islet starts are left as they are.
+        seen = AX.windows(ofApp: pid).flatMap { AX.all(in: $0, depth: 8, where: Self.isBanner) }
+            .compactMap { AX.identifier($0) ?? AX.description($0) }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observer = obs
     }
@@ -78,46 +83,83 @@ final class NotificationWatcher {
         if let observer { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes) }
         observer = nil
         banners.removeAll()
+        ownWindows.removeAll()
         if ringWindow != nil { ringWindow = nil; onRinging?(false) }
     }
 
     fileprivate func handle(_ element: AXUIElement, _ note: String) {
         if note == kAXUIElementDestroyedNotification as String {
             if let ring = ringWindow, CFEqual(ring, element) { ringWindow = nil; onRinging?(false) }
-            if let (id, _) = banners.first(where: { CFEqual($0.value.window, element) }) { banners[id] = nil }
+            ownWindows.removeAll { CFEqual($0, element) }
+            for (id, b) in banners where CFEqual(b.window, element) { banners[id] = nil }
             return
         }
-        guard note == kAXCreatedNotification as String, AX.role(element) == kAXWindowRole as String else { return }
-        take(window: element, attempt: 0)
+        // A new banner window, or a banner added to one that is already up (macOS puts a second banner into the window
+        // of the first, which may already be off screen): look for banners not seen yet.
+        let created = note == kAXCreatedNotification as String && AX.role(element) == kAXWindowRole as String
+        guard created || note == kAXLayoutChangedNotification as String else { return }
+        sweep(extra: created ? element : nil, attempt: 0)
     }
 
-    private static func bannerElement(in window: AXUIElement) -> AXUIElement? {
-        AX.first(in: window, depth: 8) { AX.subrole($0) == "AXNotificationCenterBanner" }
+    private static func isBanner(_ e: AXUIElement) -> Bool { AX.subrole(e) == "AXNotificationCenterBanner" }
+    private static func isCall(_ e: AXUIElement) -> Bool {
+        AX.identifier(e) == "FACETIME_NOTIFICATION" || AX.description(e) == "FaceTime Notification"
     }
 
-    private func take(window: AXUIElement, attempt: Int) {
-        // The banner group is usually there when the window is created; give it a moment if not.
-        guard let banner = Self.bannerElement(in: window) else {
-            if attempt < 6 {
-                Task { [weak self] in
-                    try? await Task.sleep(for: .milliseconds(25))
-                    self?.take(window: window, attempt: attempt + 1)
+    /// Banners already handled, by their identifier (a UUID per banner).
+    private var seen: [String] = []
+    /// Banner windows Islet has moved off screen; a later banner can land in one of them.
+    private var ownWindows: [AXUIElement] = []
+
+    /// A banner window spans the screen (it also hosts the desktop widgets), so its size says nothing. A new one holds
+    /// one or two banners; one arriving with many is Notification Center opened by the user, which is never touched.
+    private static let maxNewBanners = 3
+
+    private func sweep(extra: AXUIElement?, attempt: Int) {
+        guard pid != 0 else { return }
+        ownWindows.removeAll { !AX.alive($0) }
+        var windows = ownWindows
+        if let extra, !windows.contains(where: { CFEqual($0, extra) }),
+           AX.all(in: extra, depth: 8, where: Self.isBanner).count <= Self.maxNewBanners {
+            windows.append(extra)
+        }
+        var foundInExtra = false
+        for w in windows {
+            for banner in AX.all(in: w, depth: 8, where: Self.isBanner) {
+                if let extra, CFEqual(w, extra) { foundInExtra = true }
+                if Self.isCall(banner) {
+                    if ringWindow == nil || !CFEqual(ringWindow!, w) {
+                        ringWindow = w
+                        watchDestroyed(w)
+                        onRinging?(true)
+                    }
+                    continue
                 }
+                let key = AX.identifier(banner) ?? AX.description(banner) ?? ""
+                guard !key.isEmpty, !seen.contains(key) else { continue }
+                seen.append(key)
+                if seen.count > 100 { seen.removeFirst(50) }
+                take(banner: banner, window: w)
             }
-            return
         }
-        if AX.identifier(banner) == "FACETIME_NOTIFICATION" || AX.description(banner) == "FaceTime Notification" {
-            guard ringWindow == nil || !CFEqual(ringWindow!, window) else { return }
-            ringWindow = window
-            watchDestroyed(window)
-            onRinging?(true)
-            return
+        // A new window's banner is usually there at once; give it a moment if not.
+        if let extra, !foundInExtra, attempt < 6 {
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(25))
+                self?.sweep(extra: extra, attempt: attempt + 1)
+            }
         }
+    }
+
+    private func take(banner: AXUIElement, window: AXUIElement) {
         guard enabled, canTake?() == true else { return }
-        let origin = AX.position(window)
+        // Where macOS put the window: kept from an earlier banner if this window is already off screen.
+        let known = banners.values.first(where: { CFEqual($0.window, window) })?.origin
+        let origin = known ?? AX.position(window)
         AX.setPosition(window, CGPoint(x: -3000, y: -3000))
+        if !ownWindows.contains(where: { CFEqual($0, window) }) { ownWindows.append(window) }
         guard let item = read(banner) else {
-            if let origin { AX.setPosition(window, origin) } // nothing to show: give it back
+            if known == nil, let origin { AX.setPosition(window, origin) } // nothing to show: give it back
             return
         }
         let b = Banner(window: window, element: banner, origin: origin)

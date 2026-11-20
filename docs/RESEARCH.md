@@ -285,3 +285,10 @@ was answered with "End & Accept"):**
 - **FaceTime's window in the call:** once connected `AvatarView` reads "￼ FaceTime Video" (U+FFFC first), not the name;
   the name is on the participant button (no identifier, named action "Take Live Photo"). The microphone reports "in use"
   for both calls. Answering FaceTime during a phone call shows FaceTime's "End Current Call?" sheet.
+
+**Notifications on the Mac (2026-11-20, the built app):** a second banner posted while the first is up does not get a new
+window: macOS adds it to the first one's window (already off screen), so `AXCreated` alone misses it. Islet also listens
+for `AXLayoutChanged` and looks for new banner identifiers (a UUID each) in the windows it has moved. The banner window
+spans the whole screen and also hosts the desktop widgets (moving it off screen left the widgets where they were), so
+its size can't tell it from Notification Center opened by the user; a new window arriving with more than three banners
+is left alone instead. Not tried yet: opening Notification Center while Islet runs.

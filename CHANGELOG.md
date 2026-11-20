@@ -9,9 +9,6 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   instead of appearing in the top-right corner (they still go to Notification Center). Hover to keep one, click to open
   it, swipe up to dismiss, swipe down for the whole message with Close and Show. Settings > General can turn it off or
   hide the message text.
-- FaceTime calls: while a call rings, the wings show a wiggling phone and pulsing rings (answer on the call's own banner).
-  During the call they show a camera, or a red mic when muted, and the call's time. Hover for who it is; click for a
-  call page with Mute, Camera and End.
 
 ## 1.3.1 (2026-11-20)
 

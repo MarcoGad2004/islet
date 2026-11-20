@@ -64,11 +64,18 @@ the unlock animation still ships.
 ## 1.4: Notifications and calls
 - [x] Spike (RESEARCH.md Q27-Q31): read banners, hide the system banner, calls
 - [x] Notifications: banner watcher, hide the system banner, card, stacking, click / swipe, the taller card
-- [x] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end)
+- [x] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end); built but switched
+      off (`AppDelegate.callsEnabled`): calls get their own design in a later update
 - [x] Settings > General: show notifications in the notch, hide message text
 - Preview: `-IsletDebugShape notification|notifications|ring|call`
-- [ ] Try it on the Mac: messages, several at once, a FaceTime call; does Close remove it from Notification Center?
-- [ ] iPhone calls relayed to the Mac (retry the probe for Q30)
+- [x] Tried on the Mac (2026-11-20): one banner and two in a row reach the card, the corner stays empty, nothing comes back
+      after the card times out
+- [ ] Still to try: click to open, Close and Show, an alert-style notification, opening Notification Center while
+      Islet runs; does Close remove it from Notification Center's list?
+
+## Later: calls
+- [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
+- [ ] Find out whether the banner has the caller while the first call rings (probe that re-reads it every 0.25 s)
 
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status

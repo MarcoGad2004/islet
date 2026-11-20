@@ -47,6 +47,13 @@ enum AX {
         return nil
     }
 
+    /// Every match, depth-first (not looking inside a match).
+    static func all(in e: AXUIElement, depth: Int = 12, where match: (AXUIElement) -> Bool) -> [AXUIElement] {
+        if match(e) { return [e] }
+        guard depth > 0 else { return [] }
+        return children(e).flatMap { all(in: $0, depth: depth - 1, where: match) }
+    }
+
     static func first(in e: AXUIElement, id: String) -> AXUIElement? { first(in: e) { identifier($0) == id } }
 
     /// Presses a named action ("Show", "Close"), or AXPress when `name` is nil.

@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
+    /// FaceTime in the notch (DESIGN.md "Calls"): off until its design is redone in a later update.
+    static let callsEnabled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
@@ -264,7 +266,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Notifications and FaceTime calls (DESIGN.md "Notifications and calls").
         notifications.canTake = { [weak store] in store?.canTakeNotification == true }
         notifications.onNotification = { [weak store] in store?.showNotification($0) }
-        notifications.onRinging = { [weak self] in self?.faceTime.setRinging($0) }
+        // Calls are left for a later update (owner, 2026-11-20): the code is here, but nothing feeds the island yet.
+        if Self.callsEnabled { notifications.onRinging = { [weak self] in self?.faceTime.setRinging($0) } }
         store.notificationShow = { [weak self] in self?.notifications.show($0) }
         store.notificationClose = { [weak self] in self?.notifications.close($0) }
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
@@ -273,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.callMute = { [weak self] in self?.faceTime.toggleMute() }
         store.callCamera = { [weak self] in self?.faceTime.toggleCamera() }
         store.callEnd = { [weak self] in self?.faceTime.end() }
-        faceTime.start()
+        if Self.callsEnabled { faceTime.start() }
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()

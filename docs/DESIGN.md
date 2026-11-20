@@ -409,6 +409,9 @@ RESEARCH.md Q27-Q31.
 
 ### Calls (FaceTime)
 
+Deferred (owner, 2026-11-20): built as below but switched off; calls get their own design in a later update, using
+RESEARCH.md Q30's second test (the banner has the caller, Answer / Decline, and iPhone calls).
+
 - **Ringing**: the system banner stays (Islet can't read who is calling or press Accept / Decline: RESEARCH.md Q30).
   The wings show a green phone that wiggles (1.3 s loop) on the left and two green rings pulsing out (1.5 s, staggered)
   on the right, until it is answered, declined or stops ringing. Always the wings: no menus are covered for long, and
