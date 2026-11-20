@@ -54,16 +54,19 @@ final class IslandStore {
     /// grows a short body that spells it out (`lockHintFull`).
     private(set) var lockHint = false
     private(set) var lockHintFull = false
-    /// A banner taken into the notch (DESIGN.md "Notifications"), how many arrived while cards were showing, and
+    /// Banners taken into the notch (DESIGN.md "Notifications"), newest first. They stack while they keep arriving and
+    /// all go together 5 s after the last one (or from the list, one by one).
     /// whether a swipe down opened the taller card.
-    private(set) var notification: NotificationItem?
-    private(set) var notificationCount = 0
-    private(set) var notificationTall = false
+    private(set) var notifications: [NotificationItem] = []
+    var notification: NotificationItem? { notifications.first }
+    var notificationCount: Int { notifications.count }
     @ObservationIgnored private var notificationTask: Task<Void, Never>?
     /// The banner's own Show / Close, and the card running out (NotificationWatcher).
     @ObservationIgnored var notificationShow: ((NotificationItem) -> Void)?
     @ObservationIgnored var notificationClose: ((NotificationItem) -> Void)?
     @ObservationIgnored var notificationExpired: ((NotificationItem) -> Void)?
+    /// One of the banner's own buttons (Approve, Deny, Remind Me…), by name.
+    @ObservationIgnored var notificationAction: ((NotificationItem, String) -> Void)?
     static let notificationSeconds: Double = 5
     static let notificationAfterHover: Double = 3
     /// FaceTime ringing or in a call (DESIGN.md "Calls"), and its controls on the call page.
@@ -111,6 +114,7 @@ final class IslandStore {
 
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
+        if expandedPage == .notifications { return NotificationList.height(rows: notifications.count) }
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
         switch controlDetail {
         case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
@@ -157,7 +161,8 @@ final class IslandStore {
             if case .progress = c { return wingsFit ? .levelWings : .chin } // the step goes in the body
             if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
-            if case .notification = c { return notificationTall ? .notificationTall : .notification }
+            // Hovered: the card. Otherwise the wide bar with the text in its body, or the chin.
+            if case .notification = c { return pointerInside ? .notification : (wingsFit ? .levelWings : .chin) }
             if case .call(let call) = c {
                 if call.phase == .ringing { return .wings } // no text, and not up for long: always the wings
                 // Under the pointer: the wide bar, with who it is in its body.
@@ -202,7 +207,12 @@ final class IslandStore {
 
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
-        let m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        var m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        if case .notification(let n)? = content, presentation != .expanded {
+            // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
+            if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
+            if presentation == .notification, !n.actions.isEmpty { m.bh += Double(IslandLayout.notificationActionsHeight) }
+        }
         switch g.mode {
         case .notch: return m
         case .menuBar: return Self.underMenuBar(m, presentation)
@@ -280,10 +290,9 @@ final class IslandStore {
     func pointerMoved(inside: Bool) {
         guard inside != pointerInside else { return }
         pointerInside = inside
-        if notification != nil {
-            // Hovering a card pauses it; leaving gives it a little longer (the taller card, 1 s).
-            if inside { notificationTask?.cancel() }
-            else { armNotification(notificationTall ? 1 : Self.notificationAfterHover) }
+        if !notifications.isEmpty, !expanded {
+            // Hovering pauses them; leaving gives them a little longer.
+            if inside { notificationTask?.cancel() } else { armNotification(Self.notificationAfterHover) }
         }
         if inside {
             leaveTask?.cancel()
@@ -304,7 +313,7 @@ final class IslandStore {
     /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is). A result with a
     /// button (the update's "What's new") does that instead.
     func click() {
-        if notification != nil, !expanded { endNotification(.shown); return }
+        if let n = notification, !expanded { removeNotification(n, .shown); return }
         if progress?.state == .done, let action = progressAction {
             progressTask?.cancel(); progress = nil; progressAction = nil
             refresh()
@@ -316,7 +325,7 @@ final class IslandStore {
 
     func expand() {
         guard !expanded, !locked else { return }
-        expandedPage = level == nil && call?.phase == .active ? .call : (level == nil && mediaPlaying) ? .media : .displaySound
+        expandedPage = level == nil && !notifications.isEmpty ? .notifications : level == nil && call?.phase == .active ? .call : (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
         power?.refresh()
         display?.refresh()
@@ -333,6 +342,8 @@ final class IslandStore {
     }
 
     private func setExpanded(_ value: Bool) {
+        // The list closing: what's left stays in Notification Center.
+        if !value, expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -345,7 +356,7 @@ final class IslandStore {
 
     func swipeUp() {
         if skip != nil { return }
-        if notification != nil, !expanded { endNotification(.closed); return }
+        if !notifications.isEmpty, !expanded { endAllNotifications(.closed); return }
         if expanded { collapse(); return }
         if mediaVisible && charge == nil && level == nil && event == nil && unlockStart == nil {
             mediaHidden = true // stays hidden until swiped back or a different app starts playing
@@ -355,9 +366,10 @@ final class IslandStore {
 
     func swipeDown() {
         if skip != nil { return }
-        if notification != nil, !expanded {
-            // The taller card, with the whole message; it stays until it's dealt with.
-            if !notificationTall { notificationTask?.cancel(); notificationTall = true; refresh() }
+        if !notifications.isEmpty, !expanded {
+            // The list of everything that just came in; it stays while it's in use.
+            notificationTask?.cancel()
+            expand()
             return
         }
         if mediaHidden {
@@ -457,25 +469,21 @@ final class IslandStore {
     }
 
 
-    /// A click outside: closes the panel, and puts the taller notification card away.
-    func dismiss() {
-        if notificationTall { endNotification(.expired) }
-        collapse()
-    }
+    /// A click outside: closes the panel.
+    func dismiss() { collapse() }
 
     // MARK: Notifications
 
     /// Whether a banner can come into the notch now. Otherwise the system shows it as usual.
     var canTakeNotification: Bool {
-        geometry != nil && !paused && !expanded && base == nil && !lockScreen && unlockStart == nil
+        geometry != nil && !paused && (!expanded || expandedPage == .notifications) && base == nil && !lockScreen
+            && unlockStart == nil
     }
 
     func showNotification(_ n: NotificationItem) {
-        if let old = notification, old.id != n.id { notificationExpired?(old) } // replaced: it stays in the list
-        notificationCount = notification == nil ? 1 : notificationCount + 1
-        notification = n
-        notificationTall = false
-        if pointerInside { notificationTask?.cancel() } else { armNotification(Self.notificationSeconds) }
+        notifications.insert(n, at: 0)
+        if notifications.count > 30 { notificationExpired?(notifications.removeLast()) }
+        if pointerInside || expanded { notificationTask?.cancel() } else { armNotification(Self.notificationSeconds) }
         refresh()
     }
 
@@ -483,25 +491,43 @@ final class IslandStore {
         notificationTask?.cancel()
         notificationTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, let self, !self.pointerInside else { return }
-            self.endNotification(.expired)
+            guard !Task.isCancelled, let self, !self.pointerInside, !self.expanded else { return }
+            self.endAllNotifications(.expired)
         }
     }
 
-    enum NotificationEnd { case shown, closed, expired }
+    enum NotificationEnd: Equatable { case shown, closed, expired, action(String) }
 
-    func endNotification(_ how: NotificationEnd) {
-        guard let n = notification else { return }
+    /// One notification is dealt with: opened, closed, or one of its buttons pressed. The list closes once it's empty.
+    func removeNotification(_ n: NotificationItem, _ how: NotificationEnd) {
+        guard notifications.contains(where: { $0.id == n.id }) else { return }
+        notifications.removeAll { $0.id == n.id }
+        finish(n, how)
+        if notifications.isEmpty {
+            notificationTask?.cancel()
+            if expanded && expandedPage == .notifications { collapse() }
+        }
+        refresh()
+    }
+
+    /// All of them: swiped up, "Clear all", the time running out, or the list closing.
+    func endAllNotifications(_ how: NotificationEnd, refreshing: Bool = true) {
+        let all = notifications
+        guard !all.isEmpty else { return }
         notificationTask?.cancel()
-        notification = nil
-        notificationCount = 0
-        notificationTall = false
+        notifications = []
+        all.forEach { finish($0, how) }
+        if expanded && expandedPage == .notifications && refreshing { collapse() }
+        if refreshing { refresh() }
+    }
+
+    private func finish(_ n: NotificationItem, _ how: NotificationEnd) {
         switch how {
         case .shown: notificationShow?(n)
         case .closed: notificationClose?(n)
         case .expired: notificationExpired?(n)
+        case .action(let name): notificationAction?(n, name)
         }
-        refresh()
     }
 
     // MARK: Calls

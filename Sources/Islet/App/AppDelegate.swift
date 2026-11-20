@@ -271,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.notificationShow = { [weak self] in self?.notifications.show($0) }
         store.notificationClose = { [weak self] in self?.notifications.close($0) }
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
+        store.notificationAction = { [weak self] in self?.notifications.perform($0, action: $1) }
         notifications.start()
         faceTime.onChange = { [weak store] in store?.setCall($0) }
         store.callMute = { [weak self] in self?.faceTime.toggleMute() }

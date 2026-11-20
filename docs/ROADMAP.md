@@ -70,8 +70,11 @@ the unlock animation still ships.
 - Preview: `-IsletDebugShape notification|notifications|ring|call`
 - [x] Tried on the Mac (2026-11-20): one banner and two in a row reach the card, the corner stays empty, nothing comes back
       after the card times out
-- [ ] Still to try: click to open, Close and Show, an alert-style notification, opening Notification Center while
-      Islet runs; does Close remove it from Notification Center's list?
+- [x] Wide bar / chin, stacking ("N more", the strip), the list page, the banner's buttons (DESIGN.md, revised
+      2026-11-20). Tried: a burst of four from one app (macOS groups them as a `BannerStack`) reaches the chin with
+      "3 more"
+- [ ] Still to try: hover card, click to open, the list (swipe down, Clear all, rows), a real Duo Approve / Deny,
+      opening Notification Center while Islet runs; does Close remove it from Notification Center's list?
 
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner

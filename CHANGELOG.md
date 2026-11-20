@@ -5,10 +5,14 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.4 (unreleased)
 
-- Notifications in the notch: banners drop out of the notch as a card with the app's icon, the title and the message,
-  instead of appearing in the top-right corner (they still go to Notification Center). Hover to keep one, click to open
-  it, swipe up to dismiss, swipe down for the whole message with Close and Show. Settings > General can turn it off or
-  hide the message text.
+- Notifications in the notch instead of the top-right corner (they still go to Notification Center): the title and
+  message in the wide bar under the wings, or in the chin when the menus are wide. Hover for the full card, click to
+  open it, swipe up to dismiss.
+- Several at once stack: the notch grows a little deeper with the next one tucked underneath, then shows "2 more",
+  "3 more". Swipe down for a list of everything that just came in, with Clear all.
+- The banner's own buttons come along: approve a Duo sign-in from the card or the list (never from the small bar, so a
+  stray click can't). iPhone notifications get an iPhone icon, time-sensitive ones say so in orange.
+- Settings > General can turn it off or hide the message text.
 
 ## 1.3.1 (2026-11-20)
 

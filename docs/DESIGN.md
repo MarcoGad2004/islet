@@ -383,27 +383,48 @@ RESEARCH.md Q27-Q31.
 
 ### Notifications
 
+Revised 2026-11-20 (owner): wings / chin like the other compact content, stacking, and the banner's own buttons.
+Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact/7xTcPWs9qJyVJhFiUe5jWJ>.
+
 - **Source**: every banner macOS shows (read through Accessibility from Notification Center's banner window). Whatever a
-  Focus or the app's own settings silence never makes a banner, so it never reaches the notch either.
-- **The system banner is hidden**: its window is moved off screen the moment it appears and then closed, so only the
-  notch shows it. Only banner windows are touched; opening Notification Center itself is unaffected. Incoming-call
-  banners are never hidden (their Accept / Decline can't be pressed from Islet).
-- **Card**: the island flows down into a `notification` body under the stem, 360 x 72 (top 16, bottom 20, 10 pt inner
-  curves), always, whatever the menu bar width check says (text needs the room and the body covers no menus). App icon
-  34 pt (radius 9) on the left, 16 pt inset; beside it the title (13 semibold, `text`) with "now" (11, `tertiary`) on the
-  right, and one line of the message (12, `secondary`, cut with an ellipsis). The subtitle, when there is one, leads the
-  message ("Subtitle · Body").
-- **Timing**: 5 s, then it folds back to what was showing. Hovering pauses it (and swells it, as other shapes); leaving
-  gives it 3 s more.
-- **Another one** arriving while a card shows replaces the content (it fades across) and restarts the 5 s; a count badge
-  (16 pt, `#3A3A3C`, 2 pt black ring) sits on the icon's lower right corner from the second one.
-- **Click**: opens it in its app (the banner's own Show), and the card folds back.
-- **Two-finger swipe up**: dismisses it.
-- **Two-finger swipe down**: the taller card, 380 x 132 (bottom 24): the whole message (up to 3 lines, `#C7C7CC`),
-  "App · now" on the right, and Close and Show buttons (28 pt pills; Show white with black text). It stays until one of
-  them, a swipe up, a click outside or 1 s after the pointer leaves.
+  Focus or the app's own settings silence never makes a banner, so it never reaches the notch either. Alerts (the kind
+  that stay until answered) are left to macOS.
+- **The system banner is hidden**: its window is moved off screen the moment it appears and left there, so it still
+  lands in Notification Center's list. Only banner windows are touched; Notification Center opened by the user is never
+  affected. Incoming-call banners are never hidden.
+- **Compact** (follows the menu bar width check, like volume):
+  - **Wide bar** when the wings fit: wings plus a 26 pt body (bottom 18). The app icon (22 pt) in the left wing;
+    "**Title** · message" (12; title semibold, message `secondary`, cut with an ellipsis) in the body, 20 pt in from
+    each side. The subtitle, when there is one, leads the message ("Subtitle · Body").
+  - **Chin** otherwise: the 300 x 36 body with the icon (20 pt), "**Title** · message" (13) and, on the right, the stack
+    count.
+- **Card** (hover): the compact shape grows into the 360 x 72 card under the stem (top 16, bottom 20, 10 pt inner
+  curves): icon 34 pt (radius 9), the title (13 semibold) with "now" (11, `tertiary`) on the right, and "App · message"
+  (12, `secondary`, one line). Leaving folds it back.
+- **Time sensitive** (the banner has the header "TIME SENSITIVE"): the card says "Time Sensitive" (11 semibold, orange
+  `#FF9F0A`) instead of "now".
+- **From the iPhone** (the banner ends "from iPhone"; the app usually isn't on the Mac, so there's no icon to look up):
+  a grey rounded square with an iPhone glyph stands in for the icon.
+- **The banner's buttons** (Duo's Approve / Deny, Slack's Remind Me…): never in the compact shapes, so a stray click
+  can't approve anything. The card grows 36 pt and shows them as 28 pt pills on the right under the text, the last one
+  white with black text (it's the app's main action); more than two go under an "Options" menu pill. Each list row has
+  them too (26 pt). Pressing one presses the banner's own button and takes the notification away.
+- **Timing**: everything showing goes 5 s after the last arrival, then the island folds back to what was showing.
+  Hovering pauses it; leaving gives it 3 s more.
+- **Stacking** (several arrive close together, newest on top):
+  - One: as above.
+  - Two: the shape grows 8 pt deeper and a 3 pt strip (`#3A3A3C`, 64 pt narrower than the shape, 7 pt above its bottom)
+    shows the second one tucked under it. The text changes to the newest.
+  - Three or more: also "N more" (11 semibold, `secondary`) in the right wing, or at the right of the chin.
+  - The card has a count badge on its icon (16 pt, `#3A3A3C`, 2 pt black ring).
+- **Click**: opens the newest in its app (the banner's own Show); the next one moves up.
+- **Two-finger swipe up**: dismisses them all.
+- **Two-finger swipe down**: the expanded panel's notification list (500 wide, as tall as the rows need: 52 pt each, at
+  most 4 showing, then it scrolls): "JUST NOW · N" and a "Clear all" pill on top; each row the icon (28), title and
+  "App · now", the message, the banner's buttons, and a close button. Clicking a row opens it. It closes when it's
+  empty, on a swipe up, a click outside or 1 s after the pointer leaves; whatever is left stays in Notification Center.
 - **Priority**: below volume and brightness and a ringing call, above connection notices, charging and media (see
-  "Priority"). Not on the lock screen, nor while the panel is open: then macOS shows the banner as usual.
+  "Priority"). Not on the lock screen, nor while another panel page is open: then macOS shows the banner as usual.
 - **Settings > General**: "Show notifications in the notch" (on by default; off leaves the system banners alone)
   and "Hide message text" (only the app and title).
 

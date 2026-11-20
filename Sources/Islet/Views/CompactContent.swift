@@ -57,6 +57,13 @@ struct CompactContentView: View {
                             .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
                                                     removal: .opacity.animation(.easeOut(duration: 0.1))))
                     }
+                    if levelBody, case .notification(let n) = content {
+                        // A notification: "Title · message" under the wings; the newest fades across.
+                        NotificationLine(item: n, size: 12)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight, alignment: .leading).offset(y: -1)
+                            .id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
+                    }
                     if levelBody, case .call(let c) = content {
                         // Hovering a call: who it is, under the wings.
                         Text("\(c.displayName) · \(c.muted ? "Muted" : c.kindLabel)")
@@ -133,8 +140,8 @@ struct CompactContentView: View {
             progressIcon(p).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
         case .call(let c):
             if c.phase == .ringing { RingingPhone() } else { CallIcon(call: c) }
-        case .notification:
-            EmptyView() // shown as its own card
+        case .notification(let n):
+            NotificationIcon(item: n, size: 22).id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
         }
     }
 
@@ -166,7 +173,7 @@ struct CompactContentView: View {
         case .call(let c):
             if c.phase == .ringing { RingingPulse() } else { CallTimer(call: c) }
         case .notification:
-            EmptyView()
+            moreLabel
         case .event(let e):
             Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(e.kind == .focusOff ? Color.isletSecondary : Color.isletText)
@@ -235,8 +242,13 @@ struct CompactContentView: View {
                 Spacer(minLength: 4)
                 if c.phase == .active { CallTimer(call: c) }
             }
-        case .notification:
-            EmptyView()
+        case .notification(let n):
+            HStack(spacing: 10) {
+                NotificationIcon(item: n, size: 20)
+                NotificationLine(item: n, size: 13).frame(maxWidth: .infinity, alignment: .leading)
+                moreLabel
+            }
+            .id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
         case .locked:
             PadlockView(start: nil)
         case .unlock(let start):
@@ -251,6 +263,16 @@ struct CompactContentView: View {
     }
 
     // MARK: Helpers
+
+    /// Three or more notifications: "N more" in the right wing or at the end of the chin.
+    @ViewBuilder private var moreLabel: some View {
+        if store.notificationCount >= 3 {
+            Text("\(store.notificationCount - 1) more").font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(Color.isletSecondary).lineLimit(1).fixedSize()
+                .contentTransition(.numericText()).animation(.easeOut(duration: 0.2), value: store.notificationCount)
+                .transition(.opacity.combined(with: .offset(y: -4)).animation(.easeOut(duration: 0.25)))
+        }
+    }
 
     /// When this content has faded in: the animation's own clock starts then, so the closed lock is seen.
     /// Wings content fades in after 0.12 s, body shapes after 0.36 s (DESIGN.md "Motion").

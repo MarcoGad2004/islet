@@ -302,3 +302,6 @@ subrole `AXNotificationCenterAlert`, not `…Banner`, so Islet never takes them.
   `AXNotificationListItems` group with alerts, banners and stacks (`AXNotificationCenterBannerStack`, action
   `Clear All`) and a "Clear All" button. It can hold as few as two banners, so counting them doesn't tell it apart;
   those markers do, and Islet skips any new window that has one.
+- **Several from one app close together** come as one `AXNotificationCenterBannerStack` in the banner window (texts are
+  the newest one's, description ends ", stacked", actions `Show`, `Clear All`), so a stack is not a sign of the opened
+  Notification Center. What marks that is its `AXNotificationListItems` group and its "Clear All" *button*.

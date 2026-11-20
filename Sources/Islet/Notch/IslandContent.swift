@@ -32,7 +32,7 @@ enum IslandContent {
     }
 }
 
-enum ExpandedPage { case media, displaySound, call }
+enum ExpandedPage { case media, displaySound, call, notifications }
 
 /// One banner, read through Accessibility (RESEARCH.md Q27).
 struct NotificationItem: Equatable, Identifiable {
@@ -44,6 +44,12 @@ struct NotificationItem: Equatable, Identifiable {
     var icon: NSImage?
     /// The app, to open it when the banner itself is already gone.
     var appURL: URL?
+    /// The banner's own buttons besides Show and Close (Duo's Deny and Approve), in its order.
+    var actions: [String] = []
+    /// The banner's header says "TIME SENSITIVE".
+    var timeSensitive = false
+    /// Mirrored from the iPhone (the banner ends "from iPhone").
+    var fromIPhone = false
 
     /// The card's one line: "Subtitle · Body".
     var line: String { [subtitle, body].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }

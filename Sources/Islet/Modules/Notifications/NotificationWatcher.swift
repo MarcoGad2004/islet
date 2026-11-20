@@ -101,7 +101,11 @@ final class NotificationWatcher {
         sweep(extra: created ? element : nil, attempt: 0)
     }
 
-    private static func isBanner(_ e: AXUIElement) -> Bool { AX.subrole(e) == "AXNotificationCenterBanner" }
+    /// A banner, or several from one app that macOS has grouped (its texts are the newest one's).
+    private static func isBanner(_ e: AXUIElement) -> Bool {
+        let s = AX.subrole(e)
+        return s == "AXNotificationCenterBanner" || s == "AXNotificationCenterBannerStack"
+    }
     private static func isCall(_ e: AXUIElement) -> Bool {
         AX.identifier(e) == "FACETIME_NOTIFICATION" || AX.description(e) == "FaceTime Notification"
     }
@@ -116,8 +120,8 @@ final class NotificationWatcher {
     /// doesn't (its size is no help: banner windows span the screen, as they also host the desktop widgets).
     private static func isNotificationCenterList(_ w: AXUIElement) -> Bool {
         AX.first(in: w, depth: 8) {
-            AX.identifier($0) == "AXNotificationListItems" || AX.description($0) == "Clear All"
-                || AX.subrole($0) == "AXNotificationCenterBannerStack"
+            AX.identifier($0) == "AXNotificationListItems"
+                || (AX.role($0) == kAXButtonRole as String && AX.description($0) == "Clear All")
         } != nil
     }
 
@@ -195,12 +199,19 @@ final class NotificationWatcher {
         let body = text("body") ?? ""
         guard !title.isEmpty || !body.isEmpty else { return nil }
         // The description is "App, Title, Subtitle, Body".
-        let desc = AX.description(banner) ?? ""
+        var desc = AX.description(banner) ?? ""
+        if desc.hasSuffix(", stacked") { desc = String(desc.dropLast(", stacked".count)) }
         var app = desc
         if !title.isEmpty, let r = desc.range(of: ", \(title)") { app = String(desc[..<r.lowerBound]) }
         else if let r = desc.range(of: ", ") { app = String(desc[..<r.lowerBound]) }
         let found = Self.app(named: app)
-        return NotificationItem(id: UUID(), app: app, title: title, subtitle: subtitle, body: body, icon: found.icon, appURL: found.url)
+        // The app's own buttons: the named actions besides the ones every banner has.
+        let common: Set<String> = ["Show", "Show Details", "Close", "Clear All"]
+        let actions = AX.actions(banner).filter { $0.hasPrefix("Name:") }.map { String($0.dropFirst(5)) }.filter { !common.contains($0) }
+        let header = text("header") ?? ""
+        return NotificationItem(id: UUID(), app: app, title: title, subtitle: subtitle, body: body, icon: found.icon, appURL: found.url,
+                                actions: actions, timeSensitive: header.localizedCaseInsensitiveContains("time sensitive"),
+                                fromIPhone: desc.hasSuffix(", from iPhone"))
     }
 
     /// The app by its shown name: running, or in the usual folders.
@@ -227,6 +238,12 @@ final class NotificationWatcher {
         let b = banners.removeValue(forKey: item.id)
         if let b, AX.alive(b.element), AX.press(b.element, named: "Show") || AX.press(b.element) { return }
         if let url = item.appURL { NSWorkspace.shared.open(url) }
+    }
+
+    /// One of the banner's own buttons (Approve, Deny…): presses it on the banner, as its Options menu would.
+    func perform(_ item: NotificationItem, action: String) {
+        guard let b = banners.removeValue(forKey: item.id), AX.alive(b.element) else { return }
+        AX.press(b.element, named: action)
     }
 
     /// Closed (Close, or swiped up).

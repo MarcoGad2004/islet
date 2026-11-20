@@ -28,8 +28,10 @@ enum IslandLayout {
     /// A notification's card under the stem, and the taller one a swipe down opens.
     static let notificationWidth: Double = 360
     static let notificationHeight: Double = 72
-    static let notificationTallWidth: Double = 380
-    static let notificationTallHeight: Double = 132
+    /// Two or more stacked: the shape is this much deeper.
+    static let notificationStackDepth: CGFloat = 8
+    /// The card with the banner's buttons under the text.
+    static let notificationActionsHeight: CGFloat = 36
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150
@@ -47,7 +49,7 @@ enum IslandLayout {
 
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
-    case closed, peek, wings, lockWings, lockHint, levelWings, eventWings, chin, scan, expanded, enrol, notification, notificationTall
+    case closed, peek, wings, lockWings, lockHint, levelWings, eventWings, chin, scan, expanded, enrol, notification
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -129,8 +131,6 @@ extension Presentation {
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 16, br: 16, ic: 10) // all four corners 16
         case .notification:
             return IslandMetrics(sw: nw, sh: nh, bw: L.notificationWidth, bh: L.notificationHeight, tr: 16, br: 20, ic: 10)
-        case .notificationTall:
-            return IslandMetrics(sw: nw, sh: nh, bw: L.notificationTallWidth, bh: L.notificationTallHeight, tr: 16, br: 24, ic: 10)
         case .scan:
             // The wide notch expanded downward, so the padlock in the wings stays visible above the scan.
             let w = nw + L.wingsExtra

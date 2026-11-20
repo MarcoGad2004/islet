@@ -62,10 +62,9 @@ struct IslandView: View {
                 case .expanded:
                     ExpandedView(store: store).padding(.top, top)
                         .transition(fade())
-                case .notification, .notificationTall:
+                case .notification:
                     if case .notification(let n)? = content {
-                        NotificationCard(store: store, item: n, tall: pres == .notificationTall)
-                            .id(pres).transition(fade())
+                        NotificationCard(store: store, item: n).transition(fade(0.2))
                     }
                 case .wings, .lockWings, .lockHint, .levelWings, .eventWings, .chin:
                     if let c = content {
@@ -90,6 +89,16 @@ struct IslandView: View {
             // Floating, everything above sits at the card's top, wherever it is on its way.
             .offset(y: floating && pres != .peek ? m.y : 0)
             .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)
+            // Two or more notifications: the next one tucked under, a strip just inside the deeper bottom edge.
+            .overlay(alignment: .top) {
+                let stacked: Bool = if case .notification? = content, store.notificationCount > 1, pres != .expanded { true } else { false }
+                Capsule().fill(Color(hex: 0x3A3A3C))
+                    .frame(width: max(m.width - 64, 0), height: 3)
+                    .offset(y: m.y + m.height - 7)
+                    .opacity(stacked ? 1 : 0)
+                    .animation(.easeOut(duration: 0.2).delay(stacked ? 0.2 : 0), value: stacked)
+                    .allowsHitTesting(false)
+            }
             .clipShape(shape)
             // Hidden media swiped back: the peek's colour gathers into the artwork.
             if let start = store.morphFromPeek, case .media? = content {
