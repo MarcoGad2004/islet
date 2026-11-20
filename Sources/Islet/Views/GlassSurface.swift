@@ -1,17 +1,19 @@
 import AppKit
 import SwiftUI
 
-/// The glass look (1.3, DESIGN.md "Glass"). The island stays solid black down to the bottom of the notch, so it still
-/// reads as the notch, then fades into glass: the desktop behind shows through, blurred and smoked, with a light rim
-/// and a faint coloured glow along the lower edge.
+/// The glass look (1.3, DESIGN.md "Glass"), after Siri's island on the iPhone: the island is black almost all the way
+/// down, and only a strip along the bottom edge fades into glass, the desktop behind showing through blurred, with a
+/// light rim and a faint coloured glow. The panel's tiles are glass too.
 enum GlassLook {
     static let key = "glassLook"
-    /// How far below the notch the black takes to fade into glass.
-    static let fade: CGFloat = 28
-    /// Black left over the glass, so white text stays readable on a light wallpaper.
-    static let smoke: Double = 0.5
+    /// The glass strip is this share of the island's height below the notch, within `minStrip`...`maxStrip`.
+    static let stripShare: CGFloat = 0.3
+    static let minStrip: CGFloat = 10
+    static let maxStrip: CGFloat = 44
+    /// Black left at the very bottom of the strip.
+    static let smoke: Double = 0.12
     /// Opacity of the coloured glow along the edge.
-    static let glow: Double = 0.32
+    static let glow: Double = 0.3
 }
 
 extension EnvironmentValues {
@@ -19,10 +21,22 @@ extension EnvironmentValues {
     @Entry var isletGlass = false
 }
 
-/// The panel's tiles and pills: solid dark grey on black, a translucent white on glass.
-struct IsletCardFill: ShapeStyle {
-    func resolve(in environment: EnvironmentValues) -> Color {
-        environment.isletGlass ? Color.white.opacity(0.1) : Color(hex: 0x1C1C1E)
+/// The panel's tiles and pills, as a background: solid dark grey, or glass with the glass look (Liquid Glass on macOS
+/// 26 and later, a translucent white with a hairline edge before that).
+struct IsletCard<S: Shape>: View {
+    var shape: S
+    @Environment(\.isletGlass) private var glass
+
+    var body: some View {
+        if glass {
+            if #available(macOS 26, *) {
+                Color.clear.glassEffect(.regular.tint(Color.white.opacity(0.06)), in: shape)
+            } else {
+                shape.fill(Color.white.opacity(0.08)).overlay(shape.stroke(Color.white.opacity(0.14), lineWidth: 0.8))
+            }
+        } else {
+            shape.fill(Color(hex: 0x1C1C1E))
+        }
     }
 }
 
@@ -36,20 +50,26 @@ struct GlassIsland: View {
         let shape = IslandShape(m: m)
         GeometryReader { geo in
             let h = max(geo.size.height, 1)
-            let top = min(notchHeight / h, 1)
-            let bottom = min((notchHeight + GlassLook.fade) / h, 1)
-            // Black down to the notch's bottom, then easing off to the smoke over `fade`.
+            // The strip: the bottom of the island, never reaching up into the notch.
+            let underNotch = max(0, m.height - notchHeight)
+            let strip = min(underNotch, max(GlassLook.minStrip, min(GlassLook.maxStrip, underNotch * GlassLook.stripShare)))
+            let end = min(m.height / h, 1)
+            let start = min(max(0, m.height - strip) / h, end)
+            let mid = start + (end - start) * 0.5
+            let eps = 0.0001
+            // Black down to the strip, then easing off to the smoke at the bottom edge.
             let black = LinearGradient(stops: [
                 .init(color: .black, location: 0),
-                .init(color: .black, location: top),
-                .init(color: .black.opacity(GlassLook.smoke), location: max(bottom, top + 0.0001)),
+                .init(color: .black, location: start),
+                .init(color: .black.opacity(0.7), location: mid + eps),
+                .init(color: .black.opacity(GlassLook.smoke), location: end + 2 * eps),
                 .init(color: .black.opacity(GlassLook.smoke), location: 1),
             ], startPoint: .top, endPoint: .bottom)
-            // The rest only shows where the glass does.
+            // The rim and glow only show on the strip.
             let below = LinearGradient(stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .clear, location: top),
-                .init(color: .white, location: max(bottom, top + 0.0001)),
+                .init(color: .clear, location: start),
+                .init(color: .white, location: end + eps),
                 .init(color: .white, location: 1),
             ], startPoint: .top, endPoint: .bottom)
             let centre = UnitPoint(x: 0.5, y: min(m.height / 2 / h, 1))

@@ -361,16 +361,16 @@ With no island, or one that only opens from the icon, the menu bar icon always s
 
 ## Glass (1.3, in progress)
 
-Owner request (2026-11-20): a Liquid Glass look across the island, the lower part fading into glass like Siri's
-island on the iPhone. First pass, to tune by eye on the real display:
+Owner request (2026-11-20): a Liquid Glass look like Siri's island on the iPhone. Revised after the first try: the
+island stays mostly black, and only a strip along its bottom edge is glass. To tune by eye on the real display:
 
-- Down to the bottom of the notch the island stays solid black, so it still reads as the notch (wings, which are
-  notch height, stay black).
-- Below that the black fades over 28 pt into glass: the desktop behind, blurred (Liquid Glass on macOS 26+, the dark
-  HUD material before), smoked with 50% black so white text stays readable.
-- On the glass: a 1.2 pt white rim at 28% and a soft coloured glow just inside the edge (cyan, indigo, pink, orange,
-  blurred 6 pt, 32%).
-- The panel's tiles and pills are white at 10% on glass instead of solid #1C1C1E.
+- The island is solid black all the way down to the glass strip, notch and wings included.
+- The strip is 30% of the island's height below the notch (10 to 44 pt). Over it the black eases off to 12%, so the
+  desktop shows through, blurred (Liquid Glass on macOS 26+, the dark HUD material before).
+- On the strip: a 1.2 pt white rim at 28% and a soft coloured glow just inside the edge (cyan, indigo, pink, orange,
+  blurred 6 pt, 30%).
+- The panel's tiles, pills and buttons are glass (Liquid Glass lightly tinted white; before macOS 26, white at 8% with
+  a hairline edge) instead of solid #1C1C1E.
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 

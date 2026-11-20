@@ -37,7 +37,6 @@ struct ControlStage: View {
     private let W: CGFloat = 468
     private var H: CGFloat { store.expandedBodyHeight - 32 }
     private let glide = Animation.spring(response: 0.46, dampingFraction: 0.72)
-    private let cardFill = IsletCardFill()
     private let tileW: CGFloat = 109.5
 
     private func tile(_ i: Int) -> CGRect { CGRect(x: CGFloat(i) * (109.5 + 10), y: 36, width: 109.5, height: 74) }
@@ -155,13 +154,13 @@ struct ControlStage: View {
             Text("\(s.percent)%").font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
         }
         .padding(.horizontal, 8).frame(height: 22)
-        .background(Capsule().fill(cardFill))
+        .background(IsletCard(shape: Capsule()))
         .help(s.charged ? "Fully charged" : s.charging ? "Charging" : s.onAC ? "Plugged in" : "On battery")
     }
 
     private func focusIcon(_ f: FocusMode) -> some View {
         Image(systemName: f.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(f.color)
-            .frame(width: 22, height: 22).background(Circle().fill(cardFill)).help(f.name)
+            .frame(width: 22, height: 22).background(IsletCard(shape: Circle())).help(f.name)
     }
 
     private var gear: some View {
@@ -192,7 +191,7 @@ struct ControlStage: View {
             TileFace(icon: "dot.radiowaves.left.and.right", title: "AirDrop", status: ad.mode.status, on: ad.mode != .off,
                      toggle: { ad.openAirDrop(); store.collapse() }, open: { ad.openAirDrop(); store.collapse() })
                 .frame(width: tileW, height: 74, alignment: .topLeading)
-                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(cardFill))
+                .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
                 .slot(tile(2), visible: inControls)
         }
         card(index: 3, active: mode == .mirroring, mode: mode, detailHeight: 148) {
@@ -237,7 +236,7 @@ struct ControlStage: View {
         .frame(width: r.width, height: r.height, alignment: .topLeading)
         // The fill is the card's own background, sized by the card's frame, and drawn afresh on each page change:
         // a fill that shrank back from the detail page sometimes stopped drawing, leaving the tile without its card.
-        .background(shape.fill(cardFill).id(active).transition(.identity))
+        .background(IsletCard(shape: shape).id(active).transition(.identity))
         .clipShape(shape)
         .offset(x: r.minX, y: r.minY)
         .opacity(mode == .controls || active ? 1 : 0)
@@ -277,7 +276,7 @@ struct ControlStage: View {
 
             Button { monitor.togglePlayPause() } label: {
                 Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
-                    .frame(width: 26, height: 22).background(Capsule().fill(cardFill))
+                    .frame(width: 26, height: 22).background(IsletCard(shape: Capsule()))
             }.buttonStyle(.plain).slot(CGRect(x: 406, y: 2, width: 26, height: 22), visible: !isMedia)
 
             HStack(spacing: 16) {
@@ -373,7 +372,7 @@ struct SliderCard: View {
         .foregroundStyle(Color.isletText)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(IsletCardFill()))
+        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture { if !large { expand() } }
     }

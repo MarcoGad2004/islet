@@ -5,9 +5,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.3.0 (unreleased)
 
-- Glass look: below the notch the island fades from black into glass, the desktop showing through blurred and smoked,
-  with a light rim and a soft coloured glow along the edge. The panel's tiles turn translucent to match. Turn it off
-  in Settings → General → "Glass look".
+- Glass look: like Siri's island on the iPhone, the island stays black and a strip along its bottom edge fades into
+  glass, the desktop showing through blurred, with a light rim and a soft coloured glow. The panel's tiles and buttons
+  are glass too. Turn it off in Settings → General → "Glass look".
 - The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a
   little with a springy bubble, then settles back when you move away. It reacts straight away, even in the middle of
   an animation (wings springing out, the chin dropping), instead of waiting for it to finish.

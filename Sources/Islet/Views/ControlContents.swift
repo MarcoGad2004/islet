@@ -1,7 +1,6 @@
 import CoreGraphics
 import SwiftUI
 
-private let cardFill = IsletCardFill()
 
 struct SettingsLink: View {
     var title: String
@@ -90,7 +89,7 @@ struct DisplayToggleRow: View {
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(cardFill))
+            .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }.buttonStyle(.plain)
     }
@@ -126,7 +125,7 @@ struct SoundOutputList: View {
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(cardFill))
+        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
     }
 }
 
