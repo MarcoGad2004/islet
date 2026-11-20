@@ -39,12 +39,7 @@ struct BatteryPage: View {
                 } else {
                     StatTile(label: "USING", value: Self.watts(d.systemWatts), detail: "Whole Mac")
                 }
-                if let m = s.charging ? s.minutesToFull : s.onAC ? nil : s.minutesToEmpty {
-                    StatTile(label: s.charging ? "UNTIL FULL" : "TIME LEFT", value: Self.duration(m), detail: "Estimated")
-                } else {
-                    StatTile(label: "USING", value: Self.watts(d.systemWatts),
-                             detail: s.onAC ? "From the charger" : "Whole Mac")
-                }
+                lastTile(s, d)
             }
             .padding(.top, 10)
 
@@ -59,6 +54,33 @@ struct BatteryPage: View {
             }
             .padding(.leading, 8).padding(.bottom, 4)
         }
+    }
+
+    /// Never the same as the tile beside it: the time to full or left (macOS's estimate, or worked out from the energy
+    /// left and the power flowing), else what the charger is powering, else the energy stored.
+    @ViewBuilder private func lastTile(_ s: PowerMonitor.State, _ d: PowerMonitor.Details) -> some View {
+        if s.charging, let m = s.minutesToFull ?? Self.minutesToFull(d) {
+            StatTile(label: "UNTIL FULL", value: Self.duration(m), detail: s.minutesToFull == nil ? "At this rate" : "Estimated")
+        } else if !s.onAC, let m = s.minutesToEmpty ?? Self.minutesLeft(d) {
+            StatTile(label: "TIME LEFT", value: Self.duration(m), detail: s.minutesToEmpty == nil ? "At this rate" : "Estimated")
+        } else if s.onAC, d.systemWatts != nil {
+            StatTile(label: "USING", value: Self.watts(d.systemWatts), detail: "From the charger")
+        } else {
+            StatTile(label: "ENERGY", value: d.storedWh.map { "\(Int($0.rounded())) Wh" } ?? "–",
+                     detail: d.fullWh.map { "of \(Int($0.rounded())) Wh" } ?? "Stored")
+        }
+    }
+
+    /// Energy left over what the Mac is drawing now.
+    private static func minutesLeft(_ d: PowerMonitor.Details) -> Int? {
+        guard let wh = d.storedWh, let w = d.systemWatts, w > 0.5 else { return nil }
+        return Int((wh / w * 60).rounded())
+    }
+
+    /// Energy still to go in over what's flowing into the battery now.
+    private static func minutesToFull(_ d: PowerMonitor.Details) -> Int? {
+        guard let now = d.storedWh, let full = d.fullWh, let w = d.batteryWatts, w > 0.5, full > now else { return nil }
+        return Int(((full - now) / w * 60).rounded())
     }
 
     private static func tint(_ s: PowerMonitor.State) -> Color {

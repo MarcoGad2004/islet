@@ -25,6 +25,7 @@ final class PowerMonitor {
         var designCycles: Int?
         var currentMAh: Int?
         var fullMAh: Int?
+        var voltage: Double?
         /// Into the battery (+, charging) or out of it (-), in watts.
         var batteryWatts: Double?
         /// What the whole Mac is drawing right now, in watts.
@@ -32,6 +33,10 @@ final class PowerMonitor {
         var adapterWatts: Int?
         var adapterName: String?
         var lowPower = false
+
+        /// Energy in the battery now, and when full, in watt-hours.
+        var storedWh: Double? { zip(currentMAh, voltage).map { Double($0) * $1 / 1000 } }
+        var fullWh: Double? { zip(fullMAh, voltage).map { Double($0) * $1 / 1000 } }
     }
 
     private(set) var details = Details()
@@ -92,6 +97,7 @@ final class PowerMonitor {
         d.designCycles = num("DesignCycleCount9C").map(Int.init)
         d.currentMAh = num("AppleRawCurrentCapacity").map(Int.init)
         d.fullMAh = num("AppleRawMaxCapacity").map(Int.init)
+        if let v = num("Voltage"), v > 0 { d.voltage = Double(v) / 1000 }
         if let v = num("Voltage"), let a = num("Amperage"), a != 0 { d.batteryWatts = Double(v) * Double(a) / 1_000_000 }
         let telemetry = p["PowerTelemetryData"] as? [String: Any] ?? [:]
         if let load = (telemetry["SystemLoad"] as? NSNumber)?.int64Value, load > 0 { d.systemWatts = Double(load) / 1000 }
@@ -149,4 +155,9 @@ final class PowerMonitor {
         s.hasBattery = false
         return s
     }
+}
+
+private func zip<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
+    guard let a, let b else { return nil }
+    return (a, b)
 }

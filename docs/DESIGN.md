@@ -246,8 +246,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   page (1.3, owner request 2026-11-20): the body grows to 264 pt; a drawn battery (green charging, red at 20% or less
   on battery, bolt while plugged in), the percentage and what it's doing ("Charging · 1h 20m until full"), a Low Power
   badge when it's on; four glass stat tiles: maximum capacity (full-charge vs design capacity, "Normal" at 80% or
-  more), cycle count (of the design count), the charger's watts or the Mac's power draw, and time to full / left (or
-  the draw when there's no estimate); then the charge in mAh and a Battery Settings… button. Numbers refresh every 3 s
+  more), cycle count (of the design count), the charger's watts or the Mac's power draw, and a last tile that never repeats
+  the one beside it: time to full / left (macOS's estimate, or energy left over the power flowing, "At this rate"),
+  else what the Mac draws from the charger, else the energy stored in Wh; then the charge in mAh and a Battery Settings… button. Numbers refresh every 3 s
   while it's open. Temperature isn't shown: the battery doesn't report it.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
