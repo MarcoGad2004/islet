@@ -52,6 +52,9 @@ final class IslandAnimator {
         return m
     }
 
+    /// The hover swell as it is right now, mid-spring: the content scales with it (`IslandView`).
+    var hoverSwell: IslandMetrics { swellNow }
+
     private var swellNow: IslandMetrics {
         var m = IslandMetrics.zero
         for i in 0..<IslandMetrics.channelCount { m[i] = swell[i].value }

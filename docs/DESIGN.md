@@ -72,7 +72,8 @@ Used for the face scan and the expanded panel, regardless of the width check:
 Hover peek is the closed notch's hover shape. Over anything compact that is showing (wings, wide bar, chin), hover
 swells it instead: 12 pt wider and 3 pt taller (the chin's body 14 × 4), bottom corners + 2, on a springy bubble
 (0.32 s, damping 0.52). The swell rides on top of the shape's own motion on springs of its own, so it answers the
-pointer at once even mid-morph (wings springing out, the chin dropping) and lets go the same way. The panel, face scan
+pointer at once even mid-morph (wings springing out, the chin dropping) and lets go the same way. The content scales
+with the swell on the same spring (owner request, 2026-11-20), so its padding stays even. The panel, face scan
 and enrolment don't swell; nor does the island in menu bar or bezel mode.
 
 ## Motion
@@ -371,6 +372,11 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
   blurred 6 pt, 30%).
 - The panel's tiles, pills and buttons are glass (Liquid Glass lightly tinted white; before macOS 26, white at 8% with
   a hairline edge) instead of solid #1C1C1E.
+- Detail pages (Wi-Fi, Bluetooth, Mirroring, the Sound output list) have no box: the tile's card fades away as it
+  glides open and the page sits straight on the island. Rows are Control Center style (icon in a 24 pt circle, 34 pt
+  rows, a soft highlight under the pointer); the selected one (current network, output, connected device) sits on a
+  glass pill with its icon in a blue circle. Small caps section labels instead of dividers; the Settings… links are
+  small glass buttons.
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 

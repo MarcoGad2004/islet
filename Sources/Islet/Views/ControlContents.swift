@@ -2,23 +2,35 @@ import CoreGraphics
 import SwiftUI
 
 
+/// "Wi-Fi Settings…" and the like: a small glass button.
 struct SettingsLink: View {
     var title: String
     var pane: String
     var body: some View {
         Button { SystemSettings.open(pane) } label: {
-            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletCyan)
+            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
+                .padding(.horizontal, 10).frame(height: 22)
+                .background(IsletCard(shape: Capsule()))
+                .contentShape(Capsule())
         }.buttonStyle(.plain)
     }
 }
 
-private struct SwitchRow: View {
+// MARK: - Detail page parts (no box: the page sits straight on the island)
+
+/// The top of a detail page: the control's icon in a circle (blue when on), its name and state, and its switch.
+private struct SwitchRow<Icon: View>: View {
     var title: String
     var subtitle: String
     var on: Bool
     var set: (Bool) -> Void
+    @ViewBuilder var icon: () -> Icon
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(on ? Color(hex: 0x0A84FF) : Color.white.opacity(0.12))
+                icon().foregroundStyle(.white)
+            }.frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                 Text(subtitle).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
@@ -26,6 +38,70 @@ private struct SwitchRow: View {
             Spacer()
             Toggle("", isOn: Binding(get: { on }, set: set)).labelsHidden().toggleStyle(.switch).controlSize(.small).tint(.green)
         }
+        .padding(.horizontal, 8)
+    }
+}
+
+/// A small caps label over a group of rows.
+struct SectionLabel: View {
+    var text: String
+    var body: some View {
+        Text(text).font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
+            .padding(.leading, 8).padding(.top, 8).padding(.bottom, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// One row on a detail page, Control Center style: the icon in a small circle, the name, a detail on the right. It
+/// lights up under the pointer; the selected one (the network you're on, the current output, a connected device) sits
+/// on a glass pill with its icon in blue.
+struct DetailRow<Icon: View, Trailing: View>: View {
+    var title: String
+    var selected = false
+    var action: () -> Void
+    @ViewBuilder var icon: () -> Icon
+    @ViewBuilder var trailing: () -> Trailing
+    @State private var hover = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        Button(action: action) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle().fill(selected ? Color(hex: 0x0A84FF) : Color.white.opacity(0.1))
+                    icon().font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(selected ? Color.white : Color.isletSecondary)
+                }.frame(width: 24, height: 24)
+                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                Spacer(minLength: 6)
+                trailing()
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 34)
+            .background {
+                if selected { IsletCard(shape: shape) }
+                else { shape.fill(Color.white.opacity(hover ? 0.07 : 0)) }
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.15), value: hover)
+    }
+}
+
+/// The bottom of a detail page: a status on the left, the Settings button on the right.
+private struct DetailFooter<Status: View>: View {
+    var link: String
+    var pane: String
+    @ViewBuilder var status: () -> Status
+    var body: some View {
+        HStack(spacing: 8) {
+            status()
+            Spacer()
+            SettingsLink(title: link, pane: pane)
+        }
+        .padding(.leading, 8).padding(.bottom, 4)
     }
 }
 
@@ -100,32 +176,22 @@ struct SoundOutputList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("OUTPUT").font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
-                Spacer()
+            HStack(alignment: .lastTextBaseline) {
+                SectionLabel(text: "OUTPUT")
                 SettingsLink(title: "Sound Settings…", pane: SystemSettings.sound)
-            }.padding(.top, 8).padding(.bottom, 2)
+            }
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 2) {
                     ForEach(levels.devices) { d in
                         let icon = BluetoothController.icon(name: d.name, major: 0)
-                        Button { levels.selectOutput(d) } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: icon == "dot.radiowaves.left.and.right" ? "speaker.wave.2.fill" : icon)
-                                    .font(.system(size: 12)).frame(width: 20).foregroundStyle(Color.isletSecondary)
-                                Text(d.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                                Spacer()
-                                if d.name == levels.outputName { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF)) }
-                            }
-                            .frame(height: 28).contentShape(Rectangle())
-                        }.buttonStyle(.plain)
+                        DetailRow(title: d.name, selected: d.name == levels.outputName, action: { levels.selectOutput(d) }) {
+                            Image(systemName: icon == "dot.radiowaves.left.and.right" ? "speaker.wave.2.fill" : icon)
+                        } trailing: { EmptyView() }
                     }
                 }
             }
         }
-        .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
     }
 }
 
@@ -138,26 +204,23 @@ struct WiFiContent: View {
     @State private var password = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SwitchRow(title: "Wi-Fi", subtitle: Self.status(wifi), on: wifi.powerOn) { on in
+        VStack(alignment: .leading, spacing: 4) {
+            SwitchRow(title: "Wi-Fi", subtitle: Self.status(wifi), on: wifi.powerOn, set: { on in
                 wifi.setPower(on)
                 if on { Task { try? await Task.sleep(for: .seconds(2)); await wifi.scan() } }
-            }.padding(.top, 8)
-            Divider().overlay(Color(hex: 0x38383A))
+            }) { Image(systemName: wifi.powerOn ? "wifi" : "wifi.slash").font(.system(size: 13, weight: .semibold)) }
+            .padding(.top, 6)
             Group {
                 if !wifi.powerOn { message("Turn Wi-Fi on to see networks.") }
                 else if let net = asking { passwordPrompt(net) }
                 else if !wifi.locationAllowed { locationPrompt }
                 else { list }
             }.frame(maxHeight: .infinity)
-            HStack {
+            DetailFooter(link: "Wi-Fi Settings…", pane: SystemSettings.wifi) {
                 if let e = wifi.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
                 if wifi.scanning && !wifi.networks.isEmpty { ProgressView().controlSize(.mini) }
-                Spacer()
-                SettingsLink(title: "Wi-Fi Settings…", pane: SystemSettings.wifi)
-            }.padding(.bottom, 6)
+            }
         }
-        .padding(.horizontal, 12)
     }
 
     /// "Off", "Not connected", the network, or "Personal Hotspot · Marco's iPhone".
@@ -187,23 +250,22 @@ struct WiFiContent: View {
     }
 
     private var list: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        let current = wifi.networks.filter { $0.ssid == wifi.ssid }
+        let others = wifi.networks.filter { $0.ssid != wifi.ssid }
+        return ScrollView {
+            VStack(spacing: 2) {
                 if wifi.scanning && wifi.networks.isEmpty && phones.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
-                ForEach(wifi.networks.filter { $0.ssid == wifi.ssid }) { n in row(n) }
+                ForEach(current) { n in row(n) }
+                if !phones.isEmpty || !others.isEmpty { SectionLabel(text: current.isEmpty ? "NETWORKS" : "OTHER NETWORKS") }
                 ForEach(phones) { h in
-                    Button { Task { await wifi.join(h) } } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "personalhotspot").font(.system(size: 12)).frame(width: 20).foregroundStyle(Color.isletSecondary)
-                            Text(h.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            Spacer()
-                            if wifi.joining == h.name { ProgressView().controlSize(.small) }
-                            else { hotspotDetail(bars: h.bars, battery: h.battery) }
-                        }
-                        .frame(height: 26).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    DetailRow(title: h.name, action: { Task { await wifi.join(h) } }) {
+                        Image(systemName: "personalhotspot")
+                    } trailing: {
+                        if wifi.joining == h.name { ProgressView().controlSize(.small) }
+                        else { hotspotDetail(bars: h.bars, battery: h.battery) }
+                    }
                 }
-                ForEach(wifi.networks.filter { $0.ssid != wifi.ssid }) { n in row(n) }
+                ForEach(others) { n in row(n) }
             }
         }
     }
@@ -213,31 +275,25 @@ struct WiFiContent: View {
         let phone = wifi.instantHotspots.first { $0.name == n.ssid }
         let connected = n.ssid == wifi.ssid
         let connectedHotspot = connected && wifi.hotspot
-        Button { tap(n) } label: {
-            HStack(spacing: 10) {
-                Group {
-                    if connectedHotspot { Image(systemName: "personalhotspot").foregroundStyle(Color.isletGreen) }
-                    else if n.hotspot || phone != nil { Image(systemName: "personalhotspot").foregroundStyle(Color.isletSecondary) }
-                    else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3).foregroundStyle(Color.isletSecondary) }
-                }.font(.system(size: 12)).frame(width: 20)
-                Text(n.ssid).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                if n.secured && phone == nil {
-                    Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary)
-                }
+        DetailRow(title: n.ssid, selected: connected, action: { tap(n) }) {
+            if n.hotspot || phone != nil || connectedHotspot { Image(systemName: "personalhotspot") }
+            else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3) }
+        } trailing: {
+            HStack(spacing: 8) {
                 if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
-                Spacer()
                 if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                 else if connected {
                     Button("Disconnect") { Task { await wifi.disconnect() } }
-                        .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletCyan)
-                        .padding(.horizontal, 8).frame(height: 18).background(Capsule().fill(Color(hex: 0x2C2C2E)))
-                    Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x0A84FF))
+                        .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
+                        .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
                 }
                 else if let phone { hotspotDetail(bars: phone.bars, battery: phone.battery) }
                 else if n.known { Text("Saved").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
+                if n.secured && phone == nil && !connected {
+                    Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary)
+                }
             }
-            .frame(height: 26).contentShape(Rectangle())
-        }.buttonStyle(.plain)
+        }
     }
 
     /// Cellular bars and a battery icon, as Wi-Fi Settings shows them for a phone. The phone only reports its battery
@@ -285,7 +341,7 @@ struct WiFiContent: View {
                 Button("Join") { join(n) }.controlSize(.small).disabled(!ready(n) || wifi.joining != nil)
                 Button("Cancel") { asking = nil; wifi.error = nil }.controlSize(.small)
             }
-        }.frame(maxHeight: .infinity)
+        }.padding(.horizontal, 8).frame(maxHeight: .infinity)
     }
 
     private func ready(_ n: WiFiNetwork) -> Bool { !password.isEmpty && (!n.enterprise || !username.isEmpty) }
@@ -307,40 +363,35 @@ struct BluetoothContent: View {
     let bt: BluetoothController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SwitchRow(title: "Bluetooth", subtitle: bt.powerOn ? "On" : "Off", on: bt.powerOn) { bt.setPower($0) }.padding(.top, 8)
-            Divider().overlay(Color(hex: 0x38383A))
+        VStack(alignment: .leading, spacing: 4) {
+            SwitchRow(title: "Bluetooth", subtitle: bt.powerOn ? "On" : "Off", on: bt.powerOn, set: { bt.setPower($0) }) {
+                BluetoothGlyph().frame(width: 11, height: 16)
+            }
+            .padding(.top, 6)
             Group {
                 if !bt.powerOn {
                     Text("Turn Bluetooth on to see your devices.").font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        VStack(spacing: 0) {
+                        VStack(spacing: 2) {
+                            if !bt.devices.isEmpty { SectionLabel(text: "MY DEVICES") }
                             ForEach(bt.devices) { d in
-                                Button { Task { await bt.toggle(d) } } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: d.icon).font(.system(size: 12)).frame(width: 20)
-                                            .foregroundStyle(d.connected ? Color(hex: 0x0A84FF) : Color.isletSecondary)
-                                        Text(d.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                                        Spacer()
-                                        if bt.busy.contains(d.id) { ProgressView().controlSize(.small) }
-                                        else { Text(d.connected ? "Connected" : "Not connected").font(.system(size: 10)).foregroundStyle(d.connected ? Color.isletSecondary : Color.isletTertiary) }
-                                    }
-                                    .frame(height: 26).contentShape(Rectangle())
-                                }.buttonStyle(.plain)
+                                DetailRow(title: d.name, selected: d.connected, action: { Task { await bt.toggle(d) } }) {
+                                    Image(systemName: d.icon)
+                                } trailing: {
+                                    if bt.busy.contains(d.id) { ProgressView().controlSize(.small) }
+                                    else if d.connected { Text("Connected").font(.system(size: 10)).foregroundStyle(Color.isletSecondary) }
+                                }
                             }
                         }
                     }
                 }
             }.frame(maxHeight: .infinity)
-            HStack {
+            DetailFooter(link: "Bluetooth Settings…", pane: SystemSettings.bluetooth) {
                 if let e = bt.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
-                Spacer()
-                SettingsLink(title: "Bluetooth Settings…", pane: SystemSettings.bluetooth)
-            }.padding(.bottom, 6)
+            }
         }
-        .padding(.horizontal, 12)
     }
 }
 
@@ -350,34 +401,27 @@ struct MirroringContent: View {
     let sidecar: SidecarController?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("MIRROR OR EXTEND TO").font(.system(size: 10, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary).padding(.top, 8)
+        VStack(alignment: .leading, spacing: 2) {
+            SectionLabel(text: "MIRROR OR EXTEND TO")
             if let s = sidecar, !s.devices.isEmpty {
                 ForEach(s.devices) { d in
-                    Button { Task { await s.toggle(d) } } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "ipad").font(.system(size: 13)).frame(width: 20)
-                                .foregroundStyle(d.connected ? Color(hex: 0x0A84FF) : Color.isletSecondary)
-                            Text(d.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            Spacer()
-                            if s.busy == d.id { ProgressView().controlSize(.small) }
-                            else { Text(d.connected ? "Connected" : "Sidecar").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
-                        }
-                        .frame(height: 28).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    DetailRow(title: d.name, selected: d.connected, action: { Task { await s.toggle(d) } }) {
+                        Image(systemName: "ipad")
+                    } trailing: {
+                        if s.busy == d.id { ProgressView().controlSize(.small) }
+                        else { Text(d.connected ? "Connected" : "Sidecar").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
+                    }
                 }
             } else {
                 Text("No iPad nearby. Make sure it's signed in to the same Apple Account with Bluetooth and Wi-Fi on.")
                     .font(.system(size: 11)).foregroundStyle(Color.isletSecondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
             }
-            if let e = sidecar?.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
+            if let e = sidecar?.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1).padding(.horizontal, 8) }
             Spacer(minLength: 0)
-            HStack {
+            DetailFooter(link: "Display Settings…", pane: SystemSettings.displays) {
                 Text("TVs and AirPlay displays: use Display Settings.").font(.system(size: 10)).foregroundStyle(Color.isletTertiary)
-                Spacer()
-                SettingsLink(title: "Display Settings…", pane: SystemSettings.displays)
-            }.padding(.bottom, 6)
+            }
         }
-        .padding(.horizontal, 12)
     }
 }

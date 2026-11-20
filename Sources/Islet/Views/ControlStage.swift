@@ -236,7 +236,8 @@ struct ControlStage: View {
         .frame(width: r.width, height: r.height, alignment: .topLeading)
         // The fill is the card's own background, sized by the card's frame, and drawn afresh on each page change:
         // a fill that shrank back from the detail page sometimes stopped drawing, leaving the tile without its card.
-        .background(IsletCard(shape: shape).id(active).transition(.identity))
+        // Open, the page sits straight on the island: the tile's box fades away as it glides out, and back as it returns.
+        .background(IsletCard(shape: shape).id(active).transition(.identity).opacity(active ? 0 : 1))
         .clipShape(shape)
         .offset(x: r.minX, y: r.minY)
         .opacity(mode == .controls || active ? 1 : 0)

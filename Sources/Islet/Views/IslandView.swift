@@ -29,6 +29,11 @@ struct IslandView: View {
         let top = floating ? IslandLayout.floatingContentTop : nh
         let shape = floating ? AnyShape(CardShape(m: m)) : AnyShape(IslandShape(m: m))
         let content = store.content
+        // Hovering something that's showing swells the shape; the content grows with it on the same spring, so its
+        // padding stays even. (The dormant notch's peek has no content.)
+        let swell = store.animator.hoverSwell
+        let unswollen = max(m.sw - swell.sw, m.bw - swell.bw)
+        let swellScale = unswollen > 1 ? m.width / unswollen : 1
         // Bezel mode's floating card keeps its black drop (its neck is drawn by thresholding black).
         let glass = glassLook && !floating
         // The hint's body grows and folds under the lock bar without remounting the padlock.
@@ -75,6 +80,7 @@ struct IslandView: View {
                 }
             }
             .animation(.easeOut(duration: 0.3), value: key)
+            .scaleEffect(swellScale, anchor: .top)
             // Floating, everything above sits at the card's top, wherever it is on its way.
             .offset(y: floating && pres != .peek ? m.y : 0)
             .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)

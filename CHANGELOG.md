@@ -8,9 +8,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Glass look: like Siri's island on the iPhone, the island stays black and a strip along its bottom edge fades into
   glass, the desktop showing through blurred, with a light rim and a soft coloured glow. The panel's tiles and buttons
   are glass too. Turn it off in Settings → General → "Glass look".
+- Cleaner Wi-Fi, Bluetooth, Screen Mirroring and Sound pages: no grey box, the page sits straight on the island, with
+  Control Center style rows that light up under the pointer and the one in use on a glass pill.
 - The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a
   little with a springy bubble, then settles back when you move away. It reacts straight away, even in the middle of
-  an animation (wings springing out, the chin dropping), instead of waiting for it to finish.
+  an animation (wings springing out, the chin dropping), instead of waiting for it to finish. What it shows grows with it, so the spacing stays even.
 
 ## 1.2.3 (2026-11-19)
 
