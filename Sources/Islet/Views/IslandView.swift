@@ -3,6 +3,7 @@ import SwiftUI
 /// The island: one black shape that morphs between presentations. Content views arrive with each feature.
 struct IslandView: View {
     let store: IslandStore
+    @AppStorage(GlassLook.key) private var glassLook = true
 
     /// Content fades in after the shape has mostly settled: 0.12 s for wings, 0.36 s for body shapes.
     private func fade(_ delay: Double = 0.36) -> AnyTransition {
@@ -28,10 +29,14 @@ struct IslandView: View {
         let top = floating ? IslandLayout.floatingContentTop : nh
         let shape = floating ? AnyShape(CardShape(m: m)) : AnyShape(IslandShape(m: m))
         let content = store.content
+        // Bezel mode's floating card keeps its black drop (its neck is drawn by thresholding black).
+        let glass = glassLook && !floating
         // The hint's body grows and folds under the lock bar without remounting the padlock.
         let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
-            if floating { BezelBackdrop(m: m) } else { IslandShape(m: m).fill(Color.black) }
+            if floating { BezelBackdrop(m: m) }
+            else if glass { GlassIsland(m: m, notchHeight: nh) }
+            else { IslandShape(m: m).fill(Color.black) }
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
             Group {
                 if store.base == .scan, let scan = store.scan {
@@ -75,6 +80,7 @@ struct IslandView: View {
             .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)
             .clipShape(shape)
         }
+        .environment(\.isletGlass, glass)
         .contentShape(shape)
         .onTapGesture { store.click() }
         .frame(width: NotchGeometry.panelWidth,

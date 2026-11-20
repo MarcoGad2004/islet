@@ -1,7 +1,7 @@
 import CoreGraphics
 import SwiftUI
 
-private let cardFill = Color(hex: 0x1C1C1E)
+private let cardFill = IsletCardFill()
 
 struct SettingsLink: View {
     var title: String

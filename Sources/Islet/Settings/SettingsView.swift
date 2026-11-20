@@ -12,6 +12,7 @@ struct SettingsView: View {
     var runSetup: () -> Void = {}
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @AppStorage(GlassLook.key) private var glassLook = true
     private let updater = Updater.shared
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
 
@@ -35,6 +36,9 @@ struct SettingsView: View {
                 Text("Open settings from the gear in the expanded notch (click the notch). Without a notch the icon always shows.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
+            Toggle("Glass look", isOn: $glassLook)
+            Text("Below the notch the island fades from black into glass. Off, it is solid black.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             NotchChoice().padding(.vertical, 4)
             permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
                           detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }

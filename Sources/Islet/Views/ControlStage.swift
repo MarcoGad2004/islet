@@ -37,7 +37,7 @@ struct ControlStage: View {
     private let W: CGFloat = 468
     private var H: CGFloat { store.expandedBodyHeight - 32 }
     private let glide = Animation.spring(response: 0.46, dampingFraction: 0.72)
-    private let cardFill = Color(hex: 0x1C1C1E)
+    private let cardFill = IsletCardFill()
     private let tileW: CGFloat = 109.5
 
     private func tile(_ i: Int) -> CGRect { CGRect(x: CGFloat(i) * (109.5 + 10), y: 36, width: 109.5, height: 74) }
@@ -373,7 +373,7 @@ struct SliderCard: View {
         .foregroundStyle(Color.isletText)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x1C1C1E)))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(IsletCardFill()))
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture { if !large { expand() } }
     }
