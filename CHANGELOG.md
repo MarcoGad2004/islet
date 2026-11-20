@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.3.0 (unreleased)
+## 1.3 (2026-11-20)
 
 - Glass look: like Siri's island on the iPhone, the island stays black and a strip along its bottom edge fades into
   glass, the desktop showing through blurred, with a light rim and a soft coloured glow. The panel's tiles and buttons
@@ -20,7 +20,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   Control Center style rows that light up under the pointer and the one in use on a glass pill.
 - The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a
   little with a springy bubble, then settles back when you move away. It reacts straight away, even in the middle of
-  an animation (wings springing out, the chin dropping), instead of waiting for it to finish. What it shows grows with it, so the spacing stays even.
+  an animation (wings springing out, the chin dropping), instead of waiting for it to finish. What it shows grows
+  with it, so the spacing stays even.
 
 ## 1.2.3 (2026-11-19)
 

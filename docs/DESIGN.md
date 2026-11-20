@@ -375,7 +375,7 @@ style is one of:
 
 With no island, or one that only opens from the icon, the menu bar icon always shows.
 
-## Glass (1.3, in progress)
+## Glass (1.3)
 
 Owner request (2026-11-20): a Liquid Glass look like Siri's island on the iPhone. Revised after the first try: the
 island stays mostly black, and only a strip along its bottom edge is glass. To tune by eye on the real display:
