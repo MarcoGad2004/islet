@@ -33,8 +33,11 @@ final class IslandStore {
     private(set) var skip: SkipState?
     @ObservationIgnored private var skipSpring: ValueSpring?
     @ObservationIgnored private var skipTween: Tween?
-    /// Finger travel that pulls the neighbouring song all the way in.
-    static let skipDistance: Double = 80
+    /// Finger travel that pulls the neighbouring song half way in (the commit point). The pull resists more the
+    /// further it goes, like stretching a band: progress = 1 - 1 / (1 + travel / skipDistance), so the content leads
+    /// the fingers a little at first and trails them more and more toward the commit point; it never gets all the way
+    /// in under the fingers (the landing spring does that).
+    static let skipDistance: Double = 75
     /// Swiping hidden media back: the peek's colour gathers into the artwork (`PeekMorph`), so the real artwork
     /// waits until it has.
     private(set) var morphFromPeek: Date?
@@ -351,7 +354,7 @@ final class IslandStore {
         guard var s = skip, case .tracking = s.phase else { return }
         if dx < 0 { s.dir = 1 } else if dx > 0 { s.dir = -1 }
         let wasArmed = s.armed
-        s.progress = Self.band(abs(dx) / Self.skipDistance)
+        s.progress = 1 - 1 / (1 + abs(dx) / Self.skipDistance)
         // A light tap on the trackpad as it crosses half way, either way.
         if s.armed != wasArmed { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         skip = s
@@ -363,15 +366,17 @@ final class IslandStore {
     func skipEnded(velocity: Double) {
         guard var s = skip, case .tracking = s.phase else { return }
         guard s.dir != 0 else { skip = nil; refresh(); return }
-        let pv = (s.dir == 1 ? -velocity : velocity) / Self.skipDistance // progress per second, + is further in
-        let land = pv > 2.5 ? s.progress > 0.12 : (pv < -2.5 ? false : s.armed)
+        // Progress per second (+ is further in): the fingers' speed through the pull's resistance at this point.
+        let pv = (s.dir == 1 ? -velocity : velocity) * (1 - s.progress) * (1 - s.progress) / Self.skipDistance
+        // A flick counts only when it's really thrown and already a quarter in.
+        let land = pv > 3 ? s.progress > 0.25 : (pv < -2 ? false : s.armed)
         if land { s.dir == 1 ? mediaMonitor?.next() : mediaMonitor?.previous() }
         s.phase = .releasing(landing: land)
         skip = s
         let response = land ? min(max(0.34 - abs(pv) * 0.012, 0.18), 0.34) : 0.3
         skipSpring?.stop()
         skipSpring = ValueSpring(from: s.progress, to: land ? 1 : 0, velocity: pv, response: response,
-                                 damping: land ? 0.82 : 0.9,
+                                 damping: land ? 0.8 : 0.7, // back out with a little elastic snap
                                  update: { [weak self] p in self?.skip?.progress = p; self?.updateSkipDepth() },
                                  done: { [weak self] in land ? self?.skipLanded() : self?.clearSkip() })
     }
@@ -409,9 +414,6 @@ final class IslandStore {
         if let f = s.landedFade { depth *= 1 - f * f * (3 - 2 * f) }
         animator.setExtra(IslandMetrics(sw: 0, sh: depth, bw: 0, bh: 0, tr: 0, br: 0, ic: 0))
     }
-
-    /// Rubber band past a full pull.
-    private static func band(_ p: Double) -> Double { p <= 1 ? p : 1 + 0.12 * (1 - exp(-(p - 1) * 4)) }
 
 
     func dismiss() { collapse() }

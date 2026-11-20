@@ -212,10 +212,13 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     they push one step forward.
   - On the peek the colour stays put: the peek deepens up to 15 pt and the icon is pulled in from that side under the
     camera. The colour changes with the song.
-  - The fingers drive it directly: 80 pt of travel pulls the neighbour all the way in, rubber-banding past that. Half way
-    lights the icon and taps the trackpad. The lift comes from the scroll event's phase (momentum never counts), and a
-    spring takes over from where the fingers left it at their speed: past half way, or flung in (> 2.5/s past 12%), the
-    command goes at once and it lands (response 0.18-0.34 s by speed, damping 0.82); otherwise it springs back (0.3 s).
+  - The fingers drive it directly, against resistance (owner, 2026-11-20: "you have to pull them in and out"): progress
+    = 1 - 1 / (1 + travel / 75 pt), so it trails the fingers more the further it goes and the commit point (half way)
+    takes 75 pt. The names sit 110 pt apart in the wide bar, 100 in the chin. Half way lights the icon and taps the
+    trackpad. The lift comes from the scroll event's phase (momentum never counts), and a spring takes over from where
+    the fingers left it at their speed through the resistance: past half way, or really thrown (> 3/s, a quarter in),
+    the command goes at once and it lands (response 0.18-0.34 s by speed, damping 0.8); otherwise it snaps back out with
+    a little elastic overshoot (0.3 s, damping 0.7).
     After landing the new name fades in over 0.24 s and the slot hands back from 0.33 s.
 - **Expanded (media playing)**: media only. Header "NOW PLAYING" and a collapse chevron. Artwork
   80 pt (radius 14), title (17 semibold), artist, album, previous / play-pause / next on the right,

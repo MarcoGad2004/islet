@@ -51,7 +51,7 @@ struct CompactContentView: View {
                     }
                     if levelBody, case .media = content {
                         // Hovered media: the song's name in the body; it rolls on a skip or previous swipe.
-                        MediaTitleLane(store: store, fontSize: 12, spacing: 170)
+                        MediaTitleLane(store: store, fontSize: 12, spacing: 110)
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                    height: IslandLayout.levelBodyHeight).offset(y: -1)
                             .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
@@ -168,7 +168,7 @@ struct CompactContentView: View {
                         ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing)
                             .opacity(store.morphFromPeek == nil ? 1 : 0)
                     }
-                    MediaTitleLane(store: store, fontSize: 13, spacing: 150)
+                    MediaTitleLane(store: store, fontSize: 13, spacing: 100)
                     MediaSlot(store: store, forward: true) { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
                 }
             }
