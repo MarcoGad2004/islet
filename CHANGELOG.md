@@ -18,9 +18,6 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Two fingers over a list in the panel (a conversation, notifications, Wi-Fi, Bluetooth) scroll the list; swiping up
   only closes the panel when the list can't scroll any further that way.
 - Settings > General can turn notifications off, hide the message text, or keep Messages opening in the Messages app.
-
-## 1.3.1 (2026-11-20)
-
 - Music leaves the notch while the app playing it is in front (you're already in the player) and comes back when you
   switch to another app. The panel's media page still has it.
 - Swipe playing media away and hover the notch: instead of the old green dot, the notch picks up the album's colours, the
