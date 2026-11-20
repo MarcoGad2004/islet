@@ -37,7 +37,7 @@ final class IslandStore {
     /// further it goes, like stretching a band: progress = 1 - 1 / (1 + travel / skipDistance), so the content leads
     /// the fingers a little at first and trails them more and more toward the commit point; it never gets all the way
     /// in under the fingers (the landing spring does that).
-    static let skipDistance: Double = 75
+    static let skipDistance: Double = 95
     /// Swiping hidden media back: the peek's colour gathers into the artwork (`PeekMorph`), so the real artwork
     /// waits until it has.
     private(set) var morphFromPeek: Date?
@@ -368,8 +368,9 @@ final class IslandStore {
         guard s.dir != 0 else { skip = nil; refresh(); return }
         // Progress per second (+ is further in): the fingers' speed through the pull's resistance at this point.
         let pv = (s.dir == 1 ? -velocity : velocity) * (1 - s.progress) * (1 - s.progress) / Self.skipDistance
-        // A flick counts only when it's really thrown and already a quarter in.
-        let land = pv > 3 ? s.progress > 0.25 : (pv < -2 ? false : s.armed)
+        // Only past the line counts (the ring around the icon is full and it has turned solid), however fast the
+        // fingers were going; throwing it back out from past the line cancels.
+        let land = s.armed && pv > -2
         if land { s.dir == 1 ? mediaMonitor?.next() : mediaMonitor?.previous() }
         s.phase = .releasing(landing: land)
         skip = s
@@ -410,7 +411,7 @@ final class IslandStore {
     /// On the peek, the shape deepens with the swipe to make room for the icon, and eases back after landing.
     private func updateSkipDepth() {
         guard let s = skip, presentation == .peek else { animator.setExtra(.zero); return }
-        var depth = 15 * SkipState.clamp(s.progress * 1.6)
+        var depth = 18 * SkipState.clamp(s.progress * 1.6)
         if let f = s.landedFade { depth *= 1 - f * f * (3 - 2 * f) }
         animator.setExtra(IslandMetrics(sw: 0, sh: depth, bw: 0, bh: 0, tr: 0, br: 0, ic: 0))
     }

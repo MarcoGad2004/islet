@@ -210,13 +210,15 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     the new song once it plays). Skip plays in the right wing, where the app icon shrinks away; previous in the left,
     where the artwork does. The icon is three triangles (two showing) that lean with the fingers; when the song changes
     they push one step forward.
-  - On the peek the colour stays put: the peek deepens up to 15 pt and the icon is pulled in from that side under the
+  - On the peek the colour stays put: the peek deepens up to 18 pt and the icon is pulled in from that side under the
     camera. The colour changes with the song.
   - The fingers drive it directly, against resistance (owner, 2026-11-20: "you have to pull them in and out"): progress
-    = 1 - 1 / (1 + travel / 75 pt), so it trails the fingers more the further it goes and the commit point (half way)
-    takes 75 pt. The names sit 110 pt apart in the wide bar, 100 in the chin. Half way lights the icon and taps the
+    = 1 - 1 / (1 + travel / 95 pt), so it trails the fingers more the further it goes and the commit point (half way)
+    takes 95 pt. The icon sits in a ring that fills as you pull; at the line it turns into a solid white disc with the
+    icon in black (with a pop and a trackpad tap). Only that counts: let go before it and it always springs back, however
+    fast the fingers were going (owner, 2026-11-20). The names sit 110 pt apart in the wide bar, 100 in the chin. Half way lights the icon and taps the
     trackpad. The lift comes from the scroll event's phase (momentum never counts), and a spring takes over from where
-    the fingers left it at their speed through the resistance: past half way, or really thrown (> 3/s, a quarter in),
+    the fingers left it at their speed through the resistance: past the line,
     the command goes at once and it lands (response 0.18-0.34 s by speed, damping 0.8); otherwise it snaps back out with
     a little elastic overshoot (0.3 s, damping 0.7).
     After landing the new name fades in over 0.24 s and the slot hands back from 0.33 s.

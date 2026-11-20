@@ -11,6 +11,9 @@ struct SkipGlyph: View {
     var lean: Double = 0
     var armed = false
     var pushes = 0
+    var color: Color = .isletText
+    /// Inside `SkipIndicator` the ring shows the state, so the triangles stay at full strength.
+    var dimsUntilArmed = true
     @State private var shift: CGFloat = 0
 
     var body: some View {
@@ -24,8 +27,8 @@ struct SkipGlyph: View {
         .frame(width: size, height: size)
         .clipped()
         .scaleEffect(x: forward ? 1 : -1, y: 1)
-        .opacity(armed ? 1 : 0.55)
-        .scaleEffect(armed ? 1 : 0.9)
+        .opacity(armed || !dimsUntilArmed ? 1 : 0.55)
+        .scaleEffect(armed || !dimsUntilArmed ? 1 : 0.9)
         .animation(.spring(response: 0.25, dampingFraction: 0.5), value: armed)
         .onChange(of: pushes) { _, _ in
             shift = 0
@@ -37,7 +40,7 @@ struct SkipGlyph: View {
     }
 
     private func tri(_ w: CGFloat, _ h: CGFloat) -> some View {
-        Triangle().fill(Color.isletText).frame(width: w, height: h)
+        Triangle().fill(color).frame(width: w, height: h)
     }
 
     private struct Triangle: Shape {
@@ -49,6 +52,35 @@ struct SkipGlyph: View {
             p.closeSubpath()
             return p
         }
+    }
+}
+
+/// The skip icon inside a ring that fills as the fingers pull. When it's full the swipe will register: the ring becomes
+/// a solid white disc with the icon cut in dark, with a pop. Let go before that and nothing happens.
+struct SkipIndicator: View {
+    var forward: Bool
+    var size: CGFloat
+    /// The pull, 0...1 (the line is at 0.5).
+    var progress: Double
+    var armed: Bool
+    var pushes: Int
+
+    var body: some View {
+        let fill = SkipState.clamp(progress / 0.5)
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+            Circle().trim(from: 0, to: armed ? 1 : fill)
+                .stroke(Color.isletText, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .scaleEffect(x: forward ? 1 : -1, y: 1)
+            Circle().fill(Color.isletText).scaleEffect(armed ? 1 : 0.4).opacity(armed ? 1 : 0)
+            SkipGlyph(forward: forward, size: size * 0.62, lean: armed ? 0 : fill, armed: true, pushes: pushes,
+                      color: armed ? .black : .isletText, dimsUntilArmed: false)
+                .opacity(armed ? 1 : 0.5 + 0.5 * fill)
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(armed ? 1.08 : 1)
+        .animation(.spring(response: 0.26, dampingFraction: 0.55), value: armed)
     }
 }
 
@@ -68,10 +100,10 @@ struct MediaSlot<Content: View>: View {
         ZStack {
             content.opacity(1 - taken).scaleEffect(1 - 0.35 * taken)
             if mine, let s {
-                SkipGlyph(forward: forward, size: iconSize, lean: s.landedFade == nil ? SkipState.clamp(s.progress) : 0,
-                          armed: s.armed || s.landedFade != nil, pushes: s.pushes)
+                SkipIndicator(forward: forward, size: 22, progress: s.landedFade == nil ? s.progress : 1,
+                              armed: s.armed || s.landedFade != nil, pushes: s.pushes)
                     .opacity(s.iconOpacity)
-                    .scaleEffect(0.5 + 0.5 * SkipState.clamp(s.progress * 1.6))
+                    .scaleEffect(0.6 + 0.4 * SkipState.clamp(s.progress * 2))
             }
         }
     }
@@ -145,11 +177,12 @@ struct MediaPeekView: View {
                 // In from the side the new song comes from: the right for next, the left for previous.
                 let x = CGFloat(s.dir) * 44 * (1 - (s.landedFade == nil ? p : 1))
                 let depth = height - notchHeight - 6
-                SkipGlyph(forward: s.dir == 1, size: 11, armed: s.armed || s.landedFade != nil, pushes: s.pushes)
+                SkipIndicator(forward: s.dir == 1, size: 14, progress: s.landedFade == nil ? s.progress : 1,
+                              armed: s.armed || s.landedFade != nil, pushes: s.pushes)
                     .opacity(s.landedFade.map { 1 - SkipState.clamp(($0 - 0.5) / 0.4) } ?? SkipState.clamp(p * 2.2))
-                    .scaleEffect(0.6 + 0.4 * p)
+                    .scaleEffect(0.6 + 0.4 * SkipState.clamp(p * 2))
                     .offset(x: x)
-                    .padding(.top, notchHeight + max(0, depth) / 2 - 5.5)
+                    .padding(.top, notchHeight + max(0, depth) / 2 - 7)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
