@@ -69,7 +69,11 @@ Used for the face scan and the expanded panel, regardless of the width check:
 | Face scan     | stem + notch-wide × 150 body      | bottom 44          |
 | Expanded      | stem + 500 × 216 body             | top 16, bottom 30  |
 
-Hover peek only happens when nothing is showing.
+Hover peek is the closed notch's hover shape. Over anything compact that is showing (wings, wide bar, chin), hover
+swells it instead: 12 pt wider and 3 pt taller (the chin's body 14 × 4), bottom corners + 2, on a springy bubble
+(0.32 s, damping 0.52). The swell rides on top of the shape's own motion on springs of its own, so it answers the
+pointer at once even mid-morph (wings springing out, the chin dropping) and lets go the same way. The panel, face scan
+and enrolment don't swell; nor does the island in menu bar or bezel mode.
 
 ## Motion
 

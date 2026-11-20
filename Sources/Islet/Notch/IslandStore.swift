@@ -183,6 +183,25 @@ final class IslandStore {
 
     private func refresh() {
         if let m = targetMetrics() { animator.go(to: m) }
+        animator.setSwell(hoverSwell)
+    }
+
+    /// With the pointer over something showing, the island swells a little (DESIGN.md "Hover"). It rides on top of
+    /// the shape's own motion, so it answers straight away even mid-morph. The closed notch has its own peek shape,
+    /// and the panel, scan and enrolment don't swell.
+    private var hoverSwell: IslandMetrics {
+        guard pointerInside, !paused, geometry?.mode == .notch else { return .zero }
+        let w = IslandLayout.hoverSwellWidth, h = IslandLayout.hoverSwellHeight
+        switch presentation {
+        case .wings, .lockWings, .eventWings:
+            return IslandMetrics(sw: w, sh: h, bw: w, bh: 0, tr: 0, br: 2, ic: 0)
+        case .levelWings, .lockHint:
+            return IslandMetrics(sw: w, sh: 0, bw: w, bh: h, tr: 0, br: 2, ic: 0)
+        case .chin:
+            return IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
+        default:
+            return .zero
+        }
     }
 
     // MARK: Pointer and hit testing

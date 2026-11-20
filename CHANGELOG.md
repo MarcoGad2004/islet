@@ -3,6 +3,12 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.2.4 (unreleased)
+
+- The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a
+  little with a springy bubble, then settles back when you move away. It reacts straight away, even in the middle of
+  an animation (wings springing out, the chin dropping), instead of waiting for it to finish.
+
 ## 1.2.3 (2026-11-19)
 
 - Islet checks for updates on its own: about a minute after it opens, then every 6 hours (and again after the Mac

@@ -17,6 +17,9 @@ enum IslandLayout {
     static let eventWing: Double = 120
     static let peekExtraWidth: Double = 16
     static let peekExtraHeight: Double = 6
+    /// Hover over something showing (wings, wide bar, chin): it swells this much wider and taller, on a springy bubble.
+    static let hoverSwellWidth: Double = 12
+    static let hoverSwellHeight: Double = 3
     /// Volume and brightness in the wide bar: icon left, number right, and the 16-step bar in a short body below.
     static let levelBodyHeight: CGFloat = 26
     static let levelSideInset: CGFloat = 20
@@ -81,6 +84,14 @@ struct IslandMetrics: Equatable {
 
     var width: Double { max(sw, bw) }
     var height: Double { sh + bh }
+
+    static let zero = IslandMetrics(sw: 0, sh: 0, bw: 0, bh: 0, tr: 0, br: 0, ic: 0)
+
+    static func + (a: IslandMetrics, b: IslandMetrics) -> IslandMetrics {
+        var m = a
+        for i in 0..<channelCount { m[i] += b[i] }
+        return m
+    }
 }
 
 extension Presentation {

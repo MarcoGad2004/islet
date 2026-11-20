@@ -16,6 +16,10 @@ final class IslandAnimator {
     }
 
     private var channels = [Channel](repeating: Channel(), count: IslandMetrics.channelCount)
+    /// Hover swell: a small bulge added on top of the shape on springs of its own, so the island answers the pointer
+    /// at once whatever it is in the middle of (wings springing out, the chin dropping), without re-planning that motion.
+    private var swell = [Channel](repeating: Channel(), count: IslandMetrics.channelCount)
+    private static let swellSpring = Spring(response: 0.32, damping: 0.52)
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
     /// Closing into the notch runs in two legs: into a slightly swollen pill, then down to this.
@@ -38,7 +42,31 @@ final class IslandAnimator {
         for i in 0..<IslandMetrics.channelCount {
             channels[i] = Channel(value: target[i], velocity: 0, target: target[i])
         }
-        metrics = target
+        metrics = target + swellNow
+    }
+
+    /// The shape without the hover swell: what the motion plans and the close legs look at.
+    private var base: IslandMetrics {
+        var m = metrics
+        for i in 0..<IslandMetrics.channelCount { m[i] = channels[i].value }
+        return m
+    }
+
+    private var swellNow: IslandMetrics {
+        var m = IslandMetrics.zero
+        for i in 0..<IslandMetrics.channelCount { m[i] = swell[i].value }
+        return m
+    }
+
+    /// Sets the hover swell (zero to let it go). It keeps its momentum when it changes mid-bounce.
+    func setSwell(_ s: IslandMetrics) {
+        var changed = false
+        for i in 0..<IslandMetrics.channelCount where swell[i].target != s[i] {
+            swell[i].target = s[i]
+            swell[i].spring = Self.swellSpring
+            changed = true
+        }
+        if changed { startTimer() }
     }
 
     /// Where the channels are heading.
@@ -55,7 +83,7 @@ final class IslandAnimator {
         then = nil; thenAtWidth = nil; thenWhen = nil; thenSpring = nil
         if floating { goFloating(target); return }
         var goal = target
-        let current = metrics
+        let current = base
         let growsBody = target.bh > current.bh + 0.5
         let shrinksBody = target.bh < current.bh - 0.5
 
@@ -137,7 +165,7 @@ final class IslandAnimator {
     /// above 0: floating under the menu bar). The neck to the edge is drawn by `BezelBackdrop`; this only moves the
     /// card. Timings are 0.6x the first mockup's, as decided on the "Islet without a notch" canvas.
     private func goFloating(_ target: IslandMetrics) {
-        let cur = metrics
+        let cur = base
         func all(_ s: Spring) -> [(Spring, Double)] { Array(repeating: (s, 0), count: IslandMetrics.channelCount) }
         let floats = { (m: IslandMetrics) in m.y > 1 }
         let attached = abs(cur.y) < 0.5 && cur.height > 1
@@ -202,38 +230,12 @@ final class IslandAnimator {
         let dt = min(now - lastTick, 0.05)
         lastTick = now
         var moving = false
-        var next = metrics
-
         for i in 0..<channels.count {
-            var c = channels[i]
-            var remaining = dt
-            if c.delay > 0 {
-                let used = min(c.delay, remaining)
-                c.delay -= used
-                remaining -= used
-            }
-            if c.delay > 0 { channels[i] = c; moving = true; continue }
-
-            // Mass-spring-damper from response and damping fraction; fixed substeps for stability.
-            let omega = 2 * Double.pi / c.spring.response
-            let k = omega * omega
-            let damp = 2 * c.spring.damping * omega
-            let steps = max(1, Int((remaining / (1.0 / 480.0)).rounded(.up)))
-            let h = remaining / Double(steps)
-            for _ in 0..<steps {
-                let a = -k * (c.value - c.target) - damp * c.velocity
-                c.velocity += a * h
-                c.value += c.velocity * h
-            }
-            if abs(c.value - c.target) < 0.01 && abs(c.velocity) < 0.05 {
-                c.value = c.target; c.velocity = 0
-            } else {
-                moving = true
-            }
-            channels[i] = c
-            next[i] = c.value
+            if Self.step(&channels[i], dt) { moving = true }
+            if Self.step(&swell[i], dt) { moving = true }
         }
-        metrics = next
+        let next = base
+        metrics = next + swellNow
         // Second leg of a close: once the body has been absorbed into the swollen pill, it eases down to the notch.
         let legDone = thenWhen?(next) ?? thenAtWidth.map { next.sw - $0 < 3 } ?? (next.bh < 2 && next.bw - next.sw < 1)
         if let final = then, legDone {
@@ -243,5 +245,34 @@ final class IslandAnimator {
             moving = true
         }
         if !moving { timer?.invalidate(); timer = nil }
+    }
+
+    /// Advances one channel by `dt`; true while it is still moving (or waiting out its delay).
+    private static func step(_ c: inout Channel, _ dt: Double) -> Bool {
+        var remaining = dt
+        if c.delay > 0 {
+            let used = min(c.delay, remaining)
+            c.delay -= used
+            remaining -= used
+        }
+        if c.delay > 0 { return true }
+        if c.value == c.target && c.velocity == 0 { return false }
+
+        // Mass-spring-damper from response and damping fraction; fixed substeps for stability.
+        let omega = 2 * Double.pi / c.spring.response
+        let k = omega * omega
+        let damp = 2 * c.spring.damping * omega
+        let steps = max(1, Int((remaining / (1.0 / 480.0)).rounded(.up)))
+        let h = remaining / Double(steps)
+        for _ in 0..<steps {
+            let a = -k * (c.value - c.target) - damp * c.velocity
+            c.velocity += a * h
+            c.value += c.velocity * h
+        }
+        if abs(c.value - c.target) < 0.01 && abs(c.velocity) < 0.05 {
+            c.value = c.target; c.velocity = 0
+            return false
+        }
+        return true
     }
 }
