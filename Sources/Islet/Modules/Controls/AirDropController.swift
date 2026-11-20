@@ -48,4 +48,5 @@ enum SystemSettings {
     static let controlCenter = "com.apple.ControlCenter-Settings.extension"
     static let location = "com.apple.preference.security?Privacy_LocationServices"
     static let fullDisk = "com.apple.preference.security?Privacy_AllFiles"
+    static let battery = "com.apple.Battery-Settings.extension"
 }

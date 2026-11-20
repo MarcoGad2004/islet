@@ -2,7 +2,7 @@ import CoreGraphics
 import SwiftUI
 
 enum ControlDetail {
-    case display, sound, wifi, bluetooth, mirroring
+    case display, sound, wifi, bluetooth, mirroring, battery
     var title: String {
         switch self {
         case .display: "Display"
@@ -10,6 +10,7 @@ enum ControlDetail {
         case .wifi: "Wi-Fi"
         case .bluetooth: "Bluetooth"
         case .mirroring: "Screen Mirroring"
+        case .battery: "Battery"
         }
     }
 }
@@ -20,7 +21,7 @@ enum ControlDetail {
 struct ControlStage: View {
     let store: IslandStore
 
-    private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, media }
+    private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, battery, media }
 
     private var mode: Mode {
         if store.expandedPage == .media, store.media != nil { return .media }
@@ -30,6 +31,7 @@ struct ControlStage: View {
         case .wifi?: return .wifi
         case .bluetooth?: return .bluetooth
         case .mirroring?: return .mirroring
+        case .battery?: return .battery
         case nil: return .controls
         }
     }
@@ -51,18 +53,23 @@ struct ControlStage: View {
             header(mode)
             controlsElements(mode)
             mediaElements(mode)
+            if let power = store.power, power.state.hasBattery {
+                BatteryPage(power: power).slot(below, visible: mode == .battery)
+            }
             gear
         }
         .frame(width: W, height: H, alignment: .topLeading)
         .animation(glide, value: mode)
         .onChange(of: mode) { old, now in
             if old == .wifi { store.wifi?.stopBrowsingHotspots() }
+            if old == .battery { store.power?.watchDetails(false) }
             switch now {
             case .wifi: store.wifi?.refresh(); store.wifi?.browseHotspots(); Task { await store.wifi?.scan() }
             case .bluetooth: store.bluetooth?.refresh()
             case .display: store.display?.refresh(); store.levels?.refresh()
             case .sound: store.levels?.refresh()
             case .mirroring: store.sidecar?.refresh()
+            case .battery: store.power?.refresh(); store.power?.watchDetails(true)
             default: break
             }
         }
@@ -74,6 +81,7 @@ struct ControlStage: View {
             case "mirroring": store.setControlDetail(.mirroring)
             case "display": store.setControlDetail(.display)
             case "sound": store.setControlDetail(.sound)
+            case "battery": store.setControlDetail(.battery)
             default: break
             }
         }
@@ -139,6 +147,7 @@ struct ControlStage: View {
         case .wifi: "Wi-Fi"
         case .bluetooth: "Bluetooth"
         case .mirroring: "Screen Mirroring"
+        case .battery: "Battery"
         case .controls: "Controls"
         }
     }
@@ -147,7 +156,9 @@ struct ControlStage: View {
         if mode == .media { store.showControlsPage() } else { store.setControlDetail(nil) }
     }
 
+    /// The battery in the header. Click it for the battery page.
     private func batteryChip(_ s: PowerMonitor.State) -> some View {
+        Button { store.setControlDetail(.battery) } label: {
         HStack(spacing: 4) {
             Image(systemName: s.charging || s.onAC ? "bolt.fill" : "battery.75")
                 .font(.system(size: 10, weight: .semibold)).foregroundStyle(s.charging ? Color.isletGreen : Color.isletSecondary)
@@ -155,6 +166,9 @@ struct ControlStage: View {
         }
         .padding(.horizontal, 8).frame(height: 22)
         .background(IsletCard(shape: Capsule()))
+        .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
         .help(s.charged ? "Fully charged" : s.charging ? "Charging" : s.onAC ? "Plugged in" : "On battery")
     }
 

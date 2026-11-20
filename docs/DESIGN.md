@@ -242,7 +242,13 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
 [ ☀ ━━━●━━━ 38% ]        [ 🔊 ━━●━━━━ MacBook Pro S… ]     two condensed sliders, half width each
 ```
 
-- **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile.
+- **Battery** is a chip in the header (bolt/percent; "Plugged in" on hover). No tile. Clicking it opens the battery
+  page (1.3, owner request 2026-11-20): the body grows to 264 pt; a drawn battery (green charging, red at 20% or less
+  on battery, bolt while plugged in), the percentage and what it's doing ("Charging · 1h 20m until full"), a Low Power
+  badge when it's on; four glass stat tiles: maximum capacity (full-charge vs design capacity, "Normal" at 80% or
+  more), cycle count (of the design count), the charger's watts or the Mac's power draw, and time to full / left (or
+  the draw when there's no estimate); then the charge in mAh and a Battery Settings… button. Numbers refresh every 3 s
+  while it's open. Temperature isn't shown: the battery doesn't report it.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
 - **Update pill** (1.2.3): when an automatic check finds a new version, a blue "Update x.y.z" pill sits right of the

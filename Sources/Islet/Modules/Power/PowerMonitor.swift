@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import IOKit.ps
 
 /// Battery and charger state from IOKit, driven by power-source notifications (no polling).
@@ -15,6 +16,26 @@ final class PowerMonitor {
     }
 
     private(set) var state = State()
+
+    /// The battery page's numbers, read from the battery's registry entry while the page is open.
+    struct Details: Equatable {
+        /// Full-charge capacity as a share of the design capacity (what System Settings calls Maximum Capacity).
+        var health: Int?
+        var cycles: Int?
+        var designCycles: Int?
+        var currentMAh: Int?
+        var fullMAh: Int?
+        /// Into the battery (+, charging) or out of it (-), in watts.
+        var batteryWatts: Double?
+        /// What the whole Mac is drawing right now, in watts.
+        var systemWatts: Double?
+        var adapterWatts: Int?
+        var adapterName: String?
+        var lowPower = false
+    }
+
+    private(set) var details = Details()
+    @ObservationIgnored private var detailsTask: Task<Void, Never>?
     @ObservationIgnored var onEvent: ((ChargeEvent) -> Void)?
     @ObservationIgnored private var source: CFRunLoopSource?
     @ObservationIgnored private var started = false
@@ -34,6 +55,53 @@ final class PowerMonitor {
     }
 
     func refresh() { state = Self.read() }
+
+    /// While the battery page is open, re-read everything every 3 s so the power draw stays live.
+    func watchDetails(_ on: Bool) {
+        detailsTask?.cancel()
+        detailsTask = nil
+        guard on else { return }
+        details = Self.readDetails()
+        detailsTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled, let self else { return }
+                self.details = Self.readDetails()
+                self.state = Self.read()
+            }
+        }
+    }
+
+    private static func readDetails() -> Details {
+        var d = Details()
+        d.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return d }
+        defer { IOObjectRelease(service) }
+        var props: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let p = props?.takeRetainedValue() as? [String: Any] else { return d }
+        let data = p["BatteryData"] as? [String: Any] ?? [:]
+        // Signed values (current flowing out) come through as huge unsigned numbers; Int64 wraps them back.
+        func num(_ k: String) -> Int64? { ((p[k] ?? data[k]) as? NSNumber)?.int64Value }
+
+        let design = num("DesignCapacity")
+        let nominal = num("NominalChargeCapacity") ?? num("AppleRawMaxCapacity")
+        if let design, let nominal, design > 0 { d.health = min(100, Int((Double(nominal) / Double(design) * 100).rounded())) }
+        d.cycles = num("CycleCount").map(Int.init)
+        d.designCycles = num("DesignCycleCount9C").map(Int.init)
+        d.currentMAh = num("AppleRawCurrentCapacity").map(Int.init)
+        d.fullMAh = num("AppleRawMaxCapacity").map(Int.init)
+        if let v = num("Voltage"), let a = num("Amperage"), a != 0 { d.batteryWatts = Double(v) * Double(a) / 1_000_000 }
+        let telemetry = p["PowerTelemetryData"] as? [String: Any] ?? [:]
+        if let load = (telemetry["SystemLoad"] as? NSNumber)?.int64Value, load > 0 { d.systemWatts = Double(load) / 1000 }
+        else if let b = d.batteryWatts, b < 0 { d.systemWatts = -b }
+        if (p["ExternalConnected"] as? Bool) == true, let adapter = p["AdapterDetails"] as? [String: Any] {
+            d.adapterWatts = (adapter["Watts"] as? NSNumber)?.intValue
+            d.adapterName = (adapter["Name"] as? String)?.trimmingCharacters(in: .whitespaces)
+        }
+        return d
+    }
 
     private func changed() {
         let old = state

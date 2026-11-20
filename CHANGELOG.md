@@ -8,6 +8,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Glass look: like Siri's island on the iPhone, the island stays black and a strip along its bottom edge fades into
   glass, the desktop showing through blurred, with a light rim and a soft coloured glow. The panel's tiles and buttons
   are glass too. Turn it off in Settings → General → "Glass look".
+- Battery page: click the battery in the panel's header for the charge and what it's doing, maximum capacity, cycle
+  count, the charger's wattage or how much power the Mac is drawing, and the time to full or left, kept live while the
+  page is open.
 - Cleaner Wi-Fi, Bluetooth, Screen Mirroring and Sound pages: no grey box, the page sits straight on the island, with
   Control Center style rows that light up under the pointer and the one in use on a glass pill.
 - The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a

@@ -82,6 +82,7 @@ final class IslandStore {
         switch controlDetail {
         case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
         case .display? where levels?.keyboardAvailable == true: return IslandLayout.expandedDisplayBodyHeight
+        case .battery?: return IslandLayout.expandedBatteryBodyHeight
         default: return IslandLayout.expandedBodyHeight
         }
     }
@@ -278,6 +279,7 @@ final class IslandStore {
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
         controlDetail = nil
+        if !value { power?.watchDetails(false) }
         leaveTask?.cancel()
         onExpandedChange?(value)
         refresh()
