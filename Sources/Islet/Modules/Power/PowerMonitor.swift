@@ -33,6 +33,8 @@ final class PowerMonitor {
         var adapterWatts: Int?
         var adapterName: String?
         var lowPower = false
+        /// The charge limit set in System Settings > Battery (macOS 26+), when it's below 100%.
+        var chargeLimit: Int?
 
         /// Energy in the battery now, and when full, in watt-hours.
         var storedWh: Double? { zip(currentMAh, voltage).map { Double($0) * $1 / 1000 } }
@@ -84,6 +86,34 @@ final class PowerMonitor {
         }
     }
 
+    /// powerd keeps the charging policies in a world-readable file: an archived list whose `manualChargeLimit` entry
+    /// carries the limit as `soclimit`. Only System Settings can change it (a private, entitled call), so this is
+    /// read-only; the battery page links to Battery settings for changing it.
+    private static func readChargeLimit() -> Int? {
+        guard let file = NSDictionary(contentsOfFile: "/Library/Preferences/com.apple.powerd.charging.plist"),
+              let blob = file["policies"] as? Data,
+              let archive = try? PropertyListSerialization.propertyList(from: blob, format: nil) as? [String: Any],
+              let objects = archive["$objects"] as? [Any] else { return nil }
+        for case let policy as [String: Any] in objects {
+            guard let limit = (policy["soclimit"] as? NSNumber)?.intValue, limit > 0, limit < 100,
+                  (policy["terminated"] as? Bool) != true else { continue }
+            // The reason is stored by reference; accept the manual limit (or an unlabelled one).
+            if let ref = policy["reason"], let i = Self.uid(ref), i < objects.count,
+               let reason = objects[i] as? String, reason != "manualChargeLimit" { continue }
+            return limit
+        }
+        return nil
+    }
+
+    /// The index inside an archive's `CF$UID` reference.
+    private static func uid(_ ref: Any) -> Int? {
+        if let d = ref as? [String: Any], let n = d["CF$UID"] as? NSNumber { return n.intValue }
+        // Bridged CFKeyedArchiverUID: its description reads "<CFKeyedArchiverUID ...>{value = 3}".
+        let text = String(describing: ref)
+        guard let r = text.range(of: "value = ") else { return nil }
+        return Int(text[r.upperBound...].prefix { $0.isNumber })
+    }
+
     private nonisolated static func readReportedHealth() async -> (percent: Int, condition: String)? {
         await Task.detached {
             let p = Process()
@@ -111,6 +141,7 @@ final class PowerMonitor {
     private static func readDetails() -> Details {
         var d = Details()
         d.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        d.chargeLimit = readChargeLimit()
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return d }
         defer { IOObjectRelease(service) }

@@ -10,14 +10,29 @@ struct BatteryPage: View {
         let s = power.state, d = power.details
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 14) {
-                BatteryGlyph(percent: s.percent, tint: Self.tint(s), bolt: s.charging || s.onAC)
+                BatteryGlyph(percent: s.percent, tint: Self.tint(s), bolt: s.charging || s.onAC, limit: d.chargeLimit)
                     .frame(width: 46, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     RollingNumber(value: Double(s.percent) / 100, suffix: "%", size: 28)
                         .foregroundStyle(Color.isletText)
-                    Text(Self.status(s)).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
+                    Text(Self.status(s, limit: d.chargeLimit)).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
                 }
                 Spacer()
+                if let limit = d.chargeLimit {
+                    // macOS lets only System Settings change the limit, so this opens it there.
+                    Button { SystemSettings.open(SystemSettings.battery) } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "battery.75percent").font(.system(size: 10, weight: .semibold))
+                            Text("Limit \(limit)%").font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                            Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold)).foregroundStyle(Color.isletTertiary)
+                        }
+                        .foregroundStyle(Color.isletText)
+                        .padding(.horizontal, 9).frame(height: 22).background(IsletCard(shape: Capsule()))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Charging stops at \(limit)%. Change it in Battery settings.")
+                }
                 if d.lowPower {
                     Label("Low Power", systemImage: "bolt.badge.automatic.fill")
                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD60A))
@@ -64,8 +79,13 @@ struct BatteryPage: View {
     /// Never the same as the tile beside it: the time to full or left (macOS's estimate, or worked out from the energy
     /// left and the power flowing), else what the charger is powering, else the energy stored.
     @ViewBuilder private func lastTile(_ s: PowerMonitor.State, _ d: PowerMonitor.Details) -> some View {
-        if s.charging, let m = s.minutesToFull ?? Self.minutesToFull(d) {
-            StatTile(label: "UNTIL FULL", value: Self.duration(m), detail: s.minutesToFull == nil ? "At this rate" : "Estimated")
+        let target = d.chargeLimit ?? 100
+        if s.charging, let m = Self.minutesToFull(d, target: target) ?? s.minutesToFull {
+            // To the charge limit when there is one (macOS's own estimate is to 100%).
+            StatTile(label: target < 100 ? "UNTIL \(target)%" : "UNTIL FULL", value: Self.duration(m),
+                     detail: target < 100 ? "Charge limit" : "At this rate")
+        } else if s.onAC, let limit = d.chargeLimit, s.percent >= limit - 1 {
+            StatTile(label: "CHARGED", value: "\(limit)%", detail: "Holding at limit")
         } else if !s.onAC, let m = s.minutesToEmpty ?? Self.minutesLeft(d) {
             StatTile(label: "TIME LEFT", value: Self.duration(m), detail: s.minutesToEmpty == nil ? "At this rate" : "Estimated")
         } else if s.onAC, d.systemWatts != nil {
@@ -82,10 +102,12 @@ struct BatteryPage: View {
         return Int((wh / w * 60).rounded())
     }
 
-    /// Energy still to go in over what's flowing into the battery now.
-    private static func minutesToFull(_ d: PowerMonitor.Details) -> Int? {
-        guard let now = d.storedWh, let full = d.fullWh, let w = d.batteryWatts, w > 0.5, full > now else { return nil }
-        return Int(((full - now) / w * 60).rounded())
+    /// Energy still to go in, up to `target` percent, over what's flowing into the battery now.
+    private static func minutesToFull(_ d: PowerMonitor.Details, target: Int) -> Int? {
+        guard let now = d.storedWh, let full = d.fullWh, let w = d.batteryWatts, w > 0.5 else { return nil }
+        let goal = full * Double(target) / 100
+        guard goal > now else { return nil }
+        return Int(((goal - now) / w * 60).rounded())
     }
 
     private static func tint(_ s: PowerMonitor.State) -> Color {
@@ -94,9 +116,10 @@ struct BatteryPage: View {
         return .isletText
     }
 
-    static func status(_ s: PowerMonitor.State) -> String {
+    static func status(_ s: PowerMonitor.State, limit: Int? = nil) -> String {
         if s.charged { return "Fully charged" }
-        if s.charging { return s.minutesToFull.map { "Charging · \(duration($0)) until full" } ?? "Charging" }
+        if let limit, s.onAC, s.percent >= limit - 1 { return "Charged to your \(limit)% limit" }
+        if s.charging { return limit != nil ? "Charging to \(limit!)%" : s.minutesToFull.map { "Charging · \(duration($0)) until full" } ?? "Charging" }
         if s.onAC { return "Plugged in, not charging" }
         return s.minutesToEmpty.map { "On battery · \(duration($0)) left" } ?? "On battery"
     }
@@ -143,6 +166,8 @@ struct BatteryGlyph: View {
     var percent: Int
     var tint: Color
     var bolt: Bool
+    /// A tick in the outline at the charge limit.
+    var limit: Int?
 
     var body: some View {
         GeometryReader { geo in
@@ -158,6 +183,10 @@ struct BatteryGlyph: View {
                         .frame(width: max(2, (w - 2 * inset) * CGFloat(min(max(percent, 0), 100)) / 100))
                         .padding(inset)
                         .animation(.levelGlide, value: percent)
+                    if let limit {
+                        Rectangle().fill(Color.isletText.opacity(0.6)).frame(width: 1.2, height: h + 4)
+                            .offset(x: inset + (w - 2 * inset) * CGFloat(limit) / 100 - 0.6)
+                    }
                     if bolt {
                         Image(systemName: "bolt.fill").font(.system(size: h * 0.62, weight: .bold))
                             .foregroundStyle(Color.white)

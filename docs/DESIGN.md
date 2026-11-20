@@ -249,8 +249,11 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   (read from `system_profiler` on open; macOS's figure isn't a ratio in the registry, so full-charge vs design
   capacity is only the fallback), cycle count (of the design count), the charger's watts or the Mac's power draw, and a last tile that never repeats
   the one beside it: time to full / left (macOS's estimate, or energy left over the power flowing, "At this rate"),
-  else what the Mac draws from the charger, else the energy stored in Wh; then the charge in mAh and a Battery Settings… button. Numbers refresh every 3 s
-  while it's open. Temperature isn't shown: the battery doesn't report it.
+  else what the Mac draws from the charger, else the energy stored in Wh; then the charge in mAh and a Battery Settings… button. With a charge limit set in System Settings
+  (read from powerd's world-readable policy file), a "Limit 85%" pill opens Battery settings, the drawn battery has a
+  tick at the limit, charging is timed to the limit ("Until 85%"), and at the limit the tile says "Charged · Holding at
+  limit". Islet can't change the limit itself: only System Settings can (a private, entitled call; no Shortcuts action
+  either). Numbers refresh every 3 s while it's open. Temperature isn't shown: the battery doesn't report it.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
 - **Update pill** (1.2.3): when an automatic check finds a new version, a blue "Update x.y.z" pill sits right of the
