@@ -63,9 +63,10 @@ the unlock animation still ships.
 
 ## 1.4: Notifications and calls
 - [x] Spike (RESEARCH.md Q27-Q31): read banners, hide the system banner, calls
-- [ ] Notifications: banner watcher, hide the system banner, card, stacking, click / swipe, the taller card
-- [ ] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end)
-- [ ] Settings > Notifications (show in the notch, hide message text)
+- [x] Notifications: banner watcher, hide the system banner, card, stacking, click / swipe, the taller card
+- [x] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end)
+- [x] Settings > General: show notifications in the notch, hide message text
+- Preview: `-IsletDebugShape notification|notifications|ring|call`
 - [ ] Try it on the Mac: messages, several at once, a FaceTime call; does Close remove it from Notification Center?
 - [ ] iPhone calls relayed to the Mac (retry the probe for Q30)
 

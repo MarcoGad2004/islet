@@ -62,6 +62,11 @@ struct IslandView: View {
                 case .expanded:
                     ExpandedView(store: store).padding(.top, top)
                         .transition(fade())
+                case .notification, .notificationTall:
+                    if case .notification(let n)? = content {
+                        NotificationCard(store: store, item: n, tall: pres == .notificationTall)
+                            .id(pres).transition(fade())
+                    }
                 case .wings, .lockWings, .lockHint, .levelWings, .eventWings, .chin:
                     if let c = content {
                         CompactContentView(content: c, store: store, wings: pres != .chin, lockBar: pres == .lockWings || pres == .lockHint,

@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @AppStorage(GlassLook.key) private var glassLook = true
+    @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
+    @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
@@ -40,6 +42,12 @@ struct SettingsView: View {
             Toggle("Glass look", isOn: $glassLook)
             Text("Below the notch the island fades from black into glass. Off, it is solid black.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Toggle("Show notifications in the notch", isOn: $notificationsInNotch)
+            Text("Banners appear under the notch instead of the top-right corner. Off, macOS shows them as usual. Calls always keep their own banner.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if notificationsInNotch {
+                Toggle("Hide message text", isOn: $notificationsHideText).padding(.leading, 20)
+            }
             NotchChoice().padding(.vertical, 4)
             if powerMode.permissionInstalled {
                 HStack {

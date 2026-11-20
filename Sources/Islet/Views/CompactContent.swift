@@ -57,6 +57,16 @@ struct CompactContentView: View {
                             .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
                                                     removal: .opacity.animation(.easeOut(duration: 0.1))))
                     }
+                    if levelBody, case .call(let c) = content {
+                        // Hovering a call: who it is, under the wings.
+                        Text("\(c.displayName) · \(c.muted ? "Muted" : c.kindLabel)")
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
+                                                    removal: .opacity.animation(.easeOut(duration: 0.1))))
+                    }
                     if levelBody, case .event(let e) = content {
                         // Personal Hotspot: the phone's name under the wings.
                         Text(e.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
@@ -121,6 +131,10 @@ struct CompactContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
         case .progress(let p):
             progressIcon(p).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
+        case .call(let c):
+            if c.phase == .ringing { RingingPhone() } else { CallIcon(call: c) }
+        case .notification:
+            EmptyView() // shown as its own card
         }
     }
 
@@ -149,6 +163,10 @@ struct CompactContentView: View {
             // The wing is too narrow for a word: the phone's cellular link, with the name in the body below.
             PopIcon(name: "cellularbars", color: eventTint(e))
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
+        case .call(let c):
+            if c.phase == .ringing { RingingPulse() } else { CallTimer(call: c) }
+        case .notification:
+            EmptyView()
         case .event(let e):
             Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(e.kind == .focusOff ? Color.isletSecondary : Color.isletText)
@@ -209,6 +227,16 @@ struct CompactContentView: View {
                     progressMark(p)
                 }
             }
+        case .call(let c):
+            HStack(spacing: 10) {
+                if c.phase == .ringing { RingingPhone().frame(width: 18) } else { CallIcon(call: c).frame(width: 18) }
+                Text(c.phase == .ringing ? "Incoming call" : c.displayName)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                Spacer(minLength: 4)
+                if c.phase == .active { CallTimer(call: c) }
+            }
+        case .notification:
+            EmptyView()
         case .locked:
             PadlockView(start: nil)
         case .unlock(let start):

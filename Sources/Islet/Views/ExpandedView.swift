@@ -6,9 +6,15 @@ struct ExpandedView: View {
     let store: IslandStore
 
     var body: some View {
-        ControlStage(store: store)
-            .padding(16)
-            .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+        if store.expandedPage == .call, store.call?.phase == .active {
+            CallPage(store: store)
+                .padding(EdgeInsets(top: 14, leading: 24, bottom: 22, trailing: 24))
+                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+        } else {
+            ControlStage(store: store)
+                .padding(16)
+                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+        }
     }
 }
 

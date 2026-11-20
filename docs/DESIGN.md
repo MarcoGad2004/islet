@@ -350,8 +350,8 @@ Plays when macOS reports the screen unlocked (whatever unlocked it). See "Lock o
 
 ### Priority
 
-Face scan > lock opens > volume/brightness > notification (1.4) > charging/battery > media. Short events cover media and
-hand back when they end. A FaceTime call in progress takes media's place.
+Face scan > lock opens > volume/brightness > FaceTime ringing > notification > charging/battery > media (1.4). Short
+events cover media and hand back when they end. A FaceTime call in progress takes media's place.
 
 ### Gestures
 
@@ -402,9 +402,9 @@ RESEARCH.md Q27-Q31.
 - **Two-finger swipe down**: the taller card, 380 x 132 (bottom 24): the whole message (up to 3 lines, `#C7C7CC`),
   "App · now" on the right, and Close and Show buttons (28 pt pills; Show white with black text). It stays until one of
   them, a swipe up, a click outside or 1 s after the pointer leaves.
-- **Priority**: below volume and brightness, above charging, connection notices and media: face scan > lock opens >
-  volume/brightness > notification > charging/battery > events > media. Not on the lock screen.
-- **Settings > Notifications**: "Show notifications in the notch" (on by default; off leaves the system banners alone)
+- **Priority**: below volume and brightness and a ringing call, above connection notices, charging and media (see
+  "Priority"). Not on the lock screen, nor while the panel is open: then macOS shows the banner as usual.
+- **Settings > General**: "Show notifications in the notch" (on by default; off leaves the system banners alone)
   and "Hide message text" (only the app and title).
 
 ### Calls (FaceTime)

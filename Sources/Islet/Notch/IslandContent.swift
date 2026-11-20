@@ -10,6 +10,10 @@ enum IslandContent {
     case event(IslandEvent)
     /// Joining a network or hotspot picked in the panel: live progress, then the result.
     case progress(ConnectionProgress)
+    /// A banner taken from Notification Center (DESIGN.md "Notifications"): the card under the notch.
+    case notification(NotificationItem)
+    /// FaceTime ringing or in a call (DESIGN.md "Calls").
+    case call(CallState)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -21,12 +25,46 @@ enum IslandContent {
         case .charge(let c): "charge-\(c.kind)"
         case .event(let e): "event-\(e.kind)"
         case .progress: "progress"
+        case .notification: "notification" // a new one fades across inside the card, not by remounting
+        case .call(let c): "call-\(c.phase)"
         case .media: "media"
         }
     }
 }
 
-enum ExpandedPage { case media, displaySound }
+enum ExpandedPage { case media, displaySound, call }
+
+/// One banner, read through Accessibility (RESEARCH.md Q27).
+struct NotificationItem: Equatable, Identifiable {
+    let id: UUID
+    var app: String
+    var title: String
+    var subtitle: String?
+    var body: String
+    var icon: NSImage?
+    /// The app, to open it when the banner itself is already gone.
+    var appURL: URL?
+
+    /// The card's one line: "Subtitle · Body".
+    var line: String { [subtitle, body].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
+    var heading: String { title.isEmpty ? app : title }
+}
+
+/// A FaceTime call, from its notification banner (ringing) and FaceTime's window (in the call; RESEARCH.md Q31).
+struct CallState: Equatable {
+    enum Phase: Equatable { case ringing, active }
+    var phase: Phase
+    /// Who: empty while ringing (the banner can't be read) and until FaceTime names them.
+    var name = ""
+    /// When it connected; nil while connecting.
+    var connectedAt: Date?
+    var muted = false
+    var cameraOn = true
+    var video = true
+
+    var displayName: String { name.isEmpty ? "FaceTime" : name }
+    var kindLabel: String { video ? "FaceTime Video" : "FaceTime Audio" }
+}
 
 struct LevelState: Equatable {
     enum Kind { case volume, brightness, keyboard }

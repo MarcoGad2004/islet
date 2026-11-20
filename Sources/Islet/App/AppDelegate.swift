@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let display = DisplayToggles()
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
+    private let notifications = NotificationWatcher()
+    private let faceTime = FaceTimeMonitor()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
@@ -137,6 +139,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
         case "unlock": notch.store.playUnlock()
+        case "notification", "notifications":
+            let store = notch.store
+            store.showNotification(NotificationItem(id: UUID(), app: "Messages", title: "Mom", subtitle: nil,
+                                                    body: "Are you coming for dinner tonight? Dad is making the lentil soup, and we can watch the match after.",
+                                                    icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Messages.app"), appURL: nil))
+            if UserDefaults.standard.string(forKey: "IsletDebugShape") == "notifications" {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    store.showNotification(NotificationItem(id: UUID(), app: "Mail", title: "Your order has shipped", subtitle: nil,
+                                                            body: "It arrives Friday between 9 AM and 1 PM",
+                                                            icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Mail.app"), appURL: nil))
+                }
+            }
+        case "ring": notch.store.setCall(CallState(phase: .ringing))
+        case "call": notch.store.setCall(CallState(phase: .active, name: "Mom", connectedAt: Date().addingTimeInterval(-81)))
         case "updated":
             // What the new copy shows after updating itself (notes from CHANGELOG.md's newest section).
             let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -244,6 +261,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         airdrop.refresh()
         sidecar.start()
 
+        // Notifications and FaceTime calls (DESIGN.md "Notifications and calls").
+        notifications.canTake = { [weak store] in store?.canTakeNotification == true }
+        notifications.onNotification = { [weak store] in store?.showNotification($0) }
+        notifications.onRinging = { [weak self] in self?.faceTime.setRinging($0) }
+        store.notificationShow = { [weak self] in self?.notifications.show($0) }
+        store.notificationClose = { [weak self] in self?.notifications.close($0) }
+        store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
+        notifications.start()
+        faceTime.onChange = { [weak store] in store?.setCall($0) }
+        store.callMute = { [weak self] in self?.faceTime.toggleMute() }
+        store.callCamera = { [weak self] in self?.faceTime.toggleCamera() }
+        store.callEnd = { [weak self] in self?.faceTime.end() }
+        faceTime.start()
+
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()
 
@@ -267,7 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { store?.recomputeLayout() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.levels.retryTap() }
+            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry(); self?.faceTime.retry() }
         }
     }
 

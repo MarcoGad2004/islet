@@ -30,6 +30,10 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
    - `Lock`: screen lock/unlock notifications (`com.apple.screenIsLocked` / `screenIsUnlocked` via
      `DistributedNotificationCenter`).
    - `FaceUnlock`: camera capture, face match, Keychain password, typing it into the lock screen.
+   - `Notifications`: `NotificationWatcher` observes Notification Center's banner windows (`AXObserver`), moves each one
+     off screen, reads it and hands it to the store; the card's Show / Close press the banner's own actions.
+   - `Calls`: `FaceTimeMonitor` turns the call banner into "ringing" and reads FaceTime's call window (name, mute,
+     camera, End) while FaceTime runs.
 8. **Gestures**: two-finger swipes are `scrollWheel` events delivered to the panel while the pointer
    is over it; use precise deltas and the gesture phase, with a threshold (≈40 pt) per gesture.
 9. **Settings**: a small SwiftUI window: launch at login, permissions status, face unlock setup.
