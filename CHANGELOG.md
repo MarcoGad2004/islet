@@ -3,6 +3,12 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.3.1 (2026-11-20)
+
+- Music leaves the notch while the app playing it is in front (you're already in the player) and comes back when you
+  switch to another app. The panel's media page still has it.
+- No more green dot under the camera when you hover the notch after swiping playing media away.
+
 ## 1.3 (2026-11-20)
 
 - Glass look: like Siri's island on the iPhone, the island stays black and a strip along its bottom edge fades into

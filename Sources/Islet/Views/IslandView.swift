@@ -72,9 +72,6 @@ struct IslandView: View {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.isletTertiary)
                             .frame(width: 30, height: 30).padding(.top, g.floatTop)
                             .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.15)))
-                    } else if store.showsHiddenMediaDot {
-                        Circle().fill(Color.isletGreen).frame(width: 4, height: 4)
-                            .padding(.top, nh + 1).transition(.opacity)
                     }
                 }
                 }

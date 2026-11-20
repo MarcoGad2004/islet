@@ -333,7 +333,8 @@ With the pointer over the island:
   different app starts playing. Short events (volume, charging, unlock) still appear. On the open
   panel, swipe up closes it.
 - **Two-finger swipe down**: brings hidden media back; with nothing hidden, opens the panel.
-- When media is hidden, hovering the notch shows a 4 pt green dot just below the camera.
+- Media from the app in front stays out of the notch (you're already in the player) and comes back when you
+  switch away. The panel's media page still has it.
 - Click: opens the panel (Display and Sound if a level bar was showing).
 
 ### Menu bar width check
@@ -365,8 +366,8 @@ style is one of:
     joined to the edge. A two-finger swipe down (or a click) lets it go: it springs down a touch as a 32 pt drop
     (0.18 s) and bubbles out into the panel.
   - Only what comes and goes shows: volume and brightness, charging, connection notices, join progress, the face scan
-    and the unlock. Music in the wings, the padlock while locked (only the ⌘⇧ reminder shows, every 12 s) and the
-    hidden-media dot are left out. Wings never fall back to the chin: there are no menus to cover.
+    and the unlock. Music in the wings and the padlock while locked (only the ⌘⇧ reminder shows, every 12 s) are
+    left out. Wings never fall back to the chin: there are no menus to cover.
 - **Menu bar**: the island hangs from the bottom of the menu bar under Islet's icon (moved in to stay 8 pt clear of
   the screen edge). The stand-in notch is 100 x 32 pt and invisible: idle is zero height, and every shape is a card
   as wide as its body, flat on top. Click the icon to open or close the panel; right-click or Control-click for the

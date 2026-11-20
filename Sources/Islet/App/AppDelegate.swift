@@ -254,8 +254,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         media.start()
 
         // Re-run the width check on app switch, and retry permission-gated things when we come to the front.
-        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak store] _ in
-            MainActor.assumeIsolated { store?.recomputeLayout() }
+        // Media from the app in front stays out of the notch.
+        store.setFrontApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak store] note in
+            let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            MainActor.assumeIsolated {
+                store?.setFrontApp(id)
+                store?.recomputeLayout()
+            }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak store] _ in
             MainActor.assumeIsolated { store?.recomputeLayout() }

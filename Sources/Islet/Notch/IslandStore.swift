@@ -26,6 +26,8 @@ final class IslandStore {
     /// Media takes the notch only while it plays and for 30 s after a pause; the item itself is kept for the
     /// mini player in the expanded panel.
     private(set) var mediaFresh = false
+    /// The app in front. Media from it stays out of the notch: you're already in the player.
+    private(set) var frontBundleID: String?
     private(set) var wingsFit = false
     private(set) var eventWingsFit = false
     private(set) var event: IslandEvent?
@@ -72,7 +74,7 @@ final class IslandStore {
 
     // MARK: Derived
 
-    var mediaVisible: Bool { media != nil && mediaFresh && !mediaHidden }
+    var mediaVisible: Bool { media != nil && mediaFresh && !mediaHidden && media?.bundleID != frontBundleID }
     /// The expanded panel shows the media page only for actively playing media.
     var mediaPlaying: Bool { media?.playing == true }
 
@@ -125,9 +127,6 @@ final class IslandStore {
         if let base { return base }
         return pointerInside ? .peek : .closed
     }
-
-    /// Green dot hint under the camera while media is hidden and the pointer is over the notch.
-    var showsHiddenMediaDot: Bool { !floating && mediaHidden && media != nil && pointerInside && content == nil && !expanded && base == nil }
 
     // MARK: Geometry and layout
 
@@ -450,6 +449,14 @@ final class IslandStore {
         }
         if before != mediaVisible { recomputeLayout() }
         refresh()
+    }
+
+    /// The front app changed: media playing in it leaves the notch, and comes back when you switch away.
+    func setFrontApp(_ bundleID: String?) {
+        guard bundleID != frontBundleID else { return }
+        let before = mediaVisible
+        frontBundleID = bundleID
+        if before != mediaVisible { recomputeLayout(); refresh() }
     }
 
     /// From the mini player: open the full media page.
