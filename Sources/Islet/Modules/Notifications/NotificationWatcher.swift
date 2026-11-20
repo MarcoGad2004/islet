@@ -206,7 +206,7 @@ final class NotificationWatcher {
         else if let r = desc.range(of: ", ") { app = String(desc[..<r.lowerBound]) }
         let found = Self.app(named: app)
         // The app's own buttons: the named actions besides the ones every banner has.
-        let common: Set<String> = ["Show", "Show Details", "Close", "Clear All"]
+        let common: Set<String> = ["Show", "Show Details", "Show More", "Close", "Clear All"] // "Show More" only expands the banner
         let actions = AX.actions(banner).filter { $0.hasPrefix("Name:") }.map { String($0.dropFirst(5)) }.filter { !common.contains($0) }
         let header = text("header") ?? ""
         return NotificationItem(id: UUID(), app: app, title: title, subtitle: subtitle, body: body, icon: found.icon, appURL: found.url,

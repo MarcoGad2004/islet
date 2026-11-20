@@ -333,5 +333,11 @@ Probe: `-IsletDebugShape messagesspike` (read only; logs counts and yes / no, ne
     message to the owner's own address, with their OK). Islet itself makes no network connection: Messages sends it.
     Not tried: SMS / RCS (would be `service type = SMS`), a group chat (`send … to chat id "…"`), attachments.
     `get service type of every account` fails with -10000; the `1st account whose …` form works.
-38. **The banner's own Reply?** Recording Messages banners now; see below when it's in.
+38. **The banner's own Reply?** No: a Messages banner's actions are `Show Details`, `Mark as Read`, `Show More`, `Close`,
+    with no text field, so a reply goes through Messages (Q37). "Show More" only expands the system banner, so Islet's
+    card leaves it out; "Mark as Read" stays.
+
+**Verdict:** the mini Messages view is feasible: read the conversation from `chat.db` (watched through its `-wal`), names
+from Contacts, replies through Messages. Needs Full Disk Access, Contacts and Automation (Messages). Private formats
+(`chat.db`'s schema, `attributedBody`) can change with macOS, like the media adapter.
 
