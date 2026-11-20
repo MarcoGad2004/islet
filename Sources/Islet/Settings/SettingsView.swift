@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
+    @State private var messagesAccess = MessagesAccess()
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
@@ -70,15 +71,25 @@ struct SettingsView: View {
             permissionRow("Location (Wi-Fi network names)", ok: wifi.locationAllowed, detail: "Lets Islet list nearby Wi-Fi networks") {
                 if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
             }
-            permissionRow("Full Disk Access (Focus)", ok: focus.accessGranted, detail: "Lets Islet see which Focus is on; restart Islet after allowing") {
+            permissionRow("Full Disk Access (Focus, Messages)", ok: focus.accessGranted,
+                          detail: "Lets Islet see which Focus is on and read your Messages conversations; restart Islet after allowing") {
                 SystemSettings.open(SystemSettings.fullDisk)
+            }
+            permissionRow("Contacts", ok: messagesAccess.contactsAllowed, detail: "Shows who's messaging you by name") {
+                messagesAccess.requestContacts()
+            }
+            permissionRow("Control Messages", ok: messagesAccess.automationAllowed,
+                          detail: messagesAccess.asking ? "Answer the macOS prompt…"
+                              : "Sends your replies from the notch through Messages. Allow opens Messages to ask.") {
+                messagesAccess.requestAutomation()
             }
             permissionRow("Now playing", ok: media.available, detail: media.available ? "Working" : "Adapter unavailable", action: nil)
             Divider().padding(.top, 4)
             updates
             Divider().padding(.top, 4)
         }
-        .onAppear { face.unlock.refreshPermission(); levels.retryTap(); wifi.refresh(); focus.retry() }
+        .onAppear { face.unlock.refreshPermission(); levels.retryTap(); wifi.refresh(); focus.retry(); messagesAccess.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in messagesAccess.refresh() }
     }
 
     private var updates: some View {

@@ -19,6 +19,7 @@ struct OnboardingView: View {
     @State private var faceStep = FaceStep.intro
     @State private var accessibility = AXIsProcessTrusted()
     @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
+    @State private var messagesAccess = MessagesAccess()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @State private var password = ""
@@ -93,8 +94,16 @@ struct OnboardingView: View {
                            action: locationAction)
                 Divider()
                 permission("Full Disk Access", icon: "internaldrive.fill", ok: focus.accessGranted,
-                           detail: "Only to see which Focus is on. Islet reads it and never changes it. Restart Islet after allowing.",
+                           detail: "Only to see which Focus is on and to show your Messages conversations in the notch. Islet reads them and never changes them. Restart Islet after allowing.",
                            action: { SystemSettings.open(SystemSettings.fullDisk) })
+                Divider()
+                permission("Contacts", icon: "person.crop.circle.fill", ok: messagesAccess.contactsAllowed,
+                           detail: "Only to show who's messaging you by name.",
+                           action: { messagesAccess.requestContacts() })
+                Divider()
+                permission("Control Messages", icon: "message.fill", ok: messagesAccess.automationAllowed,
+                           detail: "Only to send the replies you type in the notch. Allow opens Messages in the background to ask.",
+                           action: { messagesAccess.requestAutomation() })
                 Divider()
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "waveform").frame(width: 22).foregroundStyle(.secondary)
@@ -260,6 +269,7 @@ struct OnboardingView: View {
         camera = AVCaptureDevice.authorizationStatus(for: .video)
         wifi.refresh()
         focus.retry()
+        messagesAccess.refresh()
         if accessibility { levels.retryTap() }
     }
 

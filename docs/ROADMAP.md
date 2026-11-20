@@ -86,7 +86,7 @@ the unlock animation still ships.
 - [x] Tried: the conversation page opens with names, bubbles, times and "Delivered"
 - [ ] Still to try: replying from the notch, a real incoming message opening its conversation, a group chat, SMS,
       the swipe rule on the trackpad, Esc while typing
-- [ ] Permission rows in onboarding / Settings for Contacts and controlling Messages
+- [x] Permission rows in setup and Settings for Contacts and controlling Messages (`MessagesAccess`)
 
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
