@@ -105,12 +105,13 @@ final class FaceTimeMonitor {
         var next = state?.phase == .active ? state! : CallState(phase: .active)
         let avatar = AX.first(in: w, id: "AvatarView").flatMap { AX.description($0) }
         let connecting = avatar?.hasPrefix("Connecting") == true || avatar?.hasSuffix("…") == true
-        if let avatar, !connecting {
-            next.name = avatar
-        } else if let b = AX.first(in: w, where: { AX.role($0) == kAXButtonRole as String && AX.identifier($0) == nil
-                                                  && AX.actions($0).contains("Name:Take Live Photo") }),
-                  let n = AX.description(b) {
+        // The participant button carries the name; once connected `AvatarView` reads "￼ FaceTime Video" instead.
+        if let b = AX.first(in: w, where: { AX.role($0) == kAXButtonRole as String && AX.identifier($0) == nil
+                                           && AX.actions($0).contains("Name:Take Live Photo") }),
+           let n = AX.description(b) {
             next.name = n
+        } else if let avatar, !connecting, !avatar.contains("\u{FFFC}"), !avatar.hasPrefix("FaceTime") {
+            next.name = avatar
         }
         if !connecting && next.connectedAt == nil { next.connectedAt = Date() }
         if let mic = AX.first(in: w, id: "toggleMicMenuButton").flatMap({ AX.number($0, kAXValueAttribute) }) { next.muted = mic == 0 }

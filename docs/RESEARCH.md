@@ -266,3 +266,22 @@ that toggles Do Not Disturb.
   as switches (`toggleVideoButton`, `toggleMicMenuButton`, value 1 = on) and the End button (`leaveButton`), all
   pressable. The default input device reports running (`kAudioDevicePropertyDeviceIsRunningSomewhere`) while the call
   is up. Phone's Recents list then has the call, e.g. "Mom, Incoming FaceTime Video, 1:21 PM".
+
+**Second call test (2026-11-20, 13:51; an iPhone call answered on the Mac, then a FaceTime call that rang during it and
+was answered with "End & Accept"):**
+- **Hit-testing the banner finds nothing.** `AXUIElementCopyElementAtPosition` over the call banner's frame returns the
+  app underneath (here Claude's window), so the banner's drawing isn't reachable that way.
+- **But the banner does fill in later.** It is created empty (`FACETIME_NOTIFICATION`, no children), and on a later
+  `AXLayoutChanged` it holds an `iOSContentGroup`:
+  - **Ringing (FaceTime)**: `AvatarView` desc "FaceTime Audio", an element desc "Mom, FaceTime Video" (the name is wrapped in
+    U+202A / U+202C direction marks), and two `AXPopUpButton`s identified `menuControlIdentifier`: "Answer" with named
+    actions `Answer` and `Answer as Audio`, and "Decline" with `Decline`, `Remind Me in 1 Hour`, `Remind Me in 15 M…`.
+    So Accept / Decline **can** be pressed from Islet.
+  - **iPhone call in progress** (relayed through the Mac, Phone app open): the banner stays up as the call's controls:
+    `AvatarView` "Phone", an element "Mom, 0:13" (name and time), and buttons "FaceTime Video", "Mute", "Keypad", "More",
+    "End". So relayed iPhone calls can be shown and controlled from the banner, without the Phone window.
+  - Not yet known: whether the content is there while the *first* call rings (no layout change came then, and the probe
+    didn't re-read it). Next probe: re-read the banner every 0.25 s while it rings.
+- **FaceTime's window in the call:** once connected `AvatarView` reads "￼ FaceTime Video" (U+FFFC first), not the name;
+  the name is on the participant button (no identifier, named action "Take Live Photo"). The microphone reports "in use"
+  for both calls. Answering FaceTime during a phone call shows FaceTime's "End Current Call?" sheet.
