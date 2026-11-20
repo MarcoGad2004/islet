@@ -36,6 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Without a notch the island hangs from the icon, which only has a place once the menu bar lays it out.
         Task { @MainActor [weak self] in self?.notch.screenChanged(); self?.applyMenuBarVisibility() }
         notch.store.openSettings = { [weak self] in self?.settings.show() }
+        // A Settings… button in the panel opened System Settings: close the panel so the window isn't under it.
+        NotificationCenter.default.addObserver(forName: SystemSettings.didOpen, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.notch.store.collapse() }
+        }
         settings.runSetup = { [weak self] in self?.onboarding.show() }
         if OnboardingWindowController.needed { onboarding.show() }
         applyMenuBarVisibility()

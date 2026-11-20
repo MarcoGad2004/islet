@@ -37,8 +37,12 @@ final class AirDropController {
 }
 
 enum SystemSettings {
+    /// Posted when a System Settings pane is opened, so the panel gets out of its way (AppDelegate collapses it).
+    static let didOpen = Notification.Name("IsletOpenedSystemSettings")
+
     static func open(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:\(pane)") { NSWorkspace.shared.open(url) }
+        NotificationCenter.default.post(name: didOpen, object: nil)
     }
     static let wifi = "com.apple.wifi-settings-extension"
     static let bluetooth = "com.apple.BluetoothSettings"

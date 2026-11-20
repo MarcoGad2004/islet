@@ -12,6 +12,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   count, the charger's wattage or how much power the Mac is drawing, and the time to full or left, kept live while the
   page is open. With a charge limit set in Battery settings, it shows the limit (click it to change it there), times
   charging to the limit, and says when it's holding there.
+- The panel closes when one of its Settings… buttons opens System Settings, so the window isn't left under it.
 - Cleaner Wi-Fi, Bluetooth, Screen Mirroring and Sound pages: no grey box, the page sits straight on the island, with
   Control Center style rows that light up under the pointer and the one in use on a glass pill.
 - The notch answers the pointer whatever it is showing: hover over the wings, the wide bar or the chin and it swells a
