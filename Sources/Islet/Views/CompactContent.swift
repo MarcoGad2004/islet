@@ -49,6 +49,14 @@ struct CompactContentView: View {
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                    height: IslandLayout.levelBodyHeight).offset(y: -1)
                     }
+                    if levelBody, case .media = content {
+                        // Hovered media: the song's name in the body; it rolls on a skip or previous swipe.
+                        MediaTitleLane(store: store, fontSize: 12, spacing: 170)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
+                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
+                                                    removal: .opacity.animation(.easeOut(duration: 0.1))))
+                    }
                     if levelBody, case .event(let e) = content {
                         // Personal Hotspot: the phone's name under the wings.
                         Text(e.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
@@ -89,7 +97,12 @@ struct CompactContentView: View {
     @ViewBuilder private var left: some View {
         switch content {
         case .media:
-            if let m = store.media { ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing) }
+            if let m = store.media {
+                MediaSlot(store: store, forward: false) {
+                    ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing)
+                        .opacity(store.morphFromPeek == nil ? 1 : 0)
+                }
+            }
         case .charge(let c): chargeIcon(c)
         case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.checkInset)
         case .level(let l):
@@ -114,7 +127,9 @@ struct CompactContentView: View {
     @ViewBuilder private var right: some View {
         switch content {
         case .media:
-            if let m = store.media { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
+            if let m = store.media {
+                MediaSlot(store: store, forward: true) { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
+            }
         case .charge(let c):
             Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
@@ -149,9 +164,12 @@ struct CompactContentView: View {
         case .media:
             if let m = store.media {
                 HStack(spacing: 10) {
-                    ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing)
-                    MarqueeText(text: m.artist.isEmpty ? m.title : "\(m.title) · \(m.artist)")
-                    SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing)
+                    MediaSlot(store: store, forward: false) {
+                        ArtworkView(image: m.artwork, size: 22, radius: 6, playing: m.playing)
+                            .opacity(store.morphFromPeek == nil ? 1 : 0)
+                    }
+                    MediaTitleLane(store: store, fontSize: 13, spacing: 150)
+                    MediaSlot(store: store, forward: true) { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
                 }
             }
         case .charge(let c):

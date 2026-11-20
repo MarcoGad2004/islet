@@ -7,7 +7,13 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - Music leaves the notch while the app playing it is in front (you're already in the player) and comes back when you
   switch to another app. The panel's media page still has it.
-- No more green dot under the camera when you hover the notch after swiping playing media away.
+- Swipe playing media away and hover the notch: instead of the old green dot, the notch picks up the album's colours, the
+  glass strip tinted with the glass look, or a thin glowing line under the camera without it. Swipe down and the colour
+  gathers into the artwork as the music comes back.
+- Hover music in the wings and they become a wide bar with the song's name underneath.
+- Two-finger swipe left over music for the next song, right for the previous one, on the wings, the chin or the hidden
+  peek. It follows your fingers: the name rolls, the skip icon grows in its wing, and halfway the trackpad taps. Let go
+  past halfway (or flick) and it skips; short of it, it slides back.
 
 ## 1.3 (2026-11-20)
 

@@ -194,6 +194,29 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 - Shows while anything is playing; hides 30 s after pause.
 - **Wings**: artwork (22 pt, radius 6) on the left; level bars on the right.
 - **Chin**: artwork, "Title · Artist" centred (scrolls if long), level bars.
+- **Hover (wings)** (owner, 2026-11-20): hovering media in the wings turns it into the volume/brightness wide bar: the
+  artwork and app icon stay in the wings and "Title · Artist" (12 pt) shows in the 26 pt body below. Only the name fades
+  in; the wings' content doesn't remount. The chin already shows the name, so it just swells as before.
+- **Media peek** (owner, 2026-11-20; replaces the 4 pt green dot): media swiped away, pointer over the notch (notch mode
+  only). The peek shows only that something is playing, in the album's colours: three colours taken across the artwork,
+  left to right, livened a touch (`ArtworkPalette`). With the glass look the glass strip's glow takes those colours
+  (stronger, 90%); without it a 64 x 2 pt line glows just under the camera, slowly breathing. Swiping down from the peek,
+  the colour gathers into the artwork's place in the wings or chin over 0.5 s, sharpening into the cover; the real
+  artwork shows once it's there. Mockups: <https://claude.ai/artifact/GSgkioHQ86nzvjaZdJA8jo>.
+- **Skip and previous** (owner, 2026-11-20): a two-finger swipe left (next) or right (previous) over media, on the
+  wings, the wide bar, the chin or the peek.
+  - In the wings it is always the wide bar while the swipe lasts. The name rolls in the body (or the chin's middle): the
+    current name out the way the fingers go, "Next song" / "Previous song" in from the other side (the player only names
+    the new song once it plays). Skip plays in the right wing, where the app icon shrinks away; previous in the left,
+    where the artwork does. The icon is three triangles (two showing) that lean with the fingers; when the song changes
+    they push one step forward.
+  - On the peek the colour stays put: the peek deepens up to 15 pt and the icon is pulled in from that side under the
+    camera. The colour changes with the song.
+  - The fingers drive it directly: 80 pt of travel pulls the neighbour all the way in, rubber-banding past that. Half way
+    lights the icon and taps the trackpad. The lift comes from the scroll event's phase (momentum never counts), and a
+    spring takes over from where the fingers left it at their speed: past half way, or flung in (> 2.5/s past 12%), the
+    command goes at once and it lands (response 0.18-0.34 s by speed, damping 0.82); otherwise it springs back (0.3 s).
+    After landing the new name fades in over 0.24 s and the slot hands back from 0.33 s.
 - **Expanded (media playing)**: media only. Header "NOW PLAYING" and a collapse chevron. Artwork
   80 pt (radius 14), title (17 semibold), artist, album, previous / play-pause / next on the right,
   then a draggable scrubber with elapsed and total time. Clicking the artwork brings the playing
@@ -333,6 +356,8 @@ With the pointer over the island:
   different app starts playing. Short events (volume, charging, unlock) still appear. On the open
   panel, swipe up closes it.
 - **Two-finger swipe down**: brings hidden media back; with nothing hidden, opens the panel.
+- **Two-finger swipe left / right** over media: next / previous track (see Media, "Skip and previous").
+- When media is hidden, hovering the notch shows the media peek (see Media).
 - Media from the app in front stays out of the notch (you're already in the player) and comes back when you
   switch away. The panel's media page still has it.
 - Click: opens the panel (Display and Sound if a level bar was showing).

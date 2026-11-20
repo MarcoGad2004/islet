@@ -45,6 +45,8 @@ struct IsletCard<S: Shape>: View {
 struct GlassIsland: View {
     var m: IslandMetrics
     var notchHeight: CGFloat
+    /// The hidden-media peek: the glow takes the album's colours, stronger, instead of the usual Siri colours.
+    var tint: [Color]? = nil
 
     var body: some View {
         let shape = IslandShape(m: m)
@@ -78,11 +80,10 @@ struct GlassIsland: View {
                 GlassBackdrop(shape: shape)
                 shape.fill(black)
                 // The glow: a soft band of colour just inside the edge, like Siri's.
-                shape.stroke(AngularGradient(colors: [.isletCyan, Color(hex: 0x5E5CE6), Color(hex: 0xFF5EA8),
-                                                      Color(hex: 0xFF9F0A), .isletCyan], center: centre),
-                             lineWidth: 8)
-                    .blur(radius: 6)
-                    .opacity(GlassLook.glow)
+                shape.stroke(AngularGradient(colors: glowColors, center: centre), lineWidth: tint == nil ? 8 : 10)
+                    .blur(radius: tint == nil ? 6 : 4)
+                    .opacity(tint == nil ? GlassLook.glow : 0.9)
+                    .animation(.easeInOut(duration: 0.5), value: tint)
                     .clipShape(shape)
                     .mask(below)
                 // The rim: a hairline of light catching the edge.
@@ -92,6 +93,13 @@ struct GlassIsland: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    private var glowColors: [Color] {
+        guard let t = tint, let first = t.first else {
+            return [.isletCyan, Color(hex: 0x5E5CE6), Color(hex: 0xFF5EA8), Color(hex: 0xFF9F0A), .isletCyan]
+        }
+        return t + [first]
     }
 }
 

@@ -37,10 +37,12 @@ struct IslandView: View {
         // Bezel mode's floating card keeps its black drop (its neck is drawn by thresholding black).
         let glass = glassLook && !floating
         // The hint's body grows and folds under the lock bar without remounting the padlock.
-        let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : pres)-\(content?.kind ?? "-")"
+        // Media keeps its views from the wings into the hovered wide bar, so only the name below fades in.
+        let mediaBar: Bool = if case .media? = content, pres == .levelWings { true } else { false }
+        let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : mediaBar ? .wings : pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
             if floating { BezelBackdrop(m: m) }
-            else if glass { GlassIsland(m: m, notchHeight: nh) }
+            else if glass { GlassIsland(m: m, notchHeight: nh, tint: store.showsMediaPeek ? store.peekColors : nil) }
             else { IslandShape(m: m).fill(Color.black) }
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
             Group {
@@ -72,6 +74,8 @@ struct IslandView: View {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.isletTertiary)
                             .frame(width: 30, height: 30).padding(.top, g.floatTop)
                             .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.15)))
+                    } else if store.showsMediaPeek {
+                        MediaPeekView(store: store, glass: glass, height: m.height, notchHeight: nh)
                     }
                 }
                 }
@@ -82,6 +86,16 @@ struct IslandView: View {
             .offset(y: floating && pres != .peek ? m.y : 0)
             .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)
             .clipShape(shape)
+            // Hidden media swiped back: the peek's colour gathers into the artwork.
+            if let start = store.morphFromPeek, case .media? = content {
+                let nw = store.geometry?.width ?? 190
+                let to = pres == .chin ? CGPoint(x: -(IslandLayout.chinWidth / 2 - 16 - 11), y: nh + IslandLayout.chinHeight / 2)
+                                       : CGPoint(x: -(nw / 2 + 30), y: nh / 2)
+                PeekMorph(store: store, start: start, glass: glass, centerX: NotchGeometry.panelWidth / 2, notchWidth: nw,
+                          notchHeight: nh, to: to, scale: swellScale)
+                    .frame(width: NotchGeometry.panelWidth, height: store.geometry?.panelHeight ?? 300, alignment: .top)
+                    .clipShape(shape)
+            }
         }
         .environment(\.isletGlass, glass)
         .contentShape(shape)

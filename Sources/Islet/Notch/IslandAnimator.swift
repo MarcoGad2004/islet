@@ -20,6 +20,9 @@ final class IslandAnimator {
     /// at once whatever it is in the middle of (wings springing out, the chin dropping), without re-planning that motion.
     private var swell = [Channel](repeating: Channel(), count: IslandMetrics.channelCount)
     private static let swellSpring = Spring(response: 0.32, damping: 0.52)
+    /// Set directly every frame by a gesture (the skip swipe deepening the peek): it follows the fingers exactly, with
+    /// no spring of its own; the gesture's own spring takes it back when they lift.
+    private var extra = IslandMetrics.zero
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
     /// Closing into the notch runs in two legs: into a slightly swollen pill, then down to this.
@@ -42,7 +45,14 @@ final class IslandAnimator {
         for i in 0..<IslandMetrics.channelCount {
             channels[i] = Channel(value: target[i], velocity: 0, target: target[i])
         }
-        metrics = target + swellNow
+        metrics = target + swellNow + extra
+    }
+
+    /// The finger-driven layer: applied at once, on top of the springs and the swell.
+    func setExtra(_ e: IslandMetrics) {
+        guard e != extra else { return }
+        extra = e
+        metrics = base + swellNow + extra
     }
 
     /// The shape without the hover swell: what the motion plans and the close legs look at.
@@ -238,7 +248,7 @@ final class IslandAnimator {
             if Self.step(&swell[i], dt) { moving = true }
         }
         let next = base
-        metrics = next + swellNow
+        metrics = next + swellNow + extra
         // Second leg of a close: once the body has been absorbed into the swollen pill, it eases down to the notch.
         let legDone = thenWhen?(next) ?? thenAtWidth.map { next.sw - $0 < 3 } ?? (next.bh < 2 && next.bw - next.sw < 1)
         if let final = then, legDone {

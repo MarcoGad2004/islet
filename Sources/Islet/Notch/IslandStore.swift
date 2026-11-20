@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Single source of truth for what the island shows (ARCHITECTURE.md layer 5).
 /// Modules publish events and state; priority is: face scan > unlock animation > volume/brightness >
@@ -28,6 +29,16 @@ final class IslandStore {
     private(set) var mediaFresh = false
     /// The app in front. Media from it stays out of the notch: you're already in the player.
     private(set) var frontBundleID: String?
+    /// A two-finger swipe left or right over media: skip or previous, following the fingers (SkipGesture.swift).
+    private(set) var skip: SkipState?
+    @ObservationIgnored private var skipSpring: ValueSpring?
+    @ObservationIgnored private var skipTween: Tween?
+    /// Finger travel that pulls the neighbouring song all the way in.
+    static let skipDistance: Double = 80
+    /// Swiping hidden media back: the peek's colour gathers into the artwork (`PeekMorph`), so the real artwork
+    /// waits until it has.
+    private(set) var morphFromPeek: Date?
+    @ObservationIgnored private var morphTask: Task<Void, Never>?
     private(set) var wingsFit = false
     private(set) var eventWingsFit = false
     private(set) var event: IslandEvent?
@@ -122,11 +133,22 @@ final class IslandStore {
             if case .progress = c { return wingsFit ? .levelWings : .chin } // the step goes in the body
             if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
+            // Media under the pointer (or mid-swipe): the wide bar, with the song's name in its body.
+            if case .media = c, wingsFit, geometry?.mode == .notch, pointerInside || skip != nil { return .levelWings }
             return compactLayout
         }
         if let base { return base }
         return pointerInside ? .peek : .closed
     }
+
+    /// Media swiped away and the pointer over the notch: the peek takes the album's colours (DESIGN.md "Media peek").
+    var showsMediaPeek: Bool {
+        geometry?.mode == .notch && mediaHidden && media != nil && mediaFresh && pointerInside && content == nil
+            && !expanded && base == nil
+    }
+
+    /// The peek's colours, from the artwork.
+    var peekColors: [Color] { ArtworkPalette.colors(media?.artwork) }
 
     // MARK: Geometry and layout
 
@@ -285,6 +307,7 @@ final class IslandStore {
     }
 
     func swipeUp() {
+        if skip != nil { return }
         if expanded { collapse(); return }
         if mediaVisible && charge == nil && level == nil && event == nil && unlockStart == nil {
             mediaHidden = true // stays hidden until swiped back or a different app starts playing
@@ -293,9 +316,103 @@ final class IslandStore {
     }
 
     func swipeDown() {
-        if mediaHidden { mediaHidden = false; refresh(); return }
+        if skip != nil { return }
+        if mediaHidden {
+            // From the peek, its colour gathers into the artwork as media comes back.
+            if showsMediaPeek {
+                morphFromPeek = Date()
+                morphTask?.cancel()
+                morphTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(PeekMorph.duration))
+                    guard !Task.isCancelled else { return }
+                    self?.morphFromPeek = nil
+                }
+            }
+            mediaHidden = false; refresh(); return
+        }
         expand()
     }
+
+    // MARK: Skip and previous
+
+    /// The fingers started sideways over the island. Only playing media (showing, or hidden behind the peek) skips.
+    func skipBegan() -> Bool {
+        guard !expanded, base == nil, !paused, let m = media, mediaMonitor != nil else { return false }
+        let onMedia: Bool = if case .media? = content { true } else { false }
+        guard onMedia || showsMediaPeek else { return false }
+        finishSkipNow()
+        skip = SkipState(fromTitle: m.artist.isEmpty ? m.title : "\(m.title) · \(m.artist)")
+        refresh()
+        return true
+    }
+
+    /// Finger travel since the swipe began, in points: negative is left (next), positive right (previous).
+    func skipChanged(_ dx: Double) {
+        guard var s = skip, case .tracking = s.phase else { return }
+        if dx < 0 { s.dir = 1 } else if dx > 0 { s.dir = -1 }
+        let wasArmed = s.armed
+        s.progress = Self.band(abs(dx) / Self.skipDistance)
+        // A light tap on the trackpad as it crosses half way, either way.
+        if s.armed != wasArmed { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+        skip = s
+        updateSkipDepth()
+    }
+
+    /// The fingers lifted, moving at `velocity` (points per second, positive right). The spring starts from where
+    /// they left it at their speed: past half way, or flung in, the neighbour lands and the song changes now.
+    func skipEnded(velocity: Double) {
+        guard var s = skip, case .tracking = s.phase else { return }
+        guard s.dir != 0 else { skip = nil; refresh(); return }
+        let pv = (s.dir == 1 ? -velocity : velocity) / Self.skipDistance // progress per second, + is further in
+        let land = pv > 2.5 ? s.progress > 0.12 : (pv < -2.5 ? false : s.armed)
+        if land { s.dir == 1 ? mediaMonitor?.next() : mediaMonitor?.previous() }
+        s.phase = .releasing(landing: land)
+        skip = s
+        let response = land ? min(max(0.34 - abs(pv) * 0.012, 0.18), 0.34) : 0.3
+        skipSpring?.stop()
+        skipSpring = ValueSpring(from: s.progress, to: land ? 1 : 0, velocity: pv, response: response,
+                                 damping: land ? 0.82 : 0.9,
+                                 update: { [weak self] p in self?.skip?.progress = p; self?.updateSkipDepth() },
+                                 done: { [weak self] in land ? self?.skipLanded() : self?.clearSkip() })
+    }
+
+    /// The neighbour is in: the icon pushes, then the real name and artwork take over and the slot hands back.
+    private func skipLanded() {
+        guard var s = skip else { return }
+        s.pushes += 1
+        s.phase = .landed(fade: 0)
+        skip = s
+        skipTween?.stop()
+        skipTween = Tween(duration: 0.6, update: { [weak self] k in
+            guard let self, var s = self.skip, case .landed = s.phase else { return }
+            s.phase = .landed(fade: k)
+            self.skip = s
+            self.updateSkipDepth()
+        }, done: { [weak self] in self?.clearSkip() })
+    }
+
+    private func clearSkip() {
+        skipSpring?.stop(); skipSpring = nil
+        skipTween?.stop(); skipTween = nil
+        skip = nil
+        animator.setExtra(.zero)
+        refresh()
+    }
+
+    /// A new swipe while the last one is still settling: jump to its end.
+    private func finishSkipNow() { if skip != nil { clearSkip() } }
+
+    /// On the peek, the shape deepens with the swipe to make room for the icon, and eases back after landing.
+    private func updateSkipDepth() {
+        guard let s = skip, presentation == .peek else { animator.setExtra(.zero); return }
+        var depth = 15 * SkipState.clamp(s.progress * 1.6)
+        if let f = s.landedFade { depth *= 1 - f * f * (3 - 2 * f) }
+        animator.setExtra(IslandMetrics(sw: 0, sh: depth, bw: 0, bh: 0, tr: 0, br: 0, ic: 0))
+    }
+
+    /// Rubber band past a full pull.
+    private static func band(_ p: Double) -> Double { p <= 1 ? p : 1 + 0.12 * (1 - exp(-(p - 1) * 4)) }
+
 
     func dismiss() { collapse() }
 

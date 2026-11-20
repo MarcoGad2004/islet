@@ -11,31 +11,71 @@ final class NotchPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { onCancel?() }
 }
 
-/// Hosts the SwiftUI island and turns two-finger scrolls into swipes.
+/// Hosts the SwiftUI island and turns two-finger scrolls into swipes: up and down fire once past a threshold;
+/// left and right are followed continuously (skip and previous) and end exactly when the fingers lift.
 final class IslandHostingView: NSHostingView<IslandView> {
     enum Swipe { case up, down }
     var onSwipe: ((Swipe) -> Void)?
+    /// Sideways: began (return false to ignore this swipe), finger travel so far (+ right), lifted at a speed (pt/s).
+    var onSideBegan: (() -> Bool)?
+    var onSideChanged: ((CGFloat) -> Void)?
+    var onSideEnded: ((CGFloat) -> Void)?
 
-    private var accumulated: CGFloat = 0
+    private enum Axis { case undecided, vertical, horizontal, ignored }
+    private var axis = Axis.undecided
+    private var accX: CGFloat = 0
+    private var accY: CGFloat = 0
     private var fired = false
+    private var samples: [(t: TimeInterval, x: CGFloat)] = []
     private let threshold: CGFloat = 40
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func scrollWheel(with event: NSEvent) {
         guard event.hasPreciseScrollingDeltas else { return }
-        if event.phase.contains(.began) { accumulated = 0; fired = false }
-        // Normalise to finger movement: negative = fingers moved up, regardless of the natural-scrolling setting.
-        let fingerDelta = event.isDirectionInvertedFromDevice ? event.scrollingDeltaY : -event.scrollingDeltaY
-        if event.phase.contains(.changed) || event.phase.contains(.began) {
-            accumulated += fingerDelta
-            if !fired && abs(accumulated) >= threshold {
-                fired = true
-                onSwipe?(accumulated < 0 ? .up : .down)
+        // The trackpad keeps coasting after the fingers lift; that never counts.
+        guard event.momentumPhase.isEmpty else { return }
+        if event.phase.contains(.began) { reset() }
+        // Normalise to finger movement, regardless of the natural-scrolling setting: x + is right, y - is up.
+        let inverted = event.isDirectionInvertedFromDevice
+        let fx = inverted ? event.scrollingDeltaX : -event.scrollingDeltaX
+        let fy = inverted ? event.scrollingDeltaY : -event.scrollingDeltaY
+        if event.phase.contains(.began) || event.phase.contains(.changed) {
+            accX += fx; accY += fy
+            if axis == .undecided && hypot(accX, accY) >= 5 {
+                if abs(accX) > abs(accY) {
+                    axis = (onSideBegan?() ?? false) ? .horizontal : .ignored
+                } else {
+                    axis = .vertical
+                }
+            }
+            switch axis {
+            case .vertical:
+                if !fired && abs(accY) >= threshold {
+                    fired = true
+                    onSwipe?(accY < 0 ? .up : .down)
+                }
+            case .horizontal:
+                samples.append((event.timestamp, accX))
+                if samples.count > 12 { samples.removeFirst() }
+                onSideChanged?(accX)
+            default: break
             }
         }
-        if event.phase.contains(.ended) || event.phase.contains(.cancelled) { accumulated = 0; fired = false }
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            if axis == .horizontal { onSideEnded?(velocity(at: event.timestamp)) }
+            reset()
+        }
     }
+
+    /// Finger speed over the last 80 ms of the swipe. A pause before lifting reads as zero.
+    private func velocity(at now: TimeInterval) -> CGFloat {
+        let recent = samples.filter { now - $0.t < 0.08 }
+        guard let first = recent.first, let last = recent.last, last.t > first.t else { return 0 }
+        return (last.x - first.x) / CGFloat(last.t - first.t)
+    }
+
+    private func reset() { axis = .undecided; accX = 0; accY = 0; fired = false; samples = [] }
 }
 
 /// Owns the panel and the pointer/click/screen monitors that feed the store.
@@ -65,6 +105,9 @@ final class NotchController {
             case .down: self?.store.swipeDown()
             }
         }
+        host.onSideBegan = { [weak self] in self?.store.skipBegan() ?? false }
+        host.onSideChanged = { [weak self] dx in self?.store.skipChanged(Double(dx)) }
+        host.onSideEnded = { [weak self] v in self?.store.skipEnded(velocity: Double(v)) }
 
         let panel = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                backing: .buffered, defer: false)

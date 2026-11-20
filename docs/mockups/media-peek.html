@@ -1,0 +1,609 @@
+<title>Islet Media Peek</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the live stage first (it is the design), then the gesture map and build notes. Single dark look: it's a notch. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --panel: #15161a;
+  --line: #24262c;
+  --fg: #ececf0;
+  --muted: #9a9ca6;
+  --accent: #64d2ff;
+  --pick: #32d74b;
+  --sans: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+.live { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button, .btn { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 6px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #2a2c33; color: var(--fg); }
+.btn { border: 1px solid var(--line); color: var(--fg); }
+.btn:hover, .seg button:hover { color: var(--fg); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.label { font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.status { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; min-height: 21px; }
+.status b { font-weight: 600; }
+.status span { color: var(--muted); }
+.hintline { font-size: 12.5px; color: var(--muted); margin: 0; }
+.hintline b { color: var(--fg); font-weight: 600; }
+
+.frame { position: relative; overflow: hidden; border-radius: 10px; width: 100%; touch-action: pan-y; user-select: none; cursor: default; }
+.frame.dragging { cursor: grabbing; }
+.stage { position: absolute; left: 0; top: 0; width: 520px; height: 100px; transform-origin: 0 0;
+  background: radial-gradient(120% 140% at 15% 110%, #5b3a8e 0%, transparent 55%), radial-gradient(90% 120% at 95% 120%, #1a7090 0%, transparent 60%), linear-gradient(180deg, #2a3866, #3a2c5c); }
+.menubar { position: absolute; inset: 0 0 auto 0; height: 34px; background: rgba(22,22,28,0.55); backdrop-filter: blur(14px); display: flex; justify-content: space-between; align-items: center; padding: 0 12px; font: 500 10.5px var(--sans); color: #e8e8ee; }
+.menus { display: flex; gap: 11px; white-space: nowrap; }
+.menus .app { font-weight: 700; }
+.menus .logo { width: 10px; height: 10px; border-radius: 50%; background: #e8e8ee; align-self: center; }
+.tray { display: flex; gap: 9px; align-items: center; }
+.tray i { display: block; width: 13px; height: 9px; border-radius: 2.5px; background: rgba(232,232,238,0.75); }
+.tray i.w { width: 26px; }
+
+.island { position: absolute; left: 50%; top: 0; width: 0; height: 0; }
+.island > * { position: absolute; }
+.stem, .body { background: #000; }
+.stem { top: 0; }
+.fil { width: 10px; height: 10px; background: radial-gradient(circle 10px at var(--cx) 0, transparent 9.5px, #000 10px); }
+.fil.l { --cx: 100%; } .fil.r { --cx: 0; }
+.art { background: var(--art); filter: blur(var(--blur, 0px)); }
+.art.line.solid { box-shadow: 0 0 6px 1px var(--glow); animation: breathe 2.4s ease-in-out infinite; }
+.art.line.glass { animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { filter: blur(var(--blur, 0px)) saturate(1.35) brightness(.7); } 50% { filter: blur(var(--blur, 0px)) saturate(1.35) brightness(1.15); } }
+.src { border-radius: 23%; background: linear-gradient(180deg, #ff6a7f, #fa2d55); display: grid; place-items: center; }
+.src svg { width: 58%; height: 58%; }
+.title { white-space: nowrap; font-weight: 600; transform: translateY(-50%); line-height: 1.2; color: #f5f5f7; }
+.title .a { color: #a1a1a6; font-weight: 500; }
+.glyph { opacity: 0; scale: .55; }
+.glyph svg { display: block; width: 100%; height: 100%; fill: #f5f5f7; opacity: .5; transition: opacity .12s; }
+.lane { position: absolute; overflow: hidden; }
+.lane .card { position: absolute; inset: 0; }
+/* Skip icon: three triangles; a push slides them one step forward (the back one fades in, the front one out). */
+.glyph .tri { transform: translateX(var(--nudge, 0px)); }
+.glyph .t0 { opacity: 0; }
+.glyph.push .t0 { animation: triIn .38s cubic-bezier(.3,.9,.35,1); }
+.glyph.push .t1 { animation: triMove .38s cubic-bezier(.3,.9,.35,1); }
+.glyph.push .t2 { animation: triOut .38s cubic-bezier(.3,.9,.35,1); }
+@keyframes triIn { from { transform: translateX(0); opacity: 0; } to { transform: translateX(9px); opacity: 1; } }
+@keyframes triMove { from { transform: translateX(0); } to { transform: translateX(9px); } }
+@keyframes triOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(9px); opacity: 0; } }
+.ghostlabel { color: #a1a1a6; font-weight: 500; }
+.glyph.armed svg { opacity: 1; animation: pop .3s cubic-bezier(.3,1.7,.5,1); }
+@keyframes pop { 0% { transform: scale(1); } 45% { transform: scale(1.28); } 100% { transform: scale(1); } }
+
+.anim .stem, .anim .body { transition: width .5s cubic-bezier(.34,1.32,.5,1), height .32s cubic-bezier(.2,.8,.25,1), left .5s cubic-bezier(.34,1.32,.5,1), border-radius .3s ease; }
+.anim .fil { transition: left .5s cubic-bezier(.34,1.32,.5,1), opacity .2s ease; }
+.anim .art { transition: left .5s cubic-bezier(.34,1.2,.5,1), top .42s cubic-bezier(.3,1.1,.5,1), width .5s cubic-bezier(.34,1.2,.5,1), height .5s cubic-bezier(.34,1.2,.5,1), border-radius .4s ease, opacity .25s ease, filter .4s ease, box-shadow .3s ease, translate var(--gd, .35s) var(--ge, cubic-bezier(.3,1.25,.5,1)); }
+.anim .src { transition: left .5s cubic-bezier(.34,1.2,.5,1), top .42s cubic-bezier(.3,1.1,.5,1), width .5s cubic-bezier(.34,1.2,.5,1), height .5s cubic-bezier(.34,1.2,.5,1), opacity .25s ease, translate var(--gd, .35s) var(--ge, cubic-bezier(.3,1.25,.5,1)); }
+.anim .title { transition: top .42s cubic-bezier(.3,1.1,.5,1), font-size .4s ease, opacity .25s ease, translate var(--gd, .35s) var(--ge, cubic-bezier(.3,1.25,.5,1)); }
+.anim .glyph { transition: left .4s ease, top .3s ease, opacity .25s ease, scale .3s cubic-bezier(.3,1.4,.5,1); }
+.tracking .stem, .tracking .body, .tracking .art, .tracking .src, .tracking .title, .tracking .glyph, .snap .art, .snap .src, .snap .title, .snap .glyph { transition: none !important; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { margin: 0; font-size: 17px; }
+.panel > p { margin: 0; color: var(--muted); max-width: 80ch; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel ul { margin: 0; padding-left: 18px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.panel li b { color: var(--fg); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td { color: var(--muted); }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .art.line, .glyph.armed svg { animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Islet · media peek · round 6</div>
+    <h1>Peek at hidden media</h1>
+    <p>Media swiped away, pointer over the notch: the island picks up the colours of the album art. With the glass look the glass strip is tinted; without it a thin line glows under the camera. Swipe down and that colour becomes the artwork. Swipe left or right to skip: the indicator follows your fingers, and letting go finishes at the speed you were going.</p>
+  </header>
+
+  <section class="live" aria-label="Live prototype">
+    <div class="controls">
+      <span class="label">Look</span>
+      <div class="seg" id="lookSeg">
+        <button type="button" id="look-glass" data-v="glass" aria-pressed="true">Glass</button>
+        <button type="button" id="look-solid" data-v="solid" aria-pressed="false">Solid</button>
+      </div>
+      <span class="label">Menu bar</span>
+      <div class="seg" id="destSeg">
+        <button type="button" id="dest-wings" data-v="wings" aria-pressed="true">Room for wings</button>
+        <button type="button" id="dest-chin" data-v="chin" aria-pressed="false">Crowded (chin)</button>
+      </div>
+    </div>
+    <div class="frame" id="liveFrame"></div>
+    <p class="hintline"><b>Play it:</b> the buttons play each animation. Hovering and dragging sideways work here too, but how quickly it answers your fingers will be tuned in the app on the MacBook, where the trackpad says exactly when they lift.</p>
+    <div class="controls">
+      <div class="group">
+        <button type="button" class="btn" id="b-hover">Hover</button>
+        <button type="button" class="btn" id="b-leave">Move away</button>
+        <button type="button" class="btn" id="b-down">Swipe down</button>
+        <button type="button" class="btn" id="b-up">Swipe up</button>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="b-flick">Quick flick · next</button>
+        <button type="button" class="btn" id="b-slow">Slow swipe · next</button>
+        <button type="button" class="btn" id="b-prev">Previous</button>
+        <button type="button" class="btn" id="b-half">Half way, let go</button>
+      </div>
+      <button type="button" class="btn primary" id="b-play">Play the sequence</button>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Gestures over the island</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Gesture</th><th>Peek (media hidden)</th><th>Wings or chin (media showing)</th></tr></thead>
+        <tbody>
+          <tr><td>Hover</td><td>Album colours appear: the glass strip tinted, or the glow line</td><td>Wings: they become the volume/brightness wide bar, with the song's name in the short body below. Chin: swells a little, as today</td></tr>
+          <tr><td>Swipe down</td><td>Media comes back; the colour gathers into the artwork</td><td>Opens the panel</td></tr>
+          <tr><td>Swipe up</td><td>Nothing (already hidden)</td><td>Hides media; the artwork stretches back into colour</td></tr>
+          <tr><td>Swipe left</td><td>Next track. The skip icon is pulled in from the right under the camera as the peek deepens; the colour stays put and changes to the new song's in place</td><td>Next track. The name rolls left in the bar under the notch as "Next song" rolls in from the right; the right wing's app icon makes way for the skip icon, which plays a push as the song changes</td></tr>
+          <tr><td>Swipe right</td><td>Previous track, mirrored</td><td>Previous track: the name rolls right, and the left wing's artwork makes way for the rewind icon</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>How the skip gesture feels</h2>
+    <div class="cols">
+      <ul>
+        <li><b>Rolling the name:</b> the song's name sits in the bar under the notch, the next song just off to the right and the previous just off to the left. Your fingers roll it: 80 pt of travel brings the neighbour all the way in, and past that it rubber-bands. The new name shows as "Next song" or "Previous song" until it lands, since the player only says it then.</li>
+        <li><b>The wings:</b> skip plays in the right wing, where the app icon shrinks away; rewind in the left, where the artwork does. The icon grows with your fingers, and when the song changes its arrows push one step forward.</li>
+        <li><b>Half way:</b> once the neighbour is half in, its icon lights up and the trackpad taps. Pull back past half and it un-lights.</li>
+        <li><b>Letting go:</b> on the frame your fingers lift, a spring takes the strip from exactly where it is at exactly the speed it was moving. Past half way, or flung in, the neighbour lands in the slot with a slight settle; short of it, or flung back, the current song slides home. A flick lands in about 0.2 s; a slow release eases in over about 0.35 s. The song changes the moment it lands.</li>
+      </ul>
+      <ul>
+        <li><b>New colours:</b> the next song's artwork isn't known until the player switches. On the peek the colour never moves; it fades to the new song's colours in place when the new artwork arrives.</li>
+        <li><b>One song per swipe:</b> the trackpad's coasting after you lift doesn't count, so a long flick can't skip twice. In the app, the scroll event's phase says exactly when the fingers lift, so there's no waiting for the coast to end.</li>
+        <li><b>Direction:</b> fingers left is next, fingers right is previous, following natural scrolling. It flips with the system setting.</li>
+        <li><b>Colours:</b> two or three main colours from the artwork, saturated a touch so dull covers still read on black.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const W = 520, NW = 190, NH = 34, T = 56; // T: travel to commit, in pt
+  const TRACKS = [
+    { t: "Midnight Static", a: "Lowtide", art: "linear-gradient(120deg,#ff9f6b,#e0457f 50%,#6a3fd6)", glow: "rgba(240,110,150,.55)" },
+    { t: "Paper Satellites", a: "Kessler", art: "linear-gradient(120deg,#7cf0d0,#2a9fdf 50%,#3946c8)", glow: "rgba(70,190,230,.55)" },
+    { t: "Low Orbit", a: "Mira Vale", art: "linear-gradient(120deg,#ffe27a,#f5893a 50%,#d23a4a)", glow: "rgba(250,160,70,.55)" }
+  ];
+  const note = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M9 17.5a2.5 2.5 0 1 1-2-2.45V5.8l11-2.3v11.95a2.5 2.5 0 1 1-2-2.45V7.1l-7 1.5z"/></svg>';
+  const skipSVG = (flip) => '<svg viewBox="0 0 24 24"><g' + (flip ? ' transform="translate(24 0) scale(-1 1)"' : '') + '>' +
+    '<path class="tri t0" d="M-6 6.5 2.5 12-6 17.5z"/><path class="tri t1" d="M3 6.5 11.5 12 3 17.5z"/><path class="tri t2" d="M12 6.5 20.5 12 12 17.5z"/></g></svg>';
+  const menusFit = ["Music", "File", "Edit", "View", "Window", "Help"];
+  const menusFull = ["Music", "File", "Edit", "Song", "View", "Controls", "Account", "Window", "Help"];
+
+  const meas = document.createElement("span");
+  meas.style.cssText = "position:absolute;visibility:hidden;white-space:pre;font-family:Inter,-apple-system,sans-serif;font-weight:600";
+  document.body.appendChild(meas);
+  function textW(t, fs) { meas.style.fontSize = fs + "px"; meas.textContent = t; return meas.getBoundingClientRect().width; }
+
+  // Shapes and content for a look (glass / solid), a state (closed / peek / full) and the menu bar's verdict.
+  // On a real notch the top 34 pt is behind the camera housing, so the peek's colour sits in the 6 pt below it.
+  function layout(look, state, dest) {
+    const L = {
+      stem: { w: NW, h: NH, r: 10 }, body: { w: NW, h: 0, r: 10 }, fil: 0,
+      art: { x: 0, y: NH - 3, w: 40, h: 2, r: 1, o: 0, blur: 0, line: false },
+      src: { x: 60, y: 17, s: 10, o: 0 }, title: { y: 17, fs: 9, o: 0 },
+      next: { x: 0, y: NH + 6, s: 11 }, prev: { x: 0, y: NH + 6, s: 11 }
+    };
+    if (state === "peek") {
+      L.stem = { w: NW + 16, h: NH + 6, r: 14 };
+      L.art = look === "glass"
+        ? { x: 0, y: NH + 3.5, w: NW - 14, h: 5, r: 2.5, o: 0.9, blur: 2.5, line: true }
+        : { x: 0, y: NH + 2.5, w: 64, h: 2, r: 1, o: 1, blur: 0, line: true };
+    } else if (state === "full") {
+      if (dest === "wings" && hov) {
+        // Hovered: the volume/brightness wide bar, with the song's name in its short body.
+        L.stem = { w: NW + 120, h: NH, r: 0 }; L.body = { w: NW + 120, h: 26, r: 18, flatTop: true };
+        L.art = { x: -125, y: 17, w: 22, h: 22, r: 6, o: 1, blur: 0, line: false };
+        L.src = { x: 125, y: 17, s: 20, o: 1 }; L.title = { y: NH + 12, fs: 12, o: 1 };
+        L.next = { x: 125, y: 17, s: 16 }; L.prev = { x: -125, y: 17, s: 16 };
+      } else if (dest === "wings") {
+        L.stem = { w: NW + 120, h: NH, r: 12 };
+        L.art = { x: -125, y: 17, w: 22, h: 22, r: 6, o: 1, blur: 0, line: false };
+        L.src = { x: 125, y: 17, s: 20, o: 1 };
+        L.next = { x: 125, y: 17, s: 15 }; L.prev = { x: -125, y: 17, s: 15 };
+      } else {
+        L.stem = { w: NW, h: NH, r: 0 }; L.body = { w: 300, h: 36, r: 16 }; L.fil = 1;
+        L.art = { x: -123, y: 52, w: 22, h: 22, r: 6, o: 1, blur: 0, line: false };
+        L.src = { x: 124, y: 52, s: 20, o: 1 }; L.title = { y: 52, fs: 13, o: 1 };
+        L.next = { x: 124, y: 52, s: 16 }; L.prev = { x: -123, y: 52, s: 16 };
+      }
+    }
+    L.body.w = L.body.h > 0 ? L.body.w : L.stem.w;
+    return L;
+  }
+
+  function buildStage(frame) {
+    const stage = document.createElement("div");
+    stage.className = "stage anim";
+    stage.innerHTML =
+      '<div class="menubar"><div class="menus"></div><div class="tray"><i></i><i></i><i class="w"></i><i></i></div></div>' +
+      '<div class="island">' +
+        '<div class="body"></div><div class="stem"></div><div class="fil l"></div><div class="fil r"></div>' +
+        '<div class="art"></div>' +
+        '<div class="title"><span class="t"></span><span class="a"></span></div>' +
+        '<div class="src">' + note + '</div>' +
+        '<div class="glyph next">' + skipSVG(false) + '</div><div class="glyph prev">' + skipSVG(true) + '</div>' +
+      '</div>';
+    frame.appendChild(stage);
+    function fit() { const s = frame.clientWidth / W; stage.style.transform = "scale(" + s + ")"; frame.style.height = (100 * s) + "px"; }
+    fit(); new ResizeObserver(fit).observe(frame);
+    return stage;
+  }
+
+  const frame = document.getElementById("liveFrame");
+  const stage = buildStage(frame);
+  const q = (s) => stage.querySelector(".island " + s);
+  const el = { stem: q(".stem"), body: q(".body"), art: q(".art"), src: q(".src"), title: q(".title"), next: q(".glyph.next"), prev: q(".glyph.prev") };
+  let look = "glass", dest = "wings", state = "closed", ti = 0, timers = [], hov = false;
+
+  function setTrack(tr) {
+    stage.style.setProperty("--art", tr.art); stage.style.setProperty("--glow", tr.glow);
+    q(".title .t").textContent = tr.t; q(".title .a").textContent = " · " + tr.a;
+  }
+
+  // Glass: the lowest part of the shape fades into see-through glass over its bottom strip, with a light rim.
+  function paintGlass(stemH, bodyH) {
+    const bottom = bodyH > 0 ? el.body : el.stem, top = bodyH > 0 ? el.stem : el.body;
+    top.style.background = "#000"; top.style.backdropFilter = "none"; top.style.boxShadow = "none";
+    const under = bodyH > 0 ? bodyH : stemH - NH;
+    const S = look !== "glass" || under <= 0 ? 0 : Math.min(under, Math.max(10, Math.min(44, under * 0.3)));
+    bottom.style.background = S > 0 ? "linear-gradient(to bottom, #000 calc(100% - " + S + "px), rgba(0,0,0,.12))" : "#000";
+    bottom.style.backdropFilter = S > 0 ? "blur(10px) saturate(1.4)" : "none";
+    bottom.style.boxShadow = S > 0 ? "inset 0 -1.2px 0 rgba(255,255,255,.28)" : "none";
+  }
+
+  function place(node, x, y, w, h) { Object.assign(node.style, { left: (x - w / 2) + "px", top: (y - h / 2) + "px", width: w + "px", height: h + "px" }); }
+
+  function apply() {
+    const L = layout(look, state, dest), tr = TRACKS[ti];
+    stage.querySelector(".menus").innerHTML = '<span class="logo"></span>' +
+      (dest === "wings" ? menusFit : menusFull).map((m, i) => '<span' + (i === 0 ? ' class="app"' : '') + '>' + m + '</span>').join("");
+    Object.assign(el.stem.style, { left: (-L.stem.w / 2) + "px", width: L.stem.w + "px", height: L.stem.h + "px",
+      borderRadius: L.body.h > 0 ? "0" : "0 0 " + L.stem.r + "px " + L.stem.r + "px" });
+    const growing = stage.dataset.bodyH === "0" && L.body.h > 0;
+    el.body.style.transitionDelay = growing ? ".16s, 0s, .16s, 0s" : "";
+    Object.assign(el.body.style, { left: (-L.body.w / 2) + "px", width: L.body.w + "px", top: (NH - 0.5) + "px", height: L.body.h + "px",
+      borderRadius: L.body.h > 0 ? (L.body.flatTop ? "0 0 " + L.body.r + "px " + L.body.r + "px" : L.body.r + "px") : "0" });
+    stage.dataset.bodyH = L.body.h > 0 ? "1" : "0";
+    Object.assign(q(".fil.l").style, { left: (NW / 2) + "px", top: (NH - 10) + "px", opacity: L.fil });
+    Object.assign(q(".fil.r").style, { left: (-NW / 2 - 10) + "px", top: (NH - 10) + "px", opacity: L.fil });
+    paintGlass(L.stem.h, L.body.h);
+
+    const a = L.art;
+    place(el.art, a.x, a.y, a.w, a.h);
+    Object.assign(el.art.style, { borderRadius: a.r + "px", opacity: a.o, translate: "0px 0px" });
+    el.art.style.setProperty("--blur", a.blur + "px");
+    el.art.classList.toggle("line", a.line); el.art.classList.toggle("glass", look === "glass"); el.art.classList.toggle("solid", look !== "glass");
+    const s = L.src;
+    place(el.src, s.x, s.y, s.s, s.s); el.src.style.opacity = s.o; el.src.style.translate = "0px 0px";
+    el.src.style.scale = "1"; el.art.style.scale = "1";
+    const t = L.title, w = textW(tr.t + " · " + tr.a, Math.max(t.fs, 1));
+    Object.assign(el.title.style, { left: (-w / 2) + "px", top: t.y + "px", fontSize: t.fs + "px", opacity: t.o, translate: "0px 0px" });
+    for (const k of ["next", "prev"]) {
+      place(el[k], L[k].x, L[k].y, L[k].s, L[k].s);
+      el[k].style.opacity = 0; el[k].style.scale = ".55"; el[k].classList.remove("armed"); el[k].style.setProperty("--nudge", "0px");
+    }
+    return L;
+  }
+
+  // ---- Skip and previous ----
+  // The song's name rolls in the bar under the notch (the wide bar's body, or the chin's middle), while the wing on
+  // that side plays the icon: skip in the right wing (the app icon makes way), rewind in the left (the artwork makes
+  // way). Fingers drive progress p (finger travel / F); letting go hands it to a spring at the fingers' speed.
+  // The next song's name isn't known until it plays, so the incoming name is "Next song" until it lands.
+  const F = 80;
+  let g = null, busy = false, lane = null, shown = { armed: false, s: 0 };
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  function spring(o) {
+    let x = o.from, v = o.v0 || 0, last = performance.now();
+    const k = Math.pow(2 * Math.PI / o.response, 2), c = 4 * Math.PI * o.damping / o.response;
+    function f(now) {
+      const dt = Math.min(0.032, (now - last) / 1000); last = now;
+      for (let i = 0; i < 4; i++) { const a = -k * (x - o.to) - c * v; v += a * dt / 4; x += v * dt / 4; }
+      if (Math.abs(x - o.to) < 0.002 && Math.abs(v) < 0.05) { o.update(o.to); if (o.done) o.done(); return; }
+      o.update(x); requestAnimationFrame(f);
+    }
+    requestAnimationFrame(f);
+  }
+  function tween(ms, update, delay, done) {
+    const t0 = performance.now() + (delay || 0);
+    function f(now) {
+      const k = clamp((now - t0) / ms, 0, 1);
+      update(1 - Math.pow(1 - k, 3));
+      if (k < 1) requestAnimationFrame(f); else if (done) done();
+    }
+    requestAnimationFrame(f);
+  }
+
+  // Where the name rolls: the wide bar's body, or the chin between the artwork and the app icon.
+  function laneGeo() {
+    return dest === "wings" ? { lx: -135, ly: NH, lw: 270, lh: 26, br: "0 0 16px 16px", S: 170 }
+                            : { lx: -104, ly: NH, lw: 208, lh: 36, br: "0", S: 150 };
+  }
+  function buildLane(s) {
+    if (lane) lane.box.remove();
+    const G = laneGeo(), L = layout(look, state, dest), tr = TRACKS[ti];
+    const box = document.createElement("div");
+    box.className = "lane";
+    Object.assign(box.style, { left: G.lx + "px", top: G.ly + "px", width: G.lw + "px", height: G.lh + "px", borderRadius: G.br });
+    const fs = L.title.fs, ty = L.title.y - G.ly;
+    const w = textW(tr.t + " · " + tr.a, fs);
+    const label = s < 0 ? "Next song" : "Previous song", lw = textW(label, fs);
+    const out = document.createElement("div"); out.className = "card";
+    out.innerHTML = '<div class="title" style="left:' + (-w / 2 - G.lx) + 'px;top:' + ty + 'px;font-size:' + fs + 'px"><span class="t"></span><span class="a"></span></div>';
+    out.querySelector(".t").textContent = tr.t; out.querySelector(".a").textContent = " · " + tr.a;
+    const inn = document.createElement("div"); inn.className = "card";
+    inn.innerHTML = '<div class="title ghostlabel" style="left:' + (-lw / 2 - G.lx) + 'px;top:' + ty + 'px;font-size:' + fs + 'px"></div>';
+    inn.querySelector(".title").textContent = label;
+    box.append(out, inn);
+    el.art.parentNode.insertBefore(box, el.src);
+    el.title.style.opacity = 0;
+    lane = { box, out, inn, s, S: G.S };
+  }
+
+  function peekDepth(h) {
+    el.stem.style.height = h + "px"; paintGlass(h, 0);
+    const L = layout(look, state, dest);
+    el.art.style.top = (h - 3.5 - L.art.h / 2) + "px";
+  }
+
+  // Progress p: 0 = as it was, 1 = the neighbour fully in. s = -1 fingers left (next), +1 fingers right (previous).
+  function renderAt(p, s, quiet) {
+    const pc = clamp(p, 0, 1.1);
+    const on = s < 0 ? el.next : el.prev, other = s < 0 ? el.prev : el.next;
+    other.style.opacity = 0; other.classList.remove("armed");
+    if (state === "peek") {
+      // The colour stays put; the icon is pulled in from the side under the camera.
+      const h = NH + 6 + 15 * clamp(pc * 1.6, 0, 1);
+      peekDepth(h);
+      place(on, -s * 44 * (1 - clamp(pc, 0, 1)), NH + (h - NH - 6) / 2, 11, 11);
+      on.style.opacity = String(clamp(pc * 2.2, 0, 1)); on.style.scale = String(0.6 + 0.4 * clamp(pc, 0, 1));
+    } else {
+      if (!lane || lane.s !== s) buildLane(s);
+      const x = s * lane.S * p;
+      lane.out.style.translate = x + "px 0px";
+      lane.inn.style.translate = (x - s * lane.S) + "px 0px";
+      lane.out.style.opacity = String(clamp(1 - 1.7 * p, 0, 1));
+      lane.inn.style.opacity = String(clamp(1.7 * p - 0.7, 0, 1));
+      const L = layout(look, state, dest);
+      const slot = s < 0 ? el.src : el.art, keep = s < 0 ? el.art : el.src;
+      keep.style.opacity = s < 0 ? L.art.o : L.src.o; keep.style.scale = "1";
+      const k = clamp(pc * 2, 0, 1);
+      slot.style.opacity = String(1 - k); slot.style.scale = String(1 - 0.35 * k);
+      on.style.opacity = String(clamp(pc * 2 - 0.15, 0, 1)); on.style.scale = String(0.5 + 0.5 * clamp(pc * 1.6, 0, 1));
+      on.style.setProperty("--nudge", (2.5 * clamp(pc, 0, 1)) + "px");
+    }
+    const armed = p >= 0.5;
+    if (armed !== shown.armed || s !== shown.s) {
+      on.classList.toggle("armed", armed);
+      if (!quiet) say(armed ? (s < 0 ? "Next: let go to play it" : "Previous: let go to play it") : (s < 0 ? "Next…" : "Previous…"),
+        armed ? "Past half way: it lands when you let go (the trackpad taps here)." : "It follows your fingers. Let go now and it rolls back.");
+    }
+    shown = { armed, s };
+  }
+
+  const band = (p) => p <= 1 ? p : 1 + 0.12 * (1 - Math.exp(-(p - 1) * 4));
+
+  function gStart() {
+    if (state === "closed" || g || busy) return false;
+    clearTimers();
+    g = { dx: 0, samples: [[performance.now(), 0]] };
+    shown = { armed: false, s: 0 };
+    stage.classList.add("tracking");
+    return true;
+  }
+  function gMove(dx) {
+    if (!g) return;
+    g.dx = dx; g.samples.push([performance.now(), dx]); if (g.samples.length > 10) g.samples.shift();
+    if (dx === 0) return;
+    renderAt(band(Math.abs(dx) / F), Math.sign(dx));
+  }
+  function velocity(samples) {
+    const now = performance.now(), recent = samples.filter(([t]) => now - t < 80);
+    if (recent.length < 2) return 0;
+    const [t0, d0] = recent[0], [t1, d1] = recent[recent.length - 1];
+    return t1 > t0 ? (d1 - d0) / ((t1 - t0) / 1000) : 0;
+  }
+  function gEnd() {
+    if (!g) return;
+    const dx = g.dx, v = velocity(g.samples);
+    g = null;
+    if (dx === 0) { stage.classList.remove("tracking"); apply(); return; }
+    const s = Math.sign(dx), p = band(Math.abs(dx) / F), pv = (s * v) / F;
+    const land = pv > 2.5 ? p > 0.12 : pv < -2.5 ? false : p >= 0.5;
+    busy = true;
+    const response = land ? clamp(0.34 - Math.abs(pv) * 0.012, 0.18, 0.34) : 0.3;
+    spring({ from: p, to: land ? 1 : 0, v0: pv, response, damping: land ? 0.82 : 0.9,
+      update: (x) => renderAt(x, s, true), done: () => (land ? landed(s) : settleBack()) });
+  }
+  function settleBack() {
+    if (lane) { lane.box.remove(); lane = null; }
+    stage.classList.remove("tracking"); busy = false; apply();
+    say("Cancelled", "Not far enough, so it rolls back. Same song.");
+  }
+  function finishUp() { if (lane) { lane.box.remove(); lane = null; } stage.classList.remove("tracking"); busy = false; apply(); }
+
+  // Landed: the icon plays its push, the song changes, and the real name and artwork arrive.
+  function landed(s) {
+    const oldTr = TRACKS[ti], dir = s < 0 ? 1 : -1;
+    ti = (ti + dir + TRACKS.length) % TRACKS.length;
+    const tr = TRACKS[ti], on = s < 0 ? el.next : el.prev;
+    on.classList.remove("push"); void on.offsetWidth; on.classList.add("push");
+    const ghost = el.art.cloneNode(true);
+    ghost.style.setProperty("--art", oldTr.art); ghost.style.setProperty("--glow", oldTr.glow);
+    el.art.parentNode.insertBefore(ghost, el.art.nextSibling);
+    setTrack(tr);
+    say(dir > 0 ? "Skipped to next" : "Back to previous", tr.t + " by " + tr.a + (state === "peek" ? ". Still hidden; the colour changed with the song." : "."));
+    if (state === "peek") {
+      const h0 = parseFloat(el.stem.style.height) || NH + 6;
+      tween(320, (k) => { ghost.style.opacity = String(1 - k); }, 60, () => ghost.remove());
+      tween(240, (k) => { on.style.opacity = String(1 - k); }, 300);
+      spring({ from: h0, to: NH + 6, v0: 0, response: 0.36, damping: 0.8, update: (h) => { peekDepth(h); place(on, 0, NH + (h - NH - 6) / 2, 11, 11); } });
+      timers.push(setTimeout(() => { on.classList.remove("push"); finishUp(); }, 720));
+      return;
+    }
+    const L = layout(look, state, dest);
+    // The new name fades in where "Next song" landed (it arrives about 80 ms after the switch).
+    const w = textW(tr.t + " · " + tr.a, L.title.fs);
+    el.title.style.left = (-w / 2) + "px";
+    const box = lane.box;
+    tween(200, (k) => { el.title.style.opacity = String(L.title.o * k); box.style.opacity = String(1 - k); }, 80);
+    // Skip: the artwork cross-fades to the new cover while the right wing plays the push.
+    // Previous: the left wing plays it, then hands back to the new cover.
+    tween(300, (k) => { ghost.style.opacity = String((s < 0 ? 1 : parseFloat(el.art.style.opacity) || 0) * (1 - k)); }, 80, () => ghost.remove());
+    const slot = s < 0 ? el.src : el.art;
+    tween(240, (k) => { on.style.opacity = String(1 - k); on.style.scale = String(1 - 0.2 * k);
+      slot.style.opacity = String(k); slot.style.scale = String(0.65 + 0.35 * k); }, 380);
+    timers.push(setTimeout(() => { on.classList.remove("push"); finishUp(); }, 680));
+  }
+
+  // Pretend fingers for the buttons: move to `to` pt over `ms`, then lift.
+  function fakeSwipe(to, ms, ease) {
+    if (state === "closed") { say("Hover first", "Skipping works on the peek and on the wings or chin."); return; }
+    if (state === "full" && !hov) { act.hover(); timers.push(setTimeout(() => fakeSwipe(to, ms, ease), 450)); return; }
+    if (!gStart()) return;
+    const t0 = performance.now();
+    function step(now) {
+      if (!g) return;
+      const k = Math.min(1, (now - t0) / ms);
+      gMove(to * ease(k));
+      if (k < 1) requestAnimationFrame(step); else gEnd();
+    }
+    requestAnimationFrame(step);
+  }
+  const easeInOut = (k) => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  const linearish = (k) => k;
+
+  // ---- States and controls ----
+  const statusEl = document.getElementById("status");
+  function say(head, text) { statusEl.innerHTML = "<b></b><span></span>"; statusEl.querySelector("b").textContent = head; statusEl.querySelector("span").textContent = text; }
+  const words = {
+    closed: ["Media hidden", "The notch looks idle. Hover it."],
+    peek: ["Peek", "Album colours only. Swipe down to show the song, left or right to skip."],
+    full: ["Media showing", "Hover shows the song's name below; swipe left or right to skip, up to hide it."]
+  };
+  function setState(s) { if (g || busy) return; state = s; stage.style.setProperty("--gd", ".35s"); apply(); say(words[s][0], words[s][1]); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  const act = {
+    hover: () => { if (state === "closed") setState("peek"); else if (state === "full" && !hov) { hov = true; setState("full"); } },
+    leave: () => { if (state === "peek") setState("closed"); else if (state === "full" && hov) { hov = false; setState("full"); } },
+    down: () => { if (state !== "full") { hov = true; setState("full"); } },
+    up: () => { if (state === "full") { hov = false; setState("closed"); } }
+  };
+  ["hover", "leave", "down", "up"].forEach((k) => { document.getElementById("b-" + k).onclick = () => { clearTimers(); act[k](); }; });
+  document.getElementById("b-flick").onclick = () => fakeSwipe(-64, 150, linearish);
+  document.getElementById("b-slow").onclick = () => fakeSwipe(-62, 1700, easeInOut);
+  document.getElementById("b-prev").onclick = () => fakeSwipe(62, 900, easeInOut);
+  document.getElementById("b-half").onclick = () => fakeSwipe(-34, 900, easeInOut);
+  document.getElementById("b-play").onclick = () => {
+    clearTimers(); setState("closed");
+    const seq = [[600, act.hover], [1500, () => fakeSwipe(-62, 1500, easeInOut)], [4200, act.down], [5600, () => fakeSwipe(-64, 150, linearish)],
+      [6800, () => fakeSwipe(-34, 800, easeInOut)], [8400, () => fakeSwipe(62, 1100, easeInOut)], [10300, act.up], [11200, act.hover], [12600, act.leave]];
+    seq.forEach(([ms, f]) => timers.push(setTimeout(f, ms)));
+  };
+
+  function seg(id, set) {
+    const box = document.getElementById(id);
+    box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      box.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      set(b.dataset.v); clearTimers(); setState(state);
+    }));
+  }
+  seg("lookSeg", (v) => { look = v; });
+  seg("destSeg", (v) => { dest = v; });
+
+  // ---- Real input: hover, trackpad scrolls, mouse drags ----
+  const toStage = (e) => { const r = frame.getBoundingClientRect(), sc = r.width / W; return { x: (e.clientX - r.left) / sc - W / 2, y: (e.clientY - r.top) / sc, sc }; };
+  frame.addEventListener("mousemove", (e) => {
+    if (g || drag) return;
+    const p = toStage(e);
+    const over = Math.abs(p.x) < 160 && p.y < (state === "full" && (dest === "chin" || hov) ? 74 : 50);
+    if (over) act.hover(); else act.leave();
+  });
+  frame.addEventListener("mouseleave", () => { if (!g && !drag) act.leave(); });
+
+  // Browsers don't say when the fingers lift: resting on the trackpad and lifting both just stop the scroll events.
+  // So a pause never counts as letting go. The gesture ends when the coast starts (macOS keeps scrolling after a lift
+  // with speed, slowing by a steady factor each frame, which fingers don't do), or after 1.5 s of stillness for a lift
+  // with no speed. In the app, the scroll event's phase says exactly when the fingers lift; none of this guessing.
+  let axis = null, accX = 0, accY = 0, idle = null, wheelGesture = false, coasting = false, quietUntil = 0, deltas = [];
+  function looksLikeCoast(d) {
+    if (d.length < 5) return false;
+    const s = d.slice(-5).map((x) => x.v), ts = d.slice(-5).map((x) => x.t);
+    if (s[0] < 4 || s.some((x) => x < 0.5)) return false;
+    const r = [1, 2, 3, 4].map((i) => s[i] / s[i - 1]);
+    const gaps = [1, 2, 3, 4].map((i) => ts[i] - ts[i - 1]);
+    // A coast decays smoothly (each step 85–97% of the last, nearly the same factor) at a steady frame rate.
+    return r.every((x) => x > 0.85 && x < 0.975) && Math.max(...r) - Math.min(...r) < 0.05
+      && gaps.every((x) => x > 8 && x < 24);
+  }
+  function resetWheel() { wheelGesture = false; axis = null; accX = accY = 0; deltas = []; }
+  frame.addEventListener("wheel", (e) => {
+    if (state === "closed") return;
+    e.preventDefault();
+    const now = performance.now();
+    clearTimeout(idle);
+    idle = setTimeout(() => { if (wheelGesture) gEnd(); resetWheel(); coasting = false; }, wheelGesture ? 1500 : 80);
+    if (coasting || now < quietUntil) return;
+    accX += e.deltaX; accY += e.deltaY;
+    if (!axis && Math.hypot(accX, accY) > 6) axis = Math.abs(accX) > Math.abs(accY) ? "x" : "y";
+    if (axis === "x") {
+      if (!wheelGesture) wheelGesture = gStart();
+      if (!wheelGesture) return;
+      deltas.push({ v: Math.abs(e.deltaX), t: now }); if (deltas.length > 8) deltas.shift();
+      if (looksLikeCoast(deltas)) { gEnd(); resetWheel(); coasting = true; return; }
+      gMove(-accX); // natural scrolling: fingers left give positive deltaX
+    } else if (axis === "y" && Math.abs(accY) > 30) {
+      (accY < 0 ? act.down : act.up)(); resetWheel(); coasting = true;
+    }
+  }, { passive: false });
+
+  let drag = null;
+  frame.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (state === "closed") return;
+    drag = { x0: toStage(e).x, started: false };
+    frame.setPointerCapture(e.pointerId);
+  });
+  frame.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = toStage(e).x - drag.x0;
+    if (!drag.started && Math.abs(dx) > 3) { drag.started = gStart(); frame.classList.add("dragging"); }
+    if (drag.started) gMove(dx);
+  });
+  const endDrag = () => { if (drag && drag.started) gEnd(); drag = null; frame.classList.remove("dragging"); };
+  frame.addEventListener("pointerup", endDrag);
+  frame.addEventListener("pointercancel", endDrag);
+
+  setTrack(TRACKS[0]);
+  setState("closed");
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!g) apply(); });
+})();
+</script>
