@@ -366,6 +366,12 @@ With the pointer over the island:
 - Media from the app in front stays out of the notch (you're already in the player) and comes back when you
   switch away. The panel's media page still has it.
 - Click: opens the panel (Display and Sound if a level bar was showing).
+- **Over a list in the panel** (a conversation, notifications, Wi-Fi, Bluetooth; owner, 2026-11-20): two fingers scroll
+  the list and never close the panel mid-scroll. A swipe up closes it only as a fresh gesture that starts outside the
+  list (the header, the reply field) or over a list that can't scroll that way any more (at the newest message, the end
+  of the list); a scroll that reaches the end rubber-bands, and closing takes lifting and swiping again. The coast after
+  the fingers lift never counts. Sideways swipes do nothing in the panel. The collapse arrow, a click outside and Esc
+  always close it.
 
 ### Menu bar width check
 
@@ -427,6 +433,34 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
   "Priority"). Not on the lock screen, nor while another panel page is open: then macOS shows the banner as usual.
 - **Settings > General**: "Show notifications in the notch" (on by default; off leaves the system banners alone)
   and "Hide message text" (only the app and title).
+
+### Messages (1.5)
+
+Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
+<https://claude.ai/artifact/7xTcPWs9qJyVJhFiUe5jWJ>. Feasibility: RESEARCH.md Q32-Q38.
+
+- **Arriving**: a Messages notification shows like any other (wide bar or chin); in a group, the message reads
+  "Name: text".
+- **Card**: Mark as Read (the banner's own) and **Reply**, white (Islet's own).
+- **Click or Reply**: opens the conversation in the panel instead of the Messages app (Settings > General "Open
+  Messages conversations in the notch", on by default; off, it opens Messages). It's found in Messages' history by the
+  notification's text; if it can't be, Messages opens as before.
+- **Conversation page** (500 x 300 under the stem): a header with a 32 pt round initial (a colour per conversation),
+  the name (14 semibold; contact names from Contacts, else the number; a group's own name, else its people's names),
+  "iMessage" / "Text Message" / "4 people · iMessage" (11, `tertiary`), an "Open in Messages ↗" pill and the collapse
+  arrow. Then the latest 50 messages, newest at the bottom: theirs on `#2C2C2E`, yours blue `#0A84FF` (iMessage) or green
+  (SMS / RCS), 13 pt in 16 pt-round bubbles up to 300 wide; a time between messages more than an hour apart (10,
+  `tertiary`); in groups the sender's name over their first message in a run. Photos and other attachments show as a
+  grey "Photo" / "Attachment" bubble. Reactions and edits are left out. Under your last message: "Sending…", then
+  "Delivered" or, in red, "Not delivered".
+- **Reply field**: a 32 pt pill ("iMessage" / "Text Message" placeholder) with a round send button (grey until there's
+  text). It has the cursor when the page opens. Return sends (through Messages); Esc closes the page.
+- **Live**: new messages in the conversation appear as they arrive (Islet watches Messages' database while the page is
+  open). A notification for the open conversation doesn't show again; others go to the system banner while it's open.
+- **Closing**: the collapse arrow, a click outside, Esc, a swipe up (see Gestures, "Over a list"). It doesn't close when
+  the pointer leaves while the reply field has text.
+- **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
+  Automation for Messages (sending), each asked the first time it's needed.
 
 ### Calls (FaceTime)
 

@@ -6,7 +6,10 @@ struct ExpandedView: View {
     let store: IslandStore
 
     var body: some View {
-        if store.expandedPage == .notifications {
+        if store.expandedPage == .messages, let c = store.messages?.open {
+            ConversationView(store: store, conversation: c)
+                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+        } else if store.expandedPage == .notifications {
             NotificationList(store: store)
                 .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
         } else if store.expandedPage == .call, store.call?.phase == .active {

@@ -180,7 +180,7 @@ struct SoundOutputList: View {
                 SectionLabel(text: "OUTPUT")
                 SettingsLink(title: "Sound Settings…", pane: SystemSettings.sound)
             }
-            ScrollView {
+            PanelScrollView {
                 VStack(spacing: 2) {
                     ForEach(levels.devices) { d in
                         let icon = BluetoothController.icon(name: d.name, major: 0)
@@ -252,7 +252,7 @@ struct WiFiContent: View {
     private var list: some View {
         let current = wifi.networks.filter { $0.ssid == wifi.ssid }
         let others = wifi.networks.filter { $0.ssid != wifi.ssid }
-        return ScrollView {
+        return PanelScrollView {
             VStack(spacing: 2) {
                 if wifi.scanning && wifi.networks.isEmpty && phones.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
                 ForEach(current) { n in row(n) }
@@ -373,7 +373,7 @@ struct BluetoothContent: View {
                     Text("Turn Bluetooth on to see your devices.").font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ScrollView {
+                    PanelScrollView {
                         VStack(spacing: 2) {
                             if !bt.devices.isEmpty { SectionLabel(text: "MY DEVICES") }
                             ForEach(bt.devices) { d in

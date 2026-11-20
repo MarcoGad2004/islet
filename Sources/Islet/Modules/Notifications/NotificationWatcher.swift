@@ -20,7 +20,7 @@ final class NotificationWatcher {
     /// A FaceTime (or relayed iPhone) call's banner came up (true) or went away (false).
     var onRinging: ((Bool) -> Void)?
     /// Whether the notch can take a banner right now (not locked, panel closed, island showing).
-    var canTake: (() -> Bool)?
+    var canTake: ((NotificationItem) -> Bool)?
 
     private var observer: AXObserver?
     private var pid: pid_t = 0
@@ -161,16 +161,12 @@ final class NotificationWatcher {
     }
 
     private func take(banner: AXUIElement, window: AXUIElement) {
-        guard enabled, canTake?() == true else { return }
+        guard enabled, let item = read(banner), canTake?(item) == true else { return }
         // Where macOS put the window: kept from an earlier banner if this window is already off screen.
         let known = banners.values.first(where: { CFEqual($0.window, window) })?.origin
         let origin = known ?? AX.position(window)
         AX.setPosition(window, CGPoint(x: -3000, y: -3000))
         if !ownWindows.contains(where: { CFEqual($0, window) }) { ownWindows.append(window) }
-        guard let item = read(banner) else {
-            if known == nil, let origin { AX.setPosition(window, origin) } // nothing to show: give it back
-            return
-        }
         let b = Banner(window: window, element: banner, origin: origin)
         banners[item.id] = b
         watchDestroyed(window)

@@ -23,7 +23,7 @@ struct NotificationCard: View {
                 }
             }
             .frame(height: CGFloat(IslandLayout.notificationHeight))
-            if !item.actions.isEmpty {
+            if store.notificationHasButtons(item) {
                 HStack(spacing: 8) {
                     Spacer()
                     NotificationActions(store: store, item: item, height: 28)
@@ -63,6 +63,15 @@ struct NotificationActions: View {
     var height: CGFloat = 28
 
     var body: some View {
+        let reply = store.canReply(item)
+        banner(primaryLast: !reply)
+        if reply {
+            // Islet's own: the conversation, in the notch.
+            Button { store.openConversation(item) } label: { pillLabel("Reply", primary: true) }.buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder private func banner(primaryLast: Bool) -> some View {
         if item.actions.count > 2 {
             Menu {
                 ForEach(item.actions, id: \.self) { name in
@@ -75,7 +84,7 @@ struct NotificationActions: View {
         } else {
             ForEach(Array(item.actions.enumerated()), id: \.offset) { i, name in
                 Button { store.removeNotification(item, .action(name)) } label: {
-                    pillLabel(name, primary: i == item.actions.count - 1)
+                    pillLabel(name, primary: primaryLast && i == item.actions.count - 1)
                 }
                 .buttonStyle(.plain)
             }
@@ -148,7 +157,7 @@ struct NotificationList: View {
             }
             .padding(.horizontal, 10)
             .frame(height: Self.headerHeight)
-            ScrollView(.vertical, showsIndicators: false) {
+            PanelScrollView(indicators: false) {
                 VStack(spacing: 0) {
                     ForEach(store.notifications) { item in
                         NotificationRow(store: store, item: item, hideText: hideText)
@@ -170,7 +179,9 @@ private struct NotificationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { store.removeNotification(item, .shown) } label: {
+            Button {
+                if !(item.isMessages && store.openConversation(item)) { store.removeNotification(item, .shown) }
+            } label: {
                 HStack(spacing: 12) {
                     NotificationIcon(item: item, size: 28)
                     VStack(alignment: .leading, spacing: 1) {

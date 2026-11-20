@@ -32,6 +32,8 @@ enum IslandLayout {
     static let notificationStackDepth: CGFloat = 8
     /// The card with the banner's buttons under the text.
     static let notificationActionsHeight: CGFloat = 36
+    /// A Messages conversation in the panel.
+    static let messagesBodyHeight: CGFloat = 300
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150

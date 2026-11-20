@@ -32,7 +32,7 @@ enum IslandContent {
     }
 }
 
-enum ExpandedPage { case media, displaySound, call, notifications }
+enum ExpandedPage { case media, displaySound, call, notifications, messages }
 
 /// One banner, read through Accessibility (RESEARCH.md Q27).
 struct NotificationItem: Equatable, Identifiable {
@@ -54,6 +54,8 @@ struct NotificationItem: Equatable, Identifiable {
     /// The card's one line: "Subtitle · Body".
     var line: String { [subtitle, body].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
     var heading: String { title.isEmpty ? app : title }
+    /// From Messages: it can open as a conversation in the notch.
+    var isMessages: Bool { app == "Messages" || appURL?.lastPathComponent == "Messages.app" }
 }
 
 /// A FaceTime call, from its notification banner (ringing) and FaceTime's window (in the call; RESEARCH.md Q31).

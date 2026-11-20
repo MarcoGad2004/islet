@@ -12,7 +12,12 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   "3 more". Swipe down for a list of everything that just came in, with Clear all.
 - The banner's own buttons come along: approve a Duo sign-in from the card or the list (never from the small bar, so a
   stray click can't). iPhone notifications get an iPhone icon, time-sensitive ones say so in orange.
-- Settings > General can turn it off or hide the message text.
+- Messages in the notch: click a message (or Reply on its card) and the conversation opens under the notch, with
+  contact names, and a reply field that sends through Messages. New messages appear as they arrive. Needs Full Disk
+  Access, Contacts and permission to control Messages.
+- Two fingers over a list in the panel (a conversation, notifications, Wi-Fi, Bluetooth) scroll the list; swiping up
+  only closes the panel when the list can't scroll any further that way.
+- Settings > General can turn notifications off, hide the message text, or keep Messages opening in the Messages app.
 
 ## 1.3.1 (2026-11-20)
 

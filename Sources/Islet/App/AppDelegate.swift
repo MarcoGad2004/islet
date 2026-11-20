@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sidecar = SidecarController()
     private let notifications = NotificationWatcher()
     private let faceTime = FaceTimeMonitor()
+    private let messages = MessagesStore()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
@@ -156,6 +157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                             icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Mail.app"), appURL: nil))
                 }
             }
+        case "conversation":
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
+                if let id = self.messages.chatID(withText: "Islet test") { self.notch.store.openChat(id) }
+            }
         case "ring": notch.store.setCall(CallState(phase: .ringing))
         case "call": notch.store.setCall(CallState(phase: .active, name: "Mom", connectedAt: Date().addingTimeInterval(-81)))
         case "updated":
@@ -266,7 +272,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sidecar.start()
 
         // Notifications and FaceTime calls (DESIGN.md "Notifications and calls").
-        notifications.canTake = { [weak store] in store?.canTakeNotification == true }
+        notifications.canTake = { [weak store] in store?.canTakeNotification($0) == true }
+        store.messages = messages
         notifications.onNotification = { [weak store] in store?.showNotification($0) }
         // Calls are left for a later update (owner, 2026-11-20): the code is here, but nothing feeds the island yet.
         if Self.callsEnabled { notifications.onRinging = { [weak self] in self?.faceTime.setRinging($0) } }

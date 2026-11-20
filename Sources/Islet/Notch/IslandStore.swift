@@ -88,6 +88,15 @@ final class IslandStore {
     var airdrop: AirDropController?
     var sidecar: SidecarController?
     var mediaMonitor: MediaMonitor?
+    var messages: MessagesStore?
+    /// The reply being typed on the conversation page; while it has text the page stays open when the pointer leaves.
+    var messageDraft = ""
+    /// Lists scrolling in the panel, where they are (top-left window points) and whether they're at either end
+    /// (DESIGN.md "Gestures", "Over a list").
+    func scrollRegion(at p: CGPoint) -> PanelScrollRegions.Region? {
+        guard expanded else { return nil }
+        return PanelScrollRegions.shared.region(at: p)
+    }
 
     let animator = IslandAnimator()
     @ObservationIgnored var onExpandedChange: ((Bool) -> Void)?
@@ -115,6 +124,7 @@ final class IslandStore {
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
         if expandedPage == .notifications { return NotificationList.height(rows: notifications.count) }
+        if expandedPage == .messages { return IslandLayout.messagesBodyHeight }
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
         switch controlDetail {
         case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
@@ -211,7 +221,7 @@ final class IslandStore {
         if case .notification(let n)? = content, presentation != .expanded {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
-            if presentation == .notification, !n.actions.isEmpty { m.bh += Double(IslandLayout.notificationActionsHeight) }
+            if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
         }
         switch g.mode {
         case .notch: return m
@@ -296,7 +306,7 @@ final class IslandStore {
         }
         if inside {
             leaveTask?.cancel()
-        } else if expanded {
+        } else if expanded && !(expandedPage == .messages && !messageDraft.isEmpty) {
             leaveTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
@@ -313,7 +323,10 @@ final class IslandStore {
     /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is). A result with a
     /// button (the update's "What's new") does that instead.
     func click() {
-        if let n = notification, !expanded { removeNotification(n, .shown); return }
+        if let n = notification, !expanded {
+            if n.isMessages, openConversation(n) { return }
+            removeNotification(n, .shown); return
+        }
         if progress?.state == .done, let action = progressAction {
             progressTask?.cancel(); progress = nil; progressAction = nil
             refresh()
@@ -344,6 +357,10 @@ final class IslandStore {
     private func setExpanded(_ value: Bool) {
         // The list closing: what's left stays in Notification Center.
         if !value, expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
+        if !value, expandedPage == .messages {
+            messages?.close(); messageDraft = ""
+            if !notifications.isEmpty { armNotification(Self.notificationAfterHover) } // the rest of a stack, briefly
+        }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -475,12 +492,16 @@ final class IslandStore {
     // MARK: Notifications
 
     /// Whether a banner can come into the notch now. Otherwise the system shows it as usual.
-    var canTakeNotification: Bool {
-        geometry != nil && !paused && (!expanded || expandedPage == .notifications) && base == nil && !lockScreen
-            && unlockStart == nil
+    func canTakeNotification(_ n: NotificationItem) -> Bool {
+        guard geometry != nil, !paused, base == nil, !lockScreen, unlockStart == nil else { return false }
+        if !expanded || expandedPage == .notifications { return true }
+        // In a conversation: one for that conversation is already on screen (taken, then dropped); others stay macOS's.
+        if expandedPage == .messages, n.isMessages, let m = messages { return m.isOpen(m.chatID(for: n)) }
+        return false
     }
 
     func showNotification(_ n: NotificationItem) {
+        if expanded && expandedPage == .messages { notificationExpired?(n); return } // it's in the open conversation
         notifications.insert(n, at: 0)
         if notifications.count > 30 { notificationExpired?(notifications.removeLast()) }
         if pointerInside || expanded { notificationTask?.cancel() } else { armNotification(Self.notificationSeconds) }
@@ -528,6 +549,42 @@ final class IslandStore {
         case .expired: notificationExpired?(n)
         case .action(let name): notificationAction?(n, name)
         }
+    }
+
+    // MARK: Messages
+
+    /// The card shows buttons: the banner's own, or Reply for Messages.
+    func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || canReply(n) }
+    func canReply(_ n: NotificationItem) -> Bool { n.isMessages && messages?.available == true }
+
+    /// A Messages notification opens as its conversation in the panel (DESIGN.md "Messages"). False when it can't be
+    /// (turned off, no Full Disk Access, not found): then it opens in Messages as usual.
+    @discardableResult
+    func openConversation(_ n: NotificationItem) -> Bool {
+        guard let m = messages, m.available, let chat = m.chatID(for: n) else { return false }
+        guard openChat(chat) else { return false }
+        removeNotification(n, .expired) // it stays in Notification Center, like the others
+        notificationTask?.cancel()
+        return true
+    }
+
+    /// Opens a conversation on the panel by its chat.
+    @discardableResult
+    func openChat(_ chat: Int64) -> Bool {
+        guard let m = messages else { return false }
+        m.openChat(chat)
+        guard m.open != nil else { return false }
+        expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
+        controlDetail = nil
+        messageDraft = ""
+        if !expanded { setExpanded(true) } else { refresh() }
+        return true
+    }
+
+    func sendMessage() {
+        guard !messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        messages?.send(messageDraft)
+        if messages?.sendError == nil { messageDraft = "" }
     }
 
     // MARK: Calls

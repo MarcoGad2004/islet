@@ -5,6 +5,13 @@ import SwiftUI
 final class NotchPanel: NSPanel {
     var allowsKey = false
     var onCancel: (() -> Void)?
+    /// Every two-finger scroll, before it goes to whatever is under the pointer (a list scrolls it too).
+    var onScroll: ((NSEvent) -> Void)?
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel { onScroll?(event) }
+        super.sendEvent(event)
+    }
 
     override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
@@ -20,6 +27,10 @@ final class IslandHostingView: NSHostingView<IslandView> {
     var onSideBegan: (() -> Bool)?
     var onSideChanged: ((CGFloat) -> Void)?
     var onSideEnded: ((CGFloat) -> Void)?
+    /// A list in the panel under this point (top-left window points), and whether it's at its top / bottom.
+    var listAt: ((CGPoint) -> (atTop: Bool, atBottom: Bool)?)?
+    /// The list under the fingers when this gesture began; nil when it began elsewhere.
+    private var list: (atTop: Bool, atBottom: Bool)?
 
     private enum Axis { case undecided, vertical, horizontal, ignored }
     private var axis = Axis.undecided
@@ -31,11 +42,19 @@ final class IslandHostingView: NSHostingView<IslandView> {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func scrollWheel(with event: NSEvent) {
+    /// The panel hands every scroll here (`NotchPanel.onScroll`) as well as to whatever is under the pointer, so a list
+    /// in the panel can scroll while this decides whether the gesture is also a swipe.
+    override func scrollWheel(with event: NSEvent) {}
+
+    func track(_ event: NSEvent) {
         guard event.hasPreciseScrollingDeltas else { return }
         // The trackpad keeps coasting after the fingers lift; that never counts.
         guard event.momentumPhase.isEmpty else { return }
-        if event.phase.contains(.began) { reset() }
+        if event.phase.contains(.began) {
+            reset()
+            let p = convert(event.locationInWindow, from: nil)
+            list = listAt?(CGPoint(x: p.x, y: isFlipped ? p.y : bounds.height - p.y))
+        }
         // Normalise to finger movement, regardless of the natural-scrolling setting: x + is right, y - is up.
         let inverted = event.isDirectionInvertedFromDevice
         let fx = inverted ? event.scrollingDeltaX : -event.scrollingDeltaX
@@ -53,7 +72,15 @@ final class IslandHostingView: NSHostingView<IslandView> {
             case .vertical:
                 if !fired && abs(accY) >= threshold {
                     fired = true
-                    onSwipe?(accY < 0 ? .up : .down)
+                    let swipe: Swipe = accY < 0 ? .up : .down
+                    // Over a list, the fingers scroll it. Up still closes when the list can't go that way any more:
+                    // with natural scrolling, fingers up move toward the bottom (the newest message).
+                    if let list {
+                        let stuck = event.isDirectionInvertedFromDevice ? list.atBottom : list.atTop
+                        if swipe == .up && stuck { onSwipe?(swipe) }
+                    } else {
+                        onSwipe?(swipe)
+                    }
                 }
             case .horizontal:
                 samples.append((event.timestamp, accX))
@@ -75,7 +102,7 @@ final class IslandHostingView: NSHostingView<IslandView> {
         return (last.x - first.x) / CGFloat(last.t - first.t)
     }
 
-    private func reset() { axis = .undecided; accX = 0; accY = 0; fired = false; samples = [] }
+    private func reset() { axis = .undecided; accX = 0; accY = 0; fired = false; samples = []; list = nil }
 }
 
 /// Owns the panel and the pointer/click/screen monitors that feed the store.
@@ -109,8 +136,10 @@ final class NotchController {
         host.onSideChanged = { [weak self] dx in self?.store.skipChanged(Double(dx)) }
         host.onSideEnded = { [weak self] v in self?.store.skipEnded(velocity: Double(v)) }
 
+        host.listAt = { [weak self] p in self?.store.scrollRegion(at: p).map { ($0.atTop, $0.atBottom) } }
         let panel = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                backing: .buffered, defer: false)
+        panel.onScroll = { [weak host] in host?.track($0) }
         panel.contentView = host
         panel.isOpaque = false
         panel.backgroundColor = .clear

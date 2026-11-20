@@ -76,6 +76,18 @@ the unlock animation still ships.
 - [ ] Still to try: hover card, click to open, the list (swipe down, Clear all, rows), a real Duo Approve / Deny,
       opening Notification Center while Islet runs; does Close remove it from Notification Center's list?
 
+## 1.5: Messages in the notch
+- [x] Spike (RESEARCH.md Q32-Q38): read chat.db, decode attributedBody, contact names, watch the WAL, send via Messages
+- [x] Conversation page from a Messages notification (click or Reply), live updates, reply field, Open in Messages
+- [x] Lists in the panel scroll under two fingers; swipe up closes only when the list can't go further (DESIGN.md
+      "Gestures"); the Wi-Fi, Bluetooth and notification lists too
+- [x] Settings: "Open Messages conversations in the notch". Preview: `-IsletDebugShape conversation` (the chat with
+      the "Islet test" message)
+- [x] Tried: the conversation page opens with names, bubbles, times and "Delivered"
+- [ ] Still to try: replying from the notch, a real incoming message opening its conversation, a group chat, SMS,
+      the swipe rule on the trackpad, Esc while typing
+- [ ] Permission rows in onboarding / Settings for Contacts and controlling Messages
+
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
 - [ ] Find out whether the banner has the caller while the first call rings (probe that re-reads it every 0.25 s)

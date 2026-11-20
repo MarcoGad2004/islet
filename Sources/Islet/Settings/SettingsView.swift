@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage(GlassLook.key) private var glassLook = true
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
+    @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
@@ -47,6 +48,9 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if notificationsInNotch {
                 Toggle("Hide message text", isOn: $notificationsHideText).padding(.leading, 20)
+                Toggle("Open Messages conversations in the notch", isOn: $messagesInNotch).padding(.leading, 20)
+                Text("Reply from the notch. Needs Full Disk Access (to read Messages), Contacts (names) and permission to control Messages (to send).")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
             }
             NotchChoice().padding(.vertical, 4)
             if powerMode.permissionInstalled {

@@ -26,6 +26,8 @@
 	<string>Islet lists and connects your Bluetooth devices from the notch.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Islet uses the camera to recognise you for face unlock.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Islet shows the names of the people messaging you.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Marcorios Gad</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
