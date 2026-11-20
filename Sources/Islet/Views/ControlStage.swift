@@ -69,7 +69,7 @@ struct ControlStage: View {
             case .display: store.display?.refresh(); store.levels?.refresh()
             case .sound: store.levels?.refresh()
             case .mirroring: store.sidecar?.refresh()
-            case .battery: store.power?.refresh(); store.power?.watchDetails(true)
+            case .battery: store.power?.refresh(); store.power?.watchDetails(true); PowerModeController.shared.refresh()
             default: break
             }
         }

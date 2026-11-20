@@ -33,11 +33,6 @@ struct BatteryPage: View {
                     .buttonStyle(.plain)
                     .help("Charging stops at \(limit)%. Change it in Battery settings.")
                 }
-                if d.lowPower {
-                    Label("Low Power", systemImage: "bolt.badge.automatic.fill")
-                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD60A))
-                        .padding(.horizontal, 9).frame(height: 22).background(IsletCard(shape: Capsule()))
-                }
             }
             .padding(.horizontal, 8)
             .frame(height: 60)
@@ -62,6 +57,10 @@ struct BatteryPage: View {
                 lastTile(s, d)
             }
             .padding(.top, 10)
+
+            EnergyModeRow(controller: .shared, onAC: s.onAC)
+                .padding(.top, 12)
+                .onChange(of: s.onAC) { PowerModeController.shared.refresh() }
 
             Spacer(minLength: 0)
             HStack {
@@ -136,6 +135,57 @@ struct BatteryPage: View {
     static func watts(_ w: Double?) -> String {
         guard let w else { return "–" }
         return w < 10 ? String(format: "%.1f W", w) : "\(Int(w.rounded())) W"
+    }
+}
+
+/// Energy Mode for the source in use: Low Power, Automatic, High Power. The first change asks for the admin password
+/// once (`PowerModeController`).
+private struct EnergyModeRow: View {
+    let controller: PowerModeController
+    var onAC: Bool
+
+    private static let order: [(PowerModeController.Mode, String, String, Color)] = [
+        (.low, "Low Power", "tortoise.fill", Color(hex: 0xFFD60A)),
+        (.automatic, "Automatic", "gauge.with.dots.needle.50percent", Color.isletText),
+        (.high, "High Power", "hare.fill", Color(hex: 0xFF9F0A)),
+    ]
+
+    var body: some View {
+        if let mode = controller.mode {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Energy Mode").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+                    if let e = controller.error {
+                        Text(e).font(.system(size: 10)).foregroundStyle(Color.isletRedText).lineLimit(1).minimumScaleFactor(0.8)
+                    } else {
+                        Text(onAC ? "On power adapter" : "On battery").font(.system(size: 10)).foregroundStyle(Color.isletSecondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 2) {
+                    ForEach(Self.order, id: \.0) { item in
+                        let selected = item.0 == mode
+                        Button { controller.set(item.0, onAC: onAC) } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: item.2).font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(selected ? item.3 : Color.isletTertiary)
+                                Text(item.1).font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(selected ? Color.isletText : Color.isletSecondary)
+                            }
+                            .padding(.horizontal, 10).frame(height: 26)
+                            .background { if selected { IsletCard(shape: Capsule()) } }
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(3)
+                .background(Capsule().fill(Color.white.opacity(0.06)))
+                .opacity(controller.busy ? 0.6 : 1)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: mode)
+            }
+            .padding(.horizontal, 8)
+        }
     }
 }
 

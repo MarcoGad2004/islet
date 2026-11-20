@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @AppStorage(GlassLook.key) private var glassLook = true
     private let updater = Updater.shared
+    private let powerMode = PowerModeController.shared
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
 
     private enum Step { case overview, password, scanning }
@@ -40,6 +41,17 @@ struct SettingsView: View {
             Text("Below the notch the island fades from black into glass. Off, it is solid black.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             NotchChoice().padding(.vertical, 4)
+            if powerMode.permissionInstalled {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Energy Mode without a password")
+                        Text("The battery page can switch Low Power, Automatic and High Power without asking.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Remove…") { powerMode.removePermission() }
+                }
+            }
             permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
                           detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
             permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)

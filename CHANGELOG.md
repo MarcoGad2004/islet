@@ -12,6 +12,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   count, the charger's wattage or how much power the Mac is drawing, and the time to full or left, kept live while the
   page is open. With a charge limit set in Battery settings, it shows the limit (click it to change it there), times
   charging to the limit, and says when it's holding there.
+- Energy Mode on the battery page: switch between Low Power, Automatic and High Power for the power source you're on.
+  The first switch asks for your admin password once; after that it's instant (Settings → General can take that
+  permission away again).
 - The panel closes when one of its Settings… buttons opens System Settings, so the window isn't left under it.
 - Cleaner Wi-Fi, Bluetooth, Screen Mirroring and Sound pages: no grey box, the page sits straight on the island, with
   Control Center style rows that light up under the pointer and the one in use on a glass pill.
