@@ -111,16 +111,21 @@ final class NotificationWatcher {
     /// Banner windows Islet has moved off screen; a later banner can land in one of them.
     private var ownWindows: [AXUIElement] = []
 
-    /// A banner window spans the screen (it also hosts the desktop widgets), so its size says nothing. A new one holds
-    /// one or two banners; one arriving with many is Notification Center opened by the user, which is never touched.
-    private static let maxNewBanners = 3
+    /// Notification Center opened by the user arrives as a new window too, with banners in it. It is never touched:
+    /// its list sits in an `AXNotificationListItems` group and it has a "Clear All" button, which a new banner window
+    /// doesn't (its size is no help: banner windows span the screen, as they also host the desktop widgets).
+    private static func isNotificationCenterList(_ w: AXUIElement) -> Bool {
+        AX.first(in: w, depth: 8) {
+            AX.identifier($0) == "AXNotificationListItems" || AX.description($0) == "Clear All"
+                || AX.subrole($0) == "AXNotificationCenterBannerStack"
+        } != nil
+    }
 
     private func sweep(extra: AXUIElement?, attempt: Int) {
         guard pid != 0 else { return }
         ownWindows.removeAll { !AX.alive($0) }
         var windows = ownWindows
-        if let extra, !windows.contains(where: { CFEqual($0, extra) }),
-           AX.all(in: extra, depth: 8, where: Self.isBanner).count <= Self.maxNewBanners {
+        if let extra, !windows.contains(where: { CFEqual($0, extra) }), !Self.isNotificationCenterList(extra) {
             windows.append(extra)
         }
         var foundInExtra = false
