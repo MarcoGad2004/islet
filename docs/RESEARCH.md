@@ -225,3 +225,44 @@ logs to `~/Library/Logs/Islet-lock-spike.log`).
   `screenIsLocked` (display already off). Lid open: `screensDidWake`, `didWake`, still locked. Power button:
   `screenIsLocked` with the display on, `screensDidSleep` ~5 s later. Ctrl-Cmd-Q: `screenIsLocked` with the
   display on, then the release of ⌃ and ⌘ arrives (never ⇧⌘ on its own, so it can't start a scan by mistake).
+
+## Notifications and calls in the notch (1.4 spike)
+
+Owner request (2026-11-20): show incoming notifications, and FaceTime / iPhone calls iPhone-style, in the notch, without
+the system banner also appearing in the top-right corner. There is no public API: `CXCallObserver` isn't offered to
+native macOS apps, and the only way LockDown Browser hides banners is Apple's exam-mode entitlement
+(`com.apple.developer.automatic-assessment-configuration`, granted by Apple to assessment apps only), plus old code
+that toggles Do Not Disturb.
+
+27. **Can a banner be read?** Through Accessibility, which Islet already has.
+28. **Can the system banner be hidden** so only the notch shows it?
+29. **Can the notification store be read** instead (for banners turned off in Settings)?
+30. **Incoming calls**: what does a FaceTime call and an iPhone call relayed to the Mac expose, and can Accept /
+    Decline be pressed?
+31. **Active calls**: can the call's state (who, how long, muted) be read from FaceTime / Phone?
+
+**Results so far (owner's Mac, macOS 27.2, 2026-11-20; probe `axspy` kept out of the repo):**
+- **Q27 yes, fully.** Each banner arrives in `NotificationCenter` (`com.apple.notificationcenterui`) as a new window
+  (`AXWindow`, subrole `AXSystemDialog`, title "Notification Center"); an `AXObserver` gets `AXCreated` for it about
+  0.5-0.6 s after the post. Inside is one `AXGroup` with subrole `AXNotificationCenterBanner` whose description is
+  "App, Title, Subtitle, Body", with children `AXStaticText` identified `title`, `subtitle` and `body`, and actions
+  `AXPress`, "Show Details", "Show" and "Close" (named actions, `Name:Close` etc.).
+- **Q28 yes, with no flash.** Pressing "Close" from the observer callback lands 7-8 ms after `AXCreated`, but a faint
+  ghost of the banner still shows for about 0.2-0.3 s while it fades in and out. Setting the window's `AXPosition` to
+  (-3000, -3000) in the same callback (it is settable) and then closing it left no visible banner at all: 12 screen
+  captures of the top-right corner across the post were identical to before. Only windows that contain an
+  `AXNotificationCenterBanner` may be touched, so opening Notification Center itself is never affected. Open: whether
+  "Close" also removes it from Notification Center's history (moving it away without closing may keep it there).
+- **Q29 no (without Full Disk Access).** The store is `~/Library/Group Containers/group.com.apple.usernoted/db2/db`;
+  listing the folder fails with "Operation not permitted" and SQLite gets "authorization denied". It would need Full
+  Disk Access for Islet, and Apple has moved and locked it before, so reading banners (Q27/Q28) is the way.
+- **Q30 (first try): the incoming-call banner is opaque.** A FaceTime call (and the relayed iPhone call) arrives as a
+  banner window like any other, but its `AXNotificationCenterBanner` is identified `FACETIME_NOTIFICATION` with the
+  description "FaceTime Notification" and no children: no caller, no Accept / Decline. Its content is drawn by
+  another process. FaceTime itself isn't running while it rings. (The iPhone call went unanswered on the Mac: Phone
+  showed "Do you want to upgrade to Wi-Fi calls on this Mac?" and logged it as missed.)
+- **Q31 yes, for FaceTime.** Once answered, FaceTime's window (`SceneWindow`, title "FaceTime") exposes the other
+  person's name as a button (`desc="Mom"`), `AvatarView` "Connecting…" until it connects, the camera and microphone
+  as switches (`toggleVideoButton`, `toggleMicMenuButton`, value 1 = on) and the End button (`leaveButton`), all
+  pressable. The default input device reports running (`kAudioDevicePropertyDeviceIsRunningSomewhere`) while the call
+  is up. Phone's Recents list then has the call, e.g. "Mom, Incoming FaceTime Video, 1:21 PM".
