@@ -40,6 +40,9 @@ final class PowerMonitor {
     }
 
     private(set) var details = Details()
+    /// Maximum capacity and condition exactly as System Settings shows them. macOS works these out privately (its
+    /// 97% isn't any ratio in the registry), so they come from `system_profiler` once per page open.
+    private(set) var reportedHealth: (percent: Int, condition: String)?
     @ObservationIgnored private var detailsTask: Task<Void, Never>?
     @ObservationIgnored var onEvent: ((ChargeEvent) -> Void)?
     @ObservationIgnored private var source: CFRunLoopSource?
@@ -67,6 +70,10 @@ final class PowerMonitor {
         detailsTask = nil
         guard on else { return }
         details = Self.readDetails()
+        Task { [weak self] in
+            let h = await Self.readReportedHealth()
+            self?.reportedHealth = h ?? self?.reportedHealth
+        }
         detailsTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
@@ -75,6 +82,30 @@ final class PowerMonitor {
                 self.state = Self.read()
             }
         }
+    }
+
+    private nonisolated static func readReportedHealth() async -> (percent: Int, condition: String)? {
+        await Task.detached {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+            p.arguments = ["SPPowerDataType", "-json"]
+            let out = Pipe()
+            p.standardOutput = out
+            p.standardError = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return nil }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let items = json["SPPowerDataType"] as? [[String: Any]] else { return nil }
+            for item in items {
+                guard let h = item["sppower_battery_health_info"] as? [String: Any],
+                      let text = h["sppower_battery_health_maximum_capacity"] as? String,
+                      let percent = Int(text.filter(\.isNumber)) else { continue }
+                let raw = h["sppower_battery_health"] as? String ?? ""
+                return (percent, raw == "Good" || raw.isEmpty ? "Normal" : raw)
+            }
+            return nil
+        }.value
     }
 
     private static func readDetails() -> Details {

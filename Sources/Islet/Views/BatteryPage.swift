@@ -29,8 +29,13 @@ struct BatteryPage: View {
             .padding(.top, 4)
 
             HStack(spacing: 10) {
-                StatTile(label: "CAPACITY", value: d.health.map { "\($0)%" } ?? "–",
-                         detail: d.health.map { $0 >= 80 ? "Normal" : "Worn" } ?? "Maximum")
+                // What System Settings says when we have it; our own full-charge vs design ratio until then.
+                if let h = power.reportedHealth {
+                    StatTile(label: "CAPACITY", value: "\(h.percent)%", detail: h.condition)
+                } else {
+                    StatTile(label: "CAPACITY", value: d.health.map { "\($0)%" } ?? "–",
+                             detail: d.health.map { $0 >= 80 ? "Normal" : "Worn" } ?? "Maximum")
+                }
                 StatTile(label: "CYCLES", value: d.cycles.map { "\($0)" } ?? "–",
                          detail: d.designCycles.map { "of \($0)" } ?? "Charge cycles")
                 if s.onAC {
