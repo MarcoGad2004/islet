@@ -61,6 +61,14 @@ the unlock animation still ships.
 - [x] Top edge bubble: drop from the edge, floating card, hover strip orb, two-finger swipe to the panel
 - [ ] Try it with "No notch" on the notched Mac, then on a Mac without a notch
 
+## 1.4: Notifications and calls
+- [x] Spike (RESEARCH.md Q27-Q31): read banners, hide the system banner, calls
+- [ ] Notifications: banner watcher, hide the system banner, card, stacking, click / swipe, the taller card
+- [ ] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end)
+- [ ] Settings > Notifications (show in the notch, hide message text)
+- [ ] Try it on the Mac: messages, several at once, a FaceTime call; does Close remove it from Notification Center?
+- [ ] iPhone calls relayed to the Mac (retry the probe for Q30)
+
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status
 - [x] Priority and hand-back between events

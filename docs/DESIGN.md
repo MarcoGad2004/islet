@@ -350,8 +350,8 @@ Plays when macOS reports the screen unlocked (whatever unlocked it). See "Lock o
 
 ### Priority
 
-Face scan > lock opens > volume/brightness > charging/battery > media. Short events cover media and
-hand back when they end.
+Face scan > lock opens > volume/brightness > notification (1.4) > charging/battery > media. Short events cover media and
+hand back when they end. A FaceTime call in progress takes media's place.
 
 ### Gestures
 
@@ -375,6 +375,53 @@ With the pointer over the island:
   on the right = left edge of the nearest icon − notch right edge.
 - Wings only when both sides ≥ 68 pt. Re-check on app switch, menu changes and display changes.
 - No Accessibility permission, or the check fails: always use the chin.
+
+## Notifications and calls (1.4)
+
+Owner approved, 2026-11-20. Mockup (playable): <https://claude.ai/artifact/7xTcPWs9qJyVJhFiUe5jWJ>. Feasibility:
+RESEARCH.md Q27-Q31.
+
+### Notifications
+
+- **Source**: every banner macOS shows (read through Accessibility from Notification Center's banner window). Whatever a
+  Focus or the app's own settings silence never makes a banner, so it never reaches the notch either.
+- **The system banner is hidden**: its window is moved off screen the moment it appears and then closed, so only the
+  notch shows it. Only banner windows are touched; opening Notification Center itself is unaffected. Incoming-call
+  banners are never hidden (their Accept / Decline can't be pressed from Islet).
+- **Card**: the island flows down into a `notification` body under the stem, 360 x 72 (top 16, bottom 20, 10 pt inner
+  curves), always, whatever the menu bar width check says (text needs the room and the body covers no menus). App icon
+  34 pt (radius 9) on the left, 16 pt inset; beside it the title (13 semibold, `text`) with "now" (11, `tertiary`) on the
+  right, and one line of the message (12, `secondary`, cut with an ellipsis). The subtitle, when there is one, leads the
+  message ("Subtitle · Body").
+- **Timing**: 5 s, then it folds back to what was showing. Hovering pauses it (and swells it, as other shapes); leaving
+  gives it 3 s more.
+- **Another one** arriving while a card shows replaces the content (it fades across) and restarts the 5 s; a count badge
+  (16 pt, `#3A3A3C`, 2 pt black ring) sits on the icon's lower right corner from the second one.
+- **Click**: opens it in its app (the banner's own Show), and the card folds back.
+- **Two-finger swipe up**: dismisses it.
+- **Two-finger swipe down**: the taller card, 380 x 132 (bottom 24): the whole message (up to 3 lines, `#C7C7CC`),
+  "App · now" on the right, and Close and Show buttons (28 pt pills; Show white with black text). It stays until one of
+  them, a swipe up, a click outside or 1 s after the pointer leaves.
+- **Priority**: below volume and brightness, above charging, connection notices and media: face scan > lock opens >
+  volume/brightness > notification > charging/battery > events > media. Not on the lock screen.
+- **Settings > Notifications**: "Show notifications in the notch" (on by default; off leaves the system banners alone)
+  and "Hide message text" (only the app and title).
+
+### Calls (FaceTime)
+
+- **Ringing**: the system banner stays (Islet can't read who is calling or press Accept / Decline: RESEARCH.md Q30).
+  The wings show a green phone that wiggles (1.3 s loop) on the left and two green rings pulsing out (1.5 s, staggered)
+  on the right, until it is answered, declined or stops ringing. Always the wings: no menus are covered for long, and
+  there is no text.
+- **In a call** (FaceTime's call window is up): the wings, like media, which they replace while the call lasts. Left: a
+  green video camera (`video.fill`), or a red crossed-out mic (`mic.slash.fill`, `red text`) while muted. Right: the
+  call's time (13 semibold, monospaced digits, green), from when it connected.
+- **Hover**: the wide bar with "Name · FaceTime Video" (or "Name · Muted") in its body.
+- **Click**: the expanded panel's call page (500 x 216): "FACETIME" header and the collapse chevron; a 60 pt circle with
+  the first letter (`artwork placeholder` purple), the name (20 semibold) and "1:21 · FaceTime Video"; then three 48 pt
+  round buttons with labels under them: Mute, Camera (white with a black glyph while muted / off) and End (red). They
+  press FaceTime's own controls.
+- iPhone calls relayed to the Mac: not yet (RESEARCH.md Q30).
 
 ## Without a notch (1.2)
 
