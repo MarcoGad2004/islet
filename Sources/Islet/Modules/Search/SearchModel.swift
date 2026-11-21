@@ -34,6 +34,10 @@ final class SearchModel {
     @ObservationIgnored var onChange: (() -> Void)?
 
     init() {
+        index.onLoad = { [weak self] in
+            guard let self, !self.isEmpty else { return }
+            self.rebuild(keepSelection: true)
+        }
         files.onResults = { [weak self] text, items in
             guard let self, text == self.text.trimmingCharacters(in: .whitespaces) else { return }
             self.fileResults = items

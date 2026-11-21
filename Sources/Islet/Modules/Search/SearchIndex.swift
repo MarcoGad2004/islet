@@ -212,6 +212,8 @@ enum SearchCalculator {
 @MainActor
 final class SearchIndex {
     private(set) var apps: [SearchItem] = []
+    /// Contacts or Shortcuts finished loading (in the background): results typed before then are run again.
+    var onLoad: (() -> Void)?
     private(set) var shortcuts: [SearchItem] = []
     private var appsLoaded: Date?
     private var shortcutsLoaded: Date?
@@ -276,7 +278,7 @@ final class SearchIndex {
                 let id = String(line[open.upperBound..<line.index(before: line.endIndex)])
                 return SearchItem(id: "shortcut:" + id, kind: .shortcut, name: name, detail: id)
             }
-            await MainActor.run { [weak self] in self?.shortcuts = items }
+            await MainActor.run { [weak self] in self?.shortcuts = items; self?.onLoad?() }
         }
     }
 
@@ -306,7 +308,7 @@ final class SearchIndex {
         contactsLoaded = Date()
         Task.detached(priority: .userInitiated) {
             let items = Self.loadContacts()
-            await MainActor.run { [weak self] in self?.contacts = items }
+            await MainActor.run { [weak self] in self?.contacts = items; self?.onLoad?() }
         }
     }
 
