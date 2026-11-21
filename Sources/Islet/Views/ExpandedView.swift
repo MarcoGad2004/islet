@@ -21,15 +21,6 @@ struct ExpandedView: View {
                         .frame(height: IslandLayout.notificationPillHeight, alignment: .bottom)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                if store.showsActivityCards {
-                    // iPhone Live Activities, one card each (DESIGN.md "iPhone Live Activities", "In the panel").
-                    VStack(spacing: LiveActivityCard.gap) {
-                        ForEach(store.liveActivities) { LiveActivityCard(store: store, activity: $0) }
-                    }
-                    .padding(.horizontal, 16).padding(.top, LiveActivityCard.top)
-                    .frame(height: store.activityCardsHeight, alignment: .top)
-                    .transition(.opacity)
-                }
                 page.frame(width: CGFloat(IslandLayout.expandedWidth), height: store.pageBodyHeight, alignment: .topLeading)
             }
             .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
@@ -38,13 +29,8 @@ struct ExpandedView: View {
     }
 
     @ViewBuilder private var page: some View {
-        if store.expandedPage == .call, store.call?.phase == .active {
-            CallPage(store: store)
-                .padding(EdgeInsets(top: 14, leading: 24, bottom: 22, trailing: 24))
-        } else {
-            ControlStage(store: store)
-                .padding(16)
-        }
+        ControlStage(store: store)
+            .padding(16)
     }
 }
 

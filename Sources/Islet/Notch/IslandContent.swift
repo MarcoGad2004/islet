@@ -12,10 +12,6 @@ enum IslandContent {
     case progress(ConnectionProgress)
     /// A banner taken from Notification Center (DESIGN.md "Notifications"): the card under the notch.
     case notification(NotificationItem)
-    /// FaceTime ringing or in a call (DESIGN.md "Calls").
-    case call(CallState)
-    /// An iPhone Live Activity (DESIGN.md "iPhone Live Activities").
-    case activity(LiveActivity)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -28,14 +24,12 @@ enum IslandContent {
         case .event(let e): "event-\(e.kind)"
         case .progress: "progress"
         case .notification: "notification" // a new one fades across inside the card, not by remounting
-        case .call(let c): "call-\(c.phase)"
-        case .activity(let a): "activity-\(a.id)"
         case .media: "media"
         }
     }
 }
 
-enum ExpandedPage { case media, displaySound, call, notifications, messages, search }
+enum ExpandedPage { case media, displaySound, notifications, messages, search }
 
 /// One banner, read through Accessibility (RESEARCH.md Q27).
 struct NotificationItem: Equatable, Identifiable {
@@ -59,22 +53,6 @@ struct NotificationItem: Equatable, Identifiable {
     var heading: String { title.isEmpty ? app : title }
     /// From Messages: it can open as a conversation in the notch.
     var isMessages: Bool { app == "Messages" || appURL?.lastPathComponent == "Messages.app" }
-}
-
-/// A FaceTime call, from its notification banner (ringing) and FaceTime's window (in the call; RESEARCH.md Q31).
-struct CallState: Equatable {
-    enum Phase: Equatable { case ringing, active }
-    var phase: Phase
-    /// Who: empty while ringing (the banner can't be read) and until FaceTime names them.
-    var name = ""
-    /// When it connected; nil while connecting.
-    var connectedAt: Date?
-    var muted = false
-    var cameraOn = true
-    var video = true
-
-    var displayName: String { name.isEmpty ? "FaceTime" : name }
-    var kindLabel: String { video ? "FaceTime Video" : "FaceTime Audio" }
 }
 
 struct LevelState: Equatable {

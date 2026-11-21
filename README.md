@@ -1,6 +1,6 @@
 # Islet
 
-A personal macOS app that turns the MacBook Pro notch into a dynamic, interactive "island" (live activities, now playing, quick controls). Built for my own use as a replacement for an unmaintained notch app.
+A personal macOS app that turns the MacBook Pro notch into a dynamic, interactive "island" (notifications, now playing, search, quick controls). Built for my own use as a replacement for an unmaintained notch app.
 
 > Status: **v1 design locked ([docs/DESIGN.md](docs/DESIGN.md)). No app code yet.**
 

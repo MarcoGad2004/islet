@@ -15,8 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
     private let notifications = NotificationWatcher()
-    private let liveActivities = LiveActivityWatcher()
-    private let faceTime = FaceTimeMonitor()
     private let messages = MessagesStore()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
@@ -29,11 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []
-    /// FaceTime in the notch (DESIGN.md "Calls"): off until its design is redone in a later update.
-    static let callsEnabled = false
-    /// iPhone Live Activities are built but switched off (owner, 2026-11-21): macOS has no way to hide the menu bar's own
-    /// copy, so they would show twice. Nothing reads them while this is false.
-    static let liveActivitiesEnabled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
@@ -194,8 +187,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? await Task.sleep(for: .seconds(1))
                 if let id = self.messages.chatID(withText: "Islet test") { self.notch.store.openChat(id) }
             }
-        case "ring": notch.store.setCall(CallState(phase: .ringing))
-        case "call": notch.store.setCall(CallState(phase: .active, name: "Mom", connectedAt: Date().addingTimeInterval(-81)))
         case "updated":
             // What the new copy shows after updating itself (notes from CHANGELOG.md's newest section).
             let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -275,13 +266,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let g = store?.geometry else { return false }
             return g.virtual || LayoutChecker.eventWingsFit(g)
         }
-        store.wingLayoutCheck = { [weak store] wing in
-            #if DEBUG
-            if UserDefaults.standard.bool(forKey: "IsletDebugWide") { return true }
-            #endif
-            guard let g = store?.geometry else { return false }
-            return g.virtual || LayoutChecker.wingsFit(g, wing: CGFloat(wing))
-        }
         store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
         focus.onChange = { [weak store] old, new in
@@ -310,27 +294,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         airdrop.refresh()
         sidecar.start()
 
-        // Notifications and FaceTime calls (DESIGN.md "Notifications and calls").
+        // Notifications (DESIGN.md "Notifications").
         notifications.canTake = { [weak store] in store?.canTakeNotification($0) == true }
         store.messages = messages
         notifications.onNotification = { [weak store] in store?.showNotification($0) }
-        // Calls are left for a later update (owner, 2026-11-20): the code is here, but nothing feeds the island yet.
-        if Self.callsEnabled { notifications.onRinging = { [weak self] in self?.faceTime.setRinging($0) } }
         store.notificationShow = { [weak self] in self?.notifications.show($0) }
         store.notificationClose = { [weak self] in self?.notifications.close($0) }
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
         store.notificationAction = { [weak self] in self?.notifications.perform($0, action: $1) }
         notifications.start()
-        faceTime.onChange = { [weak store] in store?.setCall($0) }
-        store.callMute = { [weak self] in self?.faceTime.toggleMute() }
-        store.callCamera = { [weak self] in self?.faceTime.toggleCamera() }
-        store.callEnd = { [weak self] in self?.faceTime.end() }
-        if Self.callsEnabled { faceTime.start() }
-
-        // iPhone Live Activities (DESIGN.md "iPhone Live Activities").
-        store.liveActivityWatcher = liveActivities
-        liveActivities.onChange = { [weak store] in store?.setLiveActivities($0) }
-        if Self.liveActivitiesEnabled { liveActivities.start() }
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()
@@ -355,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { store?.recomputeLayout() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry(); self?.faceTime.retry() }
+            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry() }
         }
     }
 

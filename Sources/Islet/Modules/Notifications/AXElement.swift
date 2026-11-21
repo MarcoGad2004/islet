@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-/// Small helpers for reading and pressing other apps' Accessibility elements (Notification Center, FaceTime).
+/// Small helpers for reading and pressing other apps' Accessibility elements (Notification Center).
 enum AX {
     static func attr(_ e: AXUIElement, _ a: String) -> AnyObject? {
         var v: AnyObject?

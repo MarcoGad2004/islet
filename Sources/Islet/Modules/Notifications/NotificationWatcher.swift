@@ -9,7 +9,7 @@ import ApplicationServices
 /// its own Show / Close can be pressed from the card. Only windows holding a banner are ever touched.
 ///
 /// Incoming-call banners (`FACETIME_NOTIFICATION`) are left where they are: their Accept / Decline can't be pressed
-/// from here (Q30). They are reported as ringing instead.
+/// from here (Q30).
 @MainActor
 final class NotificationWatcher {
     static let enabledKey = "notificationsInNotch"
@@ -17,8 +17,6 @@ final class NotificationWatcher {
     static let centerBundleID = "com.apple.notificationcenterui"
 
     var onNotification: ((NotificationItem) -> Void)?
-    /// A FaceTime (or relayed iPhone) call's banner came up (true) or went away (false).
-    var onRinging: ((Bool) -> Void)?
     /// Whether the notch can take a banner right now (not locked, panel closed, island showing).
     var canTake: ((NotificationItem) -> Bool)?
 
@@ -34,7 +32,6 @@ final class NotificationWatcher {
         }
     }
     private var banners: [UUID: Banner] = [:]
-    private var ringWindow: AXUIElement?
     private var retryTask: Task<Void, Never>?
 
     var enabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
@@ -84,12 +81,10 @@ final class NotificationWatcher {
         observer = nil
         banners.removeAll()
         ownWindows.removeAll()
-        if ringWindow != nil { ringWindow = nil; onRinging?(false) }
     }
 
     fileprivate func handle(_ element: AXUIElement, _ note: String) {
         if note == kAXUIElementDestroyedNotification as String {
-            if let ring = ringWindow, CFEqual(ring, element) { ringWindow = nil; onRinging?(false) }
             ownWindows.removeAll { CFEqual($0, element) }
             for (id, b) in banners where CFEqual(b.window, element) { banners[id] = nil }
             return
@@ -136,14 +131,7 @@ final class NotificationWatcher {
         for w in windows {
             for banner in AX.all(in: w, depth: 8, where: Self.isBanner) {
                 if let extra, CFEqual(w, extra) { foundInExtra = true }
-                if Self.isCall(banner) {
-                    if ringWindow == nil || !CFEqual(ringWindow!, w) {
-                        ringWindow = w
-                        watchDestroyed(w)
-                        onRinging?(true)
-                    }
-                    continue
-                }
+                if Self.isCall(banner) { continue }
                 let key = AX.identifier(banner) ?? AX.description(banner) ?? ""
                 guard !key.isEmpty, !seen.contains(key) else { continue }
                 seen.append(key)

@@ -28,12 +28,6 @@ enum LayoutChecker {
         return f.left >= needed && f.right >= needed
     }
 
-    /// Wings of any width (a Live Activity's grow to fit its value), with the same 8 pt margin.
-    static func wingsFit(_ g: NotchGeometry, wing: CGFloat) -> Bool {
-        guard let f = free(g) else { return false }
-        return f.left >= wing + 8 && f.right >= wing + 8
-    }
-
     static func eventWingsFit(_ g: NotchGeometry) -> Bool {
         guard let f = free(g) else { return false }
         return f.left >= neededForEvents && f.right >= neededForEvents

@@ -17,8 +17,7 @@ struct CompactContentView: View {
     var body: some View {
         let nw = store.geometry?.width ?? 190, nh = store.geometry?.height ?? 34
         let barH = lockBar ? nh + IslandLayout.lockBarExtra : nh
-        let activityWing: CGFloat? = if case .activity = content { CGFloat(store.activityWing) } else { nil }
-        let wingW: CGFloat = activityWing ?? (eventBar ? CGFloat(IslandLayout.eventWing) : 60)
+        let wingW: CGFloat = eventBar ? CGFloat(IslandLayout.eventWing) : 60
         Group {
             if wings {
                 VStack(spacing: 0) {
@@ -64,26 +63,6 @@ struct CompactContentView: View {
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                    height: IslandLayout.levelBodyHeight, alignment: .leading).offset(y: -1)
                             .id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
-                    }
-                    if levelBody, case .activity(let a) = content {
-                        // Hovering a Live Activity: what it is, under the wings.
-                        Text(a.card.map { "\(a.app) · \($0.title)" } ?? a.app)
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
-                            .lineLimit(1).minimumScaleFactor(0.8)
-                            .frame(width: nw + 2 * wingW - 2 * IslandLayout.levelSideInset,
-                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
-                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
-                                                    removal: .opacity.animation(.easeOut(duration: 0.1))))
-                    }
-                    if levelBody, case .call(let c) = content {
-                        // Hovering a call: who it is, under the wings.
-                        Text("\(c.displayName) · \(c.muted ? "Muted" : c.kindLabel)")
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
-                            .lineLimit(1).minimumScaleFactor(0.8)
-                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
-                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
-                            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.1)),
-                                                    removal: .opacity.animation(.easeOut(duration: 0.1))))
                     }
                     if levelBody, case .event(let e) = content {
                         // Personal Hotspot: the phone's name under the wings.
@@ -149,12 +128,8 @@ struct CompactContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
         case .progress(let p):
             progressIcon(p).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset)
-        case .call(let c):
-            if c.phase == .ringing { RingingPhone() } else { CallIcon(call: c) }
         case .notification(let n):
             NotificationIcon(item: n, size: 22).id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
-        case .activity(let a):
-            ActivityIcon(activity: a, size: 20)
         }
     }
 
@@ -183,20 +158,8 @@ struct CompactContentView: View {
             // The wing is too narrow for a word: the phone's cellular link, with the name in the body below.
             PopIcon(name: "cellularbars", color: eventTint(e))
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
-        case .call(let c):
-            if c.phase == .ringing { RingingPulse() } else { CallTimer(call: c) }
         case .notification:
             moreLabel
-        case .activity(let a):
-            // Its value (a timer, a score); the app's name when the value is a picture.
-            if let v = a.value {
-                Text(v).font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
-                    .lineLimit(1).minimumScaleFactor(0.8).padding(.horizontal, 12)
-                    .contentTransition(.numericText()).animation(.easeOut(duration: 0.2), value: v)
-            } else {
-                Text(a.app).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
-                    .lineLimit(1).minimumScaleFactor(0.8).padding(.horizontal, 12)
-            }
         case .event(let e):
             Text(e.kind == .focusOff ? "\(e.title) off" : e.title)
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(e.kind == .focusOff ? Color.isletSecondary : Color.isletText)
@@ -255,24 +218,6 @@ struct CompactContentView: View {
                     UpdateBar(fraction: f, done: p.state == .done, failed: isFailed(p), width: 64)
                 } else {
                     progressMark(p)
-                }
-            }
-        case .call(let c):
-            HStack(spacing: 10) {
-                if c.phase == .ringing { RingingPhone().frame(width: 18) } else { CallIcon(call: c).frame(width: 18) }
-                Text(c.phase == .ringing ? "Incoming call" : c.displayName)
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                Spacer(minLength: 4)
-                if c.phase == .active { CallTimer(call: c) }
-            }
-        case .activity(let a):
-            HStack(spacing: 10) {
-                ActivityIcon(activity: a, size: 20)
-                Text(a.app).font(.system(size: 13)).foregroundStyle(Color.isletSecondary).lineLimit(1)
-                Spacer(minLength: 4)
-                if let v = a.value {
-                    Text(v).font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText).lineLimit(1)
-                        .contentTransition(.numericText()).animation(.easeOut(duration: 0.2), value: v)
                 }
             }
         case .notification(let n):

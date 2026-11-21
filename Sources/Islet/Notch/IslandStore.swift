@@ -69,11 +69,6 @@ final class IslandStore {
     @ObservationIgnored var notificationAction: ((NotificationItem, String) -> Void)?
     static let notificationSeconds: Double = 5
     static let notificationAfterHover: Double = 3
-    /// FaceTime ringing or in a call (DESIGN.md "Calls"), and its controls on the call page.
-    private(set) var call: CallState?
-    @ObservationIgnored var callMute: (() -> Void)?
-    @ObservationIgnored var callCamera: (() -> Void)?
-    @ObservationIgnored var callEnd: (() -> Void)?
     var enrolment: EnrolmentModel?
     var scan: ScanModel?
 
@@ -93,12 +88,6 @@ final class IslandStore {
     var messageDraft = ""
     /// Search in the notch (DESIGN.md "Search").
     let search = SearchModel()
-    /// iPhone Live Activities (DESIGN.md "iPhone Live Activities"); the newest shows in the compact shapes.
-    private(set) var liveActivities: [LiveActivity] = []
-    @ObservationIgnored var liveActivityWatcher: LiveActivityWatcher?
-    /// Wings of the given width (each side) fit the menu bar.
-    @ObservationIgnored var wingLayoutCheck: ((Double) -> Bool)?
-    private var activityWingsFit = false
     /// The page the notification list was opened from (the pill), to go back to.
     @ObservationIgnored private var notificationReturnPage: ExpandedPage?
     /// Search took over the open panel (a letter typed there), so the shape is already out.
@@ -135,44 +124,12 @@ final class IslandStore {
 
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
-        pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0) + activityCardsHeight
+        pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0)
     }
-
-    /// Live Activity cards at the top of the panel's own pages, under the notification pill.
-    var showsActivityCards: Bool {
-        expanded && !liveActivities.isEmpty && [.media, .displaySound, .call].contains(expandedPage) && controlDetail == nil
-    }
-
-    var activityCardsHeight: CGFloat {
-        guard showsActivityCards else { return 0 }
-        return LiveActivityCard.top + liveActivities.reduce(0) { $0 + LiveActivityCard.height($1) + LiveActivityCard.gap }
-    }
-
-    /// The newest activity: the one in the compact shapes.
-    var activity: LiveActivity? { liveActivities.max { $0.since < $1.since } }
-
-    /// Each wing's width for the activity: its value, 12 pt clear on both sides, 60 to 100 pt.
-    var activityWing: Double {
-        guard let v = activity?.value else { return IslandLayout.activityWingMin }
-        let w = (v as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)]).width
-        return min(IslandLayout.activityWingMax, max(IslandLayout.activityWingMin, (w + 24).rounded(.up)))
-    }
-
-    func setLiveActivities(_ list: [LiveActivity]) {
-        let hadOne = !liveActivities.isEmpty
-        let wing = activityWing
-        liveActivities = list
-        // Coming or going, or the wings changing width: measure the menu bar again.
-        if hadOne != !list.isEmpty || wing != activityWing { recomputeLayout(force: true) }
-        refresh()
-    }
-
-    /// One of the card's own buttons ("Complete").
-    func pressActivityButton(_ button: String, on id: String) { liveActivityWatcher?.press(button, on: id) }
 
     /// Waiting notifications show as a pill at the top of the panel's own pages (DESIGN.md "Notifications", "In the panel").
     var showsNotificationPill: Bool {
-        expanded && !notifications.isEmpty && [.media, .displaySound, .call].contains(expandedPage)
+        expanded && !notifications.isEmpty && [.media, .displaySound].contains(expandedPage)
     }
 
     /// The page itself, under the pill.
@@ -197,15 +154,10 @@ final class IslandStore {
         if let unlockStart { return .unlock(start: unlockStart) }
         if lockScreen && (!floating || (lockHint && lockHintFull)) { return .locked } // floating: only the ⌘⇧ reminder
         if let level { return .level(level) }
-        if let call, call.phase == .ringing { return .call(call) }
         if let notification { return .notification(notification) }
         if let progress { return .progress(progress) }
         if let event { return .event(event) }
         if let charge { return .charge(charge) }
-        // A call in progress takes media's place (and, floating, is left out like it).
-        if let call, !floating { return .call(call) }
-        // A Live Activity: above media (DESIGN.md "iPhone Live Activities"); left out floating, like media.
-        if let a = activity, !floating { return .activity(a) }
         if mediaVisible && !floating { return .media }
         return nil
     }
@@ -230,16 +182,6 @@ final class IslandStore {
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
             // Hovered: the card. Otherwise the wide bar with the text in its body, or the chin.
             if case .notification = c { return pointerInside ? .notification : (wingsFit ? .levelWings : .chin) }
-            if case .call(let call) = c {
-                if call.phase == .ringing { return .wings } // no text, and not up for long: always the wings
-                // Under the pointer: the wide bar, with who it is in its body.
-                if wingsFit, geometry?.mode == .notch, pointerInside { return .levelWings }
-                return compactLayout
-            }
-            if case .activity = c {
-                guard activityWingsFit else { return .chin }
-                return geometry?.mode == .notch && pointerInside ? .levelWings : .wings
-            }
             // Media under the pointer (or mid-swipe): the wide bar, with the song's name in its body.
             if case .media = c, wingsFit, geometry?.mode == .notch, pointerInside || skip != nil { return .levelWings }
             return compactLayout
@@ -270,22 +212,15 @@ final class IslandStore {
     func recomputeLayout(force: Bool = false) {
         let fits = layoutCheck?() ?? false
         let eventFits = eventLayoutCheck?() ?? false
-        let activityFits = activity == nil ? false : (wingLayoutCheck?(activityWing) ?? fits)
-        guard force || fits != wingsFit || eventFits != eventWingsFit || activityFits != activityWingsFit else { return }
+        guard force || fits != wingsFit || eventFits != eventWingsFit else { return }
         wingsFit = fits
         eventWingsFit = eventFits
-        activityWingsFit = activityFits
         if !force { refresh() }
     }
 
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
         var m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
-        if case .activity? = content, presentation == .wings || presentation == .levelWings {
-            // Its wings grow alike to fit the value.
-            m.sw = g.width + 2 * activityWing
-            m.bw = m.sw
-        }
         if case .notification(let n)? = content, presentation != .expanded {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
@@ -409,7 +344,7 @@ final class IslandStore {
     func expand() {
         guard !expanded, !locked else { return }
         // Always the panel's own page; waiting notifications ride along as a pill at its top.
-        expandedPage = level == nil && call?.phase == .active ? .call : (level == nil && mediaPlaying) ? .media : .displaySound
+        expandedPage = (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
         power?.refresh()
         display?.refresh()
@@ -433,7 +368,6 @@ final class IslandStore {
         // Notifications left waiting under the pill show again briefly, then time out as usual.
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
-        if value, !liveActivities.isEmpty { liveActivityWatcher?.readCards() }
         if !value { notificationReturnPage = nil }
         expanded = value
         lastInUse = Date()
@@ -764,17 +698,6 @@ final class IslandStore {
         guard !messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         messages?.send(messageDraft)
         if messages?.sendError == nil { messageDraft = "" }
-    }
-
-    // MARK: Calls
-
-    func setCall(_ c: CallState?) {
-        guard c != call else { return }
-        let wasActive = call?.phase == .active
-        call = c
-        if wasActive, c?.phase != .active, expanded, expandedPage == .call { collapse() }
-        recomputeLayout()
-        refresh()
     }
 
     func setBase(_ p: Presentation?) {

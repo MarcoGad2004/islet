@@ -61,13 +61,12 @@ the unlock animation still ships.
 - [x] Top edge bubble: drop from the edge, floating card, hover strip orb, two-finger swipe to the panel
 - [ ] Try it with "No notch" on the notched Mac, then on a Mac without a notch
 
-## 1.4: Notifications and calls
+## 1.4: Notifications
 - [x] Spike (RESEARCH.md Q27-Q31): read banners, hide the system banner, calls
 - [x] Notifications: banner watcher, hide the system banner, card, stacking, click / swipe, the taller card
-- [x] FaceTime: ringing wings, in-call wings with the time, hover bar, call page (mute, camera, end); built but switched
-      off (`AppDelegate.callsEnabled`): calls get their own design in a later update
+- FaceTime in the notch was built, switched off, then removed (owner, 2026-11-21)
 - [x] Settings > General: show notifications in the notch, hide message text
-- Preview: `-IsletDebugShape notification|notifications|ring|call`
+- Preview: `-IsletDebugShape notification|notifications`
 - [x] Tried on the Mac (2026-11-20): one banner and two in a row reach the card, the corner stays empty, nothing comes back
       after the card times out
 - [x] Wide bar / chin, stacking ("N more", the strip), the list page, the banner's buttons (DESIGN.md, revised
@@ -112,27 +111,10 @@ the unlock animation still ships.
 - [ ] Still to try by hand: allowing a permission in System Settings and coming back clears it; Face Unlock's set-up,
       password and scan steps from the new page; an update ready
 
-## On hold: iPhone Live Activities in the notch
-Switched off (owner, 2026-11-21: `AppDelegate.liveActivitiesEnabled`): the menu bar's own copy can't be hidden, by a
-setting or by ⌘-dragging it, so they would show twice. The code stays; turn the flag on if macOS gains a way.
-- [x] Spike (RESEARCH.md Q47-Q52): read through Accessibility from `MenuBarAgent`; the card off screen works half the time
-- [x] Design draft and mockup (DESIGN.md "iPhone Live Activities", owner chose Islet's own layout, 2026-11-21)
-- [x] Owner approved the design (2026-11-21)
-- [x] `LiveActivityWatcher` (sides once a second while one is up, the card read off screen when the panel opens, its
-      buttons), wings that grow to fit the value, chin, hover bar, panel cards, Settings toggle, parsing tests
-- [x] Tried with a real Cadence reminder: the wings (CadenceMac's icon, the live timer), the panel card (title, OVERDUE,
-      lines, Complete)
-- [ ] Still to try: Complete from the card, two at once, one ending, an activity whose right side is a picture, a
-      flash of the system's card when the panel opens
-- [x] System Settings has no switch for the menu bar's copy on macOS 26.2 (only one that stops them altogether), so both
-      show. ⌘-dragging the pill out of the menu bar doesn't remove it either
-
-## Later: calls in the notch
-- [x] Probe (RESEARCH.md Q53-Q56): what the Mac shows of calls answered on the iPhone and on the Mac (2026-11-21)
-- [x] Design draft and mockup (DESIGN.md "Calls"): phone and FaceTime, on the Mac and on the iPhone
-- [ ] Left for later (owner, 2026-11-21). First, with one test call each: does a call's banner on the Mac stay hidden once
-      answered (no duplicates, or that case goes), and how soon does the call history have an iPhone-answered call (Q56)
-- [ ] Then the owner approves the design, and it's built
+## Dropped: calls and iPhone Live Activities
+Both were tried, then removed from the code (owner, 2026-11-21) to keep the app light. Live Activities would have shown
+twice, since macOS can't hide the menu bar's copy; calls would have doubled up with macOS's own call banner. The
+findings stay in RESEARCH.md (Q47-Q56).
 
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status

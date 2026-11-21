@@ -382,10 +382,13 @@ With the pointer over the island:
 - Wings only when both sides ≥ 68 pt. Re-check on app switch, menu changes and display changes.
 - No Accessibility permission, or the check fails: always use the chin.
 
-## Notifications and calls (1.4)
+## Notifications (1.4)
 
 Owner approved, 2026-11-20. Mockup (playable): <https://claude.ai/artifact/7xTcPWs9qJyVJhFiUe5jWJ>. Feasibility:
 RESEARCH.md Q27-Q31.
+
+Calls and iPhone Live Activities in the notch were tried and dropped (owner, 2026-11-21): a call's banner
+stays macOS's own, and Live Activities stay in the menu bar, where macOS can't be made to hide its copy.
 
 ### Notifications
 
@@ -472,47 +475,6 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
   Automation for Messages (sending), each asked the first time it's needed.
 
-### Calls (draft, for later)
-
-Left for a later update (owner, 2026-11-21), to come back to with two checks first: whether a call's banner on
-the Mac stays hidden once answered (if not, it would show twice, and that case or the feature goes), and how soon the
-call history has a phone call answered on the iPhone (Q56). FaceTime on the Mac would also leave the notch while
-FaceTime is in front, like music. Proposed 2026-11-21 (owner: show an active call in the notch, a phone or FaceTime call, answered on the Mac or on the
-iPhone; the ringing banner may stay). Mockup (playable): <https://claude.ai/artifact/LrMftdbrRxRhUoLjaL47Ns> (source
-docs/mockups/calls.html). Feasibility: RESEARCH.md Q30, Q31, Q53-Q56.
-Replaces the deferred FaceTime-only design (built in 1.4, switched off with `AppDelegate.callsEnabled`).
-
-- **Ringing**: the system banner, untouched (it has Answer / Decline and is where macOS wants you to answer). The notch
-  stays as it was; Islet only notes who is calling, for later.
-- **Four kinds of active call**, each with where its facts come from:
-
-  | Call                     | Who                  | Time                     | Ends                    | Controls                 |
-  |--------------------------|----------------------|--------------------------|-------------------------|--------------------------|
-  | Phone, on the Mac        | the call's banner    | the banner ("Mom, 0:13") | the banner goes         | Mute, End                |
-  | FaceTime, on the Mac     | FaceTime's window    | from when it connects    | FaceTime's window       | Mute, Camera, End        |
-  | FaceTime, on the iPhone  | the ring             | from the answer          | the Dock's Handoff item | Move to Mac (Handoff)    |
-  | Phone, on the iPhone     | the ring             | from the answer          | the call history (Q56)  | none                     |
-
-  A phone call on the iPhone whose end can't be told (Q56 not fast enough) shows as a notice instead ("On iPhone with
-  Mom", 4 s, like a connection notice) and isn't kept on screen.
-- **The call's banner on the Mac**: once a phone call on the Mac is answered, its banner (now the call's controls) is
-  moved off screen like a notification's, so the notch is the only place it shows; Islet presses its buttons. Settings >
-  General "Show calls in the notch" off leaves everything to macOS.
-- **Compact** (follows the menu bar width check, like media, which it replaces while the call lasts):
-  - **Wings**: left, the call's glyph in green: `phone.fill` (phone), `video.fill` (FaceTime video), `iphone` with the
-    call on the iPhone; a red `mic.slash.fill` while muted. Right: the time (13 semibold, monospaced digits, green).
-  - **Chin**: the glyph, the name (13 semibold) and the time on the right.
-  - **Hover**: the wide bar with "Name · Phone" / "Name · FaceTime Video" / "Name · on iPhone" / "Name · Muted" in its
-    body.
-- **Click**: the panel's call page (500 x 216): a header ("PHONE", "FACETIME", "ON IPHONE") and the collapse chevron; a
-  60 pt circle with the first letter (`artwork placeholder` purple), the name (20 semibold) and "1:21 · Phone"; then the
-  call's controls as 48 pt round buttons with labels under them: Mute and End (red) for a phone call on the Mac; Mute,
-  Camera and End for FaceTime on the Mac; "Move to Mac" for FaceTime on the iPhone; none for a phone call on the iPhone
-  ("On your iPhone" under the time). Mute and Camera are white with a black glyph while on.
-- **Priority**: below volume, brightness and notifications; above charging and media. A call doesn't open the panel by
-  itself.
-- **Settings > General**: "Show calls in the notch" (on by default).
-
 ## Without a notch (1.2)
 
 Mockups: the "Islet without a notch" canvas (<https://claude.ai/artifact/PznELF9GV5LZd61mXHWhDo>), with a playable
@@ -562,43 +524,6 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
   small glass buttons.
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
-
-## iPhone Live Activities (on hold)
-
-On hold (owner, 2026-11-21): built and working, but switched off (`AppDelegate.liveActivitiesEnabled`) because macOS
-has no way to hide the menu bar's own copy (RESEARCH.md Q50), so every activity would show twice. Back on if that
-changes. Owner approved, 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
-"option 2": Islet's own layout, built from what the activity says; their real look, from their pixels, is for a later
-update). Mockup (playable): <https://claude.ai/artifact/FRRSaQ7kUjrYdNEpqYbeig> (source docs/mockups/live-activities.html).
-Feasibility: RESEARCH.md Q47-Q52.
-
-- **Source**: every Live Activity macOS shows from the iPhone (`MenuBarAgent`'s menu bar items with the subrole
-  `AXLiveActivity`), whatever the app. Islet watches for them to appear and end, and reads their two sides about once a
-  second while one is up (nothing runs when there are none).
-- **Compact**, like media (follows the menu bar width check):
-  - **Wings**: left, the activity's app icon (the Mac app of the same name when there is one, else a grey rounded square
-    with the app's first letter; 20 pt). Right, the activity's own right-hand value as text: a timer, a score, an ETA
-    (13 semibold, `text`, monospaced digits, cut to the wing). When the right side is a picture, not text, the app's name
-    in `secondary` instead. Both wings grow alike to fit the value (60 pt, up to 100 pt each, 12 pt clear of the notch
-    and the outer edge), so a timer like "1:37:23" is never cut; the menu bar width check uses the wider wings.
-  - **Chin**: the icon, the app's name (13, `secondary`) and the value on the right.
-  - **Hover**: the wide bar, with "App · value" in its body, as media does.
-- **Several at once**: the newest in the compact shapes; the panel shows them all.
-- **Priority**: above media, below notifications and the short events (they cover it and hand back). A call in progress
-  still takes the compact shapes.
-- **In the panel**: one card per activity at the top of the page (like the notification pill, under it if both show),
-  468 x as tall as its text needs (radius 16, the glass card): the app icon (28) and its name in small caps (10.5,
-  `tertiary`) on the first line; then the activity's texts in the order it gives them: the first as the title
-  (15 semibold, two lines at most), a short all-capitals word ("OVERDUE", "LIVE") as a small orange label on the right,
-  the value as large text (22 semibold, monospaced digits) on the right, the rest as lines in `secondary` (12). Its
-  buttons ("Complete") as 26 pt glass pills under the text; pressing one presses the activity's own button.
-  - To read the card, Islet opens the system's card off screen while its panel is open and closes it with the panel.
-    The move is repeated until it stays (the card snapped back once of two tries in the spike). Until the card has
-    been read, the card shows the app and the value.
-- **The menu bar's own**: Islet can't move or hide it (RESEARCH.md Q50). If System Settings can hide it and Islet can
-  still read the activity, setup and Settings say how; otherwise both show.
-- **Settings > General**: "Show iPhone Live Activities in the notch" (on by default).
-- **Later**: their real look (the app's colours and art) from their pixels, which needs Screen Recording.
 
 ## Search
 

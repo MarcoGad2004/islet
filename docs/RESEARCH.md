@@ -389,6 +389,8 @@ Still to try: files from the Desktop and Downloads in the installed copy (Q41), 
 
 ## iPhone Live Activities in the notch (spike, 2026-11-21)
 
+Not built: dropped and removed from the code (owner, 2026-11-21). Kept as a record.
+
 Owner request: the Live Activities macOS 26 shows from the iPhone (in the menu bar, and a card when clicked) in the
 notch instead: the two sides in the wings, the card in the panel, and the menu bar's own one out of the way. Probed with
 AX from a shell while a Cadence reminder's activity was up.
@@ -424,6 +426,8 @@ be read, live. Still open: hiding the menu bar's copy (owner to try System Setti
 screen while it's read (Q52).
 
 ## Calls answered on the iPhone (probe, 2026-11-21)
+
+Not built: calls were dropped (owner, 2026-11-21). Kept as a record.
 
 Owner question: can the notch show an active call however it was answered, on the Mac or on the iPhone? Probe (a script
 kept out of the repo) logged every 0.5 s: call banners in Notification Center, FaceTime / Phone windows, call-like menu

@@ -24,7 +24,6 @@ struct SettingsView: View {
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
-    @AppStorage(LiveActivityWatcher.enabledKey) private var liveActivitiesInNotch = true
     @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
@@ -282,13 +281,6 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary).symbolRenderingMode(.multicolor).font(.callout)
                     }
                 } header: { Text("Messages") }
-            }
-            if AppDelegate.liveActivitiesEnabled {
-                Section {
-                    Toggle(isOn: $liveActivitiesInNotch) {
-                        SettingsLabel("Show iPhone Live Activities in the notch", "The app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
-                    }
-                }
             }
         }
         .formStyle(.grouped)
