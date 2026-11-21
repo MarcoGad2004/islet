@@ -242,7 +242,10 @@ final class NotchController {
     }
 
     private func pointerChanged() {
-        let inside = store.isOverIsland(globalPoint: NSEvent.mouseLocation)
+        var inside = store.isOverIsland(globalPoint: NSEvent.mouseLocation)
+        // Mission Control's Spaces bar runs along the top: the island doesn't answer the pointer there, so the peek
+        // (and, without a notch, the chevron) stays away and clicks reach the bar (DESIGN.md "Behaviour").
+        if inside, !store.expanded, DockOverview.isOpen() { inside = false }
         panel?.ignoresMouseEvents = !inside
         store.pointerMoved(inside: inside)
     }
@@ -279,5 +282,35 @@ struct KeyPress {
     var plainText: Bool {
         guard !command, !control, let c = characters, !c.isEmpty else { return false }
         return c.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }
+    }
+}
+
+/// Whether Mission Control (or another of the Dock's full-screen views, like the app grid) is open. macOS posts no
+/// event Islet can hear for it (the Dock's Expose notifications stay silent on macOS 26), but while it's open the Dock
+/// owns a window covering the whole screen. Only asked while the pointer is over the island, and at most 4 times a second.
+@MainActor
+enum DockOverview {
+    private static var checkedAt = Date.distantPast
+    private static var open = false
+
+    static func isOpen() -> Bool {
+        let now = Date()
+        guard now.timeIntervalSince(checkedAt) > 0.25 else { return open }
+        checkedAt = now
+        open = read()
+        return open
+    }
+
+    private static func read() -> Bool {
+        guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        let screens = NSScreen.screens.map(\.frame)
+        return list.contains { w in
+            guard (w[kCGWindowOwnerPID as String] as? pid_t) == dock.processIdentifier,
+                  (w[kCGWindowLayer as String] as? Int ?? 0) >= Int(CGWindowLevelForKey(.dockWindow)),
+                  let b = w[kCGWindowBounds as String] as? [String: CGFloat],
+                  let width = b["Width"], let height = b["Height"] else { return false }
+            return screens.contains { width >= $0.width - 1 && height >= $0.height - 1 }
+        }
     }
 }

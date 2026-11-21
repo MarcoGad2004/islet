@@ -49,6 +49,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Face Unlock has its own page.
 - Islet checks permissions again whenever the window comes to the front.
 
+### Fixes
+
+- Without a notch, the chevron no longer drops down over Mission Control when the pointer reaches the top of the
+  screen, so the windows and Spaces up there can be clicked.
+
 
 ## 1.3 (2026-11-20)
 
