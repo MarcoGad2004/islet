@@ -33,6 +33,27 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(SearchItem(id: "contact:2", kind: .contact, name: "Tim", detail: "Apple").kindLabel, "Apple")
     }
 
+    func testContactActionWords() {
+        XCTAssertEqual(ContactAction.parse("call mom")?.0, .call)
+        XCTAssertEqual(ContactAction.parse("call mom")?.1, "mom")
+        XCTAssertEqual(ContactAction.parse("Text  Joy's Mom")?.0, .message)
+        XCTAssertEqual(ContactAction.parse("text  Joy's Mom")?.1, "Joy's Mom")
+        XCTAssertEqual(ContactAction.parse("facetime dad")?.0, .faceTime)
+        XCTAssertEqual(ContactAction.parse("email tim")?.0, .email)
+        XCTAssertNil(ContactAction.parse("call"))        // no name yet
+        XCTAssertNil(ContactAction.parse("calligraphy")) // not the word on its own
+        XCTAssertNil(ContactAction.parse("notes app"))
+    }
+
+    func testContactActionsNeedWhatsSaved() {
+        var c = SearchItem(id: "contact:1", kind: .contact, name: "Mom")
+        XCTAssertEqual(c.contactActions, [])
+        c.email = "mom@example.com"
+        XCTAssertEqual(c.contactActions, [.message, .faceTime, .email])
+        c.phone = "+1 555 0100"
+        XCTAssertEqual(c.contactActions, [.message, .call, .faceTime, .email])
+    }
+
     func testCalculator() {
         XCTAssertEqual(SearchCalculator.evaluate("12*7.5"), 90)
         XCTAssertEqual(SearchCalculator.evaluate("(3+4)/2"), 3.5)

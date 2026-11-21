@@ -28,6 +28,8 @@ final class SearchModel {
     @ObservationIgnored private var remembered: [String: Date] = SearchModel.loadRemembered()
     /// Set by the store: closes the island (opening a result, Esc on an empty field).
     @ObservationIgnored var close: (() -> Void)?
+    /// Set by the store: opens the conversation with one of these numbers / emails in the notch; false when there isn't one.
+    @ObservationIgnored var openConversation: (([String]) -> Bool)?
     /// Set by the store: the results changed, so the body's height may have.
     @ObservationIgnored var onChange: (() -> Void)?
 
@@ -77,6 +79,10 @@ final class SearchModel {
         var out: [Section] = []
         if raw.isEmpty {
             out.append(Section(id: "recents", title: nil, style: .recents, items: index.recentApps(remembered: remembered)))
+        } else if let (action, who) = ContactAction.parse(raw), case let people = contactActions(action, who), !people.isEmpty {
+            // "call mom": the contacts as that action, the best first (DESIGN.md "Search", Contacts).
+            out.append(Section(id: "top", title: "Top hit", style: .topHit, items: [people[0]]))
+            if people.count > 1 { out.append(Section(id: "Contacts", title: "Contacts", style: .list, items: Array(people.dropFirst().prefix(3)))) }
         } else if let v = SearchCalculator.evaluate(raw) {
             out.append(Section(id: "calc", title: "Calculator", style: .calc,
                                items: [SearchItem(id: "calc:" + raw, kind: .calc, name: SearchCalculator.format(v), detail: raw,
@@ -127,6 +133,28 @@ final class SearchModel {
             selection = 0
         }
         onChange?()
+    }
+
+    /// The contacts matching `who` that can do `action`, as "Call Mom" rows.
+    private func contactActions(_ action: ContactAction, _ who: String) -> [SearchItem] {
+        let q = SearchMatch.query(who)
+        var found: [SearchItem] = []
+        for c in index.contacts where c.contactActions.contains(action) {
+            let alias = c.aliases.compactMap { SearchMatch.match($0, q) }.max { $0.score < $1.score }
+            guard let m = SearchMatch.match(c.name, q) ?? alias.map({ (score: $0.score - 4, marks: [Int]()) }) else { continue }
+            var it = c
+            it.score = m.score + (remembered[c.id] != nil ? 6 : 0)
+            found.append(it)
+        }
+        return found.sorted { $0.score > $1.score }.map { c in
+            var it = c
+            it.action = action
+            it.id = "\(action.rawValue):\(c.id)"
+            it.name = "\(action.verb) \(c.name)"
+            // The verb isn't part of the match: the name's letters, shifted past "Call ".
+            it.marks = []
+            return it
+        }
     }
 
     // MARK: Height (DESIGN.md "Search": field 52, results up to 8 rows, footer 28)
@@ -195,6 +223,7 @@ final class SearchModel {
     func activate(_ item: SearchItem? = nil, reveal: Bool = false) {
         guard let it = item ?? selected else { return }
         let ws = NSWorkspace.shared
+        if let action = it.action { perform(action, on: it); return }
         close?()
         switch it.kind {
         case .app, .file:
@@ -228,6 +257,26 @@ final class SearchModel {
         }
     }
 
+    // MARK: A contact's actions
+
+    /// Message opens your conversation with them in the notch when there is one, else Messages. Call goes through your
+    /// iPhone (macOS asks first), FaceTime opens FaceTime, Email a new message in your mail app. Islet sends nothing.
+    func perform(_ action: ContactAction, on c: SearchItem) {
+        remember(c)
+        let phone = c.phone.map { String($0.filter { $0.isNumber || $0 == "+" }) }
+        var url: URL?
+        switch action {
+        case .message:
+            if openConversation?(c.handles) == true { return }
+            url = phone.flatMap { URL(string: "sms:" + $0) } ?? c.email.flatMap { URL(string: "imessage:" + $0) }
+        case .call: url = phone.flatMap { URL(string: "tel:" + $0) }
+        case .faceTime: url = (phone ?? c.email).flatMap { URL(string: "facetime:" + $0) }
+        case .email: url = c.email.flatMap { URL(string: "mailto:" + $0) }
+        }
+        close?()
+        if let url { NSWorkspace.shared.open(url) }
+    }
+
     /// ⌘C: copies the selected file (as a file) or the answer.
     func copySelected() -> Bool {
         guard let it = selected else { return false }
@@ -256,7 +305,9 @@ final class SearchModel {
     }
 
     private func remember(_ it: SearchItem) {
-        remembered[it.id] = Date()
+        // "call:contact:…" is remembered as the contact.
+        let id = it.action.map { a in String(it.id.dropFirst(a.rawValue.count + 1)) } ?? it.id
+        remembered[id] = Date()
         // The 200 most recent are enough.
         let kept = remembered.sorted { $0.value > $1.value }.prefix(200)
         UserDefaults.standard.set(Dictionary(uniqueKeysWithValues: kept.map { ($0.key, $0.value.timeIntervalSince1970) }), forKey: Self.rememberedKey)

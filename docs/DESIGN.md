@@ -629,7 +629,14 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
   - **Top hit**: the best match of any kind, 52 tall: icon 32, the name (15 semibold), its kind (11, `tertiary`).
   - **Applications**, **Contacts** (owner, 2026-11-21: your contacts by name, nickname or company; their photo, or their
     initials on a purple circle; the company under a top hit; Return opens the person in Contacts, where Message, Call,
-    FaceTime and Email use the right number; needs the Contacts permission Messages already asks for), **Shortcuts** (your Shortcuts, run in the background; one Shortcuts icon for all, since theirs
+    FaceTime and Email use the right number; needs the Contacts permission Messages already asks for). Quick buttons on
+    the right (owner, 2026-11-21): Message, Call, FaceTime, Email as round glass buttons (30 pt on the top hit, always;
+    24 pt on other contact rows when selected or under the pointer), only those their saved numbers and emails allow.
+    Message opens your one-to-one conversation with them in the notch when there is one, else Messages; Call goes
+    through the iPhone (macOS asks first); FaceTime opens FaceTime; Email a new message. Their iPhone or mobile number
+    first. **Typing the action** (owner, 2026-11-21): "call mom", "text mom", "facetime mom", "email mom" (also phone,
+    ring, message, msg, sms, ft, mail) make the matching contacts that action: "Call Mom" as the top hit with the number
+    under it, up to 3 more under Contacts, and Return does it ("↩ Call"). **Shortcuts** (your Shortcuts, run in the background; one Shortcuts icon for all, since theirs
     can't be read), **Files** (from the Spotlight index; the folder on the right, 11 `tertiary`, cut in the middle),
     **Settings** (System Settings pages).
   - Files start from two letters. `~/Library`, hidden folders, the insides of bundles and code projects' build and

@@ -32,7 +32,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   past halfway (or flick) and it skips; short of it, it slides back.
 
 - Search from the notch: press ⌘Space and the notch flows down into a search field, for apps, contacts (Return opens
-  them in Contacts), files, your Shortcuts, System Settings pages and sums ("12*7.5" answers 90; Return copies it). The 7 apps you used last wait under an empty
+  them in Contacts), files, your Shortcuts, System Settings pages and sums. Contacts have Message, Call, FaceTime and Email buttons, and typing "call mom" or "text
+  mom" makes Return do just that (a text opens your conversation in the notch) ("12*7.5" answers 90; Return copies it). The 7 apps you used last wait under an empty
   field. Arrows move, Return opens (or runs, or copies), ⌘Return shows it in Finder, Tab completes the name, Esc clears
   and then closes. Type straight away: letters show while it opens, and results come in as soon as they match. Typing in
   the open panel searches too. The last rows search in Spotlight or on the web.

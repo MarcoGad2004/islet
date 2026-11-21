@@ -1,11 +1,51 @@
 import AppKit
 import Contacts
 
+/// What a contact can be asked to do: from their quick buttons, or by typing it ("call mom").
+enum ContactAction: String, CaseIterable {
+    case message, call, faceTime, email
+
+    var verb: String {
+        switch self {
+        case .message: "Message"
+        case .call: "Call"
+        case .faceTime: "FaceTime"
+        case .email: "Email"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .message: "message.fill"
+        case .call: "phone.fill"
+        case .faceTime: "video.fill"
+        case .email: "envelope.fill"
+        }
+    }
+
+    /// Words that ask for it at the start of a search.
+    static let words: [String: ContactAction] = [
+        "call": .call, "phone": .call, "ring": .call,
+        "text": .message, "message": .message, "msg": .message, "imessage": .message, "sms": .message,
+        "facetime": .faceTime, "ft": .faceTime, "video": .faceTime,
+        "email": .email, "mail": .email, "e-mail": .email,
+    ]
+
+    /// "call mom" -> (.call, "mom"). Nil unless a known word is followed by at least one letter of a name.
+    static func parse(_ text: String) -> (ContactAction, String)? {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard let space = t.firstIndex(of: " ") else { return nil }
+        let rest = t[space...].trimmingCharacters(in: .whitespaces)
+        guard let a = words[t[..<space].lowercased()], !rest.isEmpty else { return nil }
+        return (a, rest)
+    }
+}
+
 /// One row search can show (DESIGN.md "Search").
 struct SearchItem: Identifiable, Equatable {
     enum Kind: Equatable { case app, contact, shortcut, file, setting, calc, spotlight, web }
     /// "kind:identity". Also the key Islet remembers opened results by.
-    let id: String
+    var id: String
     var kind: Kind
     var name: String
     /// A file's folder (shown on the right), a Shortcut's identifier, the sum for an answer.
@@ -20,6 +60,26 @@ struct SearchItem: Identifiable, Equatable {
     var aliases: [String] = []
     /// A contact's photo.
     var imageData: Data?
+    /// A contact's number for calls and texts (their iPhone or mobile first) and email, and all of their numbers and
+    /// emails (to find a conversation with them).
+    var phone: String?
+    var email: String?
+    var handles: [String] = []
+    /// "Call Mom": a contact with what to do on Return.
+    var action: ContactAction?
+
+    /// What this contact can do with what's saved for them: calls need a number; texts and FaceTime a number or an
+    /// email (iMessage); email an email.
+    var contactActions: [ContactAction] {
+        guard kind == .contact else { return [] }
+        return ContactAction.allCases.filter { a in
+            switch a {
+            case .message, .faceTime: phone != nil || email != nil
+            case .call: phone != nil
+            case .email: email != nil
+            }
+        }
+    }
 
     /// The kind under a top hit.
     var kindLabel: String {
@@ -27,7 +87,9 @@ struct SearchItem: Identifiable, Equatable {
         case .app: "Application"
         case .shortcut: "Shortcut"
         case .file: SearchIndex.shortPath(detail)
-        case .contact: detail.isEmpty ? "Contact" : detail
+        case .contact:
+            if let action { action == .email ? (email ?? "") : (action == .call ? (phone ?? "") : (phone ?? email ?? "")) }
+            else { detail.isEmpty ? "Contact" : detail }
         case .setting: "System Settings"
         case .calc: "Calculator"
         case .spotlight, .web: ""
@@ -251,16 +313,22 @@ final class SearchIndex {
     nonisolated private static func loadContacts() -> [SearchItem] {
         let keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
                                        CNContactNicknameKey as CNKeyDescriptor, CNContactOrganizationNameKey as CNKeyDescriptor,
-                                       CNContactThumbnailImageDataKey as CNKeyDescriptor, CNContactIdentifierKey as CNKeyDescriptor]
+                                       CNContactThumbnailImageDataKey as CNKeyDescriptor, CNContactIdentifierKey as CNKeyDescriptor,
+                                       CNContactPhoneNumbersKey as CNKeyDescriptor, CNContactEmailAddressesKey as CNKeyDescriptor]
+        let preferred = [CNLabelPhoneNumberiPhone, CNLabelPhoneNumberMobile, CNLabelPhoneNumberMain]
         var out: [SearchItem] = []
         try? CNContactStore().enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
             let full = CNContactFormatter.string(from: c, style: .fullName) ?? ""
             let name = full.isEmpty ? c.organizationName : full
             guard !name.isEmpty else { return }
             let company = full.isEmpty ? "" : c.organizationName
+            let phones = c.phoneNumbers
+            let phone = (preferred.lazy.compactMap { label in phones.first { $0.label == label } }.first ?? phones.first)?.value.stringValue
+            let emails = c.emailAddresses.map { $0.value as String }
             out.append(SearchItem(id: "contact:" + c.identifier, kind: .contact, name: name, detail: company,
                                   url: URL(string: "addressbook://" + c.identifier),
-                                  aliases: [c.nickname, company].filter { !$0.isEmpty }, imageData: c.thumbnailImageData))
+                                  aliases: [c.nickname, company].filter { !$0.isEmpty }, imageData: c.thumbnailImageData,
+                                  phone: phone, email: emails.first, handles: phones.map { $0.value.stringValue } + emails))
         }
         return out
     }

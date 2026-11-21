@@ -92,6 +92,17 @@ final class MessagesStore {
         return recent.first?[0] as? Int64
     }
 
+    /// The one-to-one chat with someone, by any of their numbers or emails (search's Message). The newest such chat when
+    /// there are several (iMessage and SMS). Numbers compare by their last 10 digits, like contact names.
+    func chatID(forHandles handles: [String]) -> Int64? {
+        guard available, !handles.isEmpty else { return nil }
+        func key(_ h: String) -> String { h.contains("@") ? h.lowercased() : String(h.filter(\.isNumber).suffix(10)) }
+        let wanted = Set(handles.map(key).filter { !$0.isEmpty })
+        let sql = "select c.ROWID, h.id from chat c join chat_handle_join j on j.chat_id = c.ROWID join handle h on h.ROWID = j.handle_id "
+            + "where (select count(*) from chat_handle_join x where x.chat_id = c.ROWID) = 1 order by c.ROWID desc"
+        return rows(sql).first { ($0[1] as? String).map { wanted.contains(key($0)) } ?? false }?[0] as? Int64
+    }
+
     #if DEBUG
     /// The chat of the latest message with exactly this text (the preview opens the one with "Islet test").
     func chatID(withText text: String) -> Int64? {

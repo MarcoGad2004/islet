@@ -72,7 +72,7 @@ struct SearchView: View {
                         }
                         ForEach(section.items) { item in
                             SearchRow(item: item, style: section.style, selected: model.selected?.id == item.id, glass: glass,
-                                      index: model.index) { model.activate(item) }
+                                      index: model.index, model: model) { model.activate(item) }
                                 .id(item.id)
                         }
                     }
@@ -131,7 +131,7 @@ struct SearchView: View {
         case .spotlight: return [("↩", "Search in Spotlight")]
         case .web: return [("↩", "Open in browser")]
         case .setting: return [("↩", "Open")]
-        case .contact: return [("↩", "Open in Contacts")]
+        case .contact: return [("↩", s.action?.verb ?? "Open in Contacts")]
         case .app, .file: return [("↩", "Open"), ("⌘↩", "Show in Finder")]
         }
     }
@@ -151,6 +151,7 @@ private struct SearchRow: View {
     let selected: Bool
     let glass: Bool
     let index: SearchIndex
+    let model: SearchModel
     let open: () -> Void
     @State private var hovering = false
 
@@ -178,10 +179,17 @@ private struct SearchRow: View {
                 }
             default:
                 Text(marked).font(.system(size: 13)).lineLimit(1)
+                    .foregroundStyle(item.action != nil ? Color.isletText : Color.isletSecondary)
             }
             Spacer(minLength: 8)
             if style == .list, item.kind == .file {
                 Text(SearchIndex.shortPath(item.detail)).font(.system(size: 11)).foregroundStyle(Color.isletTertiary).lineLimit(1)
+            }
+            // A contact's quick buttons: always on the top hit, on other rows when selected or under the pointer.
+            // An action row ("Call Mom") does its one thing on Return, so it has none.
+            if item.kind == .contact, item.action == nil, style == .topHit || selected || hovering {
+                ContactButtons(item: item, model: model, size: style == .topHit ? 30 : 24)
+                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
             }
         }
         .padding(.horizontal, 12)
@@ -340,6 +348,28 @@ private struct SearchTextField: NSViewRepresentable {
                     guard window.makeFirstResponder(self) else { return }
                 }
                 self.onFocus?()
+            }
+        }
+    }
+}
+
+/// Message, Call, FaceTime and Email for a contact, as small round glass buttons (DESIGN.md "Search", Contacts).
+private struct ContactButtons: View {
+    let item: SearchItem
+    let model: SearchModel
+    let size: CGFloat
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(item.contactActions, id: \.self) { a in
+                Button { model.perform(a, on: item) } label: {
+                    Image(systemName: a.symbol).font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(Color.isletText)
+                        .frame(width: size, height: size)
+                        .background(IsletCard(shape: Circle()))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(a.verb)
             }
         }
     }

@@ -456,6 +456,12 @@ final class IslandStore {
     func openSearch(initial: String = "") {
         guard !locked, !paused, !lockScreen, geometry != nil else { return }
         search.close = { [weak self] in self?.collapse() }
+        // A contact's Message: their conversation in the notch, when there is one.
+        search.openConversation = { [weak self] handles in
+            guard let self, UserDefaults.standard.object(forKey: MessagesStore.enabledKey) as? Bool ?? true,
+                  let m = self.messages, m.available, let chat = m.chatID(forHandles: handles) else { return false }
+            return self.openChat(chat)
+        }
         search.onChange = { [weak self] in
             guard let self, self.expanded, self.expandedPage == .search else { return }
             self.refresh()
@@ -746,6 +752,7 @@ final class IslandStore {
         guard let m = messages else { return false }
         m.openChat(chat)
         guard m.open != nil else { return false }
+        if expandedPage == .search { search.end() } // from search's Message: the conversation takes its place
         expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
         controlDetail = nil
         messageDraft = ""
