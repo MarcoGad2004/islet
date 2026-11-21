@@ -422,3 +422,30 @@ AX from a shell while a Cadence reminder's activity was up.
 **Verdict so far:** Islet's own layout is feasible for any activity: the two sides and the card's text and buttons can
 be read, live. Still open: hiding the menu bar's copy (owner to try System Settings > Menu Bar), and keeping the card off
 screen while it's read (Q52).
+
+## Calls answered on the iPhone (probe, 2026-11-21)
+
+Owner question: can the notch show an active call however it was answered, on the Mac or on the iPhone? Probe (a script
+kept out of the repo) logged every 0.5 s: call banners in Notification Center, FaceTime / Phone windows, call-like menu
+bar items, the Dock, the microphone. The owner made three phone calls and a FaceTime call answered on the iPhone, then a
+phone call answered on the Mac.
+
+53. **Phone call answered on the iPhone:** the Mac's banner rings as usual (the caller's name, and Answer, Decline, Decline
+    with Message, Live Voicemail, all pressable). When the iPhone answers, the banner reads "Mom, Call Answered on
+    iPhone" for about 3 s, then goes. After that the Mac shows nothing of the call: no window, menu bar item, Handoff or
+    microphone. So Islet learns who and when it started, but not when it ends. Trying to answer on the Mac then shows
+    "Use your iPhone / Cannot answer on this Mac".
+54. **FaceTime answered on the iPhone:** the banner rings (AvatarView "FaceTime Audio", "Mom, FaceTime Video", Answer /
+    Decline pop-up buttons), goes when the iPhone answers, and then the Dock shows a **Handoff item** (`AXDockItem`,
+    subrole `AXHandoffDockItem`, title "Phone") for as long as the call lasts (11:37:55 to 11:38:14 here, about the call's
+    length). So an iPhone FaceTime call can be followed: who (from the ring), how long (from the answer), and its end (the
+    Handoff item going). Pressing the Handoff item should move the call to the Mac (not tried).
+55. **Phone call answered on the Mac:** the banner becomes the call's controls: "Phone", "Mom, 0:01" (name and time),
+    FaceTime Video, Mute, Keypad, More, End; the microphone is in use for the call (11:38:33 to 11:38:48). As in Q31.
+56. **When an iPhone-answered phone call ends:** not seen on screen. The synced call history
+    (`~/Library/Application Support/CallHistoryDB/CallHistory.storedata`) may get the call with its duration when it
+    ends; it needs Full Disk Access (Islet has it; the probe's shell didn't). To try: how soon the row appears.
+
+**Verdict:** calls on the Mac (phone or FaceTime) can be shown fully, with controls. A FaceTime call on the iPhone can be
+shown with name and timer, ended by the Handoff item. A phone call on the iPhone can be shown starting, but its end can
+only come from the call history, if that syncs quickly enough (Q56).
