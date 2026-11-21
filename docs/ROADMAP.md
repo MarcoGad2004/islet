@@ -114,7 +114,8 @@ the unlock animation still ships.
       lines, Complete)
 - [ ] Still to try: Complete from the card, two at once, one ending, an activity whose right side is a picture, a
       flash of the system's card when the panel opens
-- [ ] Owner: does System Settings > Menu Bar hide the menu bar's copy, and is it still readable then?
+- [x] System Settings has no switch for the menu bar's copy on macOS 26.2 (only one that stops them altogether), so both
+      show. Not tried: ⌘-dragging the pill out of the menu bar
 
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner

@@ -406,6 +406,10 @@ AX from a shell while a Cadence reminder's activity was up.
     fonts and layout are not exposed.
 50. **Can Islet move or hide the menu bar item?** Not through AX: its position and size aren't settable. Still to try: hiding
     it in System Settings > Menu Bar (does the activity still exist to read?).
+    **No setting for it (2026-11-21, owner checked the whole page):** macOS 26.2's Menu Bar settings carry the strings for a
+    "Live Activities" section (`LIVE_ACTIVITIES_SECTION_DESCRIPTION`), but the page doesn't show it, and Live Activities
+    aren't in "Allow in the Menu Bar". The only switch is Notifications > "Allow Live Activities from iPhone", which stops
+    them reaching the Mac at all. Not tried: ⌘-dragging the pill out of the menu bar.
 51. **Seeing them as they look** would need their pixels: ScreenCaptureKit can capture a window even when it's covered,
     but that needs Screen Recording permission, and the menu bar item has to be on screen to be captured. Not tried.
 52. **Opening the card off screen?** Half the time. The card's window (`live-activity-expanded`) is created 26 ms after the
