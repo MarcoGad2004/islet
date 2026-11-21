@@ -60,29 +60,38 @@ struct MarqueeText: View {
     var font: Font = .system(size: 13, weight: .semibold)
     var color: Color = .isletText
     @State private var textWidth: CGFloat = 0
-    @State private var shift: CGFloat = 0
+    @State private var start = Date()
+
+    /// Seconds resting at each end before it scrolls.
+    private static let rest = 1.2
 
     var body: some View {
         GeometryReader { geo in
             let overflow = max(0, textWidth - geo.size.width)
-            Text(text).font(font).foregroundStyle(color).lineLimit(1).fixedSize()
-                .background(GeometryReader { p in Color.clear.preference(key: WidthKey.self, value: p.size.width) })
-                .offset(x: overflow > 0 ? shift : (geo.size.width - textWidth) / 2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onChange(of: overflow) { _, o in animate(o) }
-                .onAppear { animate(overflow) }
+            // Driven by the clock rather than a repeating animation: a never-ending animation inside a view keeps
+            // SwiftUI from ever finishing its removal, which left the name behind under the notch after a swipe up.
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: overflow <= 0)) { ctx in
+                Text(text).font(font).foregroundStyle(color).lineLimit(1).fixedSize()
+                    .background(GeometryReader { p in Color.clear.preference(key: WidthKey.self, value: p.size.width) })
+                    .offset(x: overflow > 0 ? Self.shift(overflow, at: ctx.date.timeIntervalSince(start)) : (geo.size.width - textWidth) / 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(height: 18)
         .clipped()
         .onPreferenceChange(WidthKey.self) { textWidth = $0 }
+        .onChange(of: text) { start = Date() }
         .id(text)
         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
     }
 
-    private func animate(_ overflow: CGFloat) {
-        shift = 0
-        guard overflow > 0 else { return }
-        withAnimation(.linear(duration: Double(overflow) / 22 + 0.5).delay(1.2).repeatForever(autoreverses: true)) { shift = -overflow }
+    /// Rest, scroll to the end (22 pt a second, plus half a second), rest, scroll back, and again.
+    static func shift(_ overflow: CGFloat, at t: TimeInterval) -> CGFloat {
+        let travel = Double(overflow) / 22 + 0.5
+        let leg = rest + travel
+        let p = t.truncatingRemainder(dividingBy: 2 * leg)
+        let along: Double = p < rest ? 0 : p < leg ? (p - rest) / travel : p < leg + rest ? 1 : 1 - (p - leg - rest) / travel
+        return -overflow * CGFloat(along)
     }
 }
 
