@@ -534,15 +534,22 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 ## Search (draft, not approved)
 
 Proposed 2026-11-21 (owner asked for a search that comes out of the notch, in place of Spotlight). Mockup (playable):
-<https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Nothing here is built; feasibility goes in RESEARCH.md first.
+<https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Nothing here is built;
+feasibility: RESEARCH.md "Search from the notch".
 
 - **Opening**: the search shortcut (Settings > General > "Search shortcut", ⌘Space by default) from anywhere,
   including full-screen apps. ⌘Space only reaches Islet once Spotlight's own shortcut is changed in System Settings >
   Keyboard > Keyboard Shortcuts > Spotlight; until then Settings shows "Spotlight still uses ⌘Space" with a button to
   that page, and setup has the same row. Pressing the shortcut again closes it.
 - **Shape**: a stem and body like the expanded panel, 500 wide, top 16, bottom 30, 10 pt inner curves. It opens with
-  "Flow down, then bubble out" and takes the keyboard at once (the cursor is in the field before the shape settles,
-  so the first letters typed are never lost). With wings showing, it opens from the wings' width.
+  "Flow down, then bubble out" and takes the keyboard at once. With wings showing, it opens from the wings' width.
+- **Typing while it opens** (owner, 2026-11-21): you can press ⌘Space and type straight away. The opening animation
+  never stops or restarts for it: it plays through to the end. The field fades in first (from 0.12 s, with the body
+  still at notch width), so letters show as they are typed; the results come in with the rest of the content and
+  start reacting as soon as there is a match, even mid-animation. A change in height while it opens is folded into the
+  same spring (the target moves, the motion carries on) rather than starting a new animation.
+- **From the panel** (owner, 2026-11-21): typing a letter while the panel is open turns it into search with that
+  letter in the field: the content cross-fades and the body springs to the search's size.
 - **Field** (52 tall): a magnifier (17 pt, `tertiary`) 20 pt in, then the text (19 regular, `text`; placeholder
   "Search" in `tertiary`). A hairline (white 8%, 20 pt in from each side) under it once there are results.
 - **Empty field**: a row of the 7 most recently opened apps (40 pt icons, names 10 pt `secondary` under them, one line),
@@ -558,9 +565,8 @@ Proposed 2026-11-21 (owner asked for a search that comes out of the notch, in pl
   - **More**: always last: "Search “text” in Spotlight" (hands the text to Spotlight) and "Search the web for “text”"
     (opens the default browser; Islet itself sends nothing).
   - Nothing found: "No results for “text”" (13, `secondary`) above More.
-- **Matching**: a word's start beats the middle of a word, which beats letters in order ("xcd" finds Xcode; only from three letters, so short queries stay
-  tidy). Ties go
-  to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.
+- **Matching**: a word's start beats the middle of a word, which beats letters in order ("xcd" finds Xcode; only
+  from three letters, so short queries stay tidy). Ties go to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.
 - **Selection**: the first row is selected. The selected row sits on a glass pill (white 10%, hairline edge, radius
   10, inset 8 pt from the body's sides), or `card` with the glass look off. The pointer highlights what it is over
   without moving the selection until it clicks.
@@ -584,8 +590,8 @@ Proposed 2026-11-21 (owner asked for a search that comes out of the notch, in pl
 - **Not in search (for now)**: clipboard history (it would mean Islet watching everything you copy), web results and
   answers (no network), contacts, mail and messages.
 
-Open questions for the owner: ⌘Space or another default; whether the web row stays; whether typing while the panel
-is open should start a search.
+Decided (owner, 2026-11-21): ⌘Space is the default (Spotlight's own shortcut is moved); the "Search the web" row
+stays; typing in the open panel starts a search.
 
 ## Visual tokens
 

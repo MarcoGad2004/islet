@@ -87,12 +87,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .body.glass .rim, .body.glass .glow { opacity: .3; }
 .body.glass .rim { opacity: 1; }
 
-.content { position: absolute; top: 0; left: 50%; width: 500px; margin-left: -250px; opacity: 0; transform: scale(.96); transform-origin: 50% 0;
+.content { position: absolute; top: 0; left: 0; width: 100%; opacity: 0; transform: scale(.96); transform-origin: 50% 0;
   font-family: var(--sf); color: var(--i-text); display: flex; flex-direction: column; }
 .field { height: 52px; flex: none; display: flex; align-items: center; gap: 11px; padding: 0 20px; }
 .field svg { width: 17px; height: 17px; flex: none; }
 .field input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--i-text); font: 400 19px var(--sf); caret-color: #0a84ff; padding: 0; letter-spacing: -.01em; }
 .field input::placeholder { color: var(--i-tertiary); }
+/* The field follows the body's edges, so letters show while it is still narrow; the results keep the full width. */
+.rest { width: 500px; flex: none; align-self: center; display: flex; flex-direction: column; opacity: 0; }
 .hair { height: 1px; flex: none; margin: 0 20px; background: rgba(255,255,255,.08); transition: opacity .15s; }
 .list { overflow-y: auto; scrollbar-width: none; padding: 4px 0 6px; flex: none; }
 .list::-webkit-scrollbar { display: none; }
@@ -146,7 +148,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Islet · search · draft 1</div>
+    <div class="eyebrow">Islet · search · draft 2</div>
     <h1>Search from the notch</h1>
     <p>Press the search shortcut and the notch flows down into a search field, then bubbles out to the panel's width. Results for apps, Shortcuts, files and System Settings grow underneath as you type. Everything runs from the keyboard; the glass strip at the bottom carries what the keys do.</p>
   </header>
@@ -191,9 +193,11 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
                 <svg viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
                 <input id="q" type="text" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search">
               </div>
-              <div class="hair" id="hair"></div>
-              <div class="list" id="list"></div>
-              <div class="footer" id="footer"></div>
+              <div class="rest" id="rest">
+                <div class="hair" id="hair"></div>
+                <div class="list" id="list"></div>
+                <div class="footer" id="footer"></div>
+              </div>
             </div>
           </div>
           <div class="stem" id="stem">
@@ -246,7 +250,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
       <ul>
         <li><b>Body:</b> 500 wide under the stem, like the expanded panel: top 16, bottom 30, 10 pt inner curves.</li>
         <li><b>Height:</b> field 52 + results (up to 8 rows, then it scrolls) + footer 28. Grows and shrinks in 0.22 s with no bounce while typing.</li>
-        <li><b>Opening:</b> flow down at notch width (0.34 s), bubble out from 0.2 s, content in at 0.36 s. The cursor is in the field from the first frame.</li>
+        <li><b>Opening:</b> flow down at notch width (0.34 s), bubble out from 0.2 s. The field shows from 0.12 s, so typing straight after ⌘Space shows at once; the results join at 0.36 s.</li>
         <li><b>Rows:</b> top hit 52 (icon 32, name 15 semibold); others 34 (icon 22, name 13). Matched letters bright, the rest grey.</li>
         <li><b>Footer:</b> on the glass strip. Under it the black eases to 30% (not the usual 12%) so the hints stay readable.</li>
       </ul>
@@ -265,11 +269,12 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
   </section>
 
   <section class="panel">
-    <h2>Open questions</h2>
+    <h2>Decided (21 Nov)</h2>
     <ul>
-      <li><b>Shortcut:</b> ⌘Space, which means moving Spotlight's, or something free like ⌥Space?</li>
-      <li><b>Web row:</b> keep "Search the web", which only opens your browser, or leave it out?</li>
-      <li><b>From the panel:</b> should typing while the panel is open start a search?</li>
+      <li><b>Shortcut:</b> ⌘Space. Spotlight's own shortcut gets moved; Settings and setup point to where.</li>
+      <li><b>Web row:</b> stays. It only opens your browser; Islet sends nothing.</li>
+      <li><b>From the panel:</b> typing a letter in the open panel turns it into search with that letter in the field.</li>
+      <li><b>Typing while it opens:</b> letters show from the first moments, results react as soon as they match, and the opening animation always plays through.</li>
       <li><b>Left out for now:</b> clipboard history, web results, contacts, mail and messages.</li>
     </ul>
   </section>
@@ -279,7 +284,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
 (() => {
   const $ = (s) => document.querySelector(s);
   const frame = $('#frame'), stage = $('#stage'), island = $('#island'), stem = $('#stem'), body = $('#body');
-  const content = $('#content'), input = $('#q'), list = $('#list'), footer = $('#footer'), hair = $('#hair'), statusEl = $('#status');
+  const content = $('#content'), rest = $('#rest'), input = $('#q'), list = $('#list'), footer = $('#footer'), hair = $('#hair'), statusEl = $('#status');
   const fils = [...document.querySelectorAll('.stem .fil')];
 
   const NOTCH_W = 190, NOTCH_H = 34, BODY_W = 500;
@@ -408,7 +413,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
   const fmt = (v) => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
 
   // ---------- state ----------
-  let isOpen = false, items = [], sel = 0, look = 'glass';
+  let opening = false, isOpen = false, items = [], sel = 0, look = 'glass';
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const marked = (name, marks) => [...name].map((ch, i) => marks && marks.includes(i) ? `<b>${esc(ch)}</b>` : esc(ch)).join('');
   const midcut = (p) => p.length > 28 ? p.slice(0, 11) + '…' + p.slice(-15) : p;
@@ -524,6 +529,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
     set(body, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: '0px', borderRadius: '0' }, 'none');
     fils.forEach((f) => set(f, { opacity: 0 }, 'none'));
     set(content, { opacity: 0, transform: 'scale(.96)' }, 'none');
+    set(rest, { opacity: 0 }, 'none');
     body.classList.remove('glass');
   }
   function openNow() {
@@ -532,6 +538,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
     set(body, { width: BODY_W + 'px', left: -BODY_W / 2 + 'px', height: h + 'px', borderRadius: '16px 16px 30px 30px' }, 'none');
     fils.forEach((f) => set(f, { opacity: 1 }, 'none'));
     set(content, { opacity: 1, transform: 'scale(1)' }, 'none');
+    set(rest, { opacity: 1 }, 'none');
     body.classList.toggle('glass', look === 'glass');
   }
   function openSearch(focus = true) {
@@ -546,17 +553,23 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
     set(body, { width: BODY_W + 'px', left: -BODY_W / 2 + 'px', height: h + 'px', borderRadius: '16px 16px 30px 30px' },
       `height ${T(.34)} cubic-bezier(.2,.8,.25,1), width ${T(.62)} ${bubble} ${T(.2)}, left ${T(.62)} ${bubble} ${T(.2)}, border-radius ${T(.26)} ease ${T(.16)}`);
     fils.forEach((f) => set(f, { opacity: 1 }, `opacity ${T(.15)} ease ${T(.22)}`));
-    set(content, { opacity: 1, transform: 'scale(1)' }, `opacity ${T(.24)} ease ${T(.36)}, transform ${T(.32)} cubic-bezier(.3,1.2,.5,1) ${T(.36)}`);
+    set(content, { opacity: 1, transform: 'scale(1)' }, `opacity ${T(.16)} ease ${T(.12)}, transform ${T(.4)} cubic-bezier(.3,1.2,.5,1) ${T(.12)}`);
+    set(rest, { opacity: 1 }, `opacity ${T(.24)} ease ${T(.36)}`);
+    opening = true;
+    later(.85, () => { opening = false; });
     later(.2, () => body.classList.toggle('glass', look === 'glass'));
     if (focus) input.focus({ preventScroll: true });
   }
   function resize() {
     if (!isOpen) return;
+    // Mid-open: only the height target moves. The running height spring retargets from where it is, and the width's
+    // bubble (and its delay) is left alone, so the opening never stops or restarts.
+    if (opening) { body.style.height = targetH() + 'px'; return; }
     set(body, { height: targetH() + 'px' }, `height ${T(.22)} ease-out, width ${T(.62)} cubic-bezier(.34,1.32,.5,1), left ${T(.62)} cubic-bezier(.34,1.32,.5,1)`);
   }
   function closeSearch(note) {
     if (!isOpen) return;
-    clearTimers(); isOpen = false;
+    clearTimers(); isOpen = false; opening = false;
     input.blur();
     set(content, { opacity: 0, transform: 'scale(.97)' }, `opacity ${T(.12)} ease, transform ${T(.12)} ease`);
     fils.forEach((f) => set(f, { opacity: 0 }, `opacity ${T(.1)} ease`));
@@ -660,7 +673,7 @@ td kbd { font: 500 12px var(--mono); color: var(--fg); }
         input.value += text[i++]; render(); resize();
         if (i >= text.length) clearInterval(typing);
       }, 110);
-    }, wasOpen ? 0 : 380 * K());
+    }, wasOpen ? 0 : 60);
     say(`Typing “${text}”`, { saf: 'Safari is the top hit; its letters light up.', xcd: 'Letters in order still find Xcode and the build log.', budget: 'Two files; the newer one wins.', focus: 'An app-less word: a Shortcut, a setting and a file.', '12*7.5': 'A sum: the answer is the top hit, Return copies it.', zzqx: 'Nothing found: Spotlight and the web are still offered.' }[text] || '');
   }));
 
