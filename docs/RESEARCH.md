@@ -405,7 +405,16 @@ AX from a shell while a Cadence reminder's activity was up.
     went off at 9:00 AM", the timer, "Important", the notes) and the app's buttons ("Complete", an `AXButton`). Colours,
     fonts and layout are not exposed.
 50. **Can Islet move or hide the menu bar item?** Not through AX: its position and size aren't settable. Still to try: hiding
-    it in System Settings > Menu Bar (does the activity still exist to read?), and moving the expanded window off screen
-    while it stays open (as with banners, Q28).
+    it in System Settings > Menu Bar (does the activity still exist to read?).
 51. **Seeing them as they look** would need their pixels: ScreenCaptureKit can capture a window even when it's covered,
     but that needs Screen Recording permission, and the menu bar item has to be on screen to be captured. Not tried.
+52. **Opening the card off screen?** Half the time. The card's window (`live-activity-expanded`) is created 26 ms after the
+    press and its position is settable: moved from the `AXCreated` callback it reached (-3000, -3000) by 74 ms the first
+    time; the second time the move returned success but the window stayed at (738, 34), on screen. macOS seems to place
+    it itself just after creating it. To try when building: move it again on `AXMoved` / `AXWindowCreated` until it stays.
+    While open it stays readable and live (all 7 texts, the timer counting). Esc doesn't close it reliably; pressing the
+    menu bar item again does.
+
+**Verdict so far:** Islet's own layout is feasible for any activity: the two sides and the card's text and buttons can
+be read, live. Still open: hiding the menu bar's copy (owner to try System Settings > Menu Bar), and keeping the card off
+screen while it's read (Q52).

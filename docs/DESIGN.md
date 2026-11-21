@@ -541,6 +541,41 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
+## iPhone Live Activities (draft, not approved)
+
+Proposed 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
+"option 2": Islet's own layout, built from what the activity says; their real look, from their pixels, is for a later
+update). Mockup (playable): <https://claude.ai/artifact/FRRSaQ7kUjrYdNEpqYbeig> (source docs/mockups/live-activities.html).
+Feasibility: RESEARCH.md Q47-Q52.
+
+- **Source**: every Live Activity macOS shows from the iPhone (`MenuBarAgent`'s menu bar items with the subrole
+  `AXLiveActivity`), whatever the app. Islet watches for them to appear and end, and reads their two sides about once a
+  second while one is up (nothing runs when there are none).
+- **Compact**, like media (follows the menu bar width check):
+  - **Wings**: left, the activity's app icon (the Mac app of the same name when there is one, else a grey rounded square
+    with the app's first letter; 20 pt). Right, the activity's own right-hand value as text: a timer, a score, an ETA
+    (13 semibold, `text`, monospaced digits, cut to the wing). When the right side is a picture, not text, the app's name
+    in `secondary` instead. Both wings grow alike to fit the value (60 pt, up to 100 pt each, 12 pt clear of the notch
+    and the outer edge), so a timer like "1:37:23" is never cut; the menu bar width check uses the wider wings.
+  - **Chin**: the icon, the app's name (13, `secondary`) and the value on the right.
+  - **Hover**: the wide bar, with "App · value" in its body, as media does.
+- **Several at once**: the newest in the compact shapes; the panel shows them all.
+- **Priority**: above media, below notifications and the short events (they cover it and hand back). A call in progress
+  still takes the compact shapes.
+- **In the panel**: one card per activity at the top of the page (like the notification pill, under it if both show),
+  468 x as tall as its text needs (radius 16, the glass card): the app icon (28) and its name in small caps (10.5,
+  `tertiary`) on the first line; then the activity's texts in the order it gives them: the first as the title
+  (15 semibold, two lines at most), a short all-capitals word ("OVERDUE", "LIVE") as a small orange label on the right,
+  the value as large text (22 semibold, monospaced digits) on the right, the rest as lines in `secondary` (12). Its
+  buttons ("Complete") as 26 pt glass pills under the text; pressing one presses the activity's own button.
+  - To read the card, Islet opens the system's card off screen while its panel is open and closes it with the panel.
+    (To confirm in the spike: the card snapped back on screen once of two tries.) If it can't be kept off screen, the
+    card shows only the compact sides: app, value, and "Open on Mac" to open the system's card.
+- **The menu bar's own**: Islet can't move or hide it (RESEARCH.md Q50). If System Settings can hide it and Islet can
+  still read the activity, setup and Settings say how; otherwise both show.
+- **Settings > General**: "Show iPhone Live Activities in the notch" (on by default).
+- **Later**: their real look (the app's colours and art) from their pixels, which needs Screen Recording.
+
 ## Search
 
 Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Spotlight). Mockup (playable):

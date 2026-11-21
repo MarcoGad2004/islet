@@ -104,6 +104,12 @@ the unlock animation still ships.
       ⌘V in the field, a letter typed in the open panel, a click on a row, files from the Desktop and Downloads in the
       installed copy, "Search in Spotlight", without a notch
 
+## Next: iPhone Live Activities in the notch
+- [x] Spike (RESEARCH.md Q47-Q52): read through Accessibility from `MenuBarAgent`; the card off screen works half the time
+- [x] Design draft and mockup (DESIGN.md "iPhone Live Activities", owner chose Islet's own layout, 2026-11-21)
+- [ ] Owner: does System Settings > Menu Bar hide the menu bar's copy, and is it still readable then?
+- [ ] Owner approves the design, then build it
+
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
 - [ ] Find out whether the banner has the caller while the first call rings (probe that re-reads it every 0.25 s)
