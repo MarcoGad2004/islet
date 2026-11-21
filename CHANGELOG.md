@@ -20,7 +20,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   Access, Contacts and permission to control Messages.
 - Two fingers over a list in the panel (a conversation, notifications, Wi-Fi, Bluetooth) scroll the list; swiping up
   only closes the panel when the list can't scroll any further that way.
-- Settings > General can turn notifications off, hide the message text, or keep Messages opening in the Messages app.
+- Settings > Notifications can turn notifications off, hide the message text, or keep Messages opening in the Messages app.
 - Music leaves the notch while the app playing it is in front (you're already in the player) and comes back when you
   switch to another app. The panel's media page still has it.
 - Swipe playing media away and hover the notch: instead of the old green dot, the notch picks up the album's colours, the
@@ -40,7 +40,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   right. Type "call mom", "text mom", "facetime mom" or "email mom" and Return does just that; a text opens your
   conversation with them in the notch when there is one.
 - To use ⌘Space, move Spotlight's own shortcut in Keyboard Shortcuts > Spotlight; Settings and setup point there. Settings
-  > General can pick another shortcut, or turn it off, and the engine for web searches.
+  > Search can pick another shortcut, or turn it off, and the engine for web searches.
+- New Settings: pages in a sidebar (General, Notch, Notifications, Search, Battery, Face Unlock, Permissions,
+  Updates), with Islet's status at the top: "Everything is set up", or what needs attention with the fix for each. No
+  more lists of ticks: permissions fold into one line while they're all allowed, and one that's off shows on the pages
+  it breaks, with a badge in the sidebar. Islet checks again whenever the window comes to the front.
 
 
 ## 1.3 (2026-11-20)

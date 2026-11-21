@@ -22,11 +22,11 @@ struct NotchChoice: View {
                 Text("Drop down from the menu bar icon").tag(NotchlessStyle.menuBar.rawValue)
                 Text("Off").tag(NotchlessStyle.off.rawValue)
             }
-            Text(caption).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(Self.caption(style)).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var caption: String {
+    static func caption(_ style: String) -> String {
         switch NotchlessStyle(rawValue: style) ?? .bezel {
         case .bezel: "Notices bubble out of the top edge under the camera and float just below the menu bar. Hover the middle of the menu bar and swipe down with two fingers to open the panel. Music doesn't stay on screen while it plays."
         case .menuBar: "The island drops down from Islet's menu bar icon: click it to open the panel, right-click for the menu."

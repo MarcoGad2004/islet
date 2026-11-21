@@ -75,6 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "chin": notch.store.setBase(.chin)
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
+        case "settings":
+            // `-IsletDebugShape settings -IsletDebugPage faceUnlock` opens Settings on that page.
+            settings.show(page: UserDefaults.standard.string(forKey: "IsletDebugPage").flatMap(SettingsPage.init(rawValue:)))
         case "morph":
             // Wings, then a switch to chin one second later, to judge the morph.
             let store = notch.store

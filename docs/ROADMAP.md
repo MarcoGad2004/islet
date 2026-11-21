@@ -104,6 +104,14 @@ the unlock animation still ships.
       ⌘V in the field, a letter typed in the open panel, a click on a row, files from the Desktop and Downloads in the
       installed copy, "Search in Spotlight", without a notch
 
+## Settings redesign (1.4)
+- [x] Mockup (docs/mockups/settings.html) and owner approval (2026-11-21); DESIGN.md "Settings"
+- [x] Sidebar pages, the status page and issues (`SettingsChecks`), Face Unlock's own page (`FaceUnlockSettings`).
+      Preview: `-IsletDebugShape settings -IsletDebugPage permissions`, plus `-IsletDebugIssues YES` for Full Disk
+      Access shown as off
+- [ ] Still to try by hand: allowing a permission in System Settings and coming back clears it; Face Unlock's set-up,
+      password and scan steps from the new page; an update ready
+
 ## On hold: iPhone Live Activities in the notch
 Switched off (owner, 2026-11-21: `AppDelegate.liveActivitiesEnabled`): the menu bar's own copy can't be hidden, by a
 setting or by ⌘-dragging it, so they would show twice. The code stays; turn the flag on if macOS gains a way.

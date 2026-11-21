@@ -677,6 +677,33 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
 Decided (owner, 2026-11-21): ⌘Space is the default (Spotlight's own shortcut is moved); the "Search the web" row
 stays; typing in the open panel starts a search.
 
+## Settings (1.4)
+
+Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/BGmqPdjdPVkqjTfugVrKbu> (source
+docs/mockups/settings.html).
+
+- **Window**: System Settings' layout, the native sidebar and grouped form; 720 × 520 to start, resizable, remembers its
+  size and the last page. The window's title is the page's name.
+- **Sidebar**: Islet's status row on top (app icon, "Islet 1.4", a green dot and "Everything is set up", or an orange dot
+  and "N things need attention"), then General, Notch, Notifications, Search, Battery, Face Unlock, and below a gap
+  Permissions and Updates. A page something breaks has a count badge.
+- **Islet (status page)**: one big status line (green tick, or orange with the count), then "To fix" with each issue
+  and its fix (Allow…, Keyboard Shortcuts…, Install and Restart; else Show, which goes to its page), then "At a
+  glance": a tile per area with a one-line summary and a green or orange dot. A tile opens its page.
+- **What counts as an issue**: a permission that's off and used by something turned on (Control Messages only while
+  Messages in the notch is on, Camera only once Face Unlock is set up); the volume keys not reaching Islet although
+  Accessibility is on (Restart Islet); Now playing unavailable; Spotlight still holding the search shortcut; the face
+  model missing; Face Unlock paused by a rejected password; an update ready to install. Everything that works stays
+  quiet.
+- **Permissions**: while nothing is off, one green line "All 6 permissions are allowed" and a folded "What each one is
+  for" list (each row says "Allowed"). With something off: its card on top and the rest listed below. Now playing sits
+  under "Not a permission". Islet checks everything again whenever the window comes to the front, so allowing one in
+  System Settings and coming back clears it.
+- **Face Unlock**: one status line (on, off, not set up, needs attention) with the explanation, then the face (Scan
+  Again…, "Enrolled · 7 of 24 looks learned") and password (Change…), Test recognition, Protection and learning, and
+  Remove at the bottom.
+- **Setup** keeps its own permissions step. General has Run Setup… and Quit.
+
 ## Visual tokens
 
 | Token          | Value     | Use                                  |

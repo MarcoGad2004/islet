@@ -15,14 +15,20 @@ final class SettingsWindowController {
         self.face = face; self.levels = levels; self.media = media; self.focus = focus; self.wifi = wifi
     }
 
-    func show() {
+    /// Opens Settings, on `page` when given (else the page it was left on).
+    func show(page: SettingsPage? = nil) {
+        if let page { UserDefaults.standard.set(page.rawValue, forKey: SettingsPage.storageKey) }
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 720),
-                             styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            w.title = "Islet Settings"
+            let host = NSHostingController(rootView: SettingsView(face: face, levels: levels, media: media, focus: focus, wifi: wifi,
+                                                                  runSetup: { [weak self] in self?.runSetup?() },
+                                                                  setTitle: { [weak self] t in DispatchQueue.main.async { self?.window?.title = t } }))
+            let w = NSWindow(contentViewController: host)
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            w.toolbarStyle = .unified
+            w.setContentSize(NSSize(width: 720, height: 520))
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView(face: face, levels: levels, media: media, focus: focus, wifi: wifi, runSetup: { [weak self] in self?.runSetup?() }))
-            w.center()
+            if !w.setFrameUsingName("IsletSettings") { w.center() }
+            w.setFrameAutosaveName("IsletSettings")
             window = w
         }
         NSApp.activate()

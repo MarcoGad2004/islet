@@ -1,8 +1,9 @@
+import AVFoundation
 import ServiceManagement
 import SwiftUI
 
-/// Settings. For now: face unlock setup (M8 builds the unlock itself). Launch at login and permissions
-/// status arrive with M9.
+/// Settings (DESIGN.md "Settings"): pages in a sidebar, Islet's status at the top of it. What works stays quiet;
+/// what doesn't is listed on the Islet page, shown on the pages it affects and badged in the sidebar.
 struct SettingsView: View {
     let face: FaceUnlockCoordinator
     let levels: LevelsController
@@ -10,410 +11,419 @@ struct SettingsView: View {
     let focus: FocusMonitor
     let wifi: WiFiController
     var runSetup: () -> Void = {}
+    /// The window shows the page's name, as System Settings does.
+    var setTitle: (String) -> Void = { _ in }
+
+    @AppStorage(SettingsPage.storageKey) private var pageRaw = SettingsPage.status.rawValue
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginError: String?
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @AppStorage(GlassLook.key) private var glassLook = true
+    @AppStorage(NotchGeometry.hasNotchKey) private var hasNotch = NotchGeometry.detectedNotch
+    @AppStorage(NotchlessStyle.key) private var notchlessStyle = NotchlessStyle.bezel.rawValue
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
     @AppStorage(LiveActivityWatcher.enabledKey) private var liveActivitiesInNotch = true
     @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
+    @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var messagesAccess = MessagesAccess()
+    @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
+    @State private var showAllPermissions = false
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
-    @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
 
-    private enum Step { case overview, password, scanning }
-    @State private var step = Step.overview
-    @State private var password = ""
-    @State private var message: String?
-    @State private var busy = false
-    @State private var confirmRemove = false
+    private var page: Binding<SettingsPage?> {
+        Binding(get: { SettingsPage(rawValue: pageRaw) ?? .status }, set: { if let p = $0 { pageRaw = p.rawValue } })
+    }
+    private var current: SettingsPage { SettingsPage(rawValue: pageRaw) ?? .status }
+
+    private var checks: SettingsChecks {
+        SettingsChecks(face: face, levels: levels, media: media, focus: focus, wifi: wifi, messagesAccess: messagesAccess,
+                       camera: camera, spotlightConflict: spotlightConflict, notificationsOn: notificationsInNotch,
+                       messagesOn: messagesInNotch, requestCamera: requestCamera)
+    }
 
     var body: some View {
-        ScrollView { content }
+        let issues = checks.issues
+        NavigationSplitView {
+            sidebar(issues)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 260)
+        } detail: {
+            detail(issues)
+                .navigationTitle(current.title)
+        }
+        .toolbar(removing: .sidebarToggle)
+        .frame(minWidth: 680, minHeight: 460)
+        .onAppear { refresh(); setTitle(current.title) }
+        .onChange(of: pageRaw) { setTitle(current.title) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
 
-    private var general: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("General").font(.title2.weight(.semibold))
-            Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
-            Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
-            if !showMenuBarIcon {
-                Text("Open settings from the gear in the expanded notch (click the notch). Without a notch the icon always shows.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Toggle("Glass look", isOn: $glassLook)
-            Text("Below the notch the island fades from black into glass. Off, it is solid black.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Toggle("Show notifications in the notch", isOn: $notificationsInNotch)
-            Text("Banners appear under the notch instead of the top-right corner. Off, macOS shows them as usual. Calls always keep their own banner.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            if notificationsInNotch {
-                Toggle("Hide message text", isOn: $notificationsHideText).padding(.leading, 20)
-                Toggle("Open Messages conversations in the notch", isOn: $messagesInNotch).padding(.leading, 20)
-                Text("Reply from the notch. Needs Full Disk Access (to read Messages), Contacts (names) and permission to control Messages (to send).")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
-            }
-            if AppDelegate.liveActivitiesEnabled {
-                Toggle("Show iPhone Live Activities in the notch", isOn: $liveActivitiesInNotch)
-                Text("Live Activities your iPhone shows on the Mac: the app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            searchRows
-            NotchChoice().padding(.vertical, 4)
-            if powerMode.permissionInstalled {
-                HStack {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Energy Mode without a password")
-                        Text("The battery page can switch Low Power, Automatic and High Power without asking.")
-                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    Button("Remove…") { powerMode.removePermission() }
-                }
-            }
-            permissionRow("Accessibility", ok: face.unlock.accessibilityTrusted,
-                          detail: "Menu bar width check, volume and brightness keys, typing the password") { face.unlock.requestPermission() }
-            permissionRow("Volume and brightness keys", ok: levels.tapActive, detail: "Needs Accessibility; restart Islet after allowing", action: nil)
-            permissionRow("Location (Wi-Fi network names)", ok: wifi.locationAllowed, detail: "Lets Islet list nearby Wi-Fi networks") {
-                if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
-            }
-            permissionRow("Full Disk Access (Focus, Messages)", ok: focus.accessGranted,
-                          detail: "Lets Islet see which Focus is on and read your Messages conversations; restart Islet after allowing") {
-                SystemSettings.open(SystemSettings.fullDisk)
-            }
-            permissionRow("Contacts", ok: messagesAccess.contactsAllowed, detail: "Shows who's messaging you by name") {
-                messagesAccess.requestContacts()
-            }
-            permissionRow("Control Messages", ok: messagesAccess.automationAllowed,
-                          detail: messagesAccess.asking ? "Answer the macOS prompt…"
-                              : "Sends your replies from the notch through Messages. Allow opens Messages to ask.") {
-                messagesAccess.requestAutomation()
-            }
-            permissionRow("Now playing", ok: media.available, detail: media.available ? "Working" : "Adapter unavailable", action: nil)
-            Divider().padding(.top, 4)
-            updates
-            Divider().padding(.top, 4)
-        }
-        .onAppear { face.unlock.refreshPermission(); levels.retryTap(); wifi.refresh(); focus.retry(); messagesAccess.refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in messagesAccess.refresh() }
-    }
-
-    private var updates: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Updates").font(.title2.weight(.semibold))
-            HStack {
-                // A build between releases says what it is (scripts/stamp-build.sh); the version is still the last release's.
-                if let label = Bundle.main.object(forInfoDictionaryKey: "IsletBuildLabel") as? String {
-                    Text("Version \(label)").help("Based on \(updater.currentVersion). Check for updates still offers the release itself.")
-                } else {
-                    Text("Version \(updater.currentVersion)")
-                }
-                Spacer()
-                switch updater.state {
-                case .idle, .upToDate, .failed: Button("Check for updates") { updater.check() }
-                case .checking: ProgressView().controlSize(.small)
-                case .available(let tag):
-                    if !updater.notes.isEmpty { Button("Release notes…") { updater.showNotes(tag) } }
-                    Button("Install \(tag) and restart") { updater.install(tag) }.buttonStyle(.borderedProminent)
-                case .downloading: ProgressView().controlSize(.small)
-                }
-            }
-            Toggle("Check for updates automatically", isOn: $autoCheckUpdates)
-            Text("Looks at GitHub about every 6 hours. When there's a new version, an Update pill appears next to the battery in the panel.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            switch updater.state {
-            case .upToDate: Text("You're up to date.").font(.caption).foregroundStyle(.secondary)
-            case .failed(let m): Text(m).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-            case .downloading: Text("Updating; follow along in the notch. Islet restarts when it's done.").font(.caption).foregroundStyle(.secondary)
-            default: EmptyView()
-            }
-            HStack {
-                Button("Run setup again…") { runSetup() }
-                Button("Quit Islet") { NSApp.terminate(nil) }
-            }.padding(.top, 4)
-        }
-    }
-
-    /// Search from the notch (DESIGN.md "Search"): its shortcut, whether Spotlight still has it, and the web row's engine.
-    private var searchRows: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Picker("Search shortcut", selection: $searchShortcut) {
-                ForEach(SearchShortcutChoice.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-            .fixedSize()
-            .onChange(of: searchShortcut) {
-                SearchShortcut.shared.apply()
-                spotlightConflict = SearchShortcut.spotlightConflict
-            }
-            Text("Search apps, files, Shortcuts and settings from the notch. Typing in the open panel searches too.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            if spotlightConflict {
-                HStack(alignment: .firstTextBaseline) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Spotlight still uses \(SearchShortcutChoice.current.title)")
-                        Text("Spotlight takes the keyboard first. Change its shortcut in Keyboard Shortcuts > Spotlight, or pick another one here.")
-                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    Button("Keyboard Shortcuts…") { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) }
-                }
-            }
-            if searchShortcut != SearchShortcutChoice.off.rawValue {
-                Picker("Search the web with", selection: $webEngine) {
-                    ForEach(WebSearchEngine.allCases) { Text($0.title).tag($0.rawValue) }
-                }
-                .fixedSize()
-            }
-        }
-        .onAppear { spotlightConflict = SearchShortcut.spotlightConflict }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            spotlightConflict = SearchShortcut.spotlightConflict
-        }
-    }
-
-    private func permissionRow(_ title: String, ok: Bool, detail: String, action: (() -> Void)?) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").foregroundStyle(ok ? .green : .orange)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if !ok, let action { Button("Allow…", action: action) }
-        }
-    }
-
-    private func setLaunchAtLogin(_ on: Bool) {
-        do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch {
-            message = "Couldn't change launch at login: \(error.localizedDescription)"
-        }
+    /// Everything Settings shows comes from here, so it's checked again whenever the window comes back to the front.
+    private func refresh() {
+        face.unlock.refreshPermission(); levels.retryTap(); wifi.refresh(); focus.retry(); messagesAccess.refresh()
+        camera = AVCaptureDevice.authorizationStatus(for: .video)
+        spotlightConflict = SearchShortcut.spotlightConflict
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            general
-            Text("Face unlock").font(.title2.weight(.semibold))
-            Text("Unlocks this Mac's lock screen with the camera. It is convenient, not as strong as Touch ID, and only ever types your login password into the lock screen.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    // MARK: Sidebar
 
-            statusRows
-            unlockControls
-
-            switch step {
-            case .overview: overview
-            case .password: passwordStep
-            case .scanning: scanningStep
+    private func sidebar(_ issues: [SettingsIssue]) -> some View {
+        List(selection: page) {
+            statusRow(issues).tag(SettingsPage.status)
+            Section {
+                ForEach([SettingsPage.general, .notch, .notifications, .search, .battery, .faceUnlock]) { sidebarRow($0, issues) }
             }
-
-            if let message {
-                Text(message).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            Section {
+                ForEach([SettingsPage.permissions, .updates]) { sidebarRow($0, issues) }
             }
-            Divider()
-            testSection
-            if face.faces.isEnrolled {
-                Divider()
-                protectionSection
-            }
-            Spacer(minLength: 0)
         }
-        .padding(24)
-        .frame(width: 460, alignment: .topLeading)
-        .onChange(of: face.enrolment?.phase) { _, phase in
-            if step == .scanning, phase != nil, phase != .scanning { step = .overview }
-        }
-        .confirmationDialog("Remove face unlock?", isPresented: $confirmRemove) {
-            Button("Remove face and password", role: .destructive) { face.stopTest(); face.faces.removeAll() }
-        } message: { Text("Deletes the stored face data and login password from the Keychain.") }
+        .listStyle(.sidebar)
     }
 
-    // MARK: Pieces
-
-    private var statusRows: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            row("Face model", ok: face.modelAvailable, detail: face.modelAvailable ? "Installed" : "Missing (run scripts/fetch-model.sh)")
-            row("Face", ok: face.faces.isEnrolled, detail: face.faces.isEnrolled ? "Enrolled" : "Not set up")
-            row("Login password", ok: face.faces.hasPassword, detail: face.faces.hasPassword ? "Stored in the Keychain" : "Not stored")
-        }
-    }
-
-    private func row(_ title: String, ok: Bool, detail: String) -> some View {
-        HStack {
-            Image(systemName: ok ? "checkmark.circle.fill" : "circle").foregroundStyle(ok ? .green : .secondary)
-            Text(title)
-            Spacer()
-            Text(detail).foregroundStyle(.secondary)
-        }
-    }
-
-    private var unlockControls: some View {
-        let unlock = face.unlock
-        return VStack(alignment: .leading, spacing: 8) {
-            Toggle("Unlock this Mac's lock screen with my face", isOn: Binding(get: { unlock.enabled }, set: { unlock.enabled = $0 }))
-            HStack {
-                Image(systemName: unlock.accessibilityTrusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(unlock.accessibilityTrusted ? .green : .orange)
-                Text(unlock.accessibilityTrusted ? "Accessibility allowed (needed to type the password)" : "Accessibility is off: needed to type the password")
-                    .font(.callout)
-                Spacer()
-                if !unlock.accessibilityTrusted { Button("Allow…") { unlock.requestPermission() } }
-            }
-            if unlock.passwordRejected {
-                HStack {
-                    Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
-                    Text("The stored password wasn't accepted, so face unlock is paused. Change the password to resume.")
-                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+    private func statusRow(_ issues: [SettingsIssue]) -> some View {
+        HStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Islet " + versionLabel.components(separatedBy: " (").first!).fontWeight(.semibold)
+                HStack(spacing: 5) {
+                    Circle().fill(issues.isEmpty ? Color.green : .orange).frame(width: 7, height: 7)
+                    Text(Self.summary(issues.count)).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
-        .onAppear { unlock.refreshPermission() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in unlock.refreshPermission() }
+        .padding(.vertical, 4)
     }
 
-    private var overview: some View {
-        HStack {
-            Button(face.faces.isReady ? "Scan face again…" : "Set up face unlock…") { Task { await begin() } }
-                .buttonStyle(.borderedProminent).disabled(busy || !face.modelAvailable)
-            if face.faces.hasPassword {
-                Button("Change password…") { Task { await begin(passwordOnly: true) } }.disabled(busy)
-            }
-            Spacer()
-            if face.faces.isEnrolled || face.faces.hasPassword {
-                Button("Remove…", role: .destructive) { confirmRemove = true }
-            }
+    private func sidebarRow(_ p: SettingsPage, _ issues: [SettingsIssue]) -> some View {
+        let n = issues.filter { $0.pages.contains(p) }.count
+        return Label { Text(p.title) } icon: { SettingsIcon(page: p) }
+            .badge(n)
+            .tag(p)
+    }
+
+    private static func summary(_ n: Int) -> String {
+        switch n {
+        case 0: "Everything is set up"
+        case 1: "1 thing needs attention"
+        default: "\(n) things need attention"
         }
     }
 
-    private var passwordStep: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Enter your Mac login password. It is checked against your account, then stored only in this Mac's Keychain.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            SecureField("Login password", text: $password).textFieldStyle(.roundedBorder)
-                .onSubmit { Task { await savePassword() } }
-            HStack {
-                Button("Save") { Task { await savePassword() } }
-                    .buttonStyle(.borderedProminent).disabled(password.isEmpty || busy)
-                Button("Cancel") { password = ""; message = nil; step = .overview }
+    // MARK: Pages
+
+    @ViewBuilder private func detail(_ issues: [SettingsIssue]) -> some View {
+        let here = issues.filter { $0.pages.contains(current) }
+        switch current {
+        case .status: statusPage(issues)
+        case .general: general
+        case .notch: notch
+        case .notifications: notifications(here)
+        case .search: search(here)
+        case .battery: battery
+        case .faceUnlock: FaceUnlockSettings(face: face, issues: here)
+        case .permissions: permissions(issues)
+        case .updates: updates
+        }
+    }
+
+    private func statusPage(_ issues: [SettingsIssue]) -> some View {
+        Form {
+            Section {
+                if issues.isEmpty {
+                    SettingsHero(symbol: "checkmark", color: .green, title: "Everything is set up", detail: allSetDetail)
+                } else {
+                    SettingsHero(symbol: "exclamationmark", color: .orange, title: Self.summary(issues.count),
+                                 detail: "Everything else is working. Each one below says what it affects and how to fix it.")
+                }
+            }
+            SettingsIssuesSection(issues: issues, title: "To fix") { pageRaw = $0.rawValue }
+            Section("At a glance") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
+                    tile(.notifications, notificationsSummary, issues)
+                    tile(.search, searchSummary, issues)
+                    tile(.faceUnlock, faceSummary, issues)
+                    tile(.notch, (hasNotch ? "Has a notch" : "No notch") + (glassLook ? " · Glass" : " · Black"), issues)
+                    tile(.battery, powerMode.permissionInstalled ? "Energy Mode without a password" : "Energy Mode asks for a password", issues)
+                    tile(.updates, updatesSummary, issues)
+                }
+                .padding(.vertical, 4)
             }
         }
+        .formStyle(.grouped)
     }
 
-    private var scanningStep: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Look at the notch at the top of your screen and slowly move your head in a circle. Keep the dot touching the ring all the way round.")
-                .font(.callout).fixedSize(horizontal: false, vertical: true)
-            Button("Cancel") { face.cancelEnrolment(); step = .overview }
+    private var allSetDetail: String {
+        let p = checks.permissions
+        var parts = [p.allSatisfy(\.allowed) ? "All \(p.count) permissions are allowed" : "Everything Islet uses is allowed"]
+        if face.faces.isReady, face.unlock.enabled { parts.append("Face Unlock is on") }
+        if updater.state == .upToDate { parts.append("Islet is up to date") }
+        return parts.count == 1 ? parts[0] + "." : parts.dropLast().joined(separator: ", ") + " and " + parts.last! + "."
+    }
+
+    private func tile(_ p: SettingsPage, _ text: String, _ issues: [SettingsIssue]) -> some View {
+        let warn = issues.contains { $0.pages.contains(p) }
+        return Button { pageRaw = p.rawValue } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) { SettingsIcon(page: p, size: 18); Text(p.title).fontWeight(.semibold) }
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Circle().fill(warn ? Color.orange : .green).frame(width: 6, height: 6)
+                    Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .topLeading)
+            .padding(10)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var notificationsSummary: String {
+        guard notificationsInNotch else { return "Off" }
+        if messagesInNotch, !focus.accessGranted || SettingsChecks.debugIssues { return "Messages need Full Disk Access" }
+        return messagesInNotch ? "In the notch, with Messages" : "In the notch"
+    }
+    private var searchSummary: String {
+        guard let c = SearchShortcutChoice(rawValue: searchShortcut), c != .off else { return "No shortcut" }
+        return "\(c.title) · \((WebSearchEngine(rawValue: webEngine) ?? .google).title)"
+    }
+    private var faceSummary: String {
+        guard face.faces.isReady else { return "Not set up" }
+        guard face.unlock.enabled else { return "Off" }
+        let n = face.faces.learned.count
+        return n == 0 ? "On" : "On · \(n) of \(FaceStore.maxLearned) looks learned"
+    }
+    private var updatesSummary: String {
+        switch updater.state {
+        case .available(let tag): "\(Updater.plain(tag)) ready to install"
+        case .upToDate: "\(versionLabel) · Up to date"
+        default: versionLabel
         }
     }
+    private var versionLabel: String {
+        Bundle.main.object(forInfoDictionaryKey: "IsletBuildLabel") as? String ?? updater.currentVersion
+    }
 
-    private var testSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Test recognition").font(.headline)
-            HStack {
-                Button(face.testingFace ? "Stop" : "Start test") {
-                    Task {
-                        if face.testingFace { face.stopTest() } else { message = await face.startTest() }
+    private var general: some View {
+        Form {
+            Section {
+                Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+                if let loginError { Text(loginError).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+                Toggle(isOn: $showMenuBarIcon) {
+                    SettingsLabel("Show menu bar icon", "Settings is also behind the gear in the open panel. Without a notch the icon always shows.")
+                }
+            }
+            Section {
+                LabeledContent {
+                    Button("Run Setup…") { runSetup() }
+                } label: {
+                    SettingsLabel("Run setup again", "Walks through the permissions and Face Unlock again.")
+                }
+                LabeledContent("Quit Islet") { Button("Quit") { NSApp.terminate(nil) } }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var notch: some View {
+        Form {
+            Section {
+                Picker(selection: $hasNotch) {
+                    Text("Has a notch").tag(true)
+                    Text("No notch").tag(false)
+                } label: {
+                    SettingsLabel("This Mac", hasNotch ? "With the lid closed on an external display, Islet uses the no-notch style." : "There's no notch to live in, so Islet uses the style below.")
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                Toggle(isOn: $glassLook) {
+                    SettingsLabel("Glass look", "Below the notch the island fades from black into glass. Off, it stays solid black.")
+                }
+            }
+            Section {
+                Picker("Style", selection: $notchlessStyle) {
+                    Text("Bubble from the top edge").tag(NotchlessStyle.bezel.rawValue)
+                    Text("Drop down from the menu bar icon").tag(NotchlessStyle.menuBar.rawValue)
+                    Text("Off").tag(NotchlessStyle.off.rawValue)
+                }
+            } header: {
+                Text("Without a notch")
+            } footer: {
+                SettingsCaption(NotchChoice.caption(notchlessStyle))
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func notifications(_ here: [SettingsIssue]) -> some View {
+        let needs = !focus.accessGranted || SettingsChecks.debugIssues || !messagesAccess.contactsAllowed || !messagesAccess.automationAllowed
+        return Form {
+            SettingsIssuesSection(issues: here)
+            Section {
+                Toggle(isOn: $notificationsInNotch) {
+                    SettingsLabel("Show notifications in the notch", "Banners appear under the notch instead of the top-right corner. Calls keep their own banner.")
+                }
+                if notificationsInNotch {
+                    Toggle("Hide message text", isOn: $notificationsHideText)
+                }
+            }
+            if notificationsInNotch {
+                Section {
+                    Toggle(isOn: $messagesInNotch) {
+                        SettingsLabel("Open conversations in the notch", "Click a message banner to read and reply from the notch.")
                     }
-                }.disabled(!face.faces.isEnrolled || face.isEnrolling)
-                if face.testingFace {
-                    if let score = face.testScore {
-                        let match = score >= face.faces.threshold && !face.testFramed
-                        Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : match ? "Match" : "No match"),
-                              systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(match ? .green : .red).monospacedDigit()
-                    } else {
-                        Text("No face in view").foregroundStyle(.secondary)
+                    if messagesInNotch, !needs {
+                        Label("Has what it needs: Full Disk Access, Contacts and Control Messages", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.secondary).symbolRenderingMode(.multicolor).font(.callout)
+                    }
+                } header: { Text("Messages") }
+            }
+            if AppDelegate.liveActivitiesEnabled {
+                Section {
+                    Toggle(isOn: $liveActivitiesInNotch) {
+                        SettingsLabel("Show iPhone Live Activities in the notch", "The app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
                     }
                 }
             }
-            if face.testingFace {
-                HStack(spacing: 16) {
-                    ForEach(LivenessChallenge.allCases, id: \.self) { c in
-                        let seen = face.testSeen.contains(c)
-                        Label(Self.testLabel(c), systemImage: seen ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(seen ? .green : .secondary)
-                    }
-                    if let light = face.testLight {
-                        Label(String(format: "Light %.2f%@", light, light < 0.25 ? " (dark)" : ""), systemImage: "sun.min")
-                            .foregroundStyle(.secondary).monospacedDigit()
+        }
+        .formStyle(.grouped)
+    }
+
+    private func search(_ here: [SettingsIssue]) -> some View {
+        Form {
+            SettingsIssuesSection(issues: here)
+            Section {
+                Picker(selection: $searchShortcut) {
+                    ForEach(SearchShortcutChoice.allCases) { Text($0.title).tag($0.rawValue) }
+                } label: {
+                    SettingsLabel("Shortcut", "Search apps, files, contacts, Shortcuts and settings from the notch. Typing in the open panel searches too.")
+                }
+                .onChange(of: searchShortcut) {
+                    SearchShortcut.shared.apply()
+                    spotlightConflict = SearchShortcut.spotlightConflict
+                }
+                if searchShortcut != SearchShortcutChoice.off.rawValue {
+                    Picker("Search the web with", selection: $webEngine) {
+                        ForEach(WebSearchEngine.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                 }
-                .font(.callout)
             }
-            HStack {
-                Text("Match threshold").foregroundStyle(.secondary)
-                Slider(value: Binding(get: { Double(face.faces.threshold) }, set: { face.faces.threshold = Float($0) }),
-                       in: 0.25...0.75)
-                Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 40)
-            }
-            Text("Try your face, then someone else's. Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. Hold up a photo of yourself: it should say Photo edge, and tick nothing.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
+        .formStyle(.grouped)
     }
 
-    private static func testLabel(_ c: LivenessChallenge) -> String {
-        switch c {
-        case .blink: "Blink"
-        case .smile: "Smile"
-        case .turnLeft: "Left"
-        case .turnRight: "Right"
+    private var battery: some View {
+        Form {
+            Section {
+                if powerMode.permissionInstalled {
+                    LabeledContent {
+                        Button("Remove…") { powerMode.removePermission() }
+                    } label: {
+                        SettingsLabel("Switch without a password", "The battery page can switch Low Power, Automatic and High Power without asking.")
+                    }
+                } else {
+                    SettingsLabel("Asks for your password", "The first time you switch Energy Mode on the battery page, Islet asks for your password once and can then switch it without asking.")
+                }
+            } header: { Text("Energy Mode") }
         }
+        .formStyle(.grouped)
     }
 
-    private var protectionSection: some View {
-        let faces = face.faces
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Protection and learning").font(.headline)
-            Picker("Prove it's live", selection: Binding(get: { faces.liveness }, set: { faces.liveness = $0 })) {
-                Text("Random: blink, smile or turn your head").tag(LivenessMode.random)
-                Text("Blink").tag(LivenessMode.blink)
-                Text("Off").tag(LivenessMode.off)
+    private func permissions(_ issues: [SettingsIssue]) -> some View {
+        let all = checks.permissions
+        let mine = issues.filter { $0.pages.first == .permissions }
+        let quiet = all.filter { $0.allowed || !$0.needed }
+        return Form {
+            if mine.isEmpty {
+                Section {
+                    SettingsHero(symbol: "checkmark", color: .green,
+                                 title: all.allSatisfy(\.allowed) ? "All \(all.count) permissions are allowed" : "Everything Islet uses is allowed",
+                                 detail: "Islet checks again whenever this window comes to the front.")
+                }
             }
-            .fixedSize()
-            Toggle("Brighten the screen to light my face in the dark", isOn: Binding(get: { faces.brightenInDark }, set: { faces.brightenInDark = $0 }))
-            Toggle("Learn from successful unlocks", isOn: Binding(get: { faces.learnFromUnlocks }, set: { faces.learnFromUnlocks = $0 }))
-            HStack {
-                Text(faces.learned.isEmpty ? "No looks learned yet" : "\(faces.learned.count) of \(FaceStore.maxLearned) looks learned")
-                    .font(.callout).foregroundStyle(.secondary).monospacedDigit()
-                Spacer()
-                if !faces.learned.isEmpty { Button("Forget learned looks") { faces.forgetLearned() } }
+            SettingsIssuesSection(issues: mine)
+            Section {
+                DisclosureGroup(isExpanded: Binding(get: { showAllPermissions || !mine.isEmpty }, set: { showAllPermissions = $0 })) {
+                    ForEach(quiet) { p in
+                        LabeledContent {
+                            if p.allowed { Text("Allowed").foregroundStyle(.secondary) } else { Button("Allow…", action: p.allow) }
+                        } label: {
+                            SettingsLabel(p.name, p.allowed ? p.purpose : p.purpose + ". Not needed for what's turned on.")
+                        }
+                    }
+                } label: {
+                    Text(mine.isEmpty ? "What each one is for" : "\(quiet.count) more")
+                }
             }
-            Text("A photo or phone held up to the camera is always refused. Random asks for a blink, a smile or a head turn after your face matches, so a video is unlikely to do the right thing in time. Learning only keeps unlocks that passed this check and matched your original scan well, so it adapts to new light, glasses or a haircut without drifting.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Section {
+                LabeledContent {
+                    Text(media.available ? "Working" : "Unavailable").foregroundStyle(.secondary)
+                } label: {
+                    SettingsLabel("Now playing", "Reads what's playing through a helper built into Islet.")
+                }
+            } header: { Text("Not a permission") }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var updates: some View {
+        Form {
+            Section {
+                LabeledContent {
+                    switch updater.state {
+                    case .idle, .upToDate, .failed: Button("Check Now") { updater.check() }
+                    case .checking, .downloading: ProgressView().controlSize(.small)
+                    case .available(let tag):
+                        HStack {
+                            if !updater.notes.isEmpty { Button("Release Notes…") { updater.showNotes(tag) } }
+                            Button("Install and Restart") { updater.install(tag) }.buttonStyle(.borderedProminent)
+                        }
+                    }
+                } label: {
+                    SettingsLabel(updateTitle, "You have \(versionLabel).")
+                }
+                .help("Based on \(updater.currentVersion). Check Now still offers the release itself.")
+                if case .failed(let m) = updater.state {
+                    Text(m).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+                Toggle(isOn: $autoCheckUpdates) {
+                    SettingsLabel("Check for updates automatically", "Looks at GitHub about every 6 hours. A new version shows an Update pill next to the battery in the panel.")
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var updateTitle: String {
+        switch updater.state {
+        case .available(let tag): "Islet \(Updater.plain(tag)) is available"
+        case .upToDate: "Islet is up to date"
+        case .checking: "Checking…"
+        case .downloading: "Updating; follow along in the notch"
+        case .failed: "Couldn't check for updates"
+        case .idle: "Islet \(updater.currentVersion)"
         }
     }
 
     // MARK: Actions
 
-    private func begin(passwordOnly: Bool = false) async {
-        message = nil
-        busy = true; defer { busy = false }
-        face.stopTest()
-        guard await IdentityCheck.confirmOwner(reason: "Set up face unlock for this Mac") else {
-            message = "Identity wasn't confirmed."; return
+    private func setLaunchAtLogin(_ on: Bool) {
+        do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }; loginError = nil } catch {
+            loginError = "Couldn't change launch at login: \(error.localizedDescription)"
         }
-        if passwordOnly || !face.faces.hasPassword {
-            step = .password
-        } else {
-            await startScan()
-        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    private func savePassword() async {
-        busy = true; defer { busy = false }
-        guard IdentityCheck.verifyLoginPassword(password) else { message = "That isn't your login password."; return }
-        guard face.faces.savePassword(password) else { message = "Couldn't save to the Keychain."; return }
-        password = ""; message = nil
-        face.unlock.clearPasswordRejected()
-        if face.faces.isEnrolled { step = .overview } else { await startScan() }
-    }
-
-    private func startScan() async {
-        if let error = await face.beginEnrolment() { message = error; step = .overview } else { step = .scanning }
+    private func requestCamera() {
+        if camera == .notDetermined {
+            Task { _ = await FaceCamera.requestAccess(); camera = AVCaptureDevice.authorizationStatus(for: .video) }
+        } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
