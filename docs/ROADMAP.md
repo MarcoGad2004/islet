@@ -75,8 +75,9 @@ the unlock animation still ships.
       "3 more"
 - [x] The panel opens on its own page with waiting notifications as a pill at the top; the pill opens the list, which
       has a back chevron (owner, 2026-11-21). Preview: `-IsletDebugShape notificationpill`. Tried: pill, list, back
-- [ ] "N more" didn't show for bursts of 3 and 4 from one app (2026-11-21): macOS seems to fold them into one stacked
-      banner that Islet reads once. To look into
+- [x] "N more" (2026-11-21): four from one app 1.5 s apart reach "3 more". In a burst within a fraction of a second
+      macOS only shows the first and last as banners (the rest go straight to Notification Center), so Islet counts 2:
+      not a bug, it counts the banners it sees
 - [ ] Still to try: hover card, click to open, the list (Clear all, rows), a real Duo Approve / Deny,
       opening Notification Center while Islet runs; does Close remove it from Notification Center's list?
 

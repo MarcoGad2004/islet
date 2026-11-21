@@ -386,3 +386,26 @@ the shell's app responsible for Bluetooth and kills Islet for lacking the usage 
 out), Shortcuts through the `shortcuts` tool, the calculator Islet's own. ⌘Space works once Spotlight's shortcut is
 moved, and Islet can tell from the symbolic hotkeys whether it has been; typing straight after it loses nothing.
 Still to try: files from the Desktop and Downloads in the installed copy (Q41), the Spotlight hand-off (Q46).
+
+## iPhone Live Activities in the notch (spike, 2026-11-21)
+
+Owner request: the Live Activities macOS 26 shows from the iPhone (in the menu bar, and a card when clicked) in the
+notch instead: the two sides in the wings, the card in the panel, and the menu bar's own one out of the way. Probed with
+AX from a shell while a Cadence reminder's activity was up.
+
+47. **Who draws them?** `MenuBarAgent` (`com.apple.MenuBarAgent`): each activity is an item of its `AXExtrasMenuBar`,
+    role `AXMenuBarItem`, subrole `AXLiveActivity`, identifier `live-activity-pill-com.apple.chrono.WidgetRenderer-Activities`,
+    description the app's name ("Cadence"). No window of its own shows in `CGWindowListCopyWindowInfo` (status items are
+    drawn into the menu bar window on macOS 26).
+48. **Can the compact sides be read?** Yes, as accessibility, not pixels: two groups (leading, trailing), each a hosting
+    view with an `AXImage` (only a description: "Checklist With Checkmarks") or `AXStaticText` ("1:37:23"), plus an
+    "Expanded" image. The text updates every second (read 2 s apart: 1:37:48, 1:37:50). The image itself isn't exposed.
+49. **The expanded card?** `AXPress` on the item opens it: a window with identifier `live-activity-expanded` (408 x 960, an
+    `AXLiveActivity` group 299 x 117) whose hosting view lists every text with its size (the title, "OVERDUE", "Reminder
+    went off at 9:00 AM", the timer, "Important", the notes) and the app's buttons ("Complete", an `AXButton`). Colours,
+    fonts and layout are not exposed.
+50. **Can Islet move or hide the menu bar item?** Not through AX: its position and size aren't settable. Still to try: hiding
+    it in System Settings > Menu Bar (does the activity still exist to read?), and moving the expanded window off screen
+    while it stays open (as with banners, Q28).
+51. **Seeing them as they look** would need their pixels: ScreenCaptureKit can capture a window even when it's covered,
+    but that needs Screen Recording permission, and the menu bar item has to be on screen to be captured. Not tried.
