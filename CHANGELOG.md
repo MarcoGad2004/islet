@@ -39,10 +39,6 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - To use ⌘Space, move Spotlight's own shortcut in Keyboard Shortcuts > Spotlight; Settings and setup point there. Settings
   > General can pick another shortcut, or turn it off, and the engine for web searches.
 
-- iPhone Live Activities in the notch: a timer, a score or a delivery from your iPhone shows beside the notch, the app
-  on the left and its live value on the right (the wings grow to fit it), or in the chin when the menu bar is busy.
-  Open the panel for a card with the details and the activity's own buttons, like Complete on a reminder. Settings >
-  General can turn it off. The menu bar keeps its own copy for now.
 
 ## 1.3 (2026-11-20)
 

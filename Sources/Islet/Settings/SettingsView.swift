@@ -57,9 +57,11 @@ struct SettingsView: View {
                 Text("Reply from the notch. Needs Full Disk Access (to read Messages), Contacts (names) and permission to control Messages (to send).")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
             }
-            Toggle("Show iPhone Live Activities in the notch", isOn: $liveActivitiesInNotch)
-            Text("Live Activities your iPhone shows on the Mac: the app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if AppDelegate.liveActivitiesEnabled {
+                Toggle("Show iPhone Live Activities in the notch", isOn: $liveActivitiesInNotch)
+                Text("Live Activities your iPhone shows on the Mac: the app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             searchRows
             NotchChoice().padding(.vertical, 4)
             if powerMode.permissionInstalled {

@@ -31,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSources: [DispatchSourceSignal] = []
     /// FaceTime in the notch (DESIGN.md "Calls"): off until its design is redone in a later update.
     static let callsEnabled = false
+    /// iPhone Live Activities are built but switched off (owner, 2026-11-21): macOS has no way to hide the menu bar's own
+    /// copy, so they would show twice. Nothing reads them while this is false.
+    static let liveActivitiesEnabled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
@@ -324,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // iPhone Live Activities (DESIGN.md "iPhone Live Activities").
         store.liveActivityWatcher = liveActivities
         liveActivities.onChange = { [weak store] in store?.setLiveActivities($0) }
-        liveActivities.start()
+        if Self.liveActivitiesEnabled { liveActivities.start() }
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()

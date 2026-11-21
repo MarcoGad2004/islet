@@ -104,7 +104,9 @@ the unlock animation still ships.
       ⌘V in the field, a letter typed in the open panel, a click on a row, files from the Desktop and Downloads in the
       installed copy, "Search in Spotlight", without a notch
 
-## Next: iPhone Live Activities in the notch
+## On hold: iPhone Live Activities in the notch
+Switched off (owner, 2026-11-21: `AppDelegate.liveActivitiesEnabled`): the menu bar's own copy can't be hidden, by a
+setting or by ⌘-dragging it, so they would show twice. The code stays; turn the flag on if macOS gains a way.
 - [x] Spike (RESEARCH.md Q47-Q52): read through Accessibility from `MenuBarAgent`; the card off screen works half the time
 - [x] Design draft and mockup (DESIGN.md "iPhone Live Activities", owner chose Islet's own layout, 2026-11-21)
 - [x] Owner approved the design (2026-11-21)
@@ -115,7 +117,7 @@ the unlock animation still ships.
 - [ ] Still to try: Complete from the card, two at once, one ending, an activity whose right side is a picture, a
       flash of the system's card when the panel opens
 - [x] System Settings has no switch for the menu bar's copy on macOS 26.2 (only one that stops them altogether), so both
-      show. Not tried: ⌘-dragging the pill out of the menu bar
+      show. ⌘-dragging the pill out of the menu bar doesn't remove it either
 
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner

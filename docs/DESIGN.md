@@ -541,9 +541,11 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
-## iPhone Live Activities
+## iPhone Live Activities (on hold)
 
-Owner approved, 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
+On hold (owner, 2026-11-21): built and working, but switched off (`AppDelegate.liveActivitiesEnabled`) because macOS
+has no way to hide the menu bar's own copy (RESEARCH.md Q50), so every activity would show twice. Back on if that
+changes. Owner approved, 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
 "option 2": Islet's own layout, built from what the activity says; their real look, from their pixels, is for a later
 update). Mockup (playable): <https://claude.ai/artifact/FRRSaQ7kUjrYdNEpqYbeig> (source docs/mockups/live-activities.html).
 Feasibility: RESEARCH.md Q47-Q52.
