@@ -1,0 +1,252 @@
+<title>Islet Flush Panel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a scaled MacBook screen top (menu bar, notch, wallpaper) showing the open panel, with switches above and notes below. */
+:root {
+  --page: #eef0f3; --ink: #1c1d21; --muted: #62656e; --line: rgba(0,0,0,.1); --card: #ffffff;
+  --accent: #0a84ff; --seg: rgba(0,0,0,.06); --segon: #ffffff;
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #16171a; --ink: #eceef2; --muted: #9a9ca5; --line: rgba(255,255,255,.1); --card: #1f2024;
+  --seg: rgba(255,255,255,.07); --segon: #3a3b40; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --page: #16171a; --ink: #eceef2; --muted: #9a9ca5; --line: rgba(255,255,255,.1); --card: #1f2024;
+  --seg: rgba(255,255,255,.07); --segon: #3a3b40; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--page); color: var(--ink); font-family: var(--sys); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px }
+.wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px }
+h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; text-wrap: balance }
+header p { margin: 0; color: var(--muted); max-width: 66ch; line-height: 1.45 }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font-size: 12.5px; color: var(--muted) }
+.seg { display: inline-flex; background: var(--seg); border-radius: 8px; padding: 2px; gap: 2px }
+.seg button { border: 0; background: none; color: var(--ink); font: inherit; padding: 5px 11px; border-radius: 6px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--segon); box-shadow: 0 1px 2px rgba(0,0,0,.18) }
+.play { border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+/* the Mac screen: always dark, it's a picture of the display */
+.screenbox { border-radius: 14px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; position: relative }
+.screen { position: absolute; left: 0; top: 0; width: 1512px; height: 330px; transform-origin: 0 0; overflow: hidden;
+  background: radial-gradient(120% 140% at 70% 120%, #6f8fae 0%, #34506e 45%, #1d2a3d 100%); font-family: var(--sys) }
+.menubar { position: absolute; inset: 0 0 auto 0; height: 32px; background: rgba(20,24,32,.55); backdrop-filter: blur(20px);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: #f3f4f6; font-size: 13px }
+.menus, .status { display: flex; gap: 17px; align-items: center; white-space: nowrap }
+.menus b { font-weight: 700 }
+.status span { opacity: .92 }
+.zone { position: absolute; top: 0; height: 32px; background: repeating-linear-gradient(45deg, rgba(255,214,10,.28) 0 6px, rgba(255,214,10,.12) 6px 12px);
+  border-bottom: 2px solid rgba(255,214,10,.9); pointer-events: none; transition: opacity .2s }
+.zone.bad { background: repeating-linear-gradient(45deg, rgba(255,69,58,.35) 0 6px, rgba(255,69,58,.15) 6px 12px); border-bottom-color: #ff453a }
+svg.island { position: absolute; left: 0; top: 0; width: 1512px; height: 330px; pointer-events: none }
+.panel { position: absolute; top: 0; left: 506px; width: 500px; color: #fff; transition: opacity .22s }
+.panel .row { position: absolute; display: flex; align-items: center; gap: 8px }
+.lbl { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: rgba(255,255,255,.45) }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 11px; background: rgba(255,255,255,.1);
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums }
+.art { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #3a3fa0, #20236b); display: grid; place-items: center; font-size: 12px; flex: none }
+.ttl { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pbtn { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.14); display: grid; place-items: center; font-size: 10px; flex: none }
+.gear { width: 20px; height: 20px; display: grid; place-items: center; color: rgba(255,255,255,.6); font-size: 15px; flex: none }
+.tiles { position: absolute; left: 16px; width: 468px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px }
+.tile { height: 74px; border-radius: 16px; background: rgba(255,255,255,.08); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px }
+.tile i { width: 26px; height: 26px; border-radius: 50%; background: #0a84ff; display: grid; place-items: center; font-style: normal; font-size: 12px; margin-bottom: 3px }
+.tile i.off { background: rgba(255,255,255,.16) }
+.tile b { font-size: 12.5px } .tile small { font-size: 11px; color: rgba(255,255,255,.55) }
+.sliders { position: absolute; left: 16px; width: 468px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.sl { height: 56px; border-radius: 16px; background: rgba(255,255,255,.08); display: flex; align-items: center; gap: 12px; padding: 0 16px; font-size: 13px; font-weight: 600 }
+.sl .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.16); position: relative }
+.sl .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--v); border-radius: 3px; background: #fff }
+.measure { position: absolute; right: 20px; bottom: 16px; font-size: 18px; color: rgba(255,255,255,.75); background: rgba(0,0,0,.35); padding: 5px 9px; border-radius: 7px; font-variant-numeric: tabular-nums }
+.cursor { position: absolute; width: 14px; height: 20px; pointer-events: none }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px }
+.note { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; line-height: 1.5 }
+.note h4 { margin: 0 0 6px; font-size: 13.5px }
+.note ul, .note ol { margin: 0; padding-left: 18px; color: var(--muted) }
+.note li + li { margin-top: 4px }
+.note b { color: var(--ink) }
+@media (prefers-reduced-motion: reduce) { .panel { transition: none } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>The panel, flush with the top</h1>
+    <p>When the menu bar is clear where the panel would go, the panel can grow straight out of the notch instead of hanging under it on a stem. Click "Open" to watch it, and switch the app in front to see it fall back to today's shape.</p>
+  </header>
+
+  <div class="controls">
+    <span>Shape</span>
+    <div class="seg" role="group" aria-label="Shape">
+      <button data-shape="a" aria-pressed="true">A: header beside the camera</button>
+      <button data-shape="b" aria-pressed="false">B: flush, same layout</button>
+      <button data-shape="today" aria-pressed="false">Today</button>
+    </div>
+    <span>In front</span>
+    <div class="seg" role="group" aria-label="App in front">
+      <button data-app="finder" aria-pressed="true">Finder (room)</button>
+      <button data-app="xcode" aria-pressed="false">Xcode (no room)</button>
+    </div>
+    <button class="play" id="open">Open</button>
+  </div>
+
+  <div class="screenbox">
+    <div class="screen" id="screen">
+      <div class="menubar">
+        <div class="menus" id="menus"></div>
+        <div class="status"><span>0%</span><span>⌁</span><span>Wi‑Fi</span><span>100% ▭</span><span>Fri Nov 21 2:40 PM</span></div>
+      </div>
+      <div class="zone" id="zoneL"></div><div class="zone" id="zoneR"></div>
+      <svg class="island" viewBox="0 0 1512 330" aria-hidden="true"><path id="shape" fill="#000"></path></svg>
+      <div class="panel" id="panel"></div>
+      <div class="measure" id="measure"></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>What changes</h4>
+      <ul>
+        <li><b>When the menu bar has room</b>, the panel's top edge is the top of the screen. There's no stem and no inner curves; the top corners flare into the edge like the notch's own.</li>
+        <li><b>When it doesn't</b>, the panel opens exactly as today, so a menu or status icon is never covered.</li>
+        <li><b>Room means</b> 165 pt free on each side of the notch: half the panel's width beyond the notch, plus the usual 8 pt margin. The striped bands in the picture show it.</li>
+        <li><b>Opening</b> works like the wings: the notch springs out sideways and down at once, with the same soft overshoot. Closing pulls it back into the notch.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>A or B</h4>
+      <ul>
+        <li><b>A (recommended)</b>: the header moves up beside the camera, so the panel is 44 pt shorter. Left: the battery, update and Focus chips, or the back button on a detail page. Right: the album art, play and the gear. The song's name doesn't fit there; hovering the art shows it, and clicking it opens the player. The "Controls" label goes.</li>
+        <li><b>B</b>: only the shape changes. The band beside the camera stays black and empty, and everything inside stays where it is today.</li>
+        <li>Pages with their own top (search's field, a conversation, the notification list) keep their layout under the band in both.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>To decide</h4>
+      <ol>
+        <li>A or B?</li>
+        <li>If the menus change while the panel is open (another app comes to the front), should it morph to the other shape, or keep the shape it opened with until it closes?</li>
+        <li>Without a notch nothing changes: the bubble and the menu bar card already float.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const W = 1512, NX = 663.5, NW = 185, NH = 32, PX = 506, PW = 500;
+const MENUS = {
+  finder: ['<b></b>', '<b>Finder</b>', 'File', 'Edit', 'View', 'Go', 'Window', 'Help'],
+  xcode: ['<b></b>', '<b>Xcode</b>', 'File', 'Edit', 'View', 'Find', 'Navigate', 'Editor', 'Product', 'Debug', 'Integrate', 'Window', 'Help'],
+};
+let shape = 'a', app = 'finder', anim = null;
+const $ = id => document.getElementById(id);
+
+// Heights (pt) of each layout once open
+const heights = { a: 204, b: 248, today: 248 };
+const roomy = () => app === 'finder';
+const effective = () => (shape === 'today' || !roomy()) ? 'today' : shape;
+
+function flushPath(x0, x1, h) {
+  const r = Math.min(30, h / 2), f = 6;
+  return `M${x0 - f},0 Q${x0},0 ${x0},${f} L${x0},${h - r} Q${x0},${h} ${x0 + r},${h} L${x1 - r},${h} Q${x1},${h} ${x1},${h - r} L${x1},${f} Q${x1},0 ${x1 + f},0 Z`;
+}
+function stemPath(bx0, bx1, bh) {
+  // stem = the notch, body below it with 10 pt inner curves; top 16, bottom 30
+  const s0 = NX, s1 = NX + NW, top = NH, f = 6, ic = Math.min(10, (bx0 < s0 - 1) ? 10 : 0), tr = Math.min(16, bh / 2), br = Math.min(30, bh / 2), b = top + bh;
+  if (bh < 1) return flushPath(s0, s1, NH);
+  return `M${s0 - f},0 Q${s0},0 ${s0},${f} L${s0},${top - ic} Q${s0},${top} ${s0 - ic},${top} L${bx0 + tr},${top} Q${bx0},${top} ${bx0},${top + tr} ` +
+    `L${bx0},${b - br} Q${bx0},${b} ${bx0 + br},${b} L${bx1 - br},${b} Q${bx1},${b} ${bx1},${b - br} L${bx1},${top + tr} Q${bx1},${top} ${bx1 - tr},${top} ` +
+    `L${s1 + ic},${top} Q${s1},${top} ${s1},${top - ic} L${s1},${f} Q${s1},0 ${s1 + f},0 Z`;
+}
+
+function panelHTML(kind) {
+  const tiles = `<div class="tile"><i>Wi</i><b>Wi‑Fi</b><small>NLDeco_MLO</small></div><div class="tile"><i>B</i><b>Bluetooth</b><small>On</small></div>
+    <div class="tile"><i>A</i><b>AirDrop</b><small>Contacts</small></div><div class="tile"><i class="off">▣</i><b>Mirroring</b><small>Displays</small></div>`;
+  const sliders = `<div class="sl">☀<div class="bar" style="--v:50%"></div>50%</div><div class="sl">🔈<div class="bar" style="--v:31%"></div>31%</div>`;
+  if (kind === 'a') {
+    // header in the band beside the camera: left x 16..147, right x 352..484 (panel coordinates)
+    return `<div class="row" style="left:16px;top:5px;height:22px"><span class="chip">⚡ 85%</span></div>
+      <div class="row" style="right:16px;top:3px;height:26px"><span class="art" title="Macbook PROLED XDR Impressions">♪</span><span class="pbtn">▶</span><span class="gear">⚙</span></div>
+      <div class="tiles" style="top:40px">${tiles}</div><div class="sliders" style="top:124px">${sliders}</div>`;
+  }
+  const t = 32 + 16; // body starts under the notch band
+  return `<div class="row" style="left:16px;top:${t}px;height:26px"><span class="lbl">CONTROLS</span><span class="chip">⚡ 85%</span></div>
+    <div class="row" style="left:214px;top:${t}px;height:26px;width:270px"><span class="art">♪</span><span class="ttl" style="flex:1">Macbook PROLED XDR Impr…</span><span class="pbtn">▶</span><span class="gear">⚙</span></div>
+    <div class="tiles" style="top:${t + 36}px">${tiles}</div><div class="sliders" style="top:${t + 120}px">${sliders}</div>`;
+}
+
+function draw(p) { // p: 0 closed .. 1 open (may overshoot for width)
+  const kind = effective();
+  const H = heights[kind];
+  if (kind === 'today') {
+    const bw = NW + (PW - NW) * Math.min(1, Math.max(0, p.w));
+    const bx0 = W / 2 - bw / 2;
+    $('shape').setAttribute('d', stemPath(bx0, bx0 + bw, (H - NH) * p.h));
+  } else {
+    const w = NW + (PW - NW) * p.w, x0 = W / 2 - w / 2;
+    $('shape').setAttribute('d', flushPath(x0, x0 + w, NH + (H - NH) * p.h));
+  }
+}
+
+function layout() {
+  $('menus').innerHTML = MENUS[app].map(m => `<span>${m}</span>`).join('');
+  const kind = effective();
+  $('panel').innerHTML = panelHTML(kind);
+  // the room each side needs, and whether the menus/status items are inside it
+  const need = (PW - NW) / 2 + 8;
+  const zl = $('zoneL'), zr = $('zoneR');
+  zl.style.left = (NX - need) + 'px'; zl.style.width = need + 'px';
+  zr.style.left = (NX + NW) + 'px'; zr.style.width = need + 'px';
+  const sc = $('screen').getBoundingClientRect().width / W;
+  const menusRight = ($('menus').getBoundingClientRect().right - $('screen').getBoundingClientRect().left) / sc;
+  const leftFree = NX - menusRight;
+  zl.classList.toggle('bad', leftFree < need);
+  zr.classList.remove('bad');
+  $('measure').textContent = `Left: ${Math.round(leftFree)} pt free · needs ${Math.round(need)} pt → ${leftFree >= need ? 'flush' : 'stem (today)'}`;
+}
+
+function setOpen(open, instant) {
+  cancelAnimationFrame(anim);
+  const panel = $('panel');
+  if (instant) { draw(open ? { w: 1, h: 1 } : { w: 0, h: 0 }); panel.style.opacity = open ? 1 : 0; return; }
+  const t0 = performance.now(), dur = open ? 640 : 420;
+  panel.style.opacity = 0;
+  const flush = effective() !== 'today';
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    let w, h;
+    if (open) {
+      // springs out with a soft overshoot; the stem shape flows down first, flush grows both ways at once
+      const back = x => { const c = 1.25; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+      const eo = x => 1 - Math.pow(1 - x, 3);
+      h = flush ? eo(Math.min(1, t * 1.15)) : eo(Math.min(1, t / 0.55));
+      w = flush ? back(t) : (t < 0.3 ? 0 : back((t - 0.3) / 0.7));
+      if (t > 0.5) panel.style.opacity = 1;
+    } else {
+      const ei = x => x * x;
+      w = 1 - ei(t); h = 1 - ei(Math.min(1, t * 1.2));
+    }
+    draw({ w, h });
+    if (t < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+
+let isOpen = true;
+$('open').addEventListener('click', () => {
+  if (isOpen) { setOpen(false); isOpen = false; $('open').textContent = 'Open'; setTimeout(() => { setOpen(true); isOpen = true; $('open').textContent = 'Close'; }, 650); }
+  else { setOpen(true); isOpen = true; $('open').textContent = 'Close'; }
+});
+for (const b of document.querySelectorAll('[data-shape]')) b.addEventListener('click', () => {
+  shape = b.dataset.shape; document.querySelectorAll('[data-shape]').forEach(x => x.setAttribute('aria-pressed', x === b)); layout(); setOpen(true, true);
+});
+for (const b of document.querySelectorAll('[data-app]')) b.addEventListener('click', () => {
+  app = b.dataset.app; document.querySelectorAll('[data-app]').forEach(x => x.setAttribute('aria-pressed', x === b)); layout(); setOpen(true, true);
+});
+function fit() {
+  const box = document.querySelector('.screenbox'), sc = box.clientWidth / W;
+  $('screen').style.transform = `scale(${sc})`; box.style.height = (330 * sc) + 'px';
+}
+addEventListener('resize', () => { fit(); layout(); });
+fit(); layout(); setOpen(true, true); $('open').textContent = 'Replay';
+</script>
