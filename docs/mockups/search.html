@@ -1,0 +1,697 @@
+<title>Islet Search</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the live stage first (it is the design), then keys, sizes, sources and open questions. Single dark look: it's a notch. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --panel: #15161a;
+  --line: #24262c;
+  --fg: #ececf0;
+  --muted: #9a9ca6;
+  --accent: #64d2ff;
+  --sans: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* island tokens, from DESIGN.md "Visual tokens" */
+  --i-text: #f5f5f7;
+  --i-secondary: #a1a1a6;
+  --i-tertiary: #8e8e93;
+  --i-card: #1c1c1e;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+.live { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button, .btn { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 6px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #2a2c33; color: var(--fg); }
+.btn { border: 1px solid var(--line); color: var(--fg); }
+.btn:hover, .seg button:hover { color: var(--fg); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn code { font: 500 12px var(--mono); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.label { font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.status { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; min-height: 21px; margin: 0; }
+.status b { font-weight: 600; }
+.status span { color: var(--muted); }
+.hintline { font-size: 12.5px; color: var(--muted); margin: 0; }
+.hintline b { color: var(--fg); font-weight: 600; }
+
+/* ---------- the stage: a slice of the MacBook screen ---------- */
+.frame { position: relative; overflow: hidden; border-radius: 10px; width: 100%; user-select: none; }
+.stage { position: absolute; left: 0; top: 0; width: 760px; height: 440px; transform-origin: 0 0; overflow: hidden;
+  background: radial-gradient(120% 140% at 12% 110%, #6a3d8f 0%, transparent 55%), radial-gradient(90% 120% at 96% 115%, #137a93 0%, transparent 60%), linear-gradient(180deg, #2c3a6a, #3b2b5b); }
+.menubar { position: absolute; inset: 0 0 auto 0; height: 34px; background: rgba(22,22,28,0.55); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: flex; justify-content: space-between; align-items: center; padding: 0 14px; font: 500 12px var(--sf); color: #e8e8ee; }
+.menus { display: flex; gap: 14px; white-space: nowrap; align-items: center; }
+.menus .app { font-weight: 700; }
+.menus .logo { width: 11px; height: 11px; border-radius: 50%; background: #e8e8ee; }
+.tray { display: flex; gap: 11px; align-items: center; font-variant-numeric: tabular-nums; }
+.tray i { display: block; width: 15px; height: 10px; border-radius: 3px; background: rgba(232,232,238,0.75); }
+.tray i.w { width: 24px; }
+/* a window behind, so the glass has something to blur */
+.win { position: absolute; left: 70px; top: 66px; width: 620px; height: 400px; border-radius: 12px; background: #23232a; box-shadow: 0 20px 50px rgba(0,0,0,.45); overflow: hidden; }
+.win .side { position: absolute; inset: 0 auto 0 0; width: 160px; background: #2c2c34; }
+.win .tl { position: absolute; left: 14px; top: 14px; display: flex; gap: 7px; }
+.win .tl i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; } .win .tl i:nth-child(2) { background: #febc2e; } .win .tl i:nth-child(3) { background: #28c840; }
+.win .tile { position: absolute; border-radius: 8px; }
+.wincap { position: absolute; left: 182px; top: 18px; font: 600 13px var(--sf); color: #d8d8de; }
+
+/* ---------- the island ---------- */
+.island { position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 5; }
+.stem, .body { position: absolute; background: #000; }
+.stem { top: 0; }
+.stem .fl { position: absolute; top: 0; width: 6px; height: 6px; }
+.stem .fl.l { left: -6px; background: radial-gradient(circle 6px at 0 100%, transparent 5.5px, #000 6px); }
+.stem .fl.r { right: -6px; background: radial-gradient(circle 6px at 100% 100%, transparent 5.5px, #000 6px); }
+.stem .fil { position: absolute; bottom: 0; width: 10px; height: 10px; opacity: 0; }
+.stem .fil.l { left: -10px; background: radial-gradient(circle 10px at 0 0, transparent 9.5px, #000 10px); }
+.stem .fil.r { right: -10px; background: radial-gradient(circle 10px at 100% 0, transparent 9.5px, #000 10px); }
+.body { top: 34px; overflow: hidden; }
+.body.glass { background: linear-gradient(180deg, #000 0, #000 calc(100% - 38px), rgba(0,0,0,.3) calc(100% - 2px));
+  backdrop-filter: blur(16px) saturate(1.5); -webkit-backdrop-filter: blur(16px) saturate(1.5); }
+.body .rim, .body .glow { position: absolute; pointer-events: none; opacity: 0; transition: opacity .3s ease; }
+.body .rim { inset: 0; border-radius: inherit; border: 1.2px solid rgba(255,255,255,.28);
+  -webkit-mask-image: linear-gradient(180deg, transparent calc(100% - 34px), #000 100%); mask-image: linear-gradient(180deg, transparent calc(100% - 34px), #000 100%); }
+.body .glow { left: 24px; right: 24px; bottom: -6px; height: 18px; border-radius: 50%;
+  background: linear-gradient(90deg, #64d2ff, #5e5ce6, #ff6ab0, #ff9f0a); filter: blur(9px); }
+.body.glass .rim, .body.glass .glow { opacity: .3; }
+.body.glass .rim { opacity: 1; }
+
+.content { position: absolute; top: 0; left: 50%; width: 500px; margin-left: -250px; opacity: 0; transform: scale(.96); transform-origin: 50% 0;
+  font-family: var(--sf); color: var(--i-text); display: flex; flex-direction: column; }
+.field { height: 52px; flex: none; display: flex; align-items: center; gap: 11px; padding: 0 20px; }
+.field svg { width: 17px; height: 17px; flex: none; }
+.field input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--i-text); font: 400 19px var(--sf); caret-color: #0a84ff; padding: 0; letter-spacing: -.01em; }
+.field input::placeholder { color: var(--i-tertiary); }
+.hair { height: 1px; flex: none; margin: 0 20px; background: rgba(255,255,255,.08); transition: opacity .15s; }
+.list { overflow-y: auto; scrollbar-width: none; padding: 4px 0 6px; flex: none; }
+.list::-webkit-scrollbar { display: none; }
+.lab { height: 22px; display: flex; align-items: flex-end; padding: 0 20px 4px; font: 600 10.5px var(--sf); letter-spacing: .06em; text-transform: uppercase; color: var(--i-tertiary); }
+.row { height: 34px; margin: 0 8px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; gap: 10px; cursor: default; }
+.row:hover { background: rgba(255,255,255,.05); }
+.row .ic { width: 22px; height: 22px; flex: none; display: block; }
+.row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.row .nm { font: 400 13px var(--sf); color: var(--i-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .nm b { color: var(--i-text); font-weight: 500; }
+.row .dt { font: 400 11px var(--sf); color: var(--i-tertiary); white-space: nowrap; flex: none; }
+.row.hit { height: 52px; gap: 12px; }
+.row.hit .ic { width: 32px; height: 32px; }
+.row.hit .nm { font: 600 15px var(--sf); color: var(--i-text); }
+.row.hit .nm b { font-weight: 600; }
+.row .kd { font: 400 11px var(--sf); color: var(--i-tertiary); }
+.row.calc { height: 60px; gap: 12px; }
+.row.calc .ic { width: 32px; height: 32px; }
+.row.calc .sum { font: 400 11px var(--sf); color: var(--i-tertiary); font-variant-numeric: tabular-nums; }
+.row.calc .ans { font: 600 22px var(--sf); color: var(--i-text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1.2; }
+.row.none { color: var(--i-secondary); font-size: 13px; }
+.row.none:hover { background: none; }
+.sel { background: rgba(255,255,255,.10) !important; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2); }
+.solid .sel { background: var(--i-card) !important; box-shadow: none; }
+.recents { display: flex; justify-content: space-between; padding: 8px 14px 6px; }
+.rc { width: 62px; padding: 7px 0 6px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: default; }
+.rc:hover { background: rgba(255,255,255,.05); }
+.rc .ic { width: 40px; height: 40px; display: block; }
+.rc span { font: 400 10px var(--sf); color: var(--i-secondary); max-width: 58px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.footer { height: 28px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px 2px; font: 400 10.5px var(--sf); color: var(--i-secondary); }
+.footer .keys { display: flex; gap: 14px; }
+.footer kbd { font: 500 10.5px var(--sf); color: var(--i-text); margin-right: 4px; }
+
+/* ---------- notes below ---------- */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { margin: 0; font-size: 17px; }
+.panel > p { margin: 0; color: var(--muted); max-width: 80ch; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cols > * { min-width: 0; }
+.panel ul { margin: 0; padding-left: 18px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.panel li b { color: var(--fg); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td { color: var(--muted); }
+td kbd { font: 500 12px var(--mono); color: var(--fg); }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Islet · search · draft 1</div>
+    <h1>Search from the notch</h1>
+    <p>Press the search shortcut and the notch flows down into a search field, then bubbles out to the panel's width. Results for apps, Shortcuts, files and System Settings grow underneath as you type. Everything runs from the keyboard; the glass strip at the bottom carries what the keys do.</p>
+  </header>
+
+  <section class="live" aria-label="Live prototype">
+    <div class="controls">
+      <span class="label">Look</span>
+      <div class="seg" id="lookSeg">
+        <button type="button" id="look-glass" data-v="glass" aria-pressed="true">Glass</button>
+        <button type="button" id="look-solid" data-v="solid" aria-pressed="false">Solid</button>
+      </div>
+      <span class="label">Speed</span>
+      <div class="seg" id="speedSeg">
+        <button type="button" id="speed-1" data-v="1" aria-pressed="true">Real time</button>
+        <button type="button" id="speed-4" data-v="4" aria-pressed="false">Slow ×4</button>
+      </div>
+    </div>
+    <div class="frame" id="frame">
+      <div class="stage" id="stage">
+        <div class="win" aria-hidden="true">
+          <div class="side"></div>
+          <div class="tl"><i></i><i></i><i></i></div>
+          <div class="wincap">Islet — DESIGN.md</div>
+          <div class="tile" style="left:182px;top:52px;width:410px;height:10px;background:#3a3a44"></div>
+          <div class="tile" style="left:182px;top:72px;width:340px;height:10px;background:#3a3a44"></div>
+          <div class="tile" style="left:182px;top:104px;width:180px;height:120px;background:linear-gradient(135deg,#ff9f0a,#ff375f)"></div>
+          <div class="tile" style="left:376px;top:104px;width:216px;height:120px;background:linear-gradient(135deg,#30d158,#0a84ff)"></div>
+          <div class="tile" style="left:182px;top:240px;width:410px;height:10px;background:#3a3a44"></div>
+          <div class="tile" style="left:182px;top:260px;width:380px;height:10px;background:#3a3a44"></div>
+          <div class="tile" style="left:182px;top:290px;width:410px;height:90px;background:#2f2f38"></div>
+        </div>
+        <div class="menubar" aria-hidden="true">
+          <div class="menus"><span class="logo"></span><span class="app">Xcode</span><span>File</span><span>Edit</span><span>View</span><span>Find</span></div>
+          <div class="tray"><i></i><i class="w"></i><i></i><span>Sat 21 Nov 14:08</span></div>
+        </div>
+        <div class="island" id="island">
+          <div class="body glass" id="body">
+            <div class="glow"></div>
+            <div class="rim"></div>
+            <div class="content" id="content">
+              <div class="field">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+                <input id="q" type="text" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search">
+              </div>
+              <div class="hair" id="hair"></div>
+              <div class="list" id="list"></div>
+              <div class="footer" id="footer"></div>
+            </div>
+          </div>
+          <div class="stem" id="stem">
+            <div class="fl l"></div><div class="fl r"></div>
+            <div class="fil l"></div><div class="fil r"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="status" id="status" aria-live="polite"><b>Ready.</b><span>Click in the field and type, or try one of the examples.</span></p>
+    <div class="controls">
+      <div class="group">
+        <button type="button" class="btn primary" id="b-open">⌘Space · open / close</button>
+      </div>
+      <div class="group">
+        <span class="label">Type</span>
+        <button type="button" class="btn" data-type="saf"><code>saf</code></button>
+        <button type="button" class="btn" data-type="xcd"><code>xcd</code> letters in order</button>
+        <button type="button" class="btn" data-type="budget"><code>budget</code></button>
+        <button type="button" class="btn" data-type="focus"><code>focus</code></button>
+        <button type="button" class="btn" data-type="12*7.5"><code>12*7.5</code></button>
+        <button type="button" class="btn" data-type="zzqx"><code>zzqx</code> nothing found</button>
+      </div>
+    </div>
+    <p class="hintline"><b>Keys work here:</b> ↑ ↓ to move, ⌘↑ ⌘↓ between sections, ↩ to open, ⌘↩ to show in Finder, Tab to complete, Esc to clear, Esc again to close. Press <b>/</b> to open it (the browser can't have ⌘Space; macOS keeps it for Spotlight).</p>
+  </section>
+
+  <section class="panel">
+    <h2>Keys</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Key</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>⌘Space</kbd></td><td>Opens search from anywhere, full-screen apps too; again closes it. Changeable in Settings &gt; General. Needs Spotlight's own shortcut moved first.</td></tr>
+          <tr><td><kbd>↑ ↓</kbd></td><td>Moves the selection, wrapping past the ends. On an empty field, ↓ goes to the recent apps and ← → move along them.</td></tr>
+          <tr><td><kbd>⌘↑ ⌘↓</kbd></td><td>Jumps to the first row of the previous or next section.</td></tr>
+          <tr><td><kbd>↩</kbd></td><td>Opens the app, file or Settings page; runs the Shortcut; copies the answer.</td></tr>
+          <tr><td><kbd>⌘↩</kbd></td><td>Shows the file or app in Finder.</td></tr>
+          <tr><td><kbd>⌘C</kbd></td><td>Copies the selected file, or the answer.</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Fills the field with the selected name.</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Clears the text; on an empty field, closes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="cols">
+    <div class="panel">
+      <h2>Shapes and sizes</h2>
+      <ul>
+        <li><b>Body:</b> 500 wide under the stem, like the expanded panel: top 16, bottom 30, 10 pt inner curves.</li>
+        <li><b>Height:</b> field 52 + results (up to 8 rows, then it scrolls) + footer 28. Grows and shrinks in 0.22 s with no bounce while typing.</li>
+        <li><b>Opening:</b> flow down at notch width (0.34 s), bubble out from 0.2 s, content in at 0.36 s. The cursor is in the field from the first frame.</li>
+        <li><b>Rows:</b> top hit 52 (icon 32, name 15 semibold); others 34 (icon 22, name 13). Matched letters bright, the rest grey.</li>
+        <li><b>Footer:</b> on the glass strip. Under it the black eases to 30% (not the usual 12%) so the hints stay readable.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Where results come from</h2>
+      <ul>
+        <li><b>Apps:</b> the Spotlight index (application bundles), ranked by last opened.</li>
+        <li><b>Files:</b> the Spotlight index through <code>NSMetadataQuery</code>, so the same files Spotlight finds.</li>
+        <li><b>Shortcuts:</b> your Shortcuts library, run in the background.</li>
+        <li><b>Settings:</b> a list of System Settings pages Islet keeps.</li>
+        <li><b>Calculator:</b> Islet's own; no network.</li>
+        <li><b>Search in Spotlight:</b> hands the text to Spotlight when ours falls short. To be proven in the spike.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Open questions</h2>
+    <ul>
+      <li><b>Shortcut:</b> ⌘Space, which means moving Spotlight's, or something free like ⌥Space?</li>
+      <li><b>Web row:</b> keep "Search the web", which only opens your browser, or leave it out?</li>
+      <li><b>From the panel:</b> should typing while the panel is open start a search?</li>
+      <li><b>Left out for now:</b> clipboard history, web results, contacts, mail and messages.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const frame = $('#frame'), stage = $('#stage'), island = $('#island'), stem = $('#stem'), body = $('#body');
+  const content = $('#content'), input = $('#q'), list = $('#list'), footer = $('#footer'), hair = $('#hair'), statusEl = $('#status');
+  const fils = [...document.querySelectorAll('.stem .fil')];
+
+  const NOTCH_W = 190, NOTCH_H = 34, BODY_W = 500;
+  let speed = 1;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const K = () => reduced ? 0.01 : speed;
+  const T = (s) => (s * K()).toFixed(3) + 's';
+  let timers = [];
+  const later = (s, fn) => timers.push(setTimeout(fn, s * K() * 1000));
+  const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+  // ---------- icons ----------
+  const sq = (c1, c2, inner, r = 5.4) => `<svg class="ic" viewBox="0 0 24 24"><defs><linearGradient id="g${c1.slice(1)}${c2.slice(1)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="24" height="24" rx="${r}" fill="url(#g${c1.slice(1)}${c2.slice(1)})"/>${inner}</svg>`;
+  const G = {
+    compass: '<circle cx="12" cy="12" r="7.5" fill="none" stroke="#fff" stroke-width="1.3"/><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" fill="#fff"/><path d="M11 11l2 2-4.5 2.5z" fill="#ff3b30"/>',
+    bubble: '<path d="M12 5.5c-4.1 0-7 2.6-7 5.8 0 1.9 1 3.5 2.6 4.5-.2 1-.8 1.9-1.6 2.6 1.6 0 3-.6 4-1.4.6.1 1.3.2 2 .2 4.1 0 7-2.6 7-5.9S16.1 5.5 12 5.5z" fill="#fff"/>',
+    hammer: '<path d="M6 17.5 13.2 10.3" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M11.5 6.5l3-1.8 4.6 4.6-1.8 3z" fill="#fff"/>',
+    note: '<path d="M15.5 5.5v9.2a2.3 2.3 0 1 1-1.3-2.1V8.4l-5 1.2v6.6a2.3 2.3 0 1 1-1.3-2.1V7.4z" fill="#fff"/>',
+    lines: '<rect x="0" y="0" width="24" height="7" fill="#ffd60a"/><path d="M6 11.5h12M6 14.5h12M6 17.5h8" stroke="#c7c7cc" stroke-width="1.2" stroke-linecap="round"/>',
+    envelope: '<rect x="5" y="7.5" width="14" height="9.5" rx="1.6" fill="#fff"/><path d="M5.5 8.2 12 13l6.5-4.8" fill="none" stroke="#1a8cff" stroke-width="1.2"/>',
+    prompt: '<path d="M7 9l3 3-3 3" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 15.5h5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+    cal: '<text x="12" y="9.3" text-anchor="middle" font-family="-apple-system,Inter,Arial" font-size="4.6" font-weight="700" fill="#ff3b30">NOV</text><text x="12" y="19" text-anchor="middle" font-family="-apple-system,Inter,Arial" font-size="10" font-weight="300" fill="#1c1c1e">21</text>',
+    finder: '<rect x="12" width="12" height="24" fill="#e8f2ff" opacity=".9"/><path d="M8.5 8.5v2.5M15.5 8.5v2.5M7.5 15c2.6 2 6.4 2 9 0" fill="none" stroke="#1c1c1e" stroke-width="1.2" stroke-linecap="round"/><path d="M12 4v16" stroke="#1c1c1e" stroke-width="1" opacity=".4"/>',
+    gear: '<circle cx="12" cy="12" r="5.2" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="12" r="1.8" fill="#fff"/><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.7 6.7l1.4 1.4M15.9 15.9l1.4 1.4M6.7 17.3l1.4-1.4M15.9 8.1l1.4-1.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+    flower: '<g opacity=".9"><circle cx="12" cy="8" r="3.4" fill="#ff9f0a"/><circle cx="15.5" cy="10" r="3.4" fill="#ffd60a"/><circle cx="15.5" cy="14" r="3.4" fill="#30d158"/><circle cx="12" cy="16" r="3.4" fill="#64d2ff"/><circle cx="8.5" cy="14" r="3.4" fill="#5e5ce6"/><circle cx="8.5" cy="10" r="3.4" fill="#ff375f"/></g>',
+    pin: '<path d="M12 5.5a4.6 4.6 0 0 0-4.6 4.6c0 3.4 4.6 8.4 4.6 8.4s4.6-5 4.6-8.4A4.6 4.6 0 0 0 12 5.5z" fill="#ff3b30"/><circle cx="12" cy="10.1" r="1.7" fill="#fff"/>',
+    camera: '<rect x="5" y="8.5" width="9.5" height="7.5" rx="1.8" fill="#fff"/><path d="M15 11.2l4-2.2v6.5l-4-2.2z" fill="#fff"/>',
+    check: '<circle cx="8" cy="8.5" r="1.6" fill="#ff9f0a"/><circle cx="8" cy="12.5" r="1.6" fill="#0a84ff"/><circle cx="8" cy="16.5" r="1.6" fill="#ff375f"/><path d="M11 8.5h6M11 12.5h6M11 16.5h6" stroke="#8e8e93" stroke-width="1.1" stroke-linecap="round"/>',
+    calc: '<circle cx="8.5" cy="8.5" r="2.2" fill="#8e8e93"/><circle cx="15.5" cy="8.5" r="2.2" fill="#ff9f0a"/><circle cx="8.5" cy="15.5" r="2.2" fill="#8e8e93"/><circle cx="15.5" cy="15.5" r="2.2" fill="#ff9f0a"/>',
+    bars: '<rect x="6" y="12" width="3" height="6" rx="1" fill="#fff"/><rect x="10.5" y="8" width="3" height="10" rx="1" fill="#fff"/><rect x="15" y="10" width="3" height="8" rx="1" fill="#fff"/>',
+    slides: '<rect x="5.5" y="7" width="13" height="8.5" rx="1" fill="#fff"/><path d="M12 15.5v3M9.5 18.5h5" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>',
+    doc: '<path d="M8 5.5h5.5l3 3v10H8z" fill="#fff"/><path d="M10 11.5h4.5M10 14h4.5" stroke="#ff9f0a" stroke-width="1.1" stroke-linecap="round"/>',
+    bolt: '<path d="M13 4.5 7.5 13h4l-1 6.5 6-9h-4z" fill="#fff"/>',
+    drop: '<path d="M12 5s-4.5 5-4.5 8.2a4.5 4.5 0 0 0 9 0C16.5 10 12 5 12 5z" fill="#fff"/>',
+    pic: '<rect x="5.5" y="7" width="13" height="10" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/><path d="M6.5 16l3.5-4 2.5 2.5 2-2 3 3.5" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>',
+    car: '<path d="M6.5 14.5l1.2-4h8.6l1.2 4v2.5h-11z" fill="#fff"/><circle cx="9" cy="17" r="1.3" fill="#fff"/><circle cx="15" cy="17" r="1.3" fill="#fff"/>',
+    moon: '<path d="M14.5 5.8a6.5 6.5 0 1 0 3.7 10.6A6 6 0 0 1 14.5 5.8z" fill="#fff"/>',
+    film: '<rect x="5.5" y="7" width="13" height="10" rx="1.5" fill="#fff"/><text x="12" y="14.2" text-anchor="middle" font-family="-apple-system,Inter,Arial" font-size="5" font-weight="800" fill="#bf5af2">GIF</text>',
+    wifi: '<path d="M6 10.5a8.5 8.5 0 0 1 12 0M8.2 12.8a5.4 5.4 0 0 1 7.6 0M10.4 15.1a2.3 2.3 0 0 1 3.2 0" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+    bt: '<path d="M9 9l6 6-3 2.5v-11l3 2.5-6 6" fill="none" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>',
+    batt: '<rect x="5" y="9" width="12.5" height="6.5" rx="1.6" fill="none" stroke="#fff" stroke-width="1.3"/><rect x="6.6" y="10.6" width="6.5" height="3.3" rx=".6" fill="#fff"/><path d="M18.8 11v2.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>',
+    display: '<rect x="5" y="6.5" width="14" height="9.5" rx="1.3" fill="none" stroke="#fff" stroke-width="1.4"/><path d="M10 18.5h4" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>',
+    keys: '<rect x="4.5" y="8" width="15" height="8.5" rx="1.5" fill="none" stroke="#fff" stroke-width="1.3"/><path d="M7 10.8h1M10 10.8h1M13 10.8h1M16 10.8h1M8.5 13.8h7" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>',
+    bell: '<path d="M12 5.5a4 4 0 0 0-4 4V13l-1.5 2.5h11L16 13V9.5a4 4 0 0 0-4-4z" fill="#fff"/><path d="M10.5 17.3a1.6 1.6 0 0 0 3 0" fill="#fff"/>',
+    speaker: '<path d="M6 10h3l4-3.5v11L9 14H6z" fill="#fff"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M17.5 7.5a6.3 6.3 0 0 1 0 9" fill="none" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>',
+    lock: '<rect x="7" y="11" width="10" height="7.5" rx="1.5" fill="#fff"/><path d="M9.3 11V9a2.7 2.7 0 0 1 5.4 0v2" fill="none" stroke="#fff" stroke-width="1.5"/>',
+    hand: '<path d="M12 5.5 7 7.5v4.2c0 3 2.1 5.6 5 6.8 2.9-1.2 5-3.8 5-6.8V7.5z" fill="#fff"/>',
+    store: '<path d="M8.5 16.5l5-8.5M15.5 16.5 10.5 8M7 13.5h10" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+    glass: '<circle cx="10.8" cy="10.8" r="4.6" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M14.3 14.3 18 18" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
+    globe: '<circle cx="12" cy="12" r="6.5" fill="none" stroke="#fff" stroke-width="1.3"/><ellipse cx="12" cy="12" rx="2.8" ry="6.5" fill="none" stroke="#fff" stroke-width="1.1"/><path d="M5.5 12h13M6.5 8.8h11M6.5 15.2h11" stroke="#fff" stroke-width="1"/>',
+  };
+  const fileIcon = (ext, color) => `<svg class="ic" viewBox="0 0 24 24"><path d="M5.5 2.5h9l4.5 4.5v14.5h-13.5z" fill="#f2f2f7"/><path d="M14.5 2.5V7H19" fill="#d1d1d6"/><rect x="5.5" y="14.5" width="13.5" height="5.2" fill="${color}"/><text x="12.25" y="18.6" text-anchor="middle" font-family="-apple-system,Inter,Arial" font-size="3.7" font-weight="700" fill="#fff">${ext.toUpperCase()}</text></svg>`;
+
+  // ---------- example data (a made-up Mac) ----------
+  const APPS = [
+    ['Safari', '#5ac8fa', '#007aff', 'compass', 1], ['Messages', '#6ef28a', '#28c445', 'bubble', 2], ['Xcode', '#5fb6ff', '#1269e0', 'hammer', 3],
+    ['Music', '#ff6a7f', '#fa2d55', 'note', 4], ['Notes', '#ffffff', '#f2f2f2', 'lines', 5], ['Mail', '#6cc4ff', '#1a8cff', 'envelope', 6],
+    ['Terminal', '#3a3a3c', '#1c1c1e', 'prompt', 7], ['Finder', '#56b4ff', '#1d7bf0', 'finder', 8], ['Calendar', '#ffffff', '#f2f2f7', 'cal', 9],
+    ['Photos', '#ffffff', '#f2f2f7', 'flower', 14], ['Numbers', '#43d36b', '#1fa846', 'bars', 16], ['System Settings', '#9a9aa0', '#5f5f66', 'gear', 11],
+    ['Maps', '#9be27a', '#4cbf5b', 'pin', 20], ['FaceTime', '#5ee37a', '#1fb343', 'camera', 22], ['Reminders', '#ffffff', '#f2f2f7', 'check', 18],
+    ['Keynote', '#5aa9ff', '#1868e6', 'slides', 25], ['Pages', '#ffb340', '#ff8a00', 'doc', 27], ['Calculator', '#3a3a3c', '#1c1c1e', 'calc', 30],
+    ['App Store', '#4fb7ff', '#0a74f0', 'store', 33], ['Preview', '#7cc4ff', '#2f8cf5', 'pic', 35],
+  ].map(([name, c1, c2, g, used]) => ({ kind: 'app', name, used, icon: sq(c1, c2, G[g]) }));
+  const SHORTCUTS = [
+    ['Start Focus Timer', '#ff9f0a', '#ff6b00', 'moon'], ['Log Water', '#64d2ff', '#0a84ff', 'drop'], ['Resize Images', '#bf5af2', '#8e3ad6', 'pic'],
+    ['Send ETA Home', '#30d158', '#14a83a', 'car'], ['Make GIF', '#ff6ab0', '#e0337f', 'film'], ['Safari Reading List to Notes', '#5e5ce6', '#3f3dc4', 'bolt'],
+  ].map(([name, c1, c2, g], i) => ({ kind: 'shortcut', name, used: 10 + i * 4, icon: sq(c1, c2, G[g]), detail: 'Shortcut' }));
+  const FILES = [
+    ['Budget 2026.numbers', '~/Documents/Finance', 'num', '#1fa846', 6], ['DESIGN.md', '~/Documents/GitHub/islet/docs', 'md', '#5e5ce6', 2],
+    ['notch-measurements.png', '~/Desktop', 'png', '#0a84ff', 4], ['Invoice 1142.pdf', '~/Downloads', 'pdf', '#ff3b30', 12],
+    ['Trip to Lisbon.key', '~/Documents/Keynote', 'key', '#1868e6', 30], ['xcodebuild.log', '~/Library/Logs/Islet', 'log', '#8e8e93', 9],
+    ['Safari bookmarks.html', '~/Downloads', 'html', '#ff9f0a', 40], ['Focus schedule.pages', '~/Documents', 'pages', '#ff8a00', 22],
+    ['Budget 2025.numbers', '~/Documents/Finance/Archive', 'num', '#1fa846', 60],
+  ].map(([name, path, ext, col, used]) => ({ kind: 'file', name, used, detail: path, icon: fileIcon(ext, col) }));
+  const SETTINGS = [
+    ['Wi-Fi', '#0a84ff', 'wifi'], ['Bluetooth', '#0a84ff', 'bt'], ['Battery', '#30d158', 'batt'], ['Focus', '#5e5ce6', 'moon'],
+    ['Displays', '#0a84ff', 'display'], ['Keyboard Shortcuts', '#8e8e93', 'keys'], ['Notifications', '#ff3b30', 'bell'],
+    ['Sound', '#ff375f', 'speaker'], ['Lock Screen', '#1c1c1e', 'lock'], ['Privacy & Security', '#0a84ff', 'hand'],
+  ].map(([name, c, g], i) => ({ kind: 'setting', name, used: 40 + i, icon: sq(c, c, G[g]), detail: 'System Settings' }));
+
+  const KIND_LABEL = { app: 'Application', file: 'Document', shortcut: 'Shortcut', setting: 'System Settings' };
+  const SECTION = [['app', 'Applications'], ['shortcut', 'Shortcuts'], ['file', 'Files'], ['setting', 'Settings']];
+
+  // ---------- matching ----------
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
+  function match(name, q) {
+    const n = name.toLowerCase();
+    if (n.startsWith(q)) return { s: 100 - (n.length - q.length) * 0.3, marks: range(0, q.length) };
+    for (let i = n.indexOf(q); i > 0; i = n.indexOf(q, i + 1)) {
+      if (/[^a-z0-9]/.test(n[i - 1])) return { s: 82 - i * 0.2, marks: range(i, i + q.length) };
+    }
+    const sub = n.indexOf(q);
+    if (sub > 0) return { s: 62 - sub * 0.3, marks: range(sub, sub + q.length) };
+    if (q.length < 3) return null;
+    let pos = 0, last = -1, gaps = 0; const marks = [];
+    for (const ch of q) {
+      if (ch === ' ') continue;
+      const j = n.indexOf(ch, pos);
+      if (j < 0) return null;
+      if (last >= 0) gaps += j - last - 1;
+      marks.push(j); last = j; pos = j + 1;
+    }
+    const s = 42 - gaps * 1.6 - marks[0] * 0.6;
+    return s > 18 ? { s, marks } : null;
+  }
+  const recency = (it) => Math.max(0, 14 - it.used * 0.4);
+  const KIND_BONUS = { app: 6, setting: 1, shortcut: 0, file: -4 };
+
+  // ---------- calculator (a small parser; no eval) ----------
+  function calc(raw) {
+    const src = raw.replace(/×|x/g, '*').replace(/÷/g, '/').replace(/,/g, '').replace(/\s+/g, '');
+    if (!/^[\d.+\-*/()^%]+$/.test(src) || !/\d/.test(src) || !/\d[^\d.]+[\d(]|\)[^\d.]+[\d(]/.test(src)) return null;
+    let i = 0;
+    const peek = () => src[i];
+    function num() {
+      if (peek() === '(') { i++; const v = add(); if (src[i++] !== ')') throw 0; return v; }
+      if (peek() === '-') { i++; return -num(); }
+      const m = /^\d*\.?\d+/.exec(src.slice(i)); if (!m) throw 0; i += m[0].length;
+      let v = parseFloat(m[0]); if (peek() === '%') { i++; v /= 100; } return v;
+    }
+    function pow() { const b = num(); if (peek() === '^') { i++; return Math.pow(b, pow()); } return b; }
+    function mul() { let v = pow(); while (peek() === '*' || peek() === '/') { const o = src[i++]; const r = pow(); v = o === '*' ? v * r : v / r; } return v; }
+    function add() { let v = mul(); while (peek() === '+' || peek() === '-') { const o = src[i++]; const r = mul(); v = o === '+' ? v + r : v - r; } return v; }
+    try { const v = add(); if (i !== src.length || !isFinite(v)) return null; return v; } catch { return null; }
+  }
+  const fmt = (v) => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
+
+  // ---------- state ----------
+  let isOpen = false, items = [], sel = 0, look = 'glass';
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const marked = (name, marks) => [...name].map((ch, i) => marks && marks.includes(i) ? `<b>${esc(ch)}</b>` : esc(ch)).join('');
+  const midcut = (p) => p.length > 28 ? p.slice(0, 11) + '…' + p.slice(-15) : p;
+  const SEARCH_ICON = sq('#8e8e93', '#636366', G.glass), WEB_ICON = sq('#64d2ff', '#0a84ff', G.globe);
+  const CALC_ICON = APPS.find((a) => a.name === 'Calculator').icon;
+
+  function build(raw) {
+    const q = raw.trim().toLowerCase();
+    if (!q) {
+      const rec = [...APPS].sort((a, b) => a.used - b.used).slice(0, 7);
+      return { empty: true, sections: [{ items: rec }] };
+    }
+    const sections = [];
+    const value = calc(q);
+    if (value !== null) {
+      sections.push({ label: 'Calculator', items: [{ kind: 'calc', name: fmt(value), sum: raw.trim(), icon: CALC_ICON }] });
+    } else {
+      const scored = [];
+      for (const it of [...APPS, ...SHORTCUTS, ...FILES, ...SETTINGS]) {
+        const m = match(it.name, q);
+        if (m) scored.push({ ...it, marks: m.marks, score: m.s + recency(it) + KIND_BONUS[it.kind] });
+      }
+      scored.sort((a, b) => b.score - a.score);
+      if (scored.length) {
+        const top = scored[0];
+        sections.push({ label: 'Top hit', items: [{ ...top, hit: true }] });
+        for (const [kind, label] of SECTION) {
+          const rows = scored.filter((s) => s.kind === kind && s !== top).slice(0, 3);
+          if (rows.length) sections.push({ label, items: rows });
+        }
+      } else {
+        sections.push({ none: true, items: [] });
+      }
+    }
+    const t = esc(raw.trim());
+    sections.push({ label: 'More', items: [
+      { kind: 'spotlight', label: `Search “${t}” in Spotlight`, icon: SEARCH_ICON, q: raw.trim() },
+      { kind: 'web', label: `Search the web for “${t}”`, icon: WEB_ICON, q: raw.trim() },
+    ] });
+    return { empty: false, sections, q: raw.trim() };
+  }
+
+  let model = build('');
+  function render() {
+    model = build(input.value);
+    items = [];
+    let html = '';
+    if (model.empty) {
+      html = '<div class="recents">' + model.sections[0].items.map((it) => {
+        const i = items.push({ ...it, sec: 0 }) - 1;
+        return `<div class="rc" data-i="${i}">${it.icon}<span>${esc(it.name)}</span></div>`;
+      }).join('') + '</div>';
+    } else {
+      model.sections.forEach((sec, si) => {
+        if (sec.none) { html += `<div class="row none">No results for “${esc(model.q)}”</div>`; return; }
+        html += `<div class="lab">${sec.label}</div>`;
+        for (const it of sec.items) {
+          const i = items.push({ ...it, sec: si }) - 1;
+          if (it.kind === 'calc') {
+            html += `<div class="row calc" data-i="${i}">${it.icon}<div class="tx"><span class="sum">${esc(it.sum)} =</span><span class="ans">${esc(it.name)}</span></div></div>`;
+          } else if (it.kind === 'spotlight' || it.kind === 'web') {
+            html += `<div class="row" data-i="${i}">${it.icon}<div class="tx"><span class="nm" style="color:var(--i-text)">${it.label}</span></div></div>`;
+          } else if (it.hit) {
+            html += `<div class="row hit" data-i="${i}">${it.icon}<div class="tx"><span class="nm">${marked(it.name, it.marks)}</span><span class="kd">${it.kind === 'file' ? esc(midcut(it.detail)) : KIND_LABEL[it.kind]}</span></div></div>`;
+          } else {
+            const dt = it.kind === 'file' ? midcut(it.detail) : '';
+            html += `<div class="row" data-i="${i}">${it.icon}<div class="tx"><span class="nm">${marked(it.name, it.marks)}</span></div>${dt ? `<span class="dt">${esc(dt)}</span>` : ''}</div>`;
+          }
+        }
+      });
+    }
+    list.innerHTML = html;
+    hair.style.opacity = model.empty ? 0 : 1;
+    sel = 0;
+    paintSel();
+  }
+
+  function paintSel(scroll) {
+    list.querySelectorAll('[data-i]').forEach((el) => el.classList.toggle('sel', +el.dataset.i === sel));
+    const it = items[sel];
+    const keys = [];
+    if (!it) keys.push('<span><kbd>esc</kbd>Close</span>');
+    else if (model.empty) keys.push('<span><kbd>↩</kbd>Open</span>', '<span><kbd>← →</kbd>Choose</span>');
+    else if (it.kind === 'calc') keys.push('<span><kbd>↩</kbd>Copy</span>');
+    else if (it.kind === 'shortcut') keys.push('<span><kbd>↩</kbd>Run</span>');
+    else if (it.kind === 'spotlight') keys.push('<span><kbd>↩</kbd>Search in Spotlight</span>');
+    else if (it.kind === 'web') keys.push('<span><kbd>↩</kbd>Open in browser</span>');
+    else if (it.kind === 'setting') keys.push('<span><kbd>↩</kbd>Open</span>');
+    else keys.push('<span><kbd>↩</kbd>Open</span>', '<span><kbd>⌘↩</kbd>Show in Finder</span>');
+    footer.innerHTML = `<div class="keys">${keys.join('')}</div><span>${model.empty ? 'Type to search apps, files, Shortcuts and settings' : '<kbd>esc</kbd>Clear'}</span>`;
+    if (scroll) {
+      const el = list.querySelector(`[data-i="${sel}"]`);
+      if (el) {
+        const top = el.offsetTop - list.offsetTop, bot = top + el.offsetHeight;
+        if (top < list.scrollTop + 4) list.scrollTop = top - 26;
+        else if (bot > list.scrollTop + list.clientHeight - 4) list.scrollTop = bot - list.clientHeight + 6;
+      }
+    }
+  }
+
+  const MAX_LIST = 300;
+  function targetH() {
+    list.style.maxHeight = 'none';
+    const h = Math.min(list.scrollHeight, MAX_LIST);
+    list.style.maxHeight = MAX_LIST + 'px';
+    return 52 + 1 + h + 28;
+  }
+
+  // ---------- island motion ----------
+  const set = (el, styles, transition) => { el.style.transition = transition; Object.assign(el.style, styles); };
+  function closedNow() {
+    set(stem, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: NOTCH_H + 'px', borderRadius: '0 0 10px 10px' }, 'none');
+    set(body, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: '0px', borderRadius: '0' }, 'none');
+    fils.forEach((f) => set(f, { opacity: 0 }, 'none'));
+    set(content, { opacity: 0, transform: 'scale(.96)' }, 'none');
+    body.classList.remove('glass');
+  }
+  function openNow() {
+    const h = targetH();
+    set(stem, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: NOTCH_H + 'px', borderRadius: '0' }, 'none');
+    set(body, { width: BODY_W + 'px', left: -BODY_W / 2 + 'px', height: h + 'px', borderRadius: '16px 16px 30px 30px' }, 'none');
+    fils.forEach((f) => set(f, { opacity: 1 }, 'none'));
+    set(content, { opacity: 1, transform: 'scale(1)' }, 'none');
+    body.classList.toggle('glass', look === 'glass');
+  }
+  function openSearch(focus = true) {
+    if (isOpen) return;
+    clearTimers(); isOpen = true;
+    render();
+    const h = targetH();
+    void body.offsetHeight;
+    set(stem, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: NOTCH_H + 'px', borderRadius: '0' },
+      `border-radius ${T(.1)} ease, width ${T(.3)} ease, left ${T(.3)} ease, height ${T(.3)} ease`);
+    const bubble = 'cubic-bezier(.34,1.32,.5,1)';
+    set(body, { width: BODY_W + 'px', left: -BODY_W / 2 + 'px', height: h + 'px', borderRadius: '16px 16px 30px 30px' },
+      `height ${T(.34)} cubic-bezier(.2,.8,.25,1), width ${T(.62)} ${bubble} ${T(.2)}, left ${T(.62)} ${bubble} ${T(.2)}, border-radius ${T(.26)} ease ${T(.16)}`);
+    fils.forEach((f) => set(f, { opacity: 1 }, `opacity ${T(.15)} ease ${T(.22)}`));
+    set(content, { opacity: 1, transform: 'scale(1)' }, `opacity ${T(.24)} ease ${T(.36)}, transform ${T(.32)} cubic-bezier(.3,1.2,.5,1) ${T(.36)}`);
+    later(.2, () => body.classList.toggle('glass', look === 'glass'));
+    if (focus) input.focus({ preventScroll: true });
+  }
+  function resize() {
+    if (!isOpen) return;
+    set(body, { height: targetH() + 'px' }, `height ${T(.22)} ease-out, width ${T(.62)} cubic-bezier(.34,1.32,.5,1), left ${T(.62)} cubic-bezier(.34,1.32,.5,1)`);
+  }
+  function closeSearch(note) {
+    if (!isOpen) return;
+    clearTimers(); isOpen = false;
+    input.blur();
+    set(content, { opacity: 0, transform: 'scale(.97)' }, `opacity ${T(.12)} ease, transform ${T(.12)} ease`);
+    fils.forEach((f) => set(f, { opacity: 0 }, `opacity ${T(.1)} ease`));
+    later(.12, () => {
+      body.classList.remove('glass');
+      const pill = NOTCH_W + 18, ease = 'cubic-bezier(.3,.7,.3,1)';
+      set(body, { width: pill + 'px', left: -pill / 2 + 'px', height: '0px', borderRadius: '0 0 14px 14px' },
+        `width ${T(.18)} ${ease}, left ${T(.18)} ${ease}, height ${T(.26)} cubic-bezier(.4,0,.6,1) ${T(.06)}, border-radius ${T(.18)} ease`);
+      set(stem, { width: pill + 'px', left: -pill / 2 + 'px', height: NOTCH_H + 6 + 'px', borderRadius: '0 0 14px 14px' },
+        `width ${T(.18)} ${ease}, left ${T(.18)} ${ease}, height ${T(.18)} ${ease}, border-radius ${T(.18)} ease`);
+    });
+    later(.44, () => {
+      const soft = 'cubic-bezier(.25,1.12,.4,1)';
+      set(stem, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px', height: NOTCH_H + 'px', borderRadius: '0 0 10px 10px' },
+        `width ${T(.38)} ${soft}, left ${T(.38)} ${soft}, height ${T(.38)} ${soft}, border-radius ${T(.38)} ease`);
+      set(body, { width: NOTCH_W + 'px', left: -NOTCH_W / 2 + 'px' }, 'none');
+    });
+    later(.9, () => { input.value = ''; });
+    if (note) say(note[0], note[1]);
+  }
+
+  function say(b, s) { statusEl.innerHTML = `<b>${esc(b)}</b><span>${esc(s || '')}</span>`; }
+
+  // ---------- actions ----------
+  function act(it, finder) {
+    if (!it) return;
+    const row = list.querySelector(`[data-i="${items.indexOf(it)}"]`);
+    if (row) row.style.background = 'rgba(255,255,255,.22)';
+    const n = it.name;
+    let note;
+    if (finder && (it.kind === 'file' || it.kind === 'app')) note = ['Show in Finder', `${n} is selected in a Finder window.`];
+    else if (it.kind === 'app') note = [`Opened ${n}`, 'The app comes forward as the island closes.'];
+    else if (it.kind === 'file') note = [`Opened ${n}`, `In its default app, from ${it.detail}.`];
+    else if (it.kind === 'shortcut') note = [`Ran “${n}”`, 'In the background; a notice shows when it finishes.'];
+    else if (it.kind === 'setting') note = [`Opened ${n}`, 'System Settings opens on that page.'];
+    else if (it.kind === 'calc') note = [`Copied ${n}`, 'The answer is on the clipboard.'];
+    else if (it.kind === 'spotlight') note = ['Passed to Spotlight', `Spotlight opens with “${it.q}” typed in.`];
+    else if (it.kind === 'web') note = ['Opened the browser', `Your default browser searches for “${it.q}”. Islet itself sends nothing.`];
+    setTimeout(() => closeSearch(note), 100 * K());
+  }
+
+  // ---------- input ----------
+  input.addEventListener('input', () => { if (!isOpen) openSearch(); render(); resize(); });
+  input.addEventListener('keydown', (e) => {
+    const n = items.length;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (input.value) { input.value = ''; render(); resize(); say('Cleared.', 'Esc again closes.'); }
+      else closeSearch(['Closed.', 'Esc on an empty field closes search.']);
+      return;
+    }
+    if (!n) return;
+    const cur = items[sel];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      if ((e.metaKey || e.ctrlKey) && !model.empty) {
+        let s = cur.sec + d, idx = -1;
+        while (s >= 0 && s < model.sections.length && idx < 0) { idx = items.findIndex((x) => x.sec === s); s += d; }
+        if (idx >= 0) sel = idx;
+      } else sel = (sel + d + n) % n;
+      paintSel(true);
+    } else if (model.empty && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      e.preventDefault(); sel = (sel + (e.key === 'ArrowRight' ? 1 : -1) + n) % n; paintSel(true);
+    } else if (e.key === 'Enter') {
+      e.preventDefault(); act(cur, e.metaKey || e.ctrlKey);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (cur && cur.name && cur.kind !== 'calc') { input.value = cur.name; render(); resize(); }
+    }
+  });
+  list.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-i]'); if (!el) return;
+    sel = +el.dataset.i; paintSel(); act(items[sel], e.metaKey);
+  });
+  island.addEventListener('mousedown', (e) => { if (isOpen && e.target !== input) { e.preventDefault(); input.focus({ preventScroll: true }); } });
+  stage.addEventListener('mousedown', (e) => {
+    if (!island.contains(e.target)) {
+      if (isOpen) closeSearch(['Closed.', 'A click outside closes search.']);
+    }
+  });
+  stem.addEventListener('click', () => { if (!isOpen) openSearch(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !isOpen && document.activeElement !== input && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); say('Opened.', 'The cursor is in the field from the first frame.'); }
+  });
+  $('#b-open').addEventListener('click', () => {
+    if (isOpen) closeSearch(['Closed.', 'Pressing the shortcut again closes search.']);
+    else { openSearch(); say('Opened.', 'Flow down at notch width, bubble out from 0.2 s, content in at 0.36 s.'); }
+  });
+
+  let typing = null;
+  document.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => {
+    clearInterval(typing);
+    const text = b.dataset.type;
+    const wasOpen = isOpen;
+    openSearch();
+    input.value = ''; render(); resize();
+    let i = 0;
+    setTimeout(() => {
+      typing = setInterval(() => {
+        input.value += text[i++]; render(); resize();
+        if (i >= text.length) clearInterval(typing);
+      }, 110);
+    }, wasOpen ? 0 : 380 * K());
+    say(`Typing “${text}”`, { saf: 'Safari is the top hit; its letters light up.', xcd: 'Letters in order still find Xcode and the build log.', budget: 'Two files; the newer one wins.', focus: 'An app-less word: a Shortcut, a setting and a file.', '12*7.5': 'A sum: the answer is the top hit, Return copies it.', zzqx: 'Nothing found: Spotlight and the web are still offered.' }[text] || '');
+  }));
+
+  // ---------- controls ----------
+  function seg(id, fn) {
+    const el = $(id);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      fn(b.dataset.v);
+    });
+  }
+  seg('#lookSeg', (v) => { look = v; frame.classList.toggle('solid', v === 'solid'); if (isOpen) body.classList.toggle('glass', v === 'glass'); });
+  seg('#speedSeg', (v) => { speed = +v; });
+
+  // ---------- scale the stage to the frame ----------
+  function fit() {
+    const s = Math.min(1, frame.clientWidth / 760);
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = Math.max(0, (frame.clientWidth - 760 * s) / 2) + 'px';
+    frame.style.height = 440 * s + 'px';
+  }
+  new ResizeObserver(fit).observe(frame);
+  fit();
+
+  // Start open, mid-search, so the first frame shows what it does.
+  closedNow();
+  input.value = 'no';
+  isOpen = true;
+  render();
+  openNow();
+  say('Showing “no”.', 'Notes is the top hit; a setting and a file match too. Esc twice closes, ⌘Space reopens.');
+})();
+</script>

@@ -531,6 +531,62 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
+## Search (draft, not approved)
+
+Proposed 2026-11-21 (owner asked for a search that comes out of the notch, in place of Spotlight). Mockup (playable):
+<https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Nothing here is built; feasibility goes in RESEARCH.md first.
+
+- **Opening**: the search shortcut (Settings > General > "Search shortcut", ⌘Space by default) from anywhere,
+  including full-screen apps. ⌘Space only reaches Islet once Spotlight's own shortcut is changed in System Settings >
+  Keyboard > Keyboard Shortcuts > Spotlight; until then Settings shows "Spotlight still uses ⌘Space" with a button to
+  that page, and setup has the same row. Pressing the shortcut again closes it.
+- **Shape**: a stem and body like the expanded panel, 500 wide, top 16, bottom 30, 10 pt inner curves. It opens with
+  "Flow down, then bubble out" and takes the keyboard at once (the cursor is in the field before the shape settles,
+  so the first letters typed are never lost). With wings showing, it opens from the wings' width.
+- **Field** (52 tall): a magnifier (17 pt, `tertiary`) 20 pt in, then the text (19 regular, `text`; placeholder
+  "Search" in `tertiary`). A hairline (white 8%, 20 pt in from each side) under it once there are results.
+- **Empty field**: a row of the 7 most recently opened apps (40 pt icons, names 10 pt `secondary` under them, one line),
+  the selected one on a glass pill. ← → move through them; ↓ from the field goes to them.
+- **Results** (as you type, no delay): sections in this order, each under a small caps label (10.5 semibold,
+  `tertiary`, 22 tall), at most 3 rows each:
+  - **Top hit**: the best match of any kind, 52 tall: icon 32, the name (15 semibold), its kind (11, `tertiary`).
+  - **Applications**, **Shortcuts** (your Shortcuts, run in the background), **Files** (from the Spotlight index;
+    the folder on the right, 11 `tertiary`, cut in the middle), **Settings** (System Settings pages).
+  - Rows are 34 tall: icon 22, name 13 with the matched letters in `text` and the rest `secondary`.
+  - **Calculator**: when the text is a sum ("12*7.5", "(3+4)/2"), the top hit is the answer ("= 90", 22 semibold,
+    monospaced digits) with the sum above it in `tertiary`. Return copies it.
+  - **More**: always last: "Search “text” in Spotlight" (hands the text to Spotlight) and "Search the web for “text”"
+    (opens the default browser; Islet itself sends nothing).
+  - Nothing found: "No results for “text”" (13, `secondary`) above More.
+- **Matching**: a word's start beats the middle of a word, which beats letters in order ("xcd" finds Xcode; only from three letters, so short queries stay
+  tidy). Ties go
+  to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.
+- **Selection**: the first row is selected. The selected row sits on a glass pill (white 10%, hairline edge, radius
+  10, inset 8 pt from the body's sides), or `card` with the glass look off. The pointer highlights what it is over
+  without moving the selection until it clicks.
+- **Height**: the body grows and shrinks with the results (0.22 s, ease-out, no bounce while typing), up to 8 rows;
+  beyond that the list scrolls under two fingers (see Gestures, "Over a list").
+- **Footer** (28 tall, on the glass strip): what the keys do for the selected row, 10.5 `tertiary`: "↩ Open" (or "↩ Run",
+  "↩ Copy"), "⌘↩ Show in Finder" for files and apps, and "esc Clear" on the right ("Type to search apps, files, Shortcuts
+  and settings" on an empty field). With the glass look this is the strip, with the black easing to 30% instead of 12%
+  so the hints stay readable; without it the body is black to the bottom.
+- **Keys**: ↑ ↓ move (wrapping past the ends, skipping labels), ⌘↑ ⌘↓ jump between sections, Return opens, ⌘Return shows in
+  Finder, ⌘C copies the selected file or answer, Tab completes the field to the selected name, Esc clears the text,
+  a second Esc (or Esc on an empty field) closes.
+- **Opening a result**: the row lights up (0.1 s), the content fades (0.12 s) and the island closes as usual. The
+  app comes forward as the island closes.
+- **Closing**: Esc, the shortcut again, a click outside, a swipe up, opening a result. It doesn't close when the pointer
+  leaves, since it's driven from the keyboard.
+- **Priority**: search is a panel page: while it is open, notifications go to the system banner and volume and
+  brightness use the system display, as with the other pages. A face scan still takes over.
+- **Without a notch**: bubble mode drops it from the top edge as a card; menu bar mode drops it under the icon. Same
+  contents.
+- **Not in search (for now)**: clipboard history (it would mean Islet watching everything you copy), web results and
+  answers (no network), contacts, mail and messages.
+
+Open questions for the owner: ⌘Space or another default; whether the web row stays; whether typing while the panel
+is open should start a search.
+
 ## Visual tokens
 
 | Token          | Value     | Use                                  |
