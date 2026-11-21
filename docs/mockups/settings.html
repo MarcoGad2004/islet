@@ -1,0 +1,349 @@
+<title>Islet Settings Redesign</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a System Settings–style window (sidebar + grouped form) on a quiet desktop, demo switches above, notes below. */
+:root {
+  --desk: #c9cdd6; --desk2: #aab3c2;
+  --win: #ececec; --side: #e3e2e7; --content: #f2f2f4; --group: #ffffff;
+  --line: rgba(0,0,0,.09); --fg: #1d1d1f; --fg2: #6e6e73; --fg3: #a1a1a6;
+  --sel: #0a63d6; --selfg: #fff; --hover: rgba(0,0,0,.05);
+  --blue: #0a7cff; --green: #28a745; --orange: #e8890c; --red: #e5423b;
+  --warnbg: #fff4e2; --warnline: #f3d39c; --okbg: #e9f7ec;
+  --ctl: #ffffff; --ctlline: rgba(0,0,0,.14); --toggleoff: #d6d6db;
+  --shadow: 0 30px 70px rgba(30,40,60,.28), 0 0 0 .5px rgba(0,0,0,.25);
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --desk: #1b1d24; --desk2: #2b2f3b;
+  --win: #232325; --side: #2b2a2e; --content: #1e1e20; --group: #2c2c2e;
+  --line: rgba(255,255,255,.08); --fg: #f2f2f4; --fg2: #9a9aa0; --fg3: #6b6b70;
+  --sel: #0a5fd0; --hover: rgba(255,255,255,.06);
+  --warnbg: #3a2d16; --warnline: #6a4d1c; --okbg: #1d3322;
+  --ctl: #4a4a4e; --ctlline: rgba(255,255,255,.08); --toggleoff: #48484c;
+  --shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.15);
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --desk: #1b1d24; --desk2: #2b2f3b;
+  --win: #232325; --side: #2b2a2e; --content: #1e1e20; --group: #2c2c2e;
+  --line: rgba(255,255,255,.08); --fg: #f2f2f4; --fg2: #9a9aa0; --fg3: #6b6b70;
+  --sel: #0a5fd0; --hover: rgba(255,255,255,.06);
+  --warnbg: #3a2d16; --warnline: #6a4d1c; --okbg: #1d3322;
+  --ctl: #4a4a4e; --ctlline: rgba(255,255,255,.08); --toggleoff: #48484c;
+  --shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.15);
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: linear-gradient(160deg, var(--desk), var(--desk2)); color: var(--fg); font-family: var(--sys); font-size: 13px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; min-height: 100% }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px }
+header h1 { font-size: 22px; margin: 0 0 4px; text-wrap: balance; letter-spacing: -.01em }
+header p { margin: 0; color: var(--fg2); max-width: 62ch; line-height: 1.45 }
+.demo { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; color: var(--fg2); font-size: 12px }
+.seg { display: inline-flex; background: var(--hover); border-radius: 7px; padding: 2px; gap: 2px }
+.seg button { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 4px 11px; border-radius: 5px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--ctl); box-shadow: 0 1px 2px rgba(0,0,0,.15) }
+button:focus-visible, .nav:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+
+/* the window */
+.win { display: grid; grid-template-columns: 214px minmax(0, 1fr); height: 600px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); background: var(--win) }
+.side { background: var(--side); border-right: .5px solid var(--line); display: flex; flex-direction: column; min-height: 0 }
+.lights { display: flex; gap: 8px; padding: 14px 14px 10px }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2) }
+.lights i:nth-child(2) { background: #febc2e } .lights i:nth-child(3) { background: #28c840 }
+.navs { overflow-y: auto; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 1px }
+.nav { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; color: var(--fg); border: 0; background: none; font: inherit; text-align: left; width: 100% }
+.nav:hover { background: var(--hover) }
+.nav[aria-current="page"] { background: var(--sel); color: var(--selfg) }
+.nav .lbl { flex: 1; min-width: 0 }
+.ico { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; flex: none; color: #fff }
+.ico svg { width: 13px; height: 13px }
+.badge { min-width: 17px; height: 17px; border-radius: 9px; background: var(--orange); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; padding: 0 5px }
+.nav[aria-current="page"] .badge { background: #fff; color: var(--orange) }
+.gap { height: 10px }
+.me { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; margin-bottom: 8px }
+.me .app { width: 34px; height: 34px; border-radius: 9px; background: #000; display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2) }
+.me .app span { width: 18px; height: 6px; border-radius: 4px; background: #fff }
+.me b { display: block; font-size: 13px }
+.me small { display: flex; gap: 5px; align-items: center; color: var(--fg2); font-size: 11px }
+.nav[aria-current="page"] small { color: rgba(255,255,255,.85) }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none }
+.dot.warn { background: var(--orange) }
+
+.main { background: var(--content); display: flex; flex-direction: column; min-width: 0; min-height: 0 }
+.bar { height: 44px; display: flex; align-items: center; padding: 0 20px; font-weight: 600; font-size: 14px; border-bottom: .5px solid var(--line); flex: none; gap: 8px }
+.page { overflow-y: auto; padding: 18px 22px 28px; display: flex; flex-direction: column; gap: 18px; min-height: 0 }
+
+/* grouped form */
+.sec { display: flex; flex-direction: column; gap: 6px }
+.sec > h3 { margin: 0 0 0 10px; font-size: 12px; font-weight: 600; color: var(--fg2) }
+.sec > .foot { margin: 0 10px; font-size: 11px; color: var(--fg2); line-height: 1.4 }
+.grp { background: var(--group); border-radius: 9px; border: .5px solid var(--line) }
+.row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; min-height: 38px }
+.row + .row { border-top: .5px solid var(--line) }
+.row .t { flex: 1; min-width: 0 }
+.row .t small { display: block; color: var(--fg2); font-size: 11px; margin-top: 2px; line-height: 1.35 }
+.row.sub { padding-left: 32px }
+.row.dim .t, .row.dim .tg { opacity: .45 }
+.val { color: var(--fg2) }
+.tg { width: 32px; height: 19px; border-radius: 10px; background: var(--toggleoff); position: relative; flex: none; border: 0; cursor: pointer; padding: 0 }
+.tg::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .18s }
+.tg.on { background: var(--blue) } .tg.on::after { left: 15px }
+.pop { border: .5px solid var(--ctlline); background: var(--ctl); color: var(--fg); border-radius: 6px; padding: 3px 24px 3px 9px; font: inherit; position: relative; white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.1) }
+.pop::after { content: "⌃⌄"; position: absolute; right: 7px; top: 50%; transform: translateY(-50%); font-size: 8px; line-height: .6; writing-mode: vertical-lr; color: var(--fg2) }
+.btn { border: .5px solid var(--ctlline); background: var(--ctl); color: var(--fg); border-radius: 6px; padding: 3px 11px; font: inherit; cursor: pointer; white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.1) }
+.btn.pri { background: var(--blue); color: #fff; border-color: transparent }
+.btn.danger { color: var(--red) }
+.segc { display: inline-flex; border: .5px solid var(--ctlline); border-radius: 6px; overflow: hidden; background: var(--ctl) }
+.segc span { padding: 3px 10px } .segc span.on { background: var(--blue); color: #fff }
+.kbd { font-family: var(--sys); background: var(--hover); border-radius: 4px; padding: 1px 6px; color: var(--fg) }
+
+/* status */
+.hero { display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 11px; border: .5px solid var(--line); background: var(--group) }
+.hero .big { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff }
+.hero .big svg { width: 24px; height: 24px }
+.hero h2 { margin: 0 0 3px; font-size: 16px }
+.hero p { margin: 0; color: var(--fg2); line-height: 1.4 }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }
+.tile { background: var(--group); border: .5px solid var(--line); border-radius: 9px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; text-align: left; font: inherit; color: var(--fg) }
+.tile:hover { border-color: var(--fg3) }
+.tile .h { display: flex; gap: 7px; align-items: center; font-weight: 600 }
+.tile .s { color: var(--fg2); font-size: 11px; display: flex; gap: 5px; align-items: center }
+.issue { display: flex; gap: 12px; align-items: flex-start; padding: 11px 12px; background: var(--warnbg); border: .5px solid var(--warnline); border-radius: 9px }
+.issue .w { color: var(--orange); flex: none; margin-top: 1px }
+.issue .w svg { width: 16px; height: 16px; display: block }
+.issue .t { flex: 1; min-width: 0; line-height: 1.4 }
+.issue .t b { display: block }
+.issue .t small { color: var(--fg2); font-size: 11.5px }
+.ok { display: flex; gap: 8px; align-items: center; color: var(--fg2) }
+.ok svg { width: 15px; height: 15px; color: var(--green); flex: none }
+details.more summary { cursor: pointer; color: var(--blue); list-style: none; margin-left: 10px; font-size: 12px }
+details.more summary::-webkit-details-marker { display: none }
+details.more[open] summary { margin-bottom: 6px }
+.slider { flex: 1; max-width: 220px; height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--blue) 45%, var(--toggleoff) 45%); position: relative }
+.slider::after { content: ""; position: absolute; left: calc(45% - 9px); top: -7px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35) }
+
+/* notes */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.note { background: var(--content); border-radius: 10px; padding: 14px 16px; border: .5px solid var(--line); line-height: 1.5 }
+.note h4 { margin: 0 0 6px; font-size: 13px }
+.note ul, .note ol { margin: 0; padding-left: 18px; color: var(--fg2) }
+.note li + li { margin-top: 4px }
+.note b { color: var(--fg) }
+
+@media (max-width: 700px) {
+  .win { grid-template-columns: 1fr; height: auto }
+  .side { border-right: 0; border-bottom: .5px solid var(--line) }
+  .navs { flex-direction: row; overflow-x: auto; padding-bottom: 10px }
+  .navs .nav { width: auto; flex: none }
+  .navs .nav .lbl { white-space: nowrap }
+  .gap { display: none }
+  .me { flex: none }
+  .page { max-height: 640px }
+}
+@media (prefers-reduced-motion: reduce) { .tg::after { transition: none } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Islet Settings, redesigned</h1>
+    <p>Pages in a sidebar, and one status line at the top that says whether everything is set up. Permissions are shown where they matter and stay out of the way while they're fine. Click around; the switch below shows the same window with problems.</p>
+  </header>
+
+  <div class="demo">
+    <span>This Mac:</span>
+    <div class="seg" role="group" aria-label="Demo state">
+      <button id="st-ok" aria-pressed="true">Everything set up</button>
+      <button id="st-bad" aria-pressed="false">Needs attention</button>
+    </div>
+    <span>“Needs attention” has Full Disk Access off and an update waiting.</span>
+  </div>
+
+  <div class="win" role="application" aria-label="Islet Settings mockup">
+    <aside class="side">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <nav class="navs" id="nav"></nav>
+    </aside>
+    <section class="main">
+      <div class="bar" id="title">Islet</div>
+      <div class="page" id="page"></div>
+    </section>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>What changes</h4>
+      <ul>
+        <li><b>The top of the sidebar is Islet's status.</b> A green dot and "Everything is set up", or an orange dot and "2 things need attention". Its page lists only the problems, each with the fix.</li>
+        <li><b>No more lists of ticks.</b> Permissions live on their own page as one line, "All 6 allowed", with the details folded away. A missing one is shown on the pages it breaks and gets a badge in the sidebar.</li>
+        <li><b>Face unlock gets a page of its own</b>, with its three ticks folded into one status line.</li>
+        <li><b>Nothing is removed.</b> Every setting from today's page is on one of these pages.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>To decide</h4>
+      <ol>
+        <li>Is Islet's status page the first page to open, or does it open on General?</li>
+        <li>Notifications and Messages are on one page here. Do you want them split?</li>
+        <li>Should the window be a bit wider: 720 × 520 here, against 460 × 720 today?</li>
+      </ol>
+    </div>
+    <div class="note">
+      <h4>Building it</h4>
+      <ul>
+        <li>The native SwiftUI sidebar and grouped form, the same pieces System Settings uses. This keeps it light and dark and makes it look right on every macOS version Islet runs on.</li>
+        <li>The setup window keeps its own permissions step.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const I = {
+  gear: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Zm6.3 3.7-.9-.2a5.6 5.6 0 0 1-.5 1.3l.5.8-1.3 1.3-.8-.5c-.4.2-.8.4-1.3.5l-.2.9H6.2l-.2-.9c-.5-.1-.9-.3-1.3-.5l-.8.5-1.3-1.3.5-.8c-.2-.4-.4-.8-.5-1.3l-.9-.2V7.1l.9-.2c.1-.5.3-.9.5-1.3l-.5-.8 1.3-1.3.8.5c.4-.2.8-.4 1.3-.5l.2-.9h1.8l.2.9c.5.1.9.3 1.3.5l.8-.5 1.3 1.3-.5.8c.2.4.4.8.5 1.3l.9.2v1.8Z"/></svg>',
+  notch: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v2H1zM5 5h6v2.2a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 7.2z"/></svg>',
+  bell: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a4 4 0 0 0-4 4v2.7L2.6 11h10.8L12 8.2V5.5a4 4 0 0 0-4-4ZM6.3 12.2a1.8 1.8 0 0 0 3.4 0Z"/></svg>',
+  search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3.6 3.6" stroke-linecap="round"/></svg>',
+  battery: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10.5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm12.2 1.8h.8v2.4h-.8z"/></svg>',
+  face: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H5M11 2h1.5A1.5 1.5 0 0 1 14 3.5V5M14 11v1.5a1.5 1.5 0 0 1-1.5 1.5H11M5 14H3.5A1.5 1.5 0 0 1 2 12.5V11M6 6v1M10 6v1M8 6.5V9h-.7M6 11c1.2.8 2.8.8 4 0"/></svg>',
+  hand: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7 1.6c.6 0 1 .4 1 1V7h.6V3.2a1 1 0 0 1 2 0V7h.6V4.4a1 1 0 0 1 2 0v5.4c0 2.7-2 4.6-4.7 4.6-1.6 0-2.8-.7-3.7-2L2.6 9.8a1 1 0 0 1 1.5-1.3L5.4 9.8V3.6a1 1 0 0 1 2 0V7H6V2.6c0-.6.4-1 1-1Z"/></svg>',
+  arrow: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7.5"/></svg>',
+  warn: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.3c.4 0 .7.2.9.5l6 10.6c.4.7-.1 1.6-.9 1.6H2c-.8 0-1.3-.9-.9-1.6l6-10.6c.2-.3.5-.5.9-.5Zm-.8 4.2.2 4h1.2l.2-4Zm.8 5.1a.8.8 0 1 0 0 1.6.8.8 0 0 0 0-1.6Z"/></svg>',
+  okc: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm3.2 4.4L7 9.6 5 7.6 3.9 8.7 7 11.8l5.3-5.3Z"/></svg>',
+};
+const PAGES = [
+  { id: 'general', name: 'General', color: '#8e8e93', icon: 'gear' },
+  { id: 'notch', name: 'Notch', color: '#1c1c1e', icon: 'notch' },
+  { id: 'notifications', name: 'Notifications', color: '#ff3b30', icon: 'bell' },
+  { id: 'search', name: 'Search', color: '#0a84ff', icon: 'search' },
+  { id: 'battery', name: 'Battery', color: '#30b94d', icon: 'battery' },
+  { id: 'face', name: 'Face Unlock', color: '#00a3a3', icon: 'face' },
+  'gap',
+  { id: 'permissions', name: 'Permissions', color: '#5e5ce6', icon: 'hand' },
+  { id: 'updates', name: 'Updates', color: '#8e8e93', icon: 'arrow' },
+];
+let bad = false, cur = 'status';
+const toggles = { login: true, menubar: false, glass: true, notif: true, hide: false, msgs: true, unlock: true, bright: true, learn: true, auto: true };
+
+const perms = () => [
+  { name: 'Accessibility', ok: true, why: 'Volume and brightness keys, the menu bar width check, typing your password for Face Unlock' },
+  { name: 'Full Disk Access', ok: !bad, why: 'Shows which Focus is on and reads your Messages conversations', restart: true, breaks: ['notifications'] },
+  { name: 'Contacts', ok: true, why: 'Names on messages; people in search' },
+  { name: 'Control Messages', ok: true, why: 'Sends your replies from the notch' },
+  { name: 'Location', ok: true, why: 'Names of nearby Wi-Fi networks' },
+  { name: 'Camera', ok: true, why: 'Face Unlock' },
+];
+const issues = () => {
+  const list = [];
+  if (bad) list.push({ page: 'permissions', title: 'Full Disk Access is off', body: 'Focus and Messages conversations in the notch don\'t work without it. After you allow it, Islet restarts on its own.', btn: 'Allow…' });
+  if (bad) list.push({ page: 'updates', title: 'Islet 1.4.1 is ready', body: 'Fixes from the last week. Islet restarts when it\'s installed.', btn: 'Install and restart', pri: true });
+  return list;
+};
+const badgeFor = id => {
+  if (!bad) return 0;
+  if (id === 'permissions' || id === 'notifications' || id === 'updates') return 1;
+  return 0;
+};
+
+const tg = k => `<button class="tg ${toggles[k] ? 'on' : ''}" data-t="${k}" aria-pressed="${toggles[k]}" aria-label="${k}"></button>`;
+const row = (t, ctl, sub, cls = '') => `<div class="row ${cls}"><div class="t">${t}${sub ? `<small>${sub}</small>` : ''}</div>${ctl || ''}</div>`;
+const sec = (h, rows, foot) => `<div class="sec">${h ? `<h3>${h}</h3>` : ''}<div class="grp">${rows}</div>${foot ? `<p class="foot">${foot}</p>` : ''}</div>`;
+const issueCard = i => `<div class="issue"><span class="w">${I.warn}</span><div class="t"><b>${i.title}</b><small>${i.body}</small></div><button class="btn ${i.pri ? 'pri' : ''}">${i.btn}</button></div>`;
+
+const render = {
+  status() {
+    const is = issues();
+    const hero = is.length
+      ? `<div class="hero"><div class="big" style="background:var(--orange)">${I.warn.replace('viewBox', 'width="24" height="24" viewBox')}</div><div><h2>${is.length} things need attention</h2><p>Everything else is working. Each one below says what it affects and how to fix it.</p></div></div>`
+      : `<div class="hero"><div class="big" style="background:var(--green)">${I.check}</div><div><h2>Everything is set up</h2><p>All 6 permissions are allowed, Face Unlock is on and Islet is up to date.</p></div></div>`;
+    const tile = (id, s, warn) => { const p = PAGES.find(x => x.id === id);
+      return `<button class="tile" data-go="${id}"><span class="h"><span class="ico" style="background:${p.color}">${I[p.icon]}</span>${p.name}</span><span class="s"><span class="dot ${warn ? 'warn' : ''}"></span>${s}</span></button>`; };
+    return hero + (is.length ? `<div class="sec"><h3>To fix</h3><div style="display:flex;flex-direction:column;gap:8px">${is.map(issueCard).join('')}</div></div>` : '') +
+      `<div class="sec"><h3>At a glance</h3><div class="tiles">
+        ${tile('notifications', bad ? 'Messages need Full Disk Access' : 'In the notch, with Messages', bad)}
+        ${tile('search', '⌘Space · Google')}
+        ${tile('face', 'On · 7 of 24 looks learned')}
+        ${tile('notch', 'Has a notch · Glass')}
+        ${tile('battery', 'Energy Mode without a password')}
+        ${tile('updates', bad ? '1.4.1 ready to install' : '1.4 · Up to date', bad)}
+      </div></div>`;
+  },
+  general() {
+    return sec('', row('Open Islet at login', tg('login')) + row('Show menu bar icon', tg('menubar'), 'Settings is also behind the gear in the open panel. Without a notch the icon always shows.')) +
+      sec('Setup', row('Run setup again', '<button class="btn">Run Setup…</button>', 'Walks through the permissions and Face Unlock again.') + row('Quit Islet', '<button class="btn">Quit</button>'));
+  },
+  notch() {
+    return sec('', row('This Mac', '<span class="segc"><span class="on">Has a notch</span><span>No notch</span></span>', 'With the lid closed on an external display, Islet uses the no-notch style.') +
+        row('Glass look', tg('glass'), 'Below the notch the island fades from black into glass. Off, it stays solid black.')) +
+      sec('Without a notch', row('Style', '<span class="pop">Bubble from the top edge</span>', 'Notices bubble out under the camera. Hover the middle of the menu bar and swipe down with two fingers to open the panel.'));
+  },
+  notifications() {
+    const warn = bad ? issueCard({ title: 'Messages conversations need Full Disk Access', body: 'Banners still show in the notch. Opening a conversation and replying need it.', btn: 'Allow…' }) : '';
+    return warn + sec('', row('Show notifications in the notch', tg('notif'), 'Banners appear under the notch instead of the top-right corner. Calls keep their own banner.') +
+        row('Hide message text', tg('hide'), '', 'sub')) +
+      sec('Messages', row('Open conversations in the notch', tg('msgs'), 'Click a message banner to read and reply from the notch.', bad ? 'dim' : '') +
+        (bad ? '' : `<div class="row"><div class="t"><span class="ok">${I.okc}Has what it needs: Full Disk Access, Contacts and Control Messages</span></div></div>`));
+  },
+  search() {
+    return sec('', row('Shortcut', '<span class="pop">⌘Space</span>', 'Search apps, files, contacts, Shortcuts and settings from the notch. Typing in the open panel searches too.') +
+        row('Search the web with', '<span class="pop">Google</span>')) +
+      sec('', `<div class="row"><div class="t"><span class="ok">${I.okc}Spotlight is on another shortcut, so <span class="kbd">⌘Space</span> opens Islet.</span></div></div>`, 'If Spotlight takes ⌘Space back, a warning shows here with a link to Keyboard Shortcuts.');
+  },
+  battery() {
+    return sec('Energy Mode', row('Switch without a password', '<button class="btn">Remove…</button>', 'The battery page can switch Low Power, Automatic and High Power without asking. Remove asks for your password once to take this away.'));
+  },
+  face() {
+    return `<div class="hero"><div class="big" style="background:#00a3a3">${I.face.replace('<svg', '<svg width="24" height="24"')}</div><div><h2>Face Unlock is on</h2><p>Unlocks this Mac's lock screen with the camera. Your face and login password are stored only in the Keychain. It's convenient, but not as strong as Touch ID.</p></div></div>` +
+      sec('', row('Unlock this Mac with my face', tg('unlock')) +
+        row('Face', '<button class="btn">Scan Again…</button>', 'Enrolled · 7 of 24 looks learned') +
+        row('Login password', '<button class="btn">Change…</button>', 'Stored in the Keychain')) +
+      sec('Test recognition', row('Try your face, then someone else\'s', '<button class="btn">Start Test</button>', 'Set the threshold between the two scores. A photo held up should say Photo edge.') +
+        `<div class="row"><div class="t" style="flex:none">Match threshold</div><div class="slider"></div><span class="val" style="font-variant-numeric:tabular-nums">0.45</span></div>`) +
+      sec('Protection and learning', row('Prove it\'s live', '<span class="pop">Off</span>') +
+        row('Brighten the screen in the dark', tg('bright')) +
+        row('Learn from successful unlocks', tg('learn'), 'Adapts to new light, glasses or a haircut. Keeps only unlocks that passed and matched your first scan well.') +
+        row('Learned looks', '<button class="btn">Forget</button>', '7 of 24')) +
+      sec('', row('Remove face and password', '<button class="btn danger">Remove…</button>', 'Deletes the face data and login password from the Keychain.'));
+  },
+  permissions() {
+    const ps = perms(), off = ps.filter(p => !p.ok), on = ps.filter(p => p.ok);
+    const onRows = on.map(p => row(p.name, '<span class="val">Allowed</span>', p.why)).join('');
+    const top = off.length
+      ? off.map(p => issueCard({ title: `${p.name} is off`, body: p.why + '. Islet restarts on its own once it\'s allowed.', btn: 'Allow…' })).join('')
+      : `<div class="hero"><div class="big" style="background:var(--green)">${I.check}</div><div><h2>All ${ps.length} permissions are allowed</h2><p>Islet checks again whenever this window opens.</p></div></div>`;
+    return top + `<details class="more" ${off.length ? 'open' : ''}><summary>${off.length ? `${on.length} allowed` : 'Show what each one is for'}</summary>${sec('', onRows)}</details>` +
+      sec('Not a permission', row('Now playing', '<span class="val">Working</span>', 'Reads what\'s playing through a built-in helper.'));
+  },
+  updates() {
+    return sec('', row(bad ? 'Islet 1.4.1 is available' : 'Islet is up to date', bad ? '<button class="btn">Release Notes…</button><button class="btn pri">Install and Restart</button>' : '<button class="btn">Check Now</button>', 'You have 1.4 test build (9762fa6).') +
+        row('Check for updates automatically', tg('auto'), 'Looks at GitHub about every 6 hours. A new version shows an Update pill next to the battery in the panel.'));
+  },
+};
+
+function nav() {
+  const n = issues().length;
+  let h = `<button class="nav me" data-go="status" ${cur === 'status' ? 'aria-current="page"' : ''}><span class="app"><span></span></span><span class="lbl"><b>Islet 1.4</b><small><span class="dot ${n ? 'warn' : ''}"></span>${n ? n + ' things need attention' : 'Everything is set up'}</small></span></button>`;
+  for (const p of PAGES) {
+    if (p === 'gap') { h += '<div class="gap"></div>'; continue; }
+    const b = badgeFor(p.id);
+    h += `<button class="nav" data-go="${p.id}" ${cur === p.id ? 'aria-current="page"' : ''}><span class="ico" style="background:${p.color}">${I[p.icon]}</span><span class="lbl">${p.name}</span>${b ? `<span class="badge">${b}</span>` : ''}</button>`;
+  }
+  document.getElementById('nav').innerHTML = h;
+}
+function draw() {
+  nav();
+  const p = PAGES.find(x => x.id === cur);
+  document.getElementById('title').textContent = p ? p.name : 'Islet';
+  document.getElementById('page').innerHTML = render[cur]();
+}
+document.addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if (go) { cur = go.dataset.go; draw(); document.getElementById('page').scrollTop = 0; return; }
+  const t = e.target.closest('[data-t]');
+  if (t) { toggles[t.dataset.t] = !toggles[t.dataset.t]; draw(); }
+});
+for (const [id, v] of [['st-ok', false], ['st-bad', true]]) document.getElementById(id).addEventListener('click', () => {
+  bad = v; document.getElementById('st-ok').setAttribute('aria-pressed', !v); document.getElementById('st-bad').setAttribute('aria-pressed', v); draw();
+});
+draw();
+</script>
