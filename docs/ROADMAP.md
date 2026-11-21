@@ -119,9 +119,11 @@ setting or by ⌘-dragging it, so they would show twice. The code stays; turn th
 - [x] System Settings has no switch for the menu bar's copy on macOS 26.2 (only one that stops them altogether), so both
       show. ⌘-dragging the pill out of the menu bar doesn't remove it either
 
-## Later: calls
-- [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
-- [ ] Find out whether the banner has the caller while the first call rings (probe that re-reads it every 0.25 s)
+## Next: calls in the notch
+- [x] Probe (RESEARCH.md Q53-Q56): what the Mac shows of calls answered on the iPhone and on the Mac (2026-11-21)
+- [x] Design draft and mockup (DESIGN.md "Calls"): phone and FaceTime, on the Mac and on the iPhone
+- [ ] Spike Q56: how soon the call history has an iPhone-answered phone call after it ends (needs Islet's Full Disk Access)
+- [ ] Owner approves the design, then build it
 
 ## M9: Polish
 - [x] Settings window, launch at login, permission prompts and status

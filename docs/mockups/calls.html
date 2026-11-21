@@ -1,0 +1,313 @@
+<title>Islet Calls</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the live stage first (it is the design), then where each call's facts come from. Single dark look: it's a notch. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --panel: #15161a;
+  --line: #24262c;
+  --fg: #ececf0;
+  --muted: #9a9ca6;
+  --accent: #64d2ff;
+  --sans: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --i-text: #f5f5f7;
+  --i-secondary: #a1a1a6;
+  --i-tertiary: #8e8e93;
+  --i-green: #32d74b;
+  --i-red: #ff453a;
+  --i-redtext: #ff6961;
+  --i-purple: #5e5ce6;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 76ch; }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.live { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button, .btn { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; border-radius: 7px; padding: 6px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #2a2c33; color: var(--fg); }
+.seg button:hover, .btn:hover { color: var(--fg); }
+.btn { border: 1px solid var(--line); color: var(--fg); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.label { font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.hintline { font-size: 12.5px; color: var(--muted); margin: 0; }
+.hintline b { color: var(--fg); font-weight: 600; }
+
+.frame { position: relative; overflow: hidden; border-radius: 10px; width: 100%; user-select: none; }
+.stage { position: absolute; left: 0; top: 0; width: 760px; height: 330px; transform-origin: 0 0; overflow: hidden;
+  background: radial-gradient(110% 120% at 80% 110%, #8a5a3c 0%, transparent 55%), linear-gradient(180deg, #4c5d7d, #33405a); }
+.menubar { position: absolute; inset: 0 0 auto 0; height: 34px; background: rgba(16,18,24,0.5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: flex; justify-content: space-between; align-items: center; padding: 0 14px; font: 500 12px var(--sf); color: #e8e8ee; }
+.menus { display: flex; gap: 14px; white-space: nowrap; align-items: center; }
+.menus .app { font-weight: 700; }
+.menus .logo { width: 11px; height: 11px; border-radius: 50%; background: #e8e8ee; }
+.menus .extra { opacity: 0; transition: opacity .2s; }
+.crowded .menus .extra { opacity: 1; }
+.tray { display: flex; gap: 11px; align-items: center; }
+.tray i { display: block; width: 15px; height: 10px; border-radius: 3px; background: rgba(232,232,238,0.75); }
+
+/* the system's call banner, top right */
+.banner { position: absolute; right: 12px; top: 42px; width: 300px; border-radius: 18px; padding: 12px 14px; background: rgba(40,42,48,.82);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 0 0 .5px rgba(255,255,255,.18);
+  font-family: var(--sf); color: var(--i-text); display: flex; align-items: center; gap: 10px; transition: opacity .3s, transform .3s; }
+.banner.off { opacity: 0; transform: translateX(30px); pointer-events: none; }
+.banner .av { width: 34px; height: 34px; border-radius: 50%; background: var(--i-purple); display: grid; place-items: center; font-weight: 600; }
+.banner .who { flex: 1; font-size: 13px; line-height: 1.25; }
+.banner .who span { display: block; color: var(--i-secondary); font-size: 11.5px; }
+.banner .b { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; }
+.banner .b svg { width: 15px; height: 15px; fill: #fff; }
+
+.island { position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 5; }
+.stem, .body { position: absolute; background: #000; transition: width .5s cubic-bezier(.34,1.3,.5,1), left .5s cubic-bezier(.34,1.3,.5,1), height .38s cubic-bezier(.2,.8,.25,1), border-radius .3s ease; }
+.stem { top: 0; }
+.fil { position: absolute; width: 10px; height: 10px; top: 24px; transition: left .5s cubic-bezier(.34,1.3,.5,1), opacity .2s; }
+.fil.l { background: radial-gradient(circle 10px at 0 0, transparent 9.5px, #000 10px); }
+.fil.r { background: radial-gradient(circle 10px at 100% 0, transparent 9.5px, #000 10px); }
+.glass .body { background: linear-gradient(180deg, #000 0, #000 calc(100% - 36px), rgba(0,0,0,.16) 100%); backdrop-filter: blur(16px) saturate(1.5); -webkit-backdrop-filter: blur(16px) saturate(1.5); box-shadow: inset 0 -1.2px 0 rgba(255,255,255,.28); }
+.c { position: absolute; font-family: var(--sf); color: var(--i-text); transition: opacity .25s ease; opacity: 0; pointer-events: none; }
+.c.on { opacity: 1; transition-delay: .18s; pointer-events: auto; }
+.glyph { width: 20px; height: 20px; display: grid; place-items: center; }
+.glyph svg { width: 18px; height: 18px; }
+.time { font: 600 13px var(--sf); font-variant-numeric: tabular-nums; color: var(--i-green); white-space: nowrap; }
+
+/* call page */
+.page { width: 500px; height: 216px; padding: 14px 24px 22px; display: flex; flex-direction: column; }
+.page .hdr { display: flex; align-items: center; justify-content: space-between; font: 600 10.5px var(--sf); letter-spacing: .08em; color: var(--i-tertiary); }
+.page .chev { width: 28px; height: 28px; border-radius: 50%; background: #2c2c2e; display: grid; place-items: center; }
+.page .mid { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
+.page .av { width: 60px; height: 60px; border-radius: 50%; background: var(--i-purple); display: grid; place-items: center; font: 600 26px var(--sf); }
+.page .name { font: 600 20px var(--sf); }
+.page .sub { font: 400 12px var(--sf); color: var(--i-secondary); font-variant-numeric: tabular-nums; }
+.page .sub b { color: var(--i-green); font-weight: 600; }
+.page .btns { display: flex; justify-content: center; gap: 28px; margin-top: auto; }
+.page .rb { display: flex; flex-direction: column; align-items: center; gap: 5px; font: 500 10.5px var(--sf); color: var(--i-secondary); cursor: pointer; }
+.page .rb i { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2); }
+.page .rb i svg { width: 19px; height: 19px; fill: var(--i-text); }
+.page .rb.on i { background: #f5f5f7; } .page .rb.on i svg { fill: #000; }
+.page .rb.end i { background: var(--i-red); box-shadow: none; } .page .rb.end i svg { fill: #fff; }
+.page .note { margin-top: auto; text-align: center; font: 400 12px var(--sf); color: var(--i-tertiary); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { margin: 0; font-size: 17px; }
+.panel > p { margin: 0; color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td { color: var(--muted); }
+td em { color: var(--fg); font-style: normal; }
+@media (prefers-reduced-motion: reduce) { .stem, .body, .fil, .c, .banner { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Islet · calls · draft 1</div>
+    <h1>Calls in the notch</h1>
+    <p>A phone or FaceTime call, answered on the Mac or on the iPhone, shows beside the notch while it lasts: what kind of call on the left, the time on the right. Click for the call page with the controls the call allows. While it rings, macOS's own banner stays where it is.</p>
+  </header>
+
+  <section class="live" aria-label="Live prototype">
+    <div class="controls">
+      <span class="label">Call</span>
+      <div class="seg" id="kindSeg">
+        <button type="button" id="k-macphone" data-v="macphone" aria-pressed="true">Phone, on the Mac</button>
+        <button type="button" id="k-macft" data-v="macft" aria-pressed="false">FaceTime, on the Mac</button>
+        <button type="button" id="k-iphft" data-v="iphft" aria-pressed="false">FaceTime, on the iPhone</button>
+        <button type="button" id="k-iphphone" data-v="iphphone" aria-pressed="false">Phone, on the iPhone</button>
+      </div>
+      <span class="label">Menu bar</span>
+      <div class="seg" id="barSeg">
+        <button type="button" id="bar-wings" data-v="wings" aria-pressed="true">Room for wings</button>
+        <button type="button" id="bar-chin" data-v="chin" aria-pressed="false">Crowded (chin)</button>
+      </div>
+    </div>
+    <div class="frame" id="frame">
+      <div class="stage glass" id="stage">
+        <div class="menubar" aria-hidden="true">
+          <div class="menus"><span class="logo"></span><span class="app">Notes</span><span>File</span><span>Edit</span><span>Format</span><span>View</span><span class="extra">Window</span><span class="extra">Help</span></div>
+          <div class="tray"><i></i><i></i><span>Sat 21 Nov 11:40</span></div>
+        </div>
+        <div class="banner off" id="banner"></div>
+        <div class="island" id="island">
+          <div class="body" id="body"></div>
+          <div class="stem" id="stem"></div>
+          <div class="fil l" id="filL"></div><div class="fil r" id="filR"></div>
+          <div class="c" id="wLeft"></div>
+          <div class="c time" id="wRight"></div>
+          <div class="c" id="wBody" style="font:600 12px var(--sf);white-space:nowrap;text-align:center"></div>
+          <div class="c" id="chin" style="display:flex;align-items:center;gap:10px;width:268px"></div>
+          <div class="c" id="pan"></div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="stepSeg">
+        <button type="button" id="s-ring" data-v="ring" aria-pressed="false">Ringing</button>
+        <button type="button" id="s-compact" data-v="compact" aria-pressed="true">Answered</button>
+        <button type="button" id="s-hover" data-v="hover" aria-pressed="false">Hover</button>
+        <button type="button" id="s-panel" data-v="panel" aria-pressed="false">Click (call page)</button>
+      </div>
+      <button type="button" class="btn" id="mute">Mute</button>
+    </div>
+    <p class="hintline" id="hint"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Where each call's facts come from</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Call</th><th>Who</th><th>Time</th><th>Ends</th><th>Controls</th></tr></thead>
+        <tbody>
+          <tr><td>Phone, on the Mac</td><td>the call's banner</td><td>the banner ("Mom, 0:13")</td><td>the banner goes</td><td><em>Mute, End</em></td></tr>
+          <tr><td>FaceTime, on the Mac</td><td>FaceTime's window</td><td>from when it connects</td><td>FaceTime's window</td><td><em>Mute, Camera, End</em></td></tr>
+          <tr><td>FaceTime, on the iPhone</td><td>the ring</td><td>from the answer</td><td>the Dock's Handoff item</td><td><em>Move to Mac</em></td></tr>
+          <tr><td>Phone, on the iPhone</td><td>the ring</td><td>from the answer</td><td>the call history, if it syncs fast enough</td><td>none</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If the call history is slow to sync, a phone call on the iPhone shows only a 4-second notice ("On iPhone with Mom") instead of a timer that couldn't tell when to stop.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const frame = $('#frame'), stage = $('#stage'), stem = $('#stem'), body = $('#body'), filL = $('#filL'), filR = $('#filR');
+  const wLeft = $('#wLeft'), wRight = $('#wRight'), wBody = $('#wBody'), chin = $('#chin'), pan = $('#pan'), banner = $('#banner');
+  const NW = 190, NH = 34;
+  let kind = 'macphone', bar = 'wings', step = 'compact', muted = false, camOff = false;
+  let answeredAt = Date.now() - 81000;
+
+  const P = {
+    phone: '<path d="M6.6 2.5c.5-.4 1.2-.3 1.6.2l2 2.6c.4.5.3 1.2-.1 1.6l-1.2 1.1c.9 1.9 2.4 3.4 4.3 4.3l1.1-1.2c.4-.4 1.1-.5 1.6-.1l2.6 2c.5.4.6 1.1.2 1.6l-1.3 1.6c-.6.7-1.6 1-2.5.7C8.9 15.4 4.6 11.1 3.1 6.7c-.3-.9 0-1.9.7-2.5z"/>',
+    video: '<path d="M2 6.5A2.5 2.5 0 0 1 4.5 4h7A2.5 2.5 0 0 1 14 6.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 13.5zM15 8.2l3.2-2c.4-.3.8 0 .8.4v6.8c0 .4-.4.7-.8.4L15 11.8z"/>',
+    iphone: '<path d="M7 2h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm1.5 1.5v.6h3v-.6zM7 5v11h6V5z"/>',
+    micoff: '<path d="M10 2a3 3 0 0 1 3 3v4.6L7.3 3.9A3 3 0 0 1 10 2zM4 9.5h1.5a4.5 4.5 0 0 0 6.9 3.8l1.1 1.1a6 6 0 0 1-2.75 1.06V17.5h-1.5v-2.04A6 6 0 0 1 4 9.5zM2.7 2.7l14.6 14.6-1.1 1.1L1.6 3.8z"/>',
+    mic: '<path d="M10 2a3 3 0 0 1 3 3v4.5a3 3 0 1 1-6 0V5a3 3 0 0 1 3-3zM4 9.5h1.5a4.5 4.5 0 0 0 9 0H16a6 6 0 0 1-5.25 5.96V17.5h-1.5v-2.04A6 6 0 0 1 4 9.5z"/>',
+    end: '<path d="M10 7c3.4 0 6.4 1 8 2.6.5.5.5 1.2 0 1.7l-1.4 1.4c-.4.4-1.1.5-1.6.2l-2-1.2c-.4-.3-.6-.8-.5-1.3l.3-1.3a10 10 0 0 0-5.6 0l.3 1.3c.1.5-.1 1-.5 1.3l-2 1.2c-.5.3-1.2.2-1.6-.2L1.9 11.3c-.5-.5-.5-1.2 0-1.7C3.6 8 6.6 7 10 7z"/>',
+    handoff: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 11.5zM2 15h16v1.5H2zM9 6l3 2-3 2z"/>',
+  };
+  const svg = (k, color) => `<svg viewBox="0 0 20 20" style="fill:${color}">${P[k]}</svg>`;
+
+  const KINDS = {
+    macphone: { label: 'Phone', header: 'PHONE', glyph: 'phone', sub: 'Phone', controls: ['mute', 'end'], ringing: 'Phone call' },
+    macft: { label: 'FaceTime Video', header: 'FACETIME', glyph: 'video', sub: 'FaceTime Video', controls: ['mute', 'camera', 'end'], ringing: 'FaceTime Video' },
+    iphft: { label: 'on iPhone', header: 'ON IPHONE', glyph: 'iphone', sub: 'FaceTime on your iPhone', controls: ['handoff'], ringing: 'FaceTime Video' },
+    iphphone: { label: 'on iPhone', header: 'ON IPHONE', glyph: 'iphone', sub: 'On your iPhone', controls: [], ringing: 'Phone call' },
+  };
+  const k = () => KINDS[kind];
+  const onMac = () => kind === 'macphone' || kind === 'macft';
+  const elapsed = () => { const s = Math.floor((Date.now() - answeredAt) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const glyph = () => muted && onMac() ? svg('micoff', 'var(--i-redtext)') : svg(k().glyph, 'var(--i-green)');
+
+  function shape() {
+    if (step === 'panel') return { sw: NW, sh: NH, bw: 500, bh: 216, tr: 16, br: 30 };
+    if (step === 'ring') return { sw: NW, sh: NH, bw: NW, bh: 0, tr: 0, br: 10 };
+    if (bar === 'chin') return { sw: NW, sh: NH, bw: 300, bh: 36, tr: 16, br: 16 };
+    if (step === 'hover') return { sw: NW + 132, sh: NH, bw: NW + 132, bh: 26, tr: 0, br: 18 };
+    return { sw: NW + 120, sh: NH, bw: NW + 120, bh: 0, tr: 0, br: 12 };
+  }
+
+  function bannerHTML() {
+    const ring = step === 'ring';
+    const who = ring ? `Mom<span>${k().ringing}</span>` : `Mom<span>${elapsed()}</span>`;
+    const btns = ring
+      ? `<div class="b" style="background:var(--i-red)">${svg('end', '#fff')}</div><div class="b" style="background:var(--i-green)">${svg('phone', '#fff')}</div>`
+      : `<div class="b" style="background:rgba(255,255,255,.15)">${svg('mic', '#fff')}</div><div class="b" style="background:var(--i-red)">${svg('end', '#fff')}</div>`;
+    return `<div class="av">M</div><div class="who">${who}</div>${btns}`;
+  }
+
+  function page() {
+    const btn = (c) => {
+      if (c === 'mute') return `<div class="rb ${muted ? 'on' : ''}" data-act="mute"><i>${svg(muted ? 'micoff' : 'mic', muted ? '#000' : 'var(--i-text)')}</i>Mute</div>`;
+      if (c === 'camera') return `<div class="rb ${camOff ? 'on' : ''}" data-act="camera"><i>${svg('video', camOff ? '#000' : 'var(--i-text)')}</i>Camera</div>`;
+      if (c === 'end') return `<div class="rb end" data-act="end"><i>${svg('end', '#fff')}</i>End</div>`;
+      if (c === 'handoff') return `<div class="rb" data-act="handoff"><i>${svg('handoff', 'var(--i-text)')}</i>Move to Mac</div>`;
+      return '';
+    };
+    const controls = k().controls.length ? `<div class="btns">${k().controls.map(btn).join('')}</div>` : `<div class="note">You're on this call on your iPhone. Islet can show it, not control it.</div>`;
+    return `<div class="page"><div class="hdr"><span>${k().header}</span><span class="chev">${'<svg viewBox="0 0 20 20" width="11" height="11" style="fill:var(--i-text)"><path d="M4 7l6 6 6-6-1.4-1.4L10 10.2 5.4 5.6z"/></svg>'}</span></div>
+      <div class="mid"><div class="av">M</div><div><div class="name">Mom</div><div class="sub"><b class="t">${elapsed()}</b> · ${muted && onMac() ? 'Muted' : k().sub}</div></div></div>${controls}</div>`;
+  }
+
+  function render() {
+    const s = shape();
+    Object.assign(stem.style, { width: s.sw + 'px', left: -s.sw / 2 + 'px', height: s.sh + 'px', borderRadius: s.bh > 0 ? '0' : `0 0 ${s.br}px ${s.br}px` });
+    Object.assign(body.style, { width: s.bw + 'px', left: -s.bw / 2 + 'px', top: s.sh + 'px', height: s.bh + 'px', borderRadius: s.tr ? `${s.tr}px ${s.tr}px ${s.br}px ${s.br}px` : `0 0 ${s.br}px ${s.br}px` });
+    filL.style.left = -s.sw / 2 - 10 + 'px'; filR.style.left = s.sw / 2 + 'px';
+    filL.style.opacity = filR.style.opacity = s.tr ? 1 : 0;
+    const half = s.sw / 2;
+    const wings = step !== 'panel' && step !== 'ring' && bar === 'wings';
+    wLeft.innerHTML = `<div class="glyph">${glyph()}</div>`;
+    Object.assign(wLeft.style, { left: -half + 20 + 'px', top: (NH - 20) / 2 + 'px' });
+    wRight.textContent = elapsed();
+    Object.assign(wRight.style, { left: NW / 2 + 8 + 'px', width: half - NW / 2 - 16 + 'px', textAlign: 'center', top: '9px' });
+    wBody.textContent = `Mom · ${muted && onMac() ? 'Muted' : k().label}`;
+    Object.assign(wBody.style, { left: -half + 20 + 'px', width: 2 * half - 40 + 'px', top: NH + 5 + 'px' });
+    wLeft.classList.toggle('on', wings); wRight.classList.toggle('on', wings); wBody.classList.toggle('on', wings && step === 'hover');
+    chin.innerHTML = `<div class="glyph">${glyph()}</div><span style="font:600 13px var(--sf);flex:1">Mom</span><span class="time">${elapsed()}</span>`;
+    Object.assign(chin.style, { left: '-134px', top: NH + 8 + 'px' });
+    chin.classList.toggle('on', step !== 'panel' && step !== 'ring' && bar === 'chin');
+    pan.innerHTML = page();
+    Object.assign(pan.style, { left: '-250px', top: NH + 'px' });
+    pan.classList.toggle('on', step === 'panel');
+    // The system banner: while ringing, always; afterwards it is the call's controls only for a phone call on the Mac,
+    // and Islet moves that one off screen.
+    banner.innerHTML = bannerHTML();
+    banner.classList.toggle('off', step !== 'ring');
+    $('#mute').disabled = !onMac();
+    $('#mute').textContent = muted ? 'Unmute' : 'Mute';
+    $('#hint').innerHTML = {
+      ring: '<b>Ringing:</b> macOS\'s banner, untouched; the notch stays as it was. Islet notes who is calling.',
+      compact: onMac() ? (kind === 'macphone' ? '<b>Answered on the Mac:</b> the banner turns into the call\'s controls; Islet moves it off screen, so the notch is the one place it shows.' : '<b>FaceTime on the Mac:</b> FaceTime\'s window stays; the notch shows the call wherever you are.') :
+        (kind === 'iphft' ? '<b>FaceTime on the iPhone:</b> shown while the Dock\'s Handoff item is there; it ends when that goes.' : '<b>Phone on the iPhone:</b> shown from the answer, ended by the call history (or a 4-second notice if that is too slow).'),
+      hover: '<b>Hover:</b> the wide bar, with who and what kind of call underneath.',
+      panel: '<b>Click:</b> the call page, with the controls this call allows.',
+    }[step];
+  }
+
+  function seg(id, fn) {
+    const el = $(id);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      fn(b.dataset.v); render();
+    });
+  }
+  seg('#kindSeg', (v) => { kind = v; muted = false; camOff = false; });
+  seg('#barSeg', (v) => { bar = v; stage.classList.toggle('crowded', v === 'chin'); });
+  seg('#stepSeg', (v) => { if (step === 'ring' && v !== 'ring') answeredAt = Date.now(); step = v; });
+  $('#mute').addEventListener('click', () => { muted = !muted; render(); });
+  pan.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-act]')?.dataset.act;
+    if (a === 'mute') muted = !muted;
+    if (a === 'camera') camOff = !camOff;
+    if (a === 'end' || a === 'handoff') { step = a === 'end' ? 'ring' : step; if (a === 'handoff') kind = 'macft'; document.querySelectorAll('#stepSeg button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === step)); document.querySelectorAll('#kindSeg button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.v === kind)); }
+    render();
+  });
+
+  function fit() {
+    const s = Math.min(1, frame.clientWidth / 760);
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = Math.max(0, (frame.clientWidth - 760 * s) / 2) + 'px';
+    frame.style.height = 330 * s + 'px';
+  }
+  new ResizeObserver(fit).observe(frame);
+  fit();
+  render();
+  setInterval(() => {
+    wRight.textContent = elapsed();
+    const t = chin.querySelector('.time'); if (t) t.textContent = elapsed();
+    const pt = pan.querySelector('.t'); if (pt) pt.textContent = elapsed();
+  }, 1000);
+})();
+</script>

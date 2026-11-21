@@ -472,24 +472,43 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
   Automation for Messages (sending), each asked the first time it's needed.
 
-### Calls (FaceTime)
+### Calls (draft, not approved)
 
-Deferred (owner, 2026-11-20): built as below but switched off; calls get their own design in a later update, using
-RESEARCH.md Q30's second test (the banner has the caller, Answer / Decline, and iPhone calls).
+Proposed 2026-11-21 (owner: show an active call in the notch, a phone or FaceTime call, answered on the Mac or on the
+iPhone; the ringing banner may stay). Mockup (playable): <https://claude.ai/artifact/LrMftdbrRxRhUoLjaL47Ns> (source
+docs/mockups/calls.html). Feasibility: RESEARCH.md Q30, Q31, Q53-Q56.
+Replaces the deferred FaceTime-only design (built in 1.4, switched off with `AppDelegate.callsEnabled`).
 
-- **Ringing**: the system banner stays (Islet can't read who is calling or press Accept / Decline: RESEARCH.md Q30).
-  The wings show a green phone that wiggles (1.3 s loop) on the left and two green rings pulsing out (1.5 s, staggered)
-  on the right, until it is answered, declined or stops ringing. Always the wings: no menus are covered for long, and
-  there is no text.
-- **In a call** (FaceTime's call window is up): the wings, like media, which they replace while the call lasts. Left: a
-  green video camera (`video.fill`), or a red crossed-out mic (`mic.slash.fill`, `red text`) while muted. Right: the
-  call's time (13 semibold, monospaced digits, green), from when it connected.
-- **Hover**: the wide bar with "Name · FaceTime Video" (or "Name · Muted") in its body.
-- **Click**: the expanded panel's call page (500 x 216): "FACETIME" header and the collapse chevron; a 60 pt circle with
-  the first letter (`artwork placeholder` purple), the name (20 semibold) and "1:21 · FaceTime Video"; then three 48 pt
-  round buttons with labels under them: Mute, Camera (white with a black glyph while muted / off) and End (red). They
-  press FaceTime's own controls.
-- iPhone calls relayed to the Mac: not yet (RESEARCH.md Q30).
+- **Ringing**: the system banner, untouched (it has Answer / Decline and is where macOS wants you to answer). The notch
+  stays as it was; Islet only notes who is calling, for later.
+- **Four kinds of active call**, each with where its facts come from:
+
+  | Call                     | Who                  | Time                     | Ends                    | Controls                 |
+  |--------------------------|----------------------|--------------------------|-------------------------|--------------------------|
+  | Phone, on the Mac        | the call's banner    | the banner ("Mom, 0:13") | the banner goes         | Mute, End                |
+  | FaceTime, on the Mac     | FaceTime's window    | from when it connects    | FaceTime's window       | Mute, Camera, End        |
+  | FaceTime, on the iPhone  | the ring             | from the answer          | the Dock's Handoff item | Move to Mac (Handoff)    |
+  | Phone, on the iPhone     | the ring             | from the answer          | the call history (Q56)  | none                     |
+
+  A phone call on the iPhone whose end can't be told (Q56 not fast enough) shows as a notice instead ("On iPhone with
+  Mom", 4 s, like a connection notice) and isn't kept on screen.
+- **The call's banner on the Mac**: once a phone call on the Mac is answered, its banner (now the call's controls) is
+  moved off screen like a notification's, so the notch is the only place it shows; Islet presses its buttons. Settings >
+  General "Show calls in the notch" off leaves everything to macOS.
+- **Compact** (follows the menu bar width check, like media, which it replaces while the call lasts):
+  - **Wings**: left, the call's glyph in green: `phone.fill` (phone), `video.fill` (FaceTime video), `iphone` with the
+    call on the iPhone; a red `mic.slash.fill` while muted. Right: the time (13 semibold, monospaced digits, green).
+  - **Chin**: the glyph, the name (13 semibold) and the time on the right.
+  - **Hover**: the wide bar with "Name · Phone" / "Name · FaceTime Video" / "Name · on iPhone" / "Name · Muted" in its
+    body.
+- **Click**: the panel's call page (500 x 216): a header ("PHONE", "FACETIME", "ON IPHONE") and the collapse chevron; a
+  60 pt circle with the first letter (`artwork placeholder` purple), the name (20 semibold) and "1:21 · Phone"; then the
+  call's controls as 48 pt round buttons with labels under them: Mute and End (red) for a phone call on the Mac; Mute,
+  Camera and End for FaceTime on the Mac; "Move to Mac" for FaceTime on the iPhone; none for a phone call on the iPhone
+  ("On your iPhone" under the time). Mute and Camera are white with a black glyph while on.
+- **Priority**: below volume, brightness and notifications; above charging and media. A call doesn't open the panel by
+  itself.
+- **Settings > General**: "Show calls in the notch" (on by default).
 
 ## Without a notch (1.2)
 
