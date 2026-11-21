@@ -17,7 +17,10 @@ struct IslandView: View {
     private func wingsFade(_ delay: Double) -> AnyTransition {
         .asymmetric(
             insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.3).delay(delay)),
-            removal: .opacity.combined(with: .scale(scale: 0.82)).animation(.easeIn(duration: 0.2)))
+            // The fade leads (gone in 0.1 s) so nothing is left over the glass strip or the desktop while the shape is
+            // still pulling in past it (a song's name under the wide bar on a swipe up); the draw-in follows the wings.
+            removal: AnyTransition.opacity.animation(.easeOut(duration: 0.1))
+                .combined(with: AnyTransition.scale(scale: 0.82).animation(.easeIn(duration: 0.2))))
     }
 
     var body: some View {

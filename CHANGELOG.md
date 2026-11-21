@@ -58,7 +58,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - Without a notch, the chevron no longer drops down over Mission Control when the pointer reaches the top of the
   screen, so the windows and Spaces up there can be clicked.
-- Swiping music away while hovering the notch no longer leaves the song's name floating under it.
+- Swiping music away while hovering the notch: the song's name now fades as the notch pulls in, instead of showing on
+  the desktop under it (and sometimes staying there).
 
 
 ## 1.3 (2026-11-20)
