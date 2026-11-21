@@ -39,6 +39,12 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           "$SRCROOT/scripts/build-mediaremote.sh" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+      - name: Label test builds
+        basedOnDependencyAnalysis: false
+        inputFiles:   # after Xcode has written the Info.plist, which would otherwise wipe the label
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          "$SRCROOT/scripts/stamp-build.sh" "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
     entitlements:
       path: Sources/Islet/Islet.entitlements
       properties:

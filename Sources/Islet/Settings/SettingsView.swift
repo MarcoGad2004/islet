@@ -100,7 +100,12 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Updates").font(.title2.weight(.semibold))
             HStack {
-                Text("Version \(updater.currentVersion)")
+                // A build between releases says what it is (scripts/stamp-build.sh); the version is still the last release's.
+                if let label = Bundle.main.object(forInfoDictionaryKey: "IsletBuildLabel") as? String {
+                    Text("Version \(label)").help("Based on \(updater.currentVersion). Check for updates still offers the release itself.")
+                } else {
+                    Text("Version \(updater.currentVersion)")
+                }
                 Spacer()
                 switch updater.state {
                 case .idle, .upToDate, .failed: Button("Check for updates") { updater.check() }
