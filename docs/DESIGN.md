@@ -472,9 +472,12 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
   Automation for Messages (sending), each asked the first time it's needed.
 
-### Calls (draft, not approved)
+### Calls (draft, for later)
 
-Proposed 2026-11-21 (owner: show an active call in the notch, a phone or FaceTime call, answered on the Mac or on the
+Left for a later update (owner, 2026-11-21), to come back to with two checks first: whether a call's banner on
+the Mac stays hidden once answered (if not, it would show twice, and that case or the feature goes), and how soon the
+call history has a phone call answered on the iPhone (Q56). FaceTime on the Mac would also leave the notch while
+FaceTime is in front, like music. Proposed 2026-11-21 (owner: show an active call in the notch, a phone or FaceTime call, answered on the Mac or on the
 iPhone; the ringing banner may stay). Mockup (playable): <https://claude.ai/artifact/LrMftdbrRxRhUoLjaL47Ns> (source
 docs/mockups/calls.html). Feasibility: RESEARCH.md Q30, Q31, Q53-Q56.
 Replaces the deferred FaceTime-only design (built in 1.4, switched off with `AppDelegate.callsEnabled`).
