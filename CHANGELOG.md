@@ -5,46 +5,49 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.4 (unreleased)
 
-- Notifications in the notch instead of the top-right corner (they still go to Notification Center): the title and
-  message in the wide bar under the wings, or in the chin when the menus are wide. Hover for the full card, click to
-  open it, swipe up to dismiss.
-- Several at once stack: the notch grows a little deeper with the next one tucked underneath, then shows "2 more",
-  "3 more".
-- Opening the panel while notifications are waiting still opens the controls (or music): the notifications ride along as a
-  pill at the top with the newest one and the count. Click it for the list of everything that just came in, with
-  Clear all and a back button.
-- The banner's own buttons come along: approve a Duo sign-in from the card or the list (never from the small bar, so a
-  stray click can't). iPhone notifications get an iPhone icon, time-sensitive ones say so in orange.
-- Messages in the notch: click a message (or Reply on its card) and the conversation opens under the notch, with
-  contact names, and a reply field that sends through Messages. New messages appear as they arrive. Needs Full Disk
-  Access, Contacts and permission to control Messages.
-- Two fingers over a list in the panel (a conversation, notifications, Wi-Fi, Bluetooth) scroll the list; swiping up
-  only closes the panel when the list can't scroll any further that way.
-- Settings > Notifications can turn notifications off, hide the message text, or keep Messages opening in the Messages app.
-- Music leaves the notch while the app playing it is in front (you're already in the player) and comes back when you
-  switch to another app. The panel's media page still has it.
-- Swipe playing media away and hover the notch: instead of the old green dot, the notch picks up the album's colours, the
-  glass strip tinted with the glass look, or a thin glowing line under the camera without it. Swipe down and the colour
-  gathers into the artwork as the music comes back.
-- Hover music in the wings and they become a wide bar with the song's name underneath.
-- Two-finger swipe left over music for the next song, right for the previous one, on the wings, the chin or the hidden
-  peek. It follows your fingers: the name rolls, the skip icon grows in its wing, and halfway the trackpad taps. Let go
-  past halfway (or flick) and it skips; short of it, it slides back.
+### Notifications
 
-- Search from the notch: press ⌘Space and the notch flows down into a search field, for apps, contacts, files, your
-  Shortcuts, System Settings pages and sums ("12*7.5" answers 90; Return copies it). The 7 apps you used last wait under
-  an empty field. Arrows move, Return opens (or runs, or copies), ⌘Return shows it in Finder, Tab completes the name, Esc clears
-  and then closes. Type straight away: letters show while it opens, and results come in as soon as they match. Typing in
-  the open panel searches too. The last rows search in Spotlight or on the web.
-- Contacts in search: Return opens the person in Contacts, and Message, Call, FaceTime and Email buttons sit on the
-  right. Type "call mom", "text mom", "facetime mom" or "email mom" and Return does just that; a text opens your
-  conversation with them in the notch when there is one.
-- To use ⌘Space, move Spotlight's own shortcut in Keyboard Shortcuts > Spotlight; Settings and setup point there. Settings
-  > Search can pick another shortcut, or turn it off, and the engine for web searches.
-- New Settings: pages in a sidebar (General, Notch, Notifications, Search, Battery, Face Unlock, Permissions,
-  Updates), with Islet's status at the top: "Everything is set up", or what needs attention with the fix for each. No
-  more lists of ticks: permissions fold into one line while they're all allowed, and one that's off shows on the pages
-  it breaks, with a badge in the sidebar. Islet checks again whenever the window comes to the front.
+- Banners show under the notch instead of the top-right corner, and still go to Notification Center. The title and message sit in a wide bar under the wings, or in the chin when the menus are wide.
+- Hover for the full card, click to open it, swipe up to dismiss.
+- When several arrive at once, they stack: the next one tucks underneath, then the notch shows "2 more", "3 more".
+- Opening the panel always shows the controls (or music). Waiting notifications ride along as a pill at the top. Click it for the full list, with Clear all and a back button.
+- The banner's own buttons come along, such as approving a Duo sign-in from the card or the list (never from the small bar).
+- iPhone notifications get an iPhone icon, and time-sensitive ones say so in orange.
+
+### Messages
+
+- Click a message (or Reply) and the conversation opens under the notch, with contact names and a reply field that sends through Messages.
+- New messages appear as they arrive.
+- Two fingers scroll lists in the panel (conversations, notifications, Wi-Fi, Bluetooth). Swiping up only closes the panel once the list can't scroll further.
+
+### Music
+
+- Music leaves the notch while its app is in front, and comes back when you switch away.
+- When you've swiped music away, hovering the notch shows the album's colours instead of the old green dot.
+- Hovering music in the wings turns them into a wide bar with the song's name.
+- Swipe left or right with two fingers to change songs. It follows your fingers, the trackpad taps halfway, and it slides back if you don't go far enough.
+
+### Search from the notch (⌘Space)
+
+- It finds:
+  - apps, with the 7 you used last waiting under an empty field;
+  - files, Shortcuts and System Settings pages;
+  - answers to sums;
+  - Spotlight and web searches, in the last two rows.
+- Keys: arrows move, Return opens, ⌘Return shows it in Finder, Tab completes, Esc clears and then closes.
+- Typing works straight away: letters show while it opens. Typing in the open panel starts a search too.
+- Contacts:
+  - Return opens the person in Contacts.
+  - Message, Call, FaceTime and Email buttons sit on the right.
+  - "call mom", "text mom", "facetime mom" and "email mom" do that on Return. A text opens the conversation in the notch.
+- Settings warns when Spotlight still has the shortcut. You can pick another shortcut, turn it off, or choose the web search engine.
+
+### Settings redesign
+
+- Pages in a sidebar, with Islet's status on top: "Everything is set up", or "N things need attention" with the fix for each.
+- Permissions fold into one line while they're all allowed. One that's off shows on the pages it breaks, with a badge in the sidebar.
+- Face Unlock has its own page.
+- Islet checks permissions again whenever the window comes to the front.
 
 
 ## 1.3 (2026-11-20)
