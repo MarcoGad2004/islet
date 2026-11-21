@@ -155,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
         case "unlock": notch.store.playUnlock()
-        case "notification", "notifications":
+        case "notification", "notifications", "notificationpill":
             let store = notch.store
             store.showNotification(NotificationItem(id: UUID(), app: "Messages", title: "Mom", subtitle: nil,
                                                     body: "Are you coming for dinner tonight? Dad is making the lentil soup, and we can watch the match after.",
@@ -166,6 +166,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     store.showNotification(NotificationItem(id: UUID(), app: "Mail", title: "Your order has shipped", subtitle: nil,
                                                             body: "It arrives Friday between 9 AM and 1 PM",
                                                             icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Mail.app"), appURL: nil))
+                }
+            }
+            // `notificationpill`: the two, then the panel opened over them (as a swipe down would), then the list.
+            if UserDefaults.standard.string(forKey: "IsletDebugShape") == "notificationpill" {
+                Task { @MainActor in
+                    store.showNotification(NotificationItem(id: UUID(), app: "Mail", title: "Your order has shipped", subtitle: nil,
+                                                            body: "It arrives Friday between 9 AM and 1 PM",
+                                                            icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Mail.app"), appURL: nil))
+                    try? await Task.sleep(for: .seconds(1))
+                    store.swipeDown()
+                    try? await Task.sleep(for: .seconds(5))
+                    store.openNotificationList()
+                    try? await Task.sleep(for: .seconds(5))
+                    store.closeNotificationList()
                 }
             }
         case "conversation":

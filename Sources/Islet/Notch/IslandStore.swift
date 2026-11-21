@@ -93,6 +93,8 @@ final class IslandStore {
     var messageDraft = ""
     /// Search in the notch (DESIGN.md "Search").
     let search = SearchModel()
+    /// The page the notification list was opened from (the pill), to go back to.
+    @ObservationIgnored private var notificationReturnPage: ExpandedPage?
     /// Search took over the open panel (a letter typed there), so the shape is already out.
     private(set) var searchFromPanel = false
     /// Lists scrolling in the panel, where they are (top-left window points) and whether they're at either end
@@ -127,6 +129,16 @@ final class IslandStore {
 
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
+        pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0)
+    }
+
+    /// Waiting notifications show as a pill at the top of the panel's own pages (DESIGN.md "Notifications", "In the panel").
+    var showsNotificationPill: Bool {
+        expanded && !notifications.isEmpty && [.media, .displaySound, .call].contains(expandedPage)
+    }
+
+    /// The page itself, under the pill.
+    var pageBodyHeight: CGFloat {
         if expandedPage == .notifications { return NotificationList.height(rows: notifications.count) }
         if expandedPage == .messages { return IslandLayout.messagesBodyHeight }
         if expandedPage == .search { return search.bodyHeight }
@@ -345,7 +357,8 @@ final class IslandStore {
 
     func expand() {
         guard !expanded, !locked else { return }
-        expandedPage = level == nil && !notifications.isEmpty ? .notifications : level == nil && call?.phase == .active ? .call : (level == nil && mediaPlaying) ? .media : .displaySound
+        // Always the panel's own page; waiting notifications ride along as a pill at its top.
+        expandedPage = level == nil && call?.phase == .active ? .call : (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
         power?.refresh()
         display?.refresh()
@@ -365,10 +378,11 @@ final class IslandStore {
         // The list closing: what's left stays in Notification Center.
         if !value, expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
         if !value, expandedPage == .search { search.end() }
-        if !value, expandedPage == .messages {
-            messages?.close(); messageDraft = ""
-            if !notifications.isEmpty { armNotification(Self.notificationAfterHover) } // the rest of a stack, briefly
-        }
+        if !value, expandedPage == .messages { messages?.close(); messageDraft = "" }
+        // Notifications left waiting under the pill show again briefly, then time out as usual.
+        if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
+        if value { notificationTask?.cancel() }
+        if !value { notificationReturnPage = nil }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -615,8 +629,25 @@ final class IslandStore {
         finish(n, how)
         if notifications.isEmpty {
             notificationTask?.cancel()
-            if expanded && expandedPage == .notifications { collapse() }
+            if expanded && expandedPage == .notifications { closeNotificationList() }
         }
+        refresh()
+    }
+
+    /// The pill: the list on the panel, remembering the page to go back to.
+    func openNotificationList() {
+        guard expanded, !notifications.isEmpty, expandedPage != .notifications else { return }
+        notificationReturnPage = expandedPage
+        controlDetail = nil
+        expandedPage = .notifications
+        refresh()
+    }
+
+    /// The list's back chevron, or the list emptying: back to the page it came from.
+    func closeNotificationList() {
+        guard expanded, expandedPage == .notifications else { return }
+        expandedPage = notificationReturnPage ?? (mediaPlaying ? .media : .displaySound)
+        notificationReturnPage = nil
         refresh()
     }
 
@@ -627,7 +658,7 @@ final class IslandStore {
         notificationTask?.cancel()
         notifications = []
         all.forEach { finish($0, how) }
-        if expanded && expandedPage == .notifications && refreshing { collapse() }
+        if expanded && expandedPage == .notifications && refreshing { closeNotificationList() }
         if refreshing { refresh() }
     }
 

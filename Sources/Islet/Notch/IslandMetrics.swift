@@ -32,6 +32,8 @@ enum IslandLayout {
     static let notificationStackDepth: CGFloat = 8
     /// The card with the banner's buttons under the text.
     static let notificationActionsHeight: CGFloat = 36
+    /// Waiting notifications as a pill at the top of the panel: 32 tall, 12 from the top (DESIGN.md "In the panel").
+    static let notificationPillHeight: CGFloat = 44
     /// A Messages conversation in the panel.
     static let messagesBodyHeight: CGFloat = 300
     /// Search at its tallest: field 52, hairline, 300 of results, footer 28 (DESIGN.md "Search").

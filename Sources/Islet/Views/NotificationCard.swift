@@ -145,7 +145,12 @@ struct NotificationList: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            HStack {
+            HStack(spacing: 6) {
+                Button { store.closeNotificationList() } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold)).foregroundStyle(Color.isletText)
+                        .frame(width: 24, height: 24).background(Circle().fill(Color.isletRing))
+                }
+                .buttonStyle(.plain).help("Back")
                 Text("JUST NOW · \(store.notificationCount)").font(.system(size: 11, weight: .semibold)).tracking(0.6)
                     .foregroundStyle(Color.isletTertiary).monospacedDigit()
                 Spacer()
@@ -223,5 +228,42 @@ struct NotificationLine: View {
         (Text(item.heading).font(.system(size: size, weight: .semibold)).foregroundColor(.isletText)
          + Text(line.isEmpty ? "" : " · \(line)").font(.system(size: size)).foregroundColor(.isletSecondary))
             .lineLimit(1).truncationMode(.tail)
+    }
+}
+
+/// Waiting notifications at the top of the panel (DESIGN.md "Notifications", "In the panel"): the newest one, the count,
+/// and a chevron. Click for the list.
+struct NotificationPill: View {
+    let store: IslandStore
+    @AppStorage(NotificationWatcher.hideTextKey) private var hideText = false
+    @State private var hover = false
+
+    var body: some View {
+        if let n = store.notifications.first {
+            Button { store.openNotificationList() } label: {
+                HStack(spacing: 8) {
+                    NotificationIcon(item: n, size: 20)
+                    (Text(n.heading).fontWeight(.semibold).foregroundStyle(Color.isletText)
+                        + Text(hideText || n.line.isEmpty ? "" : " · \(n.line)").foregroundStyle(Color.isletSecondary))
+                        .font(.system(size: 12)).lineLimit(1)
+                    Spacer(minLength: 6)
+                    if store.notificationCount > 1 {
+                        Text("\(store.notificationCount)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(Color.isletText).padding(.horizontal, 6).frame(minWidth: 20, minHeight: 18)
+                            .background(Capsule().fill(Color.isletRing))
+                            .contentTransition(.numericText())
+                    }
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.isletTertiary)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(IsletCard(shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.05 : 0)))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.2), value: store.notificationCount)
+        }
     }
 }

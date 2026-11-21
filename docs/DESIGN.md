@@ -425,10 +425,20 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
   - The card has a count badge on its icon (16 pt, `#3A3A3C`, 2 pt black ring).
 - **Click**: opens the newest in its app (the banner's own Show); the next one moves up.
 - **Two-finger swipe up**: dismisses them all.
-- **Two-finger swipe down**: the expanded panel's notification list (500 wide, as tall as the rows need: 52 pt each, at
-  most 4 showing, then it scrolls): "JUST NOW · N" and a "Clear all" pill on top; each row the icon (28), title and
-  "App · now", the message, the banner's buttons, and a close button. Clicking a row opens it. It closes when it's
-  empty, on a swipe up, a click outside or 1 s after the pointer leaves; whatever is left stays in Notification Center.
+- **In the panel** (owner, 2026-11-21: notifications used to take the whole panel, so the controls were out of reach
+  while one showed): the panel always opens on its usual page (controls, music or the call), however it's opened.
+  While notifications are waiting, a pill sits at the top of the page, 16 pt in from the sides, 12 pt from the top:
+  32 tall, the panel's glass card shape (radius 16), the newest one's app icon (20 pt), "**Title** · message" (12;
+  title semibold, message `secondary`, one line) and, on the right, the count when there are two or more ("3") and a
+  chevron (`tertiary`). The page moves down by the pill's 44 pt and the panel grows to fit. The pill stays while the
+  panel is open (the countdown is paused then); closed without using it, the notifications time out as usual and stay
+  in Notification Center.
+- **The list**: clicking the pill opens it on the panel (500 wide, as tall as the rows need: 52 pt each, at most 4
+  showing, then it scrolls): a back chevron, "JUST NOW · N" and a "Clear all" pill on top; each row the icon (28),
+  title and "App · now", the message, the banner's buttons, and a close button. Clicking a row opens it. The chevron,
+  or the list emptying, goes back to the page it came from; a swipe up, a click outside or the pointer leaving for
+  1 s close the panel as usual, and whatever is left stays in Notification Center.
+- **Two-finger swipe down** over a notification: opens the panel with the pill, like a click on the closed notch.
 - **Priority**: below volume and brightness and a ringing call, above connection notices, charging and media (see
   "Priority"). Not on the lock screen, nor while another panel page is open: then macOS shows the banner as usual.
 - **Settings > General**: "Show notifications in the notch" (on by default; off leaves the system banners alone)

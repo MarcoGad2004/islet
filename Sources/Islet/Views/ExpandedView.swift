@@ -12,14 +12,29 @@ struct ExpandedView: View {
         } else if store.expandedPage == .notifications {
             NotificationList(store: store)
                 .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
-        } else if store.expandedPage == .call, store.call?.phase == .active {
+        } else {
+            // Waiting notifications as a pill at the top; the page moves down under it (DESIGN.md "In the panel").
+            VStack(spacing: 0) {
+                if store.showsNotificationPill {
+                    NotificationPill(store: store)
+                        .padding(.horizontal, 16).padding(.top, 12)
+                        .frame(height: IslandLayout.notificationPillHeight, alignment: .bottom)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                page.frame(width: CGFloat(IslandLayout.expandedWidth), height: store.pageBodyHeight, alignment: .topLeading)
+            }
+            .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+            .animation(.easeOut(duration: 0.25), value: store.showsNotificationPill)
+        }
+    }
+
+    @ViewBuilder private var page: some View {
+        if store.expandedPage == .call, store.call?.phase == .active {
             CallPage(store: store)
                 .padding(EdgeInsets(top: 14, leading: 24, bottom: 22, trailing: 24))
-                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
         } else {
             ControlStage(store: store)
                 .padding(16)
-                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
         }
     }
 }

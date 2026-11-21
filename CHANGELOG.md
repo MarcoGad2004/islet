@@ -9,7 +9,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   message in the wide bar under the wings, or in the chin when the menus are wide. Hover for the full card, click to
   open it, swipe up to dismiss.
 - Several at once stack: the notch grows a little deeper with the next one tucked underneath, then shows "2 more",
-  "3 more". Swipe down for a list of everything that just came in, with Clear all.
+  "3 more".
+- Opening the panel while notifications are waiting still opens the controls (or music): the notifications ride along as a
+  pill at the top with the newest one and the count. Click it for the list of everything that just came in, with
+  Clear all and a back button.
 - The banner's own buttons come along: approve a Duo sign-in from the card or the list (never from the small bar, so a
   stray click can't). iPhone notifications get an iPhone icon, time-sensitive ones say so in orange.
 - Messages in the notch: click a message (or Reply on its card) and the conversation opens under the notch, with

@@ -73,7 +73,11 @@ the unlock animation still ships.
 - [x] Wide bar / chin, stacking ("N more", the strip), the list page, the banner's buttons (DESIGN.md, revised
       2026-11-20). Tried: a burst of four from one app (macOS groups them as a `BannerStack`) reaches the chin with
       "3 more"
-- [ ] Still to try: hover card, click to open, the list (swipe down, Clear all, rows), a real Duo Approve / Deny,
+- [x] The panel opens on its own page with waiting notifications as a pill at the top; the pill opens the list, which
+      has a back chevron (owner, 2026-11-21). Preview: `-IsletDebugShape notificationpill`. Tried: pill, list, back
+- [ ] "N more" didn't show for bursts of 3 and 4 from one app (2026-11-21): macOS seems to fold them into one stacked
+      banner that Islet reads once. To look into
+- [ ] Still to try: hover card, click to open, the list (Clear all, rows), a real Duo Approve / Deny,
       opening Notification Center while Islet runs; does Close remove it from Notification Center's list?
 
 ## 1.5: Messages in the notch
