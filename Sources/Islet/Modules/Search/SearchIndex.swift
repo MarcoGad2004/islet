@@ -55,7 +55,10 @@ enum SearchMatch {
         if let i = firstInside { return (62 - Double(i) * 0.3, Array(i..<(i + q.count))) }
         let letters = q.filter { $0 != " " }
         guard letters.count >= 3 else { return nil }
-        var pos = 0, last = -1, gaps = 0
+        // Letters in order count only from the start of a word ("xcd" finds Xcode; "mom" doesn't find "System
+        // Information" from the m in the middle of "System").
+        guard let first = letters.first, let start = (0..<n.count).first(where: { n[$0] == first && isWordStart($0) }) else { return nil }
+        var pos = start, last = -1, gaps = 0
         var marks: [Int] = []
         for ch in letters {
             guard let j = (pos..<n.count).first(where: { n[$0] == ch }) else { return nil }

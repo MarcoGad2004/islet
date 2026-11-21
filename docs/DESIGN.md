@@ -641,7 +641,7 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
     Ecosia or Kagi; Islet itself sends nothing).
   - Nothing found: "No results for “text”" (13, `secondary`) above More.
 - **Matching**: a word's start beats the middle of a word, which beats letters in order ("xcd" finds Xcode; only
-  from three letters, so short queries stay tidy). Ties go to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.
+  from three letters, and only starting at a word's start, so "mom" doesn't find "System Information"). Ties go to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.
 - **Selection**: the first row is selected. The selected row sits on a glass pill (white 10%, hairline edge, radius
   10, inset 8 pt from the body's sides), or `card` with the glass look off. The pointer highlights what it is over
   without moving the selection until it clicks.

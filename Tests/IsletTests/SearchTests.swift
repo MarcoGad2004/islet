@@ -23,6 +23,8 @@ final class SearchTests: XCTestCase {
         XCTAssertNil(m("Send ETA Home", "sh"))  // letters in order only from three letters
         XCTAssertNil(m("Safari", ""))
         XCTAssertNotNil(m("Wi-Fi", "fi"))       // after a hyphen is a word's start
+        XCTAssertNil(m("System Information", "mom"))  // letters in order must start a word
+        XCTAssertNotNil(m("Xcode", "xcd"))
     }
 
     func testCalculator() {
