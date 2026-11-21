@@ -48,6 +48,7 @@ final class SearchModel {
     func begin(_ initial: String = "") {
         index.refreshApps()
         index.refreshShortcuts()
+        index.refreshContacts()
         remembered = Self.loadRemembered()
         fieldReady = false
         fileResults = []
@@ -85,7 +86,9 @@ final class SearchModel {
             var scored: [SearchItem] = []
             func add(_ items: [SearchItem], bonus: Double) {
                 for var it in items {
-                    guard let m = SearchMatch.match(it.name, q) else { continue }
+                    // A contact also matches on its nickname or company, at a little less.
+                    let alias = it.aliases.compactMap { SearchMatch.match($0, q) }.max { $0.score < $1.score }
+                    guard let m = SearchMatch.match(it.name, q) ?? alias.map({ (score: $0.score - 4, marks: [Int]()) }) else { continue }
                     let used = max(it.lastUsed ?? .distantPast, remembered[it.id] ?? .distantPast)
                     it.marks = m.marks
                     it.score += m.score + bonus + SearchMatch.recency(used == .distantPast ? nil : used)
@@ -94,13 +97,14 @@ final class SearchModel {
                 }
             }
             add(index.apps, bonus: 6)
+            add(index.contacts, bonus: 4)
             add(index.shortcuts, bonus: 0)
             add(SearchIndex.settingsItems(), bonus: 1)
             add(fileResults, bonus: -4)
             scored.sort { $0.score > $1.score }
             if let top = scored.first {
                 out.append(Section(id: "top", title: "Top hit", style: .topHit, items: [top]))
-                for (kind, title) in [(SearchItem.Kind.app, "Applications"), (.shortcut, "Shortcuts"), (.file, "Files"), (.setting, "Settings")] {
+                for (kind, title) in [(SearchItem.Kind.app, "Applications"), (.contact, "Contacts"), (.shortcut, "Shortcuts"), (.file, "Files"), (.setting, "Settings")] {
                     let items = scored.filter { $0.kind == kind && $0.id != top.id }.prefix(3)
                     if !items.isEmpty { out.append(Section(id: title, title: title, style: .list, items: Array(items))) }
                 }
@@ -182,7 +186,7 @@ final class SearchModel {
 
     /// Tab: the field takes the selected name.
     func complete() {
-        guard let s = selected, [.app, .shortcut, .file, .setting].contains(s.kind) else { return }
+        guard let s = selected, [.app, .contact, .shortcut, .file, .setting].contains(s.kind) else { return }
         text = s.name
         focusRequest += 1
     }
@@ -204,6 +208,10 @@ final class SearchModel {
             } else {
                 ws.open(url)
             }
+        case .contact:
+            // The person in Contacts, where Message, Call, FaceTime and Email each use the right number.
+            remember(it)
+            if let url = it.url { ws.open(url) }
         case .setting:
             remember(it)
             if let url = it.url { ws.open(url) }

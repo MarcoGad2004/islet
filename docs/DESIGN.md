@@ -627,7 +627,9 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
 - **Results** (as you type, no delay): sections in this order, each under a small caps label (10.5 semibold,
   `tertiary`, 22 tall), at most 3 rows each:
   - **Top hit**: the best match of any kind, 52 tall: icon 32, the name (15 semibold), its kind (11, `tertiary`).
-  - **Applications**, **Shortcuts** (your Shortcuts, run in the background; one Shortcuts icon for all, since theirs
+  - **Applications**, **Contacts** (owner, 2026-11-21: your contacts by name, nickname or company; their photo, or their
+    initials on a purple circle; the company under a top hit; Return opens the person in Contacts, where Message, Call,
+    FaceTime and Email use the right number; needs the Contacts permission Messages already asks for), **Shortcuts** (your Shortcuts, run in the background; one Shortcuts icon for all, since theirs
     can't be read), **Files** (from the Spotlight index; the folder on the right, 11 `tertiary`, cut in the middle),
     **Settings** (System Settings pages).
   - Files start from two letters. `~/Library`, hidden folders, the insides of bundles and code projects' build and
@@ -663,7 +665,7 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
 - **Without a notch**: bubble mode drops it from the top edge as a card; menu bar mode drops it under the icon. Same
   contents.
 - **Not in search (for now)**: clipboard history (it would mean Islet watching everything you copy), web results and
-  answers (no network), contacts, mail and messages.
+  answers (no network), mail and messages.
 
 Decided (owner, 2026-11-21): ⌘Space is the default (Spotlight's own shortcut is moved); the "Search the web" row
 stays; typing in the open panel starts a search.

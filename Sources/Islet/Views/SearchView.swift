@@ -131,6 +131,7 @@ struct SearchView: View {
         case .spotlight: return [("↩", "Search in Spotlight")]
         case .web: return [("↩", "Open in browser")]
         case .setting: return [("↩", "Open")]
+        case .contact: return [("↩", "Open in Contacts")]
         case .app, .file: return [("↩", "Open"), ("⌘↩", "Show in Finder")]
         }
     }
@@ -235,6 +236,14 @@ struct SearchIcon: View {
             switch item.kind {
             case .app, .file:
                 if let image = index.icon(for: item) { Image(nsImage: image).resizable().interpolation(.high) } else { Color.clear }
+            case .contact:
+                // Their photo, or their initials on a purple circle.
+                if let image = index.icon(for: item) {
+                    Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fill).clipShape(Circle())
+                } else {
+                    Circle().fill(Color(hex: 0x5E5CE6))
+                        .overlay(Text(initials).font(.system(size: size * 0.4, weight: .semibold)).foregroundStyle(.white))
+                }
             case .calc:
                 Image(nsImage: NSWorkspace.shared.icon(forFile: SearchIndex.calculatorURL.path)).resizable().interpolation(.high)
             case .shortcut:
@@ -249,6 +258,10 @@ struct SearchIcon: View {
             }
         }
         .frame(width: size, height: size)
+    }
+
+    private var initials: String {
+        item.name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
     }
 
     private func tile(_ fill: LinearGradient, _ symbol: String) -> some View {

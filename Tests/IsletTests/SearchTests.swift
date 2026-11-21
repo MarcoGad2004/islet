@@ -27,6 +27,12 @@ final class SearchTests: XCTestCase {
         XCTAssertNotNil(m("Xcode", "xcd"))
     }
 
+    func testContactKind() {
+        let c = SearchItem(id: "contact:1", kind: .contact, name: "Mom", detail: "")
+        XCTAssertEqual(c.kindLabel, "Contact")
+        XCTAssertEqual(SearchItem(id: "contact:2", kind: .contact, name: "Tim", detail: "Apple").kindLabel, "Apple")
+    }
+
     func testCalculator() {
         XCTAssertEqual(SearchCalculator.evaluate("12*7.5"), 90)
         XCTAssertEqual(SearchCalculator.evaluate("(3+4)/2"), 3.5)

@@ -31,8 +31,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
   peek. It follows your fingers: the name rolls, the skip icon grows in its wing, and halfway the trackpad taps. Let go
   past halfway (or flick) and it skips; short of it, it slides back.
 
-- Search from the notch: press ⌘Space and the notch flows down into a search field, for apps, files, your Shortcuts,
-  System Settings pages and sums ("12*7.5" answers 90; Return copies it). The 7 apps you used last wait under an empty
+- Search from the notch: press ⌘Space and the notch flows down into a search field, for apps, contacts (Return opens
+  them in Contacts), files, your Shortcuts, System Settings pages and sums ("12*7.5" answers 90; Return copies it). The 7 apps you used last wait under an empty
   field. Arrows move, Return opens (or runs, or copies), ⌘Return shows it in Finder, Tab completes the name, Esc clears
   and then closes. Type straight away: letters show while it opens, and results come in as soon as they match. Typing in
   the open panel searches too. The last rows search in Spotlight or on the web.

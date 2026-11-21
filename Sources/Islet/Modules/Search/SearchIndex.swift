@@ -1,8 +1,9 @@
 import AppKit
+import Contacts
 
 /// One row search can show (DESIGN.md "Search").
 struct SearchItem: Identifiable, Equatable {
-    enum Kind: Equatable { case app, shortcut, file, setting, calc, spotlight, web }
+    enum Kind: Equatable { case app, contact, shortcut, file, setting, calc, spotlight, web }
     /// "kind:identity". Also the key Islet remembers opened results by.
     let id: String
     var kind: Kind
@@ -15,6 +16,10 @@ struct SearchItem: Identifiable, Equatable {
     var score = 0.0
     /// When it was last opened (the system's record for apps and files), for ranking and the recent row.
     var lastUsed: Date?
+    /// A contact's other names to match on (nickname, company).
+    var aliases: [String] = []
+    /// A contact's photo.
+    var imageData: Data?
 
     /// The kind under a top hit.
     var kindLabel: String {
@@ -22,6 +27,7 @@ struct SearchItem: Identifiable, Equatable {
         case .app: "Application"
         case .shortcut: "Shortcut"
         case .file: SearchIndex.shortPath(detail)
+        case .contact: detail.isEmpty ? "Contact" : detail
         case .setting: "System Settings"
         case .calc: "Calculator"
         case .spotlight, .web: ""
@@ -225,6 +231,40 @@ final class SearchIndex {
         return String(decoding: data, as: UTF8.self)
     }
 
+    // MARK: Contacts
+
+    private(set) var contacts: [SearchItem] = []
+    private var contactsLoaded: Date?
+
+    /// Your contacts (Islet already has Contacts access for Messages' names), off the main thread, at most once a minute.
+    /// Nothing without that permission. Return opens the person in Contacts (`addressbook://<id>`).
+    func refreshContacts() {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { contacts = []; return }
+        if let l = contactsLoaded, Date().timeIntervalSince(l) < 60 { return }
+        contactsLoaded = Date()
+        Task.detached(priority: .userInitiated) {
+            let items = Self.loadContacts()
+            await MainActor.run { [weak self] in self?.contacts = items }
+        }
+    }
+
+    nonisolated private static func loadContacts() -> [SearchItem] {
+        let keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
+                                       CNContactNicknameKey as CNKeyDescriptor, CNContactOrganizationNameKey as CNKeyDescriptor,
+                                       CNContactThumbnailImageDataKey as CNKeyDescriptor, CNContactIdentifierKey as CNKeyDescriptor]
+        var out: [SearchItem] = []
+        try? CNContactStore().enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
+            let full = CNContactFormatter.string(from: c, style: .fullName) ?? ""
+            let name = full.isEmpty ? c.organizationName : full
+            guard !name.isEmpty else { return }
+            let company = full.isEmpty ? "" : c.organizationName
+            out.append(SearchItem(id: "contact:" + c.identifier, kind: .contact, name: name, detail: company,
+                                  url: URL(string: "addressbook://" + c.identifier),
+                                  aliases: [c.nickname, company].filter { !$0.isEmpty }, imageData: c.thumbnailImageData))
+        }
+        return out
+    }
+
     // MARK: System Settings pages
 
     struct SettingsPage { let name: String; let pane: String; let symbol: String; let color: UInt32 }
@@ -278,6 +318,13 @@ final class SearchIndex {
     // MARK: Icons
 
     func icon(for item: SearchItem) -> NSImage? {
+        if item.kind == .contact {
+            guard let data = item.imageData else { return nil }
+            if let i = iconCache[item.id] { return i }
+            let i = NSImage(data: data)
+            iconCache[item.id] = i
+            return i
+        }
         guard let url = item.url, item.kind == .app || item.kind == .file else { return nil }
         if let i = iconCache[url.path] { return i }
         let i = NSWorkspace.shared.icon(forFile: url.path)
