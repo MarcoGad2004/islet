@@ -14,6 +14,8 @@ enum IslandContent {
     case notification(NotificationItem)
     /// FaceTime ringing or in a call (DESIGN.md "Calls").
     case call(CallState)
+    /// An iPhone Live Activity (DESIGN.md "iPhone Live Activities").
+    case activity(LiveActivity)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -27,6 +29,7 @@ enum IslandContent {
         case .progress: "progress"
         case .notification: "notification" // a new one fades across inside the card, not by remounting
         case .call(let c): "call-\(c.phase)"
+        case .activity(let a): "activity-\(a.id)"
         case .media: "media"
         }
     }

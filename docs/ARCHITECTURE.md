@@ -36,6 +36,10 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
      pages, files from the Spotlight index through `NSMetadataQuery`), `SearchModel` (sections, ranking, keys) and
      `SearchShortcut` (the Carbon hot key, Spotlight's own shortcut from `com.apple.symbolichotkeys`, the hand-off).
      The panel's key monitor (`NotchController`) sends keys to `IslandStore.handleKey`.
+   - `LiveActivities`: `LiveActivityWatcher` reads the iPhone's Live Activities from `MenuBarAgent`'s menu bar items
+     (subrole `AXLiveActivity`). macOS sends no change for their text, so it reads them once a second while one is up,
+     and checks every 5 s otherwise (an exception to "no polling while idle": one AX read). The card is read by opening
+     the system's own card off screen when the panel opens.
    - `Calls`: `FaceTimeMonitor` turns the call banner into "ringing" and reads FaceTime's call window (name, mute,
      camera, End) while FaceTime runs.
 8. **Gestures**: two-finger swipes are `scrollWheel` events delivered to the panel while the pointer

@@ -93,6 +93,12 @@ final class IslandStore {
     var messageDraft = ""
     /// Search in the notch (DESIGN.md "Search").
     let search = SearchModel()
+    /// iPhone Live Activities (DESIGN.md "iPhone Live Activities"); the newest shows in the compact shapes.
+    private(set) var liveActivities: [LiveActivity] = []
+    @ObservationIgnored var liveActivityWatcher: LiveActivityWatcher?
+    /// Wings of the given width (each side) fit the menu bar.
+    @ObservationIgnored var wingLayoutCheck: ((Double) -> Bool)?
+    private var activityWingsFit = false
     /// The page the notification list was opened from (the pill), to go back to.
     @ObservationIgnored private var notificationReturnPage: ExpandedPage?
     /// Search took over the open panel (a letter typed there), so the shape is already out.
@@ -129,8 +135,40 @@ final class IslandStore {
 
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
-        pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0)
+        pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0) + activityCardsHeight
     }
+
+    /// Live Activity cards at the top of the panel's own pages, under the notification pill.
+    var showsActivityCards: Bool {
+        expanded && !liveActivities.isEmpty && [.media, .displaySound, .call].contains(expandedPage) && controlDetail == nil
+    }
+
+    var activityCardsHeight: CGFloat {
+        guard showsActivityCards else { return 0 }
+        return LiveActivityCard.top + liveActivities.reduce(0) { $0 + LiveActivityCard.height($1) + LiveActivityCard.gap }
+    }
+
+    /// The newest activity: the one in the compact shapes.
+    var activity: LiveActivity? { liveActivities.max { $0.since < $1.since } }
+
+    /// Each wing's width for the activity: its value, 12 pt clear on both sides, 60 to 100 pt.
+    var activityWing: Double {
+        guard let v = activity?.value else { return IslandLayout.activityWingMin }
+        let w = (v as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)]).width
+        return min(IslandLayout.activityWingMax, max(IslandLayout.activityWingMin, (w + 24).rounded(.up)))
+    }
+
+    func setLiveActivities(_ list: [LiveActivity]) {
+        let hadOne = !liveActivities.isEmpty
+        let wing = activityWing
+        liveActivities = list
+        // Coming or going, or the wings changing width: measure the menu bar again.
+        if hadOne != !list.isEmpty || wing != activityWing { recomputeLayout(force: true) }
+        refresh()
+    }
+
+    /// One of the card's own buttons ("Complete").
+    func pressActivityButton(_ button: String, on id: String) { liveActivityWatcher?.press(button, on: id) }
 
     /// Waiting notifications show as a pill at the top of the panel's own pages (DESIGN.md "Notifications", "In the panel").
     var showsNotificationPill: Bool {
@@ -166,6 +204,8 @@ final class IslandStore {
         if let charge { return .charge(charge) }
         // A call in progress takes media's place (and, floating, is left out like it).
         if let call, !floating { return .call(call) }
+        // A Live Activity: above media (DESIGN.md "iPhone Live Activities"); left out floating, like media.
+        if let a = activity, !floating { return .activity(a) }
         if mediaVisible && !floating { return .media }
         return nil
     }
@@ -196,6 +236,10 @@ final class IslandStore {
                 if wingsFit, geometry?.mode == .notch, pointerInside { return .levelWings }
                 return compactLayout
             }
+            if case .activity = c {
+                guard activityWingsFit else { return .chin }
+                return geometry?.mode == .notch && pointerInside ? .levelWings : .wings
+            }
             // Media under the pointer (or mid-swipe): the wide bar, with the song's name in its body.
             if case .media = c, wingsFit, geometry?.mode == .notch, pointerInside || skip != nil { return .levelWings }
             return compactLayout
@@ -223,18 +267,25 @@ final class IslandStore {
     }
 
     /// Re-run the menu bar width check (app switch, event start, display change).
-    func recomputeLayout() {
+    func recomputeLayout(force: Bool = false) {
         let fits = layoutCheck?() ?? false
         let eventFits = eventLayoutCheck?() ?? false
-        guard fits != wingsFit || eventFits != eventWingsFit else { return }
+        let activityFits = activity == nil ? false : (wingLayoutCheck?(activityWing) ?? fits)
+        guard force || fits != wingsFit || eventFits != eventWingsFit || activityFits != activityWingsFit else { return }
         wingsFit = fits
         eventWingsFit = eventFits
-        refresh()
+        activityWingsFit = activityFits
+        if !force { refresh() }
     }
 
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
         var m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        if case .activity? = content, presentation == .wings || presentation == .levelWings {
+            // Its wings grow alike to fit the value.
+            m.sw = g.width + 2 * activityWing
+            m.bw = m.sw
+        }
         if case .notification(let n)? = content, presentation != .expanded {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
@@ -382,6 +433,7 @@ final class IslandStore {
         // Notifications left waiting under the pill show again briefly, then time out as usual.
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
+        if value, !liveActivities.isEmpty { liveActivityWatcher?.readCards() }
         if !value { notificationReturnPage = nil }
         expanded = value
         lastInUse = Date()

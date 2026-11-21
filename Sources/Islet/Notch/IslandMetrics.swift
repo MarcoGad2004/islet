@@ -34,6 +34,9 @@ enum IslandLayout {
     static let notificationActionsHeight: CGFloat = 36
     /// Waiting notifications as a pill at the top of the panel: 32 tall, 12 from the top (DESIGN.md "In the panel").
     static let notificationPillHeight: CGFloat = 44
+    /// A Live Activity's wings grow alike to fit its value: 60 to 100 pt each (DESIGN.md "iPhone Live Activities").
+    static let activityWingMin: Double = 60
+    static let activityWingMax: Double = 100
     /// A Messages conversation in the panel.
     static let messagesBodyHeight: CGFloat = 300
     /// Search at its tallest: field 52, hairline, 300 of results, footer 28 (DESIGN.md "Search").

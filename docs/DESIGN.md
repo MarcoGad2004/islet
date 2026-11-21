@@ -541,9 +541,9 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
-## iPhone Live Activities (draft, not approved)
+## iPhone Live Activities
 
-Proposed 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
+Owner approved, 2026-11-21 (owner: the Live Activities macOS 26 shows from the iPhone in the menu bar, integrated into the notch;
 "option 2": Islet's own layout, built from what the activity says; their real look, from their pixels, is for a later
 update). Mockup (playable): <https://claude.ai/artifact/FRRSaQ7kUjrYdNEpqYbeig> (source docs/mockups/live-activities.html).
 Feasibility: RESEARCH.md Q47-Q52.
@@ -569,8 +569,8 @@ Feasibility: RESEARCH.md Q47-Q52.
   the value as large text (22 semibold, monospaced digits) on the right, the rest as lines in `secondary` (12). Its
   buttons ("Complete") as 26 pt glass pills under the text; pressing one presses the activity's own button.
   - To read the card, Islet opens the system's card off screen while its panel is open and closes it with the panel.
-    (To confirm in the spike: the card snapped back on screen once of two tries.) If it can't be kept off screen, the
-    card shows only the compact sides: app, value, and "Open on Mac" to open the system's card.
+    The move is repeated until it stays (the card snapped back once of two tries in the spike). Until the card has
+    been read, the card shows the app and the value.
 - **The menu bar's own**: Islet can't move or hide it (RESEARCH.md Q50). If System Settings can hide it and Islet can
   still read the activity, setup and Settings say how; otherwise both show.
 - **Settings > General**: "Show iPhone Live Activities in the notch" (on by default).

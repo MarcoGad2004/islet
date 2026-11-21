@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
     private let notifications = NotificationWatcher()
+    private let liveActivities = LiveActivityWatcher()
     private let faceTime = FaceTimeMonitor()
     private let messages = MessagesStore()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
@@ -268,6 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let g = store?.geometry else { return false }
             return g.virtual || LayoutChecker.eventWingsFit(g)
         }
+        store.wingLayoutCheck = { [weak store] wing in
+            #if DEBUG
+            if UserDefaults.standard.bool(forKey: "IsletDebugWide") { return true }
+            #endif
+            guard let g = store?.geometry else { return false }
+            return g.virtual || LayoutChecker.wingsFit(g, wing: CGFloat(wing))
+        }
         store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
         focus.onChange = { [weak store] old, new in
@@ -312,6 +320,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.callCamera = { [weak self] in self?.faceTime.toggleCamera() }
         store.callEnd = { [weak self] in self?.faceTime.end() }
         if Self.callsEnabled { faceTime.start() }
+
+        // iPhone Live Activities (DESIGN.md "iPhone Live Activities").
+        store.liveActivityWatcher = liveActivities
+        liveActivities.onChange = { [weak store] in store?.setLiveActivities($0) }
+        liveActivities.start()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.start()

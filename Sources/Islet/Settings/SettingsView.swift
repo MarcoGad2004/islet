@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
+    @AppStorage(LiveActivityWatcher.enabledKey) private var liveActivitiesInNotch = true
     @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
@@ -56,6 +57,9 @@ struct SettingsView: View {
                 Text("Reply from the notch. Needs Full Disk Access (to read Messages), Contacts (names) and permission to control Messages (to send).")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
             }
+            Toggle("Show iPhone Live Activities in the notch", isOn: $liveActivitiesInNotch)
+            Text("Live Activities your iPhone shows on the Mac: the app and its live value beside the notch, the details in the panel. The menu bar keeps its own as well.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             searchRows
             NotchChoice().padding(.vertical, 4)
             if powerMode.permissionInstalled {

@@ -21,6 +21,15 @@ struct ExpandedView: View {
                         .frame(height: IslandLayout.notificationPillHeight, alignment: .bottom)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                if store.showsActivityCards {
+                    // iPhone Live Activities, one card each (DESIGN.md "iPhone Live Activities", "In the panel").
+                    VStack(spacing: LiveActivityCard.gap) {
+                        ForEach(store.liveActivities) { LiveActivityCard(store: store, activity: $0) }
+                    }
+                    .padding(.horizontal, 16).padding(.top, LiveActivityCard.top)
+                    .frame(height: store.activityCardsHeight, alignment: .top)
+                    .transition(.opacity)
+                }
                 page.frame(width: CGFloat(IslandLayout.expandedWidth), height: store.pageBodyHeight, alignment: .topLeading)
             }
             .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
