@@ -32,6 +32,10 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
    - `FaceUnlock`: camera capture, face match, Keychain password, typing it into the lock screen.
    - `Notifications`: `NotificationWatcher` observes Notification Center's banner windows (`AXObserver`), moves each one
      off screen, reads it and hands it to the store; the card's Show / Close press the banner's own actions.
+   - `Search`: `SearchIndex` (apps from the app folders, Shortcuts through `/usr/bin/shortcuts`, System Settings
+     pages, files from the Spotlight index through `NSMetadataQuery`), `SearchModel` (sections, ranking, keys) and
+     `SearchShortcut` (the Carbon hot key, Spotlight's own shortcut from `com.apple.symbolichotkeys`, the hand-off).
+     The panel's key monitor (`NotchController`) sends keys to `IslandStore.handleKey`.
    - `Calls`: `FaceTimeMonitor` turns the call banner into "ringing" and reads FaceTime's call window (name, mute,
      camera, End) while FaceTime runs.
 8. **Gestures**: two-finger swipes are `scrollWheel` events delivered to the panel while the pointer

@@ -91,6 +91,10 @@ final class IslandStore {
     var messages: MessagesStore?
     /// The reply being typed on the conversation page; while it has text the page stays open when the pointer leaves.
     var messageDraft = ""
+    /// Search in the notch (DESIGN.md "Search").
+    let search = SearchModel()
+    /// Search took over the open panel (a letter typed there), so the shape is already out.
+    private(set) var searchFromPanel = false
     /// Lists scrolling in the panel, where they are (top-left window points) and whether they're at either end
     /// (DESIGN.md "Gestures", "Over a list").
     func scrollRegion(at p: CGPoint) -> PanelScrollRegions.Region? {
@@ -125,6 +129,7 @@ final class IslandStore {
     var expandedBodyHeight: CGFloat {
         if expandedPage == .notifications { return NotificationList.height(rows: notifications.count) }
         if expandedPage == .messages { return IslandLayout.messagesBodyHeight }
+        if expandedPage == .search { return search.bodyHeight }
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
         switch controlDetail {
         case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
@@ -255,7 +260,8 @@ final class IslandStore {
     }
 
     private func refresh() {
-        if let m = targetMetrics() { animator.go(to: m) }
+        // Search's height follows the results without a bounce, and mid-opening only its target moves.
+        if let m = targetMetrics() { animator.go(to: m, smoothHeight: expanded && expandedPage == .search) }
         animator.setSwell(hoverSwell)
     }
 
@@ -306,7 +312,8 @@ final class IslandStore {
         }
         if inside {
             leaveTask?.cancel()
-        } else if expanded && !(expandedPage == .messages && !messageDraft.isEmpty) {
+        } else if expanded && !(expandedPage == .messages && !messageDraft.isEmpty) && expandedPage != .search {
+            // Search is driven from the keyboard: it stays when the pointer leaves.
             leaveTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
@@ -357,6 +364,7 @@ final class IslandStore {
     private func setExpanded(_ value: Bool) {
         // The list closing: what's left stays in Notification Center.
         if !value, expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
+        if !value, expandedPage == .search { search.end() }
         if !value, expandedPage == .messages {
             messages?.close(); messageDraft = ""
             if !notifications.isEmpty { armNotification(Self.notificationAfterHover) } // the rest of a stack, briefly
@@ -369,6 +377,87 @@ final class IslandStore {
         leaveTask?.cancel()
         onExpandedChange?(value)
         refresh()
+    }
+
+    // MARK: Search
+
+    /// The search shortcut: opens search, or closes it when it's open.
+    func toggleSearch() {
+        if expanded && expandedPage == .search { collapse() } else { openSearch() }
+    }
+
+    /// Opens search, from the shortcut or with a letter typed in the open panel (DESIGN.md "Search", "From the panel").
+    func openSearch(initial: String = "") {
+        guard !locked, !paused, !lockScreen, geometry != nil else { return }
+        search.close = { [weak self] in self?.collapse() }
+        search.onChange = { [weak self] in
+            guard let self, self.expanded, self.expandedPage == .search else { return }
+            self.refresh()
+        }
+        if expanded {
+            if expandedPage == .search { search.text = initial.isEmpty ? search.text : search.text + initial; return }
+            if expandedPage == .messages { messages?.close(); messageDraft = "" }
+            if expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
+            searchFromPanel = true
+            controlDetail = nil
+            leaveTask?.cancel()
+            search.begin(initial)
+            expandedPage = .search
+            onExpandedChange?(true) // the panel takes the keyboard
+            refresh()
+        } else {
+            searchFromPanel = false
+            search.begin(initial)
+            expandedPage = .search
+            setExpanded(true)
+        }
+    }
+
+    /// A key pressed while the panel has the keyboard. True when it was used here and goes no further.
+    func handleKey(_ key: KeyPress) -> Bool {
+        guard expanded, !locked else { return false }
+        if expandedPage == .search { return searchKey(key) }
+        // A letter typed in the open panel starts a search with it (not in a conversation, where it's the reply).
+        if expandedPage != .messages, key.plainText, let c = key.characters, c != " " {
+            openSearch(initial: c)
+            return true
+        }
+        return false
+    }
+
+    private func searchKey(_ key: KeyPress) -> Bool {
+        switch key.code {
+        case KeyPress.down: if key.command { search.jumpSection(1) } else { search.move(1) }; return true
+        case KeyPress.up: if key.command { search.jumpSection(-1) } else { search.move(-1) }; return true
+        case KeyPress.left, KeyPress.right:
+            // Along the recent apps; with text, the cursor in the field.
+            guard search.isEmpty else { return false }
+            search.move(key.code == KeyPress.right ? 1 : -1); return true
+        case KeyPress.returnKey, KeyPress.enter: search.activate(reveal: key.command); return true
+        case KeyPress.escape:
+            if search.isEmpty { collapse() } else { search.text = "" }
+            return true
+        case KeyPress.tab: search.complete(); return true
+        default: break
+        }
+        // No Edit menu in an agent app: the editing shortcuts go to the field by hand.
+        if key.command, !key.control, let c = key.charactersIgnoringModifiers?.lowercased() {
+            switch c {
+            case "c" where !key.fieldHasSelection: return search.copySelected()
+            case "c": return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+            case "v": return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
+            case "x": return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
+            case "a": return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+            case "z": return NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+            default: return false
+            }
+        }
+        // Letters typed before the field has the cursor are kept here, in order (DESIGN.md "Typing while it opens").
+        if !search.fieldReady {
+            if key.code == KeyPress.delete { if !search.text.isEmpty { search.text.removeLast() }; return true }
+            if key.plainText, let c = key.characters { search.text += c; return true }
+        }
+        return false
     }
 
     func swipeUp() {

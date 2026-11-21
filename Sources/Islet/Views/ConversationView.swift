@@ -168,6 +168,8 @@ struct PanelScrollView<Content: View>: View {
     var indicators = true
     /// Scrolled to whenever it changes (the newest message).
     var scrollTo: Int64? = nil
+    /// Kept in view whenever it changes, scrolling as little as possible (search's selected row).
+    var follow: String? = nil
     @ViewBuilder var content: Content
     @State private var id = UUID()
 
@@ -190,6 +192,10 @@ struct PanelScrollView<Content: View>: View {
                 .onChange(of: scrollTo) { _, target in
                     guard let target else { return }
                     withAnimation(.easeOut(duration: 0.2)) { reader.scrollTo(target, anchor: .bottom) }
+                }
+                .onChange(of: follow) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.15)) { reader.scrollTo(target) }
                 }
             }
         }

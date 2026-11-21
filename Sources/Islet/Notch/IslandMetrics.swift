@@ -34,6 +34,8 @@ enum IslandLayout {
     static let notificationActionsHeight: CGFloat = 36
     /// A Messages conversation in the panel.
     static let messagesBodyHeight: CGFloat = 300
+    /// Search at its tallest: field 52, hairline, 300 of results, footer 28 (DESIGN.md "Search").
+    static let searchMaxBodyHeight: CGFloat = 52 + 1 + 300 + 28
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150

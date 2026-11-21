@@ -531,13 +531,14 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
 - Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
-## Search (draft, not approved)
+## Search
 
-Proposed 2026-11-21 (owner asked for a search that comes out of the notch, in place of Spotlight). Mockup (playable):
-<https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Nothing here is built;
-feasibility: RESEARCH.md "Search from the notch".
+Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Spotlight). Mockup (playable):
+<https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Feasibility: RESEARCH.md
+"Search from the notch". Preview: `-IsletDebugShape search -IsletDebugSearch <text>`.
 
-- **Opening**: the search shortcut (Settings > General > "Search shortcut", ⌘Space by default) from anywhere,
+- **Opening**: the search shortcut (Settings > General > "Search shortcut": ⌘Space by default, or ⌥Space, ⌃Space,
+  ⇧⌘Space, Off) from anywhere,
   including full-screen apps. ⌘Space only reaches Islet once Spotlight's own shortcut is changed in System Settings >
   Keyboard > Keyboard Shortcuts > Spotlight; until then Settings shows "Spotlight still uses ⌘Space" with a button to
   that page, and setup has the same row. Pressing the shortcut again closes it.
@@ -557,13 +558,18 @@ feasibility: RESEARCH.md "Search from the notch".
 - **Results** (as you type, no delay): sections in this order, each under a small caps label (10.5 semibold,
   `tertiary`, 22 tall), at most 3 rows each:
   - **Top hit**: the best match of any kind, 52 tall: icon 32, the name (15 semibold), its kind (11, `tertiary`).
-  - **Applications**, **Shortcuts** (your Shortcuts, run in the background), **Files** (from the Spotlight index;
-    the folder on the right, 11 `tertiary`, cut in the middle), **Settings** (System Settings pages).
+  - **Applications**, **Shortcuts** (your Shortcuts, run in the background; one Shortcuts icon for all, since theirs
+    can't be read), **Files** (from the Spotlight index; the folder on the right, 11 `tertiary`, cut in the middle),
+    **Settings** (System Settings pages).
+  - Files start from two letters. `~/Library`, hidden folders, the insides of bundles and code projects' build and
+    dependency folders (`node_modules`, `build`, `DerivedData`…) are left out; files deep in a folder tree rank lower.
   - Rows are 34 tall: icon 22, name 13 with the matched letters in `text` and the rest `secondary`.
   - **Calculator**: when the text is a sum ("12*7.5", "(3+4)/2"), the top hit is the answer ("= 90", 22 semibold,
     monospaced digits) with the sum above it in `tertiary`. Return copies it.
-  - **More**: always last: "Search “text” in Spotlight" (hands the text to Spotlight) and "Search the web for “text”"
-    (opens the default browser; Islet itself sends nothing).
+  - **More**: always last: "Search “text” in Spotlight" (presses Spotlight's own shortcut and types the text; without
+    Accessibility, or with Spotlight's shortcut still on search's, a Finder search window instead) and "Search the web
+    for “text”" (opens the default browser on Settings > General "Search the web with": Google, DuckDuckGo, Bing,
+    Ecosia or Kagi; Islet itself sends nothing).
   - Nothing found: "No results for “text”" (13, `secondary`) above More.
 - **Matching**: a word's start beats the middle of a word, which beats letters in order ("xcd" finds Xcode; only
   from three letters, so short queries stay tidy). Ties go to what was opened most recently. Islet remembers what you open from search (on this Mac only) and ranks it higher.

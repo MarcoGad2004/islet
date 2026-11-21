@@ -20,6 +20,7 @@ struct OnboardingView: View {
     @State private var accessibility = AXIsProcessTrusted()
     @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var messagesAccess = MessagesAccess()
+    @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @State private var password = ""
@@ -104,6 +105,20 @@ struct OnboardingView: View {
                 permission("Control Messages", icon: "message.fill", ok: messagesAccess.automationAllowed,
                            detail: "Only to send the replies you type in the notch. Allow opens Messages in the background to ask.",
                            action: { messagesAccess.requestAutomation() })
+                Divider()
+                // Not a permission, but the same kind of one-time step (DESIGN.md "Search", "Opening").
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "magnifyingglass").frame(width: 22).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Search from the notch")
+                        Text(spotlightConflict
+                             ? "\(SearchShortcutChoice.current.title) opens Islet's search once Spotlight's own shortcut is changed, in Keyboard Shortcuts > Spotlight."
+                             : "\(SearchShortcutChoice.current.title) opens Islet's search. Change it in Settings > General.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    if spotlightConflict { Button("Change…") { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) } } else { status(true) }
+                }
                 Divider()
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "waveform").frame(width: 22).foregroundStyle(.secondary)
@@ -270,6 +285,7 @@ struct OnboardingView: View {
         wifi.refresh()
         focus.retry()
         messagesAccess.refresh()
+        spotlightConflict = SearchShortcut.spotlightConflict
         if accessibility { levels.retryTap() }
     }
 

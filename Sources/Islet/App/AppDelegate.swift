@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
         notch.start()
+        // Search from the notch (DESIGN.md "Search").
+        SearchShortcut.shared.onPress = { [weak self] in self?.notch.store.toggleSearch() }
+        SearchShortcut.shared.apply()
         if UserDefaults.standard.bool(forKey: "IsletHandoff") { notch.setIslandVisible(false) } // shown once fully drawn
         faceUnlock.unlock.start()
         startModules()
@@ -91,6 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "messagessend": let s = MessagesSpike(); messagesSpike = s; Task { await s.sendTest() }
         case "searchspike": let s = SearchSpike(); searchSpike = s; Task { await s.run() }
         case "searchkeys": let s = SearchSpike(); searchSpike = s; Task { await s.runKeys() }
+        case "search":
+            // `-IsletDebugShape search -IsletDebugSearch saf`: opens search a second after launch with that text typed.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                self?.notch.store.openSearch(initial: UserDefaults.standard.string(forKey: "IsletDebugSearch") ?? "")
+            }
         case "spikeactive": let s = ControlSpike(); controlSpike = s; Task { await s.runActive() }
         case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
         case "mediapage":

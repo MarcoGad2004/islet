@@ -89,10 +89,23 @@ final class IslandAnimator {
         return t
     }
 
-    func go(to target: IslandMetrics) {
+    /// `smoothHeight`: a change of the body's height alone eases there without a bounce (search's results).
+    func go(to target: IslandMetrics, smoothHeight: Bool = false) {
         // Same destination (the pointer crossing the edge mid-morph, a refresh that changed nothing): leave the
         // running motion alone. Re-planning it would restart the delays and swap springs halfway through.
         if target == (then ?? self.target) { return }
+        // Only the body's height changed (search's results while typing). Mid-motion (search typed into while it opens)
+        // just the height's target moves and everything else carries on: the opening never stops or restarts
+        // (DESIGN.md "Typing while it opens").
+        if then == nil, !floating, Self.onlyHeightDiffers(self.target, target) {
+            let inFlight = channels.contains { $0.delay > 0 || abs($0.velocity) > 1 || abs($0.value - $0.target) > 0.5 }
+            if inFlight || smoothHeight {
+                channels[3].target = target.bh
+                if !inFlight { channels[3].spring = Spring(response: 0.22, damping: 1); channels[3].delay = 0 }
+                startTimer()
+                return
+            }
+        }
         then = nil; thenAtWidth = nil; thenWhen = nil; thenSpring = nil
         if floating { goFloating(target); return }
         var goal = target
@@ -211,6 +224,12 @@ final class IslandAnimator {
             // The orb reaching down from the edge, or pulling back into it: one smooth motion, no bounce.
             apply(target, all(Spring(response: 0.27, damping: 1)))
         }
+    }
+
+    private static func onlyHeightDiffers(_ a: IslandMetrics, _ b: IslandMetrics) -> Bool {
+        guard abs(a.bh - b.bh) > 0.5 else { return false }
+        for i in 0..<IslandMetrics.channelCount where i != 3 && abs(a[i] - b[i]) > 0.5 { return false }
+        return true
     }
 
     private func apply(_ goal: IslandMetrics, _ specs: [(Spring, Double)]) {

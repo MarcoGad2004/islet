@@ -228,6 +228,12 @@ final class NotchController {
         if let m = NSEvent.addGlobalMonitorForEvents(matching: clickMask, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.clickedElsewhere() }
         }) { monitors.append(m) }
+        // Keys while the panel has the keyboard: search's arrows, Return and Esc, and a letter typed in the open panel
+        // starting a search (DESIGN.md "Search").
+        if let m = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            let handled = MainActor.assumeIsolated { self?.store.handleKey(KeyPress(event)) ?? false }
+            return handled ? nil : event
+        }) { monitors.append(m) }
         // Local monitor covers moves while the pointer is over the panel itself.
         if let m = NSEvent.addLocalMonitorForEvents(matching: moveMask, handler: { [weak self] event in
             MainActor.assumeIsolated { self?.pointerChanged() }
@@ -244,5 +250,34 @@ final class NotchController {
     private func clickedElsewhere() {
         // Only global clicks arrive here, so by definition they landed outside our panel.
         if !store.isOverIsland(globalPoint: NSEvent.mouseLocation) { store.dismiss() }
+    }
+}
+
+/// A key press, as the store needs it.
+struct KeyPress {
+    let code: UInt16
+    let characters: String?
+    let charactersIgnoringModifiers: String?
+    let command, control: Bool
+    /// The field being typed in has text selected (⌘C copies that, not the selected result).
+    let fieldHasSelection: Bool
+
+    static let returnKey: UInt16 = 36, tab: UInt16 = 48, delete: UInt16 = 51, escape: UInt16 = 53, enter: UInt16 = 76
+    static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
+
+    @MainActor init(_ e: NSEvent) {
+        code = e.keyCode
+        characters = e.characters
+        charactersIgnoringModifiers = e.charactersIgnoringModifiers
+        let flags = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        command = flags.contains(.command)
+        control = flags.contains(.control)
+        fieldHasSelection = ((NSApp.keyWindow?.firstResponder as? NSTextView)?.selectedRange().length ?? 0) > 0
+    }
+
+    /// Text to type: printable characters with no Command or Control (Option and Shift letters count).
+    var plainText: Bool {
+        guard !command, !control, let c = characters, !c.isEmpty else { return false }
+        return c.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }
     }
 }

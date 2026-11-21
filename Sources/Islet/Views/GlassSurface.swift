@@ -47,6 +47,8 @@ struct GlassIsland: View {
     var notchHeight: CGFloat
     /// The hidden-media peek: the glow takes the album's colours, stronger, instead of the usual Siri colours.
     var tint: [Color]? = nil
+    /// Black left at the bottom edge: more under search's footer, so its hints stay readable.
+    var smoke = GlassLook.smoke
 
     var body: some View {
         let shape = IslandShape(m: m)
@@ -64,8 +66,8 @@ struct GlassIsland: View {
                 .init(color: .black, location: 0),
                 .init(color: .black, location: start),
                 .init(color: .black.opacity(0.7), location: mid + eps),
-                .init(color: .black.opacity(GlassLook.smoke), location: end + 2 * eps),
-                .init(color: .black.opacity(GlassLook.smoke), location: 1),
+                .init(color: .black.opacity(smoke), location: end + 2 * eps),
+                .init(color: .black.opacity(smoke), location: 1),
             ], startPoint: .top, endPoint: .bottom)
             // The rim and glow only show on the strip.
             let below = LinearGradient(stops: [

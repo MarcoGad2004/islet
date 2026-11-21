@@ -91,8 +91,13 @@ the unlock animation still ships.
 ## Next: Search from the notch
 - [x] Design draft and mockup (DESIGN.md "Search"; owner decisions 2026-11-21: ⌘Space, the web row, typing in the panel)
 - [x] Spike (RESEARCH.md Q39-Q46): apps, files from the Spotlight index, Shortcuts, ⌘Space, typing straight after it
-- [ ] Still to try: files from the Desktop and Downloads in the installed copy, handing the text to Spotlight
-- [ ] Owner approves the design, then build it
+- [x] Owner approved the design (2026-11-21)
+- [x] Search in the notch: `SearchIndex` (apps, Shortcuts, Settings pages, files), `SearchModel`, `SearchView`, the
+      shortcut and Spotlight check (`SearchShortcut`), typing in the panel, Settings and setup rows, unit tests
+- [x] Tried: opens with results, an answer, the recent apps (`-IsletDebugShape search -IsletDebugSearch no`)
+- [ ] Still to try by hand: ⌘Space with Spotlight's shortcut moved and typing straight away, arrows / Return / Tab / Esc,
+      ⌘V in the field, a letter typed in the open panel, a click on a row, files from the Desktop and Downloads in the
+      installed copy, "Search in Spotlight", without a notch
 
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner

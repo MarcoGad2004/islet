@@ -39,10 +39,14 @@ struct IslandView: View {
         // The hint's body grows and folds under the lock bar without remounting the padlock.
         // Media keeps its views from the wings into the hovered wide bar, so only the name below fades in.
         let mediaBar: Bool = if case .media? = content, pres == .levelWings { true } else { false }
+        let searching = pres == .expanded && store.expandedPage == .search
         let key = store.base == .scan ? "scan" : "\(pres == .lockHint ? .lockWings : mediaBar ? .wings : pres)-\(content?.kind ?? "-")"
         ZStack(alignment: .top) {
             if floating { BezelBackdrop(m: m) }
-            else if glass { GlassIsland(m: m, notchHeight: nh, tint: store.showsMediaPeek ? store.peekColors : nil) }
+            else if glass {
+                GlassIsland(m: m, notchHeight: nh, tint: store.showsMediaPeek ? store.peekColors : nil,
+                            smoke: searching ? 0.3 : GlassLook.smoke)
+            }
             else { IslandShape(m: m).fill(Color.black) }
             // Content fades in once the shape has mostly settled (0.36 s) and out quickly (0.12 s).
             Group {
@@ -60,8 +64,14 @@ struct IslandView: View {
                 case .scan:
                     EmptyView()
                 case .expanded:
-                    ExpandedView(store: store).padding(.top, top)
-                        .transition(fade())
+                    if searching {
+                        // Search brings in its own parts: the field early, the results as the shape settles.
+                        SearchView(store: store, model: store.search, bodyWidth: m.bw).padding(.top, top)
+                            .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
+                    } else {
+                        ExpandedView(store: store).padding(.top, top)
+                            .transition(fade())
+                    }
                 case .notification:
                     if case .notification(let n)? = content {
                         NotificationCard(store: store, item: n).transition(fade(0.2))

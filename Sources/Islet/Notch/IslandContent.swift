@@ -32,7 +32,7 @@ enum IslandContent {
     }
 }
 
-enum ExpandedPage { case media, displaySound, call, notifications, messages }
+enum ExpandedPage { case media, displaySound, call, notifications, messages, search }
 
 /// One banner, read through Accessibility (RESEARCH.md Q27).
 struct NotificationItem: Equatable, Identifiable {

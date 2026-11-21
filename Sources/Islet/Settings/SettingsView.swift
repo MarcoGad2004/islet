@@ -16,6 +16,9 @@ struct SettingsView: View {
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
+    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
+    @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
+    @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var messagesAccess = MessagesAccess()
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
@@ -53,6 +56,7 @@ struct SettingsView: View {
                 Text("Reply from the notch. Needs Full Disk Access (to read Messages), Contacts (names) and permission to control Messages (to send).")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 20)
             }
+            searchRows
             NotchChoice().padding(.vertical, 4)
             if powerMode.permissionInstalled {
                 HStack {
@@ -120,6 +124,44 @@ struct SettingsView: View {
                 Button("Run setup again…") { runSetup() }
                 Button("Quit Islet") { NSApp.terminate(nil) }
             }.padding(.top, 4)
+        }
+    }
+
+    /// Search from the notch (DESIGN.md "Search"): its shortcut, whether Spotlight still has it, and the web row's engine.
+    private var searchRows: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Search shortcut", selection: $searchShortcut) {
+                ForEach(SearchShortcutChoice.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .fixedSize()
+            .onChange(of: searchShortcut) {
+                SearchShortcut.shared.apply()
+                spotlightConflict = SearchShortcut.spotlightConflict
+            }
+            Text("Search apps, files, Shortcuts and settings from the notch. Typing in the open panel searches too.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if spotlightConflict {
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Spotlight still uses \(SearchShortcutChoice.current.title)")
+                        Text("Spotlight takes the keyboard first. Change its shortcut in Keyboard Shortcuts > Spotlight, or pick another one here.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Keyboard Shortcuts…") { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) }
+                }
+            }
+            if searchShortcut != SearchShortcutChoice.off.rawValue {
+                Picker("Search the web with", selection: $webEngine) {
+                    ForEach(WebSearchEngine.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .fixedSize()
+            }
+        }
+        .onAppear { spotlightConflict = SearchShortcut.spotlightConflict }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            spotlightConflict = SearchShortcut.spotlightConflict
         }
     }
 
