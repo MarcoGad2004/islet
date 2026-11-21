@@ -341,3 +341,48 @@ Probe: `-IsletDebugShape messagesspike` (read only; logs counts and yes / no, ne
 from Contacts, replies through Messages. Needs Full Disk Access, Contacts and Automation (Messages). Private formats
 (`chat.db`'s schema, `attributedBody`) can change with macOS, like the media adapter.
 
+
+## Search from the notch (spike)
+
+Owner request (2026-11-21): Islet's own search in place of Spotlight (DESIGN.md "Search"). Probes in
+`Spike/SearchSpike.swift`: `-IsletDebugShape searchspike` (automatic; quits when done) and `searchkeys` (3 minutes of
+the owner pressing the shortcuts). Log `~/Library/Logs/Islet-search-spike.log`: counts, timings and yes / no, never file
+names or what was typed. Launch the debug copy with `open -n <app> --args …`: started straight from a shell, macOS holds
+the shell's app responsible for Bluetooth and kills Islet for lacking the usage text.
+
+39. **Apps?** Yes. A metadata query for `com.apple.application-bundle` returns 479 apps in 32 ms, but that includes copies
+    inside other bundles; listing `/Applications`, `/System/Applications`, its `Utilities` and `~/Applications` gives the
+    103 that matter in 1 ms. 72 of the 114 apps in those folders have `kMDItemLastUsedDate`, enough for the recent row.
+    Icons: 50 in 50 ms with `NSWorkspace.icon(forFile:)` (cache them).
+40. **Files?** Yes, through `NSMetadataQuery` (`kMDItemFSName LIKE[cd] "*text*"`, home folder): about 215 ms per query
+    ("budget" 50 results, "xcd" 6). Stopping the previous query on each keystroke works: four keystrokes, final results
+    220 ms after the last. Two limits: one letter is far too broad ("b": 195,806 results in 9.8 s, 86% under `~/Library`),
+    so files start from two letters and `~/Library` is left out; a `BEGINSWITH` query is no faster (500 ms).
+41. **Which folders?** Spotlight only returns files from folders the asking app may read: the debug copy (no Full Disk
+    Access) got none from the Desktop or Downloads, where `mdfind` in a shell finds 3 and 7. The installed Islet has Full
+    Disk Access for Messages, so it should see them. Still to confirm on the installed copy.
+42. **Shortcuts?** `/usr/bin/shortcuts list --show-identifiers` lists all 8 with identifiers in 64 ms; `shortcuts run
+    <id>` runs one. Their icons and colours aren't readable (`~/Library/Shortcuts/Shortcuts.sqlite` is off limits), so
+    rows use one Shortcuts icon.
+43. **Web search and Settings pages?** `x-web-search://` has no handler with Zen as the default browser, and a browser's
+    search engine can't be read, so "Search the web" opens an ordinary search URL in the default browser, the engine
+    picked in Settings. `x-apple.systempreferences:` links open System Settings at a page.
+44. **⌘Space?** `RegisterEventHotKey` (Carbon, no permission needed) registers ⌘Space with status 0 even while Spotlight
+    has it, and pressed by hand Islet did receive it, but none of the letters typed after it reached Islet's panel: Spotlight
+    took the keyboard. So Spotlight's shortcut has to be moved, and registering can't tell whether it was. Reading
+    `com.apple.symbolichotkeys` `AppleSymbolicHotKeys` entry 64 can: absent means the default (⌘Space, on); once the
+    owner changes it the entry says enabled 0 or other keys.
+45. **Letters typed straight after the shortcut?** All of them. With ⌃⌥⌘Space (free), the non-activating panel was key
+    10 to 36 ms after the press, the front app stayed in front, and "abc" arrived complete and in order both times (first
+    letter 688 and 304 ms after the press, typing as fast as possible). The panel taking the keyboard is far quicker than
+    anyone types, so nothing is lost mid-animation.
+46. **Handing the text to Spotlight?** Not directly: `NSWorkspace.showSearchResults(forQueryString:)` returns true but
+    opens a Finder search window, not Spotlight (no Spotlight window appeared). The way left is to press Spotlight's own
+    shortcut (read from entry 64, Q44) with a posted key event and paste the text, which needs Accessibility (the
+    installed Islet has it). Not tried yet: it needs Spotlight's shortcut moved first. If it proves flaky, the Finder
+    window is the fallback.
+
+**Verdict:** feasible. Apps from the app folders, files from the Spotlight index (two letters or more, `~/Library` left
+out), Shortcuts through the `shortcuts` tool, the calculator Islet's own. ⌘Space works once Spotlight's shortcut is
+moved, and Islet can tell from the symbolic hotkeys whether it has been; typing straight after it loses nothing.
+Still to try: files from the Desktop and Downloads in the installed copy (Q41), the Spotlight hand-off (Q46).

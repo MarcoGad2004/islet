@@ -88,6 +88,12 @@ the unlock animation still ships.
       the swipe rule on the trackpad, Esc while typing
 - [x] Permission rows in setup and Settings for Contacts and controlling Messages (`MessagesAccess`)
 
+## Next: Search from the notch
+- [x] Design draft and mockup (DESIGN.md "Search"; owner decisions 2026-11-21: ⌘Space, the web row, typing in the panel)
+- [x] Spike (RESEARCH.md Q39-Q46): apps, files from the Spotlight index, Shortcuts, ⌘Space, typing straight after it
+- [ ] Still to try: files from the Desktop and Downloads in the installed copy, handing the text to Spotlight
+- [ ] Owner approves the design, then build it
+
 ## Later: calls
 - [ ] Redo the call design with what Q30 found: the caller's name, Answer / Decline and iPhone calls from the banner
 - [ ] Find out whether the banner has the caller while the first call rings (probe that re-reads it every 0.25 s)

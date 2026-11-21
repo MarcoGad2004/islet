@@ -89,6 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "spike": runSpike()
         case "messagesspike": let s = MessagesSpike(); messagesSpike = s; Task { await s.run() }
         case "messagessend": let s = MessagesSpike(); messagesSpike = s; Task { await s.sendTest() }
+        case "searchspike": let s = SearchSpike(); searchSpike = s; Task { await s.run() }
+        case "searchkeys": let s = SearchSpike(); searchSpike = s; Task { await s.runKeys() }
         case "spikeactive": let s = ControlSpike(); controlSpike = s; Task { await s.runActive() }
         case "spikebt": let s = ControlSpike(); controlSpike = s; Task { await s.runBluetoothConnect() }
         case "mediapage":
@@ -382,6 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     #if DEBUG
     private var controlSpike: ControlSpike?
     private var messagesSpike: MessagesSpike?
+    private var searchSpike: SearchSpike?
     @objc private func runSpike() {
         let s = ControlSpike(); controlSpike = s
         Task { await s.run() }
