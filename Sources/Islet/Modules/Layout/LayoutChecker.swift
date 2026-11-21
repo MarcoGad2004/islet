@@ -28,6 +28,14 @@ enum LayoutChecker {
         return f.left >= needed && f.right >= needed
     }
 
+    /// The open panel flush with the top (DESIGN.md "Flush panel"): half its width beyond the notch on each side,
+    /// plus the same 8 pt margin.
+    static func panelFits(_ g: NotchGeometry) -> Bool {
+        guard let f = free(g) else { return false }
+        let need = (CGFloat(IslandLayout.expandedWidth) - g.width) / 2 + 8
+        return f.left >= need && f.right >= need
+    }
+
     static func eventWingsFit(_ g: NotchGeometry) -> Bool {
         guard let f = free(g) else { return false }
         return f.left >= neededForEvents && f.right >= neededForEvents

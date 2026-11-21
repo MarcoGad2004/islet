@@ -49,6 +49,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Face Unlock has its own page.
 - Islet checks permissions again whenever the window comes to the front.
 
+### The panel
+
+- When the menu bar has room, the panel opens flush with the top of the screen, growing straight out of the notch with
+  its header beside the camera. With menus or icons in the way, it hangs under the notch as before.
+
 ### Fixes
 
 - Without a notch, the chevron no longer drops down over Mission Control when the pointer reaches the top of the

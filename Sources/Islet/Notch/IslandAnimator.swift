@@ -121,6 +121,13 @@ final class IslandAnimator {
             // overshoot and settle, the same spring family as the hover bubble.
             let bubble = Spring(response: 0.46, damping: 0.55)
             specs = [(bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0), (bubble, 0)]
+        } else if growsBody && widthChange > 40 && target.bh > 100 && abs(target.sw - target.bw) < 1 {
+            // The panel opening flush with the top (DESIGN.md "Flush panel"): like the wings, out sideways with the
+            // soft overshoot while it flows down, all at once.
+            let out = Spring(response: 0.5, damping: 0.62)
+            let down = Spring(response: 0.34, damping: 1)
+            let corner = Spring(response: 0.35, damping: 1)
+            specs = [(out, 0), (down, 0), (out, 0), (down, 0), (corner, 0), (corner, 0.06), (corner, 0)]
         } else if (growsBody || shrinksBody) && abs(widthChange) > 40 {
             // Wings <-> chin: one connected morph. The bar pinches in to the notch while the body drops out of
             // it (or the reverse), all on the same spring so nothing lags behind.

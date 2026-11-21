@@ -111,6 +111,13 @@ the unlock animation still ships.
 - [ ] Still to try by hand: allowing a permission in System Settings and coming back clears it; Face Unlock's set-up,
       password and scan steps from the new page; an update ready
 
+## Flush panel (1.4)
+- [x] Mockup (docs/mockups/expanded-flush.html); owner chose layout A, 2026-11-21; DESIGN.md "Flush panel"
+- [x] `LayoutChecker.panelFits`, `IslandStore.flushPanel` / `flushLift`, the flush open in `IslandAnimator`, the
+      header beside the camera in `ControlStage`
+- [x] Tried on the Mac: Controls, the notification pill, a detail page, the opening; Xcode in front falls back to the stem
+- [ ] Still to try by hand: the player page, search and a conversation opened flush, an update pill beside the camera
+
 ## Dropped: calls and iPhone Live Activities
 Both were tried, then removed from the code (owner, 2026-11-21) to keep the app light. Live Activities would have shown
 twice, since macOS can't hide the menu bar's copy; calls would have doubled up with macOS's own call banner. The

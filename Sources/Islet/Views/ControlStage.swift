@@ -20,6 +20,8 @@ enum ControlDetail {
 /// the same spring family as the notch's own bubble, instead of swapping views. Inner content cross-fades.
 struct ControlStage: View {
     let store: IslandStore
+    /// Flush with a notification pill showing: the header row goes up past the pill into the band beside the camera.
+    var headerLift: CGFloat = 0
 
     private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, battery, media }
 
@@ -37,6 +39,12 @@ struct ControlStage: View {
     }
 
     private let W: CGFloat = 468
+    /// The panel is flush with the top and the header row sits beside the camera (DESIGN.md "Flush panel").
+    private var flush: Bool { store.flushLift > 0 }
+    /// Flush: the header's room left of the camera, from the stage's left edge (the panel's centre is at 234).
+    private var leftBand: CGFloat { 234 - CGFloat(store.geometry?.width ?? 190) / 2 - 10 }
+    /// The header row's top: 0, or up past the pill when flush.
+    private var headerY: CGFloat { -headerLift }
     private var H: CGFloat { store.expandedBodyHeight - 32 }
     private let glide = Animation.spring(response: 0.46, dampingFraction: 0.72)
     private let tileW: CGFloat = 109.5
@@ -93,7 +101,9 @@ struct ControlStage: View {
     private func header(_ mode: Mode) -> some View {
         ZStack(alignment: .leading) {
             HStack(spacing: 8) {
-                Text("CONTROLS").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
+                if !flush {
+                    Text("CONTROLS").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
+                }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag) }
                 if let f = store.focus?.active { focusIcon(f) }
@@ -112,14 +122,16 @@ struct ControlStage: View {
             .opacity(mode == .controls ? 0 : 1)
             .allowsHitTesting(mode != .controls)
         }
-        // The mini player starts at x 198 when music is playing; otherwise the header can run up to the gear.
-        .frame(width: store.media != nil ? 196 : W - 40, height: 26, alignment: .leading)
+        // The mini player starts at x 198 when music is playing; otherwise the header can run up to the gear. Flush,
+        // the header has the room left of the camera.
+        .frame(width: flush ? leftBand : store.media != nil ? 196 : W - 40, height: 26, alignment: .leading)
+        .offset(y: headerY)
     }
 
     /// A new version is out: click to close the panel and update, the progress playing out in the notch. Next to
     /// the mini player there is only room for the icon.
     private func updatePill(_ u: Updater, _ tag: String) -> some View {
-        let compact = store.media != nil
+        let compact = store.media != nil || flush
         let version = Updater.plain(tag)
         return Button {
             store.collapse()
@@ -146,7 +158,7 @@ struct ControlStage: View {
         case .sound: "Sound"
         case .wifi: "Wi-Fi"
         case .bluetooth: "Bluetooth"
-        case .mirroring: "Screen Mirroring"
+        case .mirroring: flush ? "Mirroring" : "Screen Mirroring"
         case .battery: "Battery"
         case .controls: "Controls"
         }
@@ -178,7 +190,7 @@ struct ControlStage: View {
     }
 
     private var gear: some View {
-        SettingsGear(store: store).slot(CGRect(x: W - 26, y: 0, width: 26, height: 26))
+        SettingsGear(store: store).slot(CGRect(x: W - 26, y: headerY, width: 26, height: 26))
     }
 
     // MARK: Controls, tiles and sliders
@@ -273,7 +285,8 @@ struct ControlStage: View {
             ArtworkView(image: m.artwork, size: 80, radius: 14, playing: m.playing)
                 .frame(width: 80, height: 80, alignment: .topLeading)
                 .scaleEffect(isMedia ? 1 : 22.0 / 80, anchor: .topLeading)
-                .offset(x: isMedia ? 0 : 198, y: isMedia ? 48 : 2)
+                .offset(x: isMedia ? 0 : flush ? 376 : 198, y: isMedia ? 48 : 2 + headerY)
+                .help(flush && !isMedia ? m.title : "")
                 .onTapGesture { if isMedia { monitor.activatePlayer(); store.collapse() } else { store.showMediaPage() } }
 
             Text(m.title)
@@ -281,7 +294,10 @@ struct ControlStage: View {
                 .foregroundStyle(isMedia ? Color.isletText : Color.isletSecondary)
                 .frame(width: 240, height: 22, alignment: .leading)
                 .scaleEffect(isMedia ? 1 : 12.0 / 17, anchor: .topLeading)
-                .offset(x: isMedia ? 94 : 228, y: isMedia ? 54 : 6)
+                .offset(x: isMedia ? 94 : 228, y: isMedia ? 54 : 6 + headerY)
+                // Flush, there's no room for the name beside the camera: hovering the art shows it.
+                .opacity(flush && !isMedia ? 0 : 1)
+                .allowsHitTesting(!(flush && !isMedia))
                 .onTapGesture { if !isMedia { store.showMediaPage() } }
 
             Text(m.artist).font(.system(size: 14)).foregroundStyle(Color.isletSecondary).lineLimit(1)
@@ -292,7 +308,7 @@ struct ControlStage: View {
             Button { monitor.togglePlayPause() } label: {
                 Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
                     .frame(width: 26, height: 22).background(IsletCard(shape: Capsule()))
-            }.buttonStyle(.plain).slot(CGRect(x: 406, y: 2, width: 26, height: 22), visible: !isMedia)
+            }.buttonStyle(.plain).slot(CGRect(x: 406, y: 2 + headerY, width: 26, height: 22), visible: !isMedia)
 
             HStack(spacing: 16) {
                 transport("backward.fill", 17) { monitor.previous() }
@@ -304,7 +320,7 @@ struct ControlStage: View {
                 .slot(CGRect(x: 0, y: 148, width: W, height: 20), visible: isMedia)
 
             SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing)
-                .slot(CGRect(x: W - 26 - 10 - 20, y: 3, width: 20, height: 20), visible: isMedia)
+                .slot(CGRect(x: W - 26 - 10 - 20, y: 3 + headerY, width: 20, height: 20), visible: isMedia)
         }
     }
 

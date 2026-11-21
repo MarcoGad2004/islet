@@ -29,8 +29,12 @@ struct ExpandedView: View {
     }
 
     @ViewBuilder private var page: some View {
-        ControlStage(store: store)
+        // Flush (DESIGN.md "Flush panel"): the page moves up and its header row goes on up into the band beside the
+        // camera, above the notification pill when there is one.
+        let lift = store.flushLift
+        ControlStage(store: store, headerLift: lift > 0 && store.showsNotificationPill ? IslandLayout.notificationPillHeight : 0)
             .padding(16)
+            .offset(y: -lift)
     }
 }
 

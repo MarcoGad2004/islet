@@ -58,6 +58,27 @@ Used for the face scan and the expanded panel, regardless of the width check:
 | Face scan     | notch width × 150   | bottom 44, flush with the stem sides |
 | Expanded      | 500 × 216           | top 16, bottom 30, 10 pt inner curves |
 
+### Flush panel (1.4)
+
+Owner approved, 2026-11-21 (layout A). Mockup: <https://claude.ai/artifact/TbJM4XJz5csFNQsX4dyYxQ> (source
+docs/mockups/expanded-flush.html).
+
+- **When**: in the notch, when the menu bar has room for the panel: on each side of the notch, (500 − notch width) / 2
+  + 8 pt free of the front app's menus and of status icons (the same check as the wings). Decided as the panel opens
+  and kept until it closes, so it never changes shape under the pointer. No room, no Accessibility, or no notch: the
+  stem and body as before.
+- **Shape**: no stem. The panel is 500 wide from the top edge down, its top corners flaring into the edge (6 pt,
+  like every shape), bottom corners 30. It is the stem shape's height minus 44 pt: the header row moves up into the
+  band beside the camera.
+- **Header beside the camera** (on the Controls page and its detail pages): left, the battery chip, update and Focus
+  icons (or the back button and the page's name on a detail page); right, the album art and play/pause when music is
+  loaded, then the gear. The "Controls" label and the song's name aren't shown; hovering the art shows the name and
+  clicking it opens the player. Everything else on the page moves up by the header's height.
+- **Other pages** (the player, search, a conversation, the notification list) keep their layout: the band beside the
+  camera is part of the black panel, with the page under it.
+- **Motion**: like the wings, the notch springs out sideways and down at once (width with the wings' soft overshoot,
+  height ease-out), content fading in at ≈0.3 s. Closing pulls it back into the notch.
+
 ### All shapes
 
 | Shape         | Size                              | Corners            |

@@ -262,6 +262,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return g.virtual || LayoutChecker.wingsFit(g) // under the menu bar nothing can be covered
         }
 
+        store.panelLayoutCheck = { [weak store] in
+            #if DEBUG
+            if UserDefaults.standard.bool(forKey: "IsletDebugWide") { return true }
+            #endif
+            guard let g = store?.geometry, !g.virtual else { return false }
+            return LayoutChecker.panelFits(g)
+        }
         store.eventLayoutCheck = { [weak store] in
             guard let g = store?.geometry else { return false }
             return g.virtual || LayoutChecker.eventWingsFit(g)

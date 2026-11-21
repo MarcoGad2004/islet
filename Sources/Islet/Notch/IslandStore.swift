@@ -104,6 +104,11 @@ final class IslandStore {
     /// Decides wings vs chin (menu bar width check). nil or false means chin.
     @ObservationIgnored var layoutCheck: (() -> Bool)?
     @ObservationIgnored var eventLayoutCheck: (() -> Bool)?
+    /// The menu bar has room for the panel itself (DESIGN.md "Flush panel").
+    @ObservationIgnored var panelLayoutCheck: (() -> Bool)?
+    /// The panel opened flush with the top, with no stem. Decided as it opens and kept until it opens again, so it
+    /// never changes shape under the pointer.
+    private(set) var flushPanel = false
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var leaveTask: Task<Void, Never>?
     @ObservationIgnored private var chargeTask: Task<Void, Never>?
@@ -125,6 +130,13 @@ final class IslandStore {
     /// 300 pt for the Wi-Fi and Bluetooth lists, 216 pt otherwise; the shape animates between them.
     var expandedBodyHeight: CGFloat {
         pageBodyHeight + (showsNotificationPill ? IslandLayout.notificationPillHeight : 0)
+    }
+
+    /// Flush, the controls' header row sits in the band beside the camera, so their page moves up by this much and
+    /// the panel is that much shorter. Other pages keep their layout under the band.
+    var flushLift: CGFloat {
+        guard flushPanel, [.media, .displaySound].contains(expandedPage), let g = geometry else { return 0 }
+        return g.height / 2 + 29 // the header (26 tall, 16 below the band) centred in the band instead
     }
 
     /// Waiting notifications show as a pill at the top of the panel's own pages (DESIGN.md "Notifications", "In the panel").
@@ -221,6 +233,14 @@ final class IslandStore {
     private func targetMetrics() -> IslandMetrics? {
         guard let g = geometry else { return nil }
         var m = presentation.metrics(notchWidth: g.width, notchHeight: g.height, bodyHeight: Double(expandedBodyHeight))
+        if presentation == .expanded, flushPanel {
+            // No stem: the panel's own width from the top edge down, its top corners flaring into the edge.
+            m.sw = IslandLayout.expandedWidth
+            m.bw = m.sw
+            m.bh = Double(expandedBodyHeight - flushLift)
+            m.tr = 0
+            m.ic = 0
+        }
         if case .notification(let n)? = content, presentation != .expanded {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
@@ -368,6 +388,7 @@ final class IslandStore {
         // Notifications left waiting under the pill show again briefly, then time out as usual.
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
+        if value { flushPanel = geometry?.mode == .notch && panelLayoutCheck?() == true }
         if !value { notificationReturnPage = nil }
         expanded = value
         lastInUse = Date()
