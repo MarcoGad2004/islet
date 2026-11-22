@@ -97,7 +97,7 @@ label.pct output { font-variant-numeric: tabular-nums; color: var(--fg); min-wid
         <li><b>0 s</b> the notch springs out (same spring as now).</li>
         <li><b>0.1 s</b> the battery fades in empty; the number drifts up into place, growing from 80% and sharpening out of a slight blur (0.45 s).</li>
         <li><b>0.15 – 1.3 s</b> the number rolls, digits fading through the top and bottom edges, and the fill grows with it. It starts gently and slows right down for the last few percent.</li>
-        <li><b>1.3 s</b> a bigger, heavier bolt springs in over the battery: it overshoots about 8% with a slight twist and settles in about 0.4 s.</li>
+        <li><b>0.9 s</b> a bigger, heavier bolt springs in over the battery, timed to settle at 1.3 s just as the fill stops: it overshoots about 8% with a slight twist and settles in about 0.4 s.</li>
         <li><b>3 s</b> it hands back, as now.</li>
       </ul>
     </div>
@@ -223,8 +223,8 @@ function start() {
     odoEl.style.opacity = n;
     odoEl.style.transform = `translateY(${(1 - n) * 5}px) scale(${0.8 + 0.2 * n})`;
     odoEl.style.filter = `blur(${(1 - n) * 2.5}px)`;
-    // The bolt springs in once the count lands: a bouncy overshoot and a little twist settling straight.
-    const bt = t - 1.3;
+    // The bolt springs in so it settles just as the fill stops (1.3 s): it starts 0.4 s before.
+    const bt = t - 0.9;
     const bolt = document.getElementById('bolt').firstElementChild;
     if (ev === 'low' || bt <= 0) { bolt.style.opacity = 0; bolt.style.transform = 'scale(0)'; }
     else {
