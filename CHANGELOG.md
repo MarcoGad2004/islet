@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.4 (unreleased)
+## 1.4 (2026-11-22)
 
 ### Notifications
 
