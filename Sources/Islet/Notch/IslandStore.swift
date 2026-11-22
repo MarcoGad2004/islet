@@ -363,8 +363,9 @@ final class IslandStore {
         }
         if inside {
             leaveTask?.cancel()
-        } else if expanded && !(expandedPage == .messages && !messageDraft.isEmpty) && expandedPage != .search {
-            // Search is driven from the keyboard: it stays when the pointer leaves.
+        } else if expanded && expandedPage != .messages && expandedPage != .search {
+            // Search is driven from the keyboard, and a conversation is being read and typed in (its right-click menu
+            // and the emoji picker sit outside the panel): both stay when the pointer leaves.
             leaveTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
@@ -644,6 +645,16 @@ final class IslandStore {
 
     /// A click outside: closes the panel.
     func dismiss() { collapse() }
+
+    /// A click outside the panel. In a conversation, clicks in the emoji picker and Messages coming forward for a
+    /// tapback are part of using it, so they leave it open.
+    func clickedOutside(onto bundleID: String?) {
+        if expandedPage == .messages {
+            if messages?.reacting == true { return }
+            if bundleID == "com.apple.CharacterPaletteIM" { return }
+        }
+        dismiss()
+    }
 
     // MARK: Notifications
 

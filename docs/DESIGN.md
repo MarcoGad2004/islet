@@ -516,7 +516,8 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - **Live**: new messages in the conversation appear as they arrive (Islet watches Messages' database while the page is
   open). A notification for the open conversation doesn't show again; others go to the system banner while it's open.
 - **Closing**: the collapse arrow, a click outside, Esc, a swipe up (see Gestures, "Over a list"). It doesn't close when
-  the pointer leaves while the reply field has text.
+  the pointer leaves (its right-click menu and the emoji picker are outside the panel), on clicks in the emoji picker, or
+  while Messages is in front for a tapback.
 - **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
   Automation for Messages (sending), each asked the first time it's needed.
 

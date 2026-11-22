@@ -188,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "conversation":
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                if let id = self.messages.chatID(withText: "Islet test") { self.notch.store.openChat(id) }
+                if let id = self.messages.chatID(withText: "Islet test") ?? self.messages.latestChatID() { self.notch.store.openChat(id) }
             }
         case "updated":
             // What the new copy shows after updating itself (notes from CHANGELOG.md's newest section).

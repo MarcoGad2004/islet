@@ -126,6 +126,12 @@ final class MessagesStore {
         return rows("select j.chat_id, m.text from message m join chat_message_join j on j.message_id = m.ROWID where m.is_from_me = 1 order by m.date desc limit 200")
             .first { ($0[1] as? String) == text }?[0] as? Int64
     }
+
+    /// The chat with the newest message, when there's no "Islet test".
+    func latestChatID() -> Int64? {
+        guard available else { return nil }
+        return rows("select j.chat_id from message m join chat_message_join j on j.message_id = m.ROWID order by m.date desc limit 1").first?[0] as? Int64
+    }
     #endif
 
     // MARK: The open conversation

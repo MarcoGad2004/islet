@@ -252,7 +252,22 @@ final class NotchController {
 
     private func clickedElsewhere() {
         // Only global clicks arrive here, so by definition they landed outside our panel.
-        if !store.isOverIsland(globalPoint: NSEvent.mouseLocation) { store.dismiss() }
+        let point = NSEvent.mouseLocation
+        if !store.isOverIsland(globalPoint: point) { store.clickedOutside(onto: Self.owner(at: point)) }
+    }
+
+    /// The app whose window is under a point on screen (AppKit coordinates), front to back.
+    private static func owner(at p: NSPoint) -> String? {
+        guard let top = NSScreen.screens.first?.frame.maxY,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        let q = CGPoint(x: p.x, y: top - p.y)
+        for w in list {
+            guard let b = w[kCGWindowBounds as String] as? NSDictionary, let r = CGRect(dictionaryRepresentation: b), r.contains(q),
+                  let pid = w[kCGWindowOwnerPID as String] as? pid_t, pid != getpid() else { continue }
+            return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        }
+        return nil
     }
 }
 
