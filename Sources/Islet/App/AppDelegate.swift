@@ -316,6 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifications.start()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
+        power.onEventUpdate = { [weak store] in store?.updateCharge($0) }
         power.start()
 
         levels.onChange = { [weak store] in store?.showLevel($0) }

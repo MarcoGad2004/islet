@@ -833,6 +833,12 @@ final class IslandStore {
         refresh()
     }
 
+    /// The charger event that's showing, with news that came after it (the time to full); its timer carries on.
+    func updateCharge(_ event: ChargeEvent) {
+        guard charge?.kind == event.kind else { return }
+        charge = event
+    }
+
     /// A join's progress. It shows whenever the panel isn't open, unlike connection notices: the user is waiting on
     /// it. The result stays a moment (an error longer), then hands back.
     func showProgress(_ p: ConnectionProgress, action: (() -> Void)? = nil) {

@@ -2,7 +2,9 @@ import Foundation
 import IOKit
 import IOKit.ps
 
-/// Battery and charger state from IOKit, driven by power-source notifications (no polling).
+/// Battery and charger state from IOKit, driven by notifications (no polling). The battery driver's own messages come
+/// first: powerd republishes the power-source list a second or two after a charger goes in, so plugging in is read
+/// from the battery's registry entry the moment the driver says something changed.
 @MainActor @Observable
 final class PowerMonitor {
     struct State: Equatable {
@@ -47,6 +49,10 @@ final class PowerMonitor {
     private(set) var reportedHealth: (percent: Int, condition: String)?
     @ObservationIgnored private var detailsTask: Task<Void, Never>?
     @ObservationIgnored var onEvent: ((ChargeEvent) -> Void)?
+    /// The shown charger event with what came in after it (the time to full, which powerd works out a moment later).
+    @ObservationIgnored var onEventUpdate: ((ChargeEvent) -> Void)?
+    @ObservationIgnored private var batteryNotify: IONotificationPortRef?
+    @ObservationIgnored private var batteryInterest: io_object_t = 0
     @ObservationIgnored private var source: CFRunLoopSource?
     @ObservationIgnored private var started = false
     @ObservationIgnored private var delayed: Task<Void, Never>?
@@ -62,6 +68,23 @@ final class PowerMonitor {
         }, ctx)?.takeRetainedValue() else { return }
         source = src
         CFRunLoopAddSource(CFRunLoopGetMain(), src, .defaultMode)
+        watchBattery()
+    }
+
+    /// The battery driver messages its clients whenever its status changes (a charger in or out among them), before
+    /// powerd has republished anything.
+    private func watchBattery() {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != 0, let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        defer { IOObjectRelease(service) }
+        batteryNotify = port
+        CFRunLoopAddSource(CFRunLoopGetMain(), IONotificationPortGetRunLoopSource(port).takeUnretainedValue(), .defaultMode)
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        IOServiceAddInterestNotification(port, service, kIOGeneralInterest, { ctx, _, _, _ in
+            guard let ctx else { return }
+            let me = Unmanaged<PowerMonitor>.fromOpaque(ctx).takeUnretainedValue()
+            MainActor.assumeIsolated { me.changed() }
+        }, ctx, &batteryInterest)
     }
 
     func refresh() { state = Self.read() }
@@ -178,15 +201,24 @@ final class PowerMonitor {
         guard started, new.hasBattery else { return }
 
         if new.onAC && !old.onAC {
-            // Time to full is often unknown for a second after plugging in.
+            // Shown at once; the time to full is often unknown for a second or two after plugging in, so it's filled in
+            // when it arrives.
+            let event = new.charged ? ChargeEvent(kind: .full, percent: new.percent)
+                                    : ChargeEvent(kind: .connected, percent: new.percent, minutesToFull: new.minutesToFull)
+            onEvent?(event)
             delayed?.cancel()
+            guard event.kind == .connected, event.minutesToFull == nil else { return }
             delayed = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(1.0))
-                guard let self, !Task.isCancelled else { return }
-                let s = Self.read()
-                state = s
-                if s.charged { onEvent?(ChargeEvent(kind: .full, percent: s.percent)) }
-                else { onEvent?(ChargeEvent(kind: .connected, percent: s.percent, minutesToFull: s.minutesToFull)) }
+                for wait in [0.6, 0.8, 1.0] {
+                    try? await Task.sleep(for: .seconds(wait))
+                    guard let self, !Task.isCancelled, state.onAC else { return }
+                    let s = Self.read()
+                    state = s
+                    if let m = s.minutesToFull {
+                        onEventUpdate?(ChargeEvent(kind: .connected, percent: s.percent, minutesToFull: m))
+                        return
+                    }
+                }
             }
         } else if new.onAC && new.charged && !old.charged {
             onEvent?(ChargeEvent(kind: .full, percent: new.percent))
@@ -212,11 +244,26 @@ final class PowerMonitor {
             s.charged = (d[kIOPSIsChargedKey] as? Bool ?? false) || (s.onAC && s.percent >= 100)
             if let t = d[kIOPSTimeToFullChargeKey] as? Int, t > 0 { s.minutesToFull = t }
             if let t = d[kIOPSTimeToEmptyKey] as? Int, t > 0 { s.minutesToEmpty = t }
+            // The driver knows about the charger before powerd's list does.
+            if let external = externalConnected(), external != s.onAC {
+                s.onAC = external
+                if !external { s.charging = false; s.minutesToFull = nil }
+                s.charged = s.onAC && (s.charged || s.percent >= 100)
+            }
             return s
         }
         s.hasBattery = false
         return s
     }
+}
+
+/// The battery's own charger flag, straight from its registry entry.
+private func externalConnected() -> Bool? {
+    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+    guard service != 0 else { return nil }
+    defer { IOObjectRelease(service) }
+    return IORegistryEntryCreateCFProperty(service, "ExternalConnected" as CFString, kCFAllocatorDefault, 0)?
+        .takeRetainedValue() as? Bool
 }
 
 private func zip<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
