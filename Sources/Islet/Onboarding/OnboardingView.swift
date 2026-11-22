@@ -3,7 +3,8 @@ import CoreLocation
 import ServiceManagement
 import SwiftUI
 
-/// Welcome → permissions → optional face unlock → done. Every permission is explained and can be granted here.
+/// Welcome → your Mac → what you want → what that needs → search's shortcut → Face Unlock → done (DESIGN.md "Setup").
+/// Islet only asks for the permissions of the features picked; search and Face Unlock steps show only when picked.
 struct OnboardingView: View {
     let face: FaceUnlockCoordinator
     let levels: LevelsController
@@ -12,10 +13,20 @@ struct OnboardingView: View {
     let wifi: WiFiController
     var finish: () -> Void
 
-    private enum Step: Int, CaseIterable { case welcome, display, permissions, face, done }
+    private enum Step: Int, CaseIterable {
+        case welcome, display, choose, permissions, search, face, done
+        /// `-IsletDebugShape setup -IsletDebugStep choose` opens setup on that step.
+        static var first: Step {
+            #if DEBUG
+            let names = ["welcome", "display", "choose", "permissions", "search", "face", "done"]
+            if let n = UserDefaults.standard.string(forKey: "IsletDebugStep"), let i = names.firstIndex(of: n) { return Step(rawValue: i)! }
+            #endif
+            return .welcome
+        }
+    }
     private enum FaceStep { case intro, password, scanning, enrolled }
 
-    @State private var step = Step.welcome
+    @State private var step = Step.first
     @State private var faceStep = FaceStep.intro
     @State private var accessibility = AXIsProcessTrusted()
     @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
@@ -23,6 +34,10 @@ struct OnboardingView: View {
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
+    /// What's ticked on the choose step. Face Unlock is turned on only once it's set up, so it's kept here till then.
+    @State private var picked: Set<Feature> = Set(Feature.allCases.filter { $0 != .faceUnlock && $0.isOn })
+    @State private var wantsFace = UserDefaults.standard.bool(forKey: "faceUnlockEnabled")
     @State private var password = ""
     @State private var message: String?
     @State private var busy = false
@@ -35,7 +50,9 @@ struct OnboardingView: View {
                 switch step {
                 case .welcome: welcome
                 case .display: display
+                case .choose: choose
                 case .permissions: permissions
+                case .search: searchStep
                 case .face: faceSetup
                 case .done: done
                 }
@@ -63,7 +80,7 @@ struct OnboardingView: View {
             Spacer()
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 128, height: 128)
             Text("Welcome to Islet").font(.largeTitle.weight(.semibold))
-            Text("Islet turns your MacBook's notch into a live island: now playing, charging, volume and brightness, and an optional face unlock for the lock screen.")
+            Text("Islet turns your MacBook's notch into a live island. Pick what you want it to do, and it only asks for what that needs.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Setup takes about a minute.").foregroundStyle(.secondary)
             Spacer()
@@ -78,71 +95,180 @@ struct OnboardingView: View {
         }
     }
 
-    private var permissions: some View {
+    private var choose: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Permissions", "Islet asks for as little as it can. Everything stays on this Mac.")
+            header("What should Islet do?", "Pick what you want. You can change it any time in Settings, and Islet only asks for what the ticked ones need.")
             card {
-                permission("Accessibility", icon: "accessibility", ok: accessibility,
-                           detail: "Lets Islet read the menu bar's width, catch the volume and brightness keys, and type your password at the lock screen.",
-                           action: accessibilityAction)
-                Divider()
-                permission("Camera", icon: "camera.fill", ok: camera == .authorized,
-                           detail: "Only used for face unlock, and only while you set it up or the Mac is locked.",
-                           action: cameraAction)
-                Divider()
-                permission("Location", icon: "location.fill", ok: wifi.locationAllowed,
-                           detail: "Only so macOS lets Islet read the names of nearby Wi-Fi networks. Your location is never used.",
-                           action: locationAction)
-                Divider()
-                permission("Full Disk Access", icon: "internaldrive.fill", ok: focus.accessGranted,
-                           detail: "Only to see which Focus is on and to show your Messages conversations in the notch. Islet reads them and never changes them. Restart Islet after allowing.",
-                           action: { SystemSettings.open(SystemSettings.fullDisk) })
-                Divider()
-                permission("Contacts", icon: "person.crop.circle.fill", ok: messagesAccess.contactsAllowed,
-                           detail: "Only to show who's messaging you by name.",
-                           action: { messagesAccess.requestContacts() })
-                Divider()
-                permission("Control Messages", icon: "message.fill", ok: messagesAccess.automationAllowed,
-                           detail: "Only to send the replies you type in the notch. Allow opens Messages in the background to ask.",
-                           action: { messagesAccess.requestAutomation() })
-                Divider()
-                // Not a permission, but the same kind of one-time step (DESIGN.md "Search", "Opening").
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "magnifyingglass").frame(width: 22).foregroundStyle(.secondary)
+                    Image(systemName: "checkmark.square.fill").font(.title3).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Search from the notch")
-                        Text(spotlightConflict
-                             ? "\(SearchShortcutChoice.current.title) opens Islet's search once Spotlight's own shortcut is changed, in Keyboard Shortcuts > Spotlight."
-                             : "\(SearchShortcutChoice.current.title) opens Islet's search. Change it in Settings > General.")
+                        Text("The island").fontWeight(.semibold)
+                        Text("Now playing, charging and battery, and Wi-Fi, Bluetooth and AirDrop in the open panel. Always on, needs nothing.")
                             .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 8)
-                    if spotlightConflict { Button("Change…") { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) } } else { status(true) }
                 }
-                Divider()
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "waveform").frame(width: 22).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Now playing")
-                        Text(media.available ? "Working. Needs no permission." : "Unavailable on this Mac.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    status(media.available)
+                ForEach(Feature.allCases) { f in
+                    Divider()
+                    pickRow(f)
                 }
             }
-            if !accessibility {
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func isPicked(_ f: Feature) -> Bool {
+        if f == .faceUnlock { return wantsFace }
+        return picked.contains(f) && (f.parent.map { picked.contains($0) } ?? true)
+    }
+
+    private func pickRow(_ f: Feature) -> some View {
+        let parentOff = f.parent.map { !picked.contains($0) } ?? false
+        return Toggle(isOn: Binding(get: { isPicked(f) }, set: { pick(f, $0) })) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(f.title).fontWeight(.semibold)
+                Text(f.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(f.needs.isEmpty ? "Needs nothing" : "Needs " + SettingsChecks.list(f.needs))
+                    .font(.caption2.weight(.medium)).foregroundStyle(f.needs.isEmpty ? Color.green : .secondary)
+            }
+            .padding(.leading, 4)
+        }
+        .toggleStyle(.checkbox)
+        .disabled(parentOff)
+        .padding(.leading, f.parent == nil ? 0 : 24)
+    }
+
+    private func pick(_ f: Feature, _ on: Bool) {
+        if f == .faceUnlock { wantsFace = on; if !on { face.unlock.enabled = false }; return }
+        if on { picked.insert(f) } else { picked.remove(f) }
+        f.set(on)
+        if f == .search { searchShortcut = SearchShortcutChoice.current.rawValue }
+    }
+
+    /// The picked features that need something, each with what it needs.
+    private var neededGroups: [(Feature, [String])] {
+        Feature.allCases.filter(isPicked).compactMap { f in f.needs.isEmpty ? nil : (f, f.needs) }
+    }
+
+    private var permissions: some View {
+        let groups = neededGroups
+        let missing = Set(groups.flatMap(\.1).filter { !permissionAllowed($0) })
+        return VStack(alignment: .leading, spacing: 14) {
+            header(groups.isEmpty ? "Nothing to allow" : missing.isEmpty ? "Everything you picked is ready" : "Allow what you picked",
+                   groups.isEmpty ? "What you picked doesn't need any permissions." : "Only what your features need. Each one ticks itself off once it's allowed. Everything stays on this Mac.")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if !groups.isEmpty {
+                        card {
+                            ForEach(Array(neededNames.enumerated()), id: \.offset) { j, name in
+                                if j > 0 { Divider() }
+                                let users = groups.filter { $0.1.contains(name) }.map(\.0.title)
+                                permission(name, icon: permissionIcon(name), ok: permissionAllowed(name),
+                                           detail: "For " + SettingsChecks.list(users) + ". " + permissionHow(name), action: permissionAction(name))
+                            }
+                        }
+                    }
+                    let extras = optionalPermissions
+                    if !extras.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Optional").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            card {
+                                ForEach(Array(extras.enumerated()), id: \.offset) { j, e in
+                                    if j > 0 { Divider() }
+                                    permission(e.0, icon: permissionIcon(e.0), ok: false, detail: e.1 + " Fine without it.",
+                                               action: { permissionAction(e.0)() })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if missing.contains("Accessibility") {
                 Text("After you switch Islet on in System Settings, come back here. This page updates by itself.")
                     .font(.caption).foregroundStyle(.secondary)
-            } else if !levels.tapActive {
-                Text("Volume and brightness keys will start working after Islet restarts.").font(.caption).foregroundStyle(.secondary)
+            } else if isPicked(.levels), !levels.tapActive, accessibility {
+                Text("Volume and brightness keys start working after Islet restarts.").font(.caption).foregroundStyle(.secondary)
             }
-            card {
-                Toggle("Open Islet when I log in", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
-                Divider()
-                Toggle("Show a menu bar icon", isOn: $showMenuBarIcon)
-                Text("Without it, open settings from the gear in the expanded notch.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Each needed permission once, in the order features list them.
+    private var neededNames: [String] {
+        var out: [String] = []
+        for (_, names) in neededGroups { for n in names where !out.contains(n) { out.append(n) } }
+        return out
+    }
+
+    /// Permissions nothing picked needs, but that add something to what was picked.
+    private var optionalPermissions: [(String, String)] {
+        let needed = Set(neededGroups.flatMap(\.1))
+        var out: [(String, String)] = []
+        if !wifi.locationAllowed { out.append(("Location", "The island: names of nearby Wi-Fi networks. Your location is never used.")) }
+        if !needed.contains("Contacts"), !messagesAccess.contactsAllowed, isPicked(.notifications) || isPicked(.search) {
+            out.append(("Contacts", "Names instead of numbers on notifications, and people in search."))
+        }
+        if !needed.contains("Accessibility"), !accessibility {
+            out.append(("Accessibility", isPicked(.search) ? "Search: hand questions to Siri. The island: the wider layout when the menu bar has room."
+                                                           : "The island: the wider layout when the menu bar has room."))
+        }
+        return out
+    }
+
+    private func permissionAllowed(_ name: String) -> Bool {
+        switch name {
+        case "Accessibility": accessibility
+        case "Full Disk Access": focus.accessGranted
+        case "Contacts": messagesAccess.contactsAllowed
+        case "Control Messages": messagesAccess.automationAllowed
+        case "Location": wifi.locationAllowed
+        default: camera == .authorized
+        }
+    }
+
+    private func permissionIcon(_ name: String) -> String {
+        switch name {
+        case "Accessibility": "accessibility"
+        case "Full Disk Access": "internaldrive.fill"
+        case "Contacts": "person.crop.circle.fill"
+        case "Control Messages": "message.fill"
+        case "Location": "location.fill"
+        default: "camera.fill"
+        }
+    }
+
+    private func permissionHow(_ name: String) -> String {
+        switch name {
+        case "Accessibility": "Opens System Settings: switch Islet on, then come back."
+        case "Full Disk Access": "Opens System Settings: switch Islet on. Islet only reads Focus and Messages, never changes them. Restart Islet after."
+        case "Contacts": "macOS asks right here."
+        case "Control Messages": "Messages opens in the background and macOS asks."
+        case "Location": "macOS asks right here. Your location is never used."
+        default: "macOS asks right here. Only used while you set up Face Unlock or the Mac is locked."
+        }
+    }
+
+    private func permissionAction(_ name: String) -> () -> Void {
+        switch name {
+        case "Accessibility": accessibilityAction
+        case "Full Disk Access": { SystemSettings.open(SystemSettings.fullDisk) }
+        case "Contacts": { messagesAccess.requestContacts() }
+        case "Control Messages": { messagesAccess.requestAutomation() }
+        case "Location": locationAction
+        default: cameraAction
+        }
+    }
+
+    private var searchStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            header("How should search open?", "Spotlight, and Siri inside it, use ⌘Space. Islet can take it over, or leave it and use another shortcut.")
+            Form {
+                Section { SearchShortcutChooser(shortcut: $searchShortcut) }
             }
+            .formStyle(.grouped)
+            .scrollDisabled(true)
+            .frame(height: 190)
+            .padding(.horizontal, -20)
+            Text("To ask Siri, type “siri” and your question in Islet's search, or just a question. Return opens Spotlight with it asked.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
     }
@@ -195,17 +321,32 @@ struct OnboardingView: View {
     }
 
     private var done: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Spacer(minLength: 0)
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 54)).foregroundStyle(.green)
+        let checks = SettingsChecks(face: face, levels: levels, media: media, focus: focus, wifi: wifi, messagesAccess: messagesAccess,
+                                    camera: camera, spotlightConflict: spotlightConflict, requestCamera: cameraAction)
+        let on = Feature.allCases.filter { $0 == .faceUnlock ? face.unlock.enabled : $0.isOn }
+        return VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 44)).foregroundStyle(.green)
             Text("You're set").font(.largeTitle.weight(.semibold))
             card {
-                bullet("cursorarrow.motionlines", "Hover the notch and it bubbles out. Click it to open the controls.")
-                bullet("gearshape.fill", "The gear in the open notch is Settings: updates, face unlock and more.")
-                bullet("hand.draw.fill", "Swipe up over the notch with two fingers to hide it, down to bring it back.")
-                bullet("switch.2", "The notch now has Wi-Fi, Bluetooth, AirDrop, volume and brightness. To use it instead of Control Center, hide that icon in System Settings.")
-                Button("Open Control Center settings…") { SystemSettings.open(SystemSettings.controlCenter) }.controlSize(.small)
+                ForEach(Array(on.enumerated()), id: \.offset) { i, f in
+                    if i > 0 { Divider() }
+                    let st = checks.state(f)
+                    HStack {
+                        Text(f.title)
+                        Spacer()
+                        if let ok = st.ok { Circle().fill(ok ? Color.green : .orange).frame(width: 7, height: 7) }
+                        Text(st.text).font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+                if on.isEmpty { Text("Just the island: now playing, charging and the controls.").foregroundStyle(.secondary) }
             }
+            card {
+                Toggle("Open Islet when I log in", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+                Divider()
+                Toggle("Show a menu bar icon", isOn: $showMenuBarIcon)
+            }
+            Text("Hover the notch and it bubbles out; click it for the panel, and the gear there for Settings. Anything still missing waits on Settings' Islet page.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
     }
@@ -219,14 +360,17 @@ struct OnboardingView: View {
             }
             Spacer()
             HStack(spacing: 6) {
-                ForEach(Step.allCases, id: \.rawValue) { s in
+                ForEach(steps, id: \.rawValue) { s in
                     Circle().fill(s == step ? Color.accentColor : Color.secondary.opacity(0.3)).frame(width: 7, height: 7)
                 }
             }
             Spacer()
             switch step {
             case .welcome: Button("Get started") { go(1) }.buttonStyle(.borderedProminent)
-            case .display, .permissions: Button("Continue") { go(1) }.buttonStyle(.borderedProminent)
+            case .display, .choose, .search: Button("Continue") { go(1) }.buttonStyle(.borderedProminent)
+            case .permissions:
+                Button(neededGroups.flatMap(\.1).allSatisfy(permissionAllowed) ? "Continue" : "Skip for now") { go(1) }
+                    .buttonStyle(.borderedProminent)
             case .face:
                 Button(faceStep == .enrolled ? "Continue" : "Skip for now") { go(1) }
                     .buttonStyle(.borderedProminent).disabled(faceStep == .scanning || busy)
@@ -274,8 +418,21 @@ struct OnboardingView: View {
 
     // MARK: Actions
 
+    /// The steps shown: search's and Face Unlock's only when they were picked.
+    private var steps: [Step] {
+        Step.allCases.filter { s in
+            switch s {
+            case .search: isPicked(.search)
+            case .face: wantsFace
+            default: true
+            }
+        }
+    }
+
     private func go(_ delta: Int) {
-        if let next = Step(rawValue: step.rawValue + delta) { step = next; message = nil }
+        let list = steps
+        guard let i = list.firstIndex(of: step), list.indices.contains(i + delta) else { return }
+        step = list[i + delta]; message = nil
     }
 
     private func refresh() {

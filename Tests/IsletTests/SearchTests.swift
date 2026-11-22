@@ -72,4 +72,23 @@ final class SearchTests: XCTestCase {
     func testWebSearchURL() {
         XCTAssertEqual(WebSearchEngine.duckDuckGo.url(for: "a b&c")?.absoluteString, "https://duckduckgo.com/?q=a%20b%26c")
     }
+
+    func testSiriPrefix() {
+        XCTAssertEqual(SiriQuestion.prefixed("siri what's on today"), "what's on today")
+        XCTAssertEqual(SiriQuestion.prefixed("Siri, set a timer"), "set a timer")
+        XCTAssertEqual(SiriQuestion.prefixed("SIRI: hi"), "hi")
+        XCTAssertEqual(SiriQuestion.prefixed("siri"), "")
+        XCTAssertNil(SiriQuestion.prefixed("sirius"))
+        XCTAssertNil(SiriQuestion.prefixed("safari"))
+    }
+
+    func testQuestions() {
+        XCTAssertTrue(SiriQuestion.isQuestion("what’s the weather this weekend"))
+        XCTAssertTrue(SiriQuestion.isQuestion("how far is the moon"))
+        XCTAssertTrue(SiriQuestion.isQuestion("moon distance?"))
+        XCTAssertFalse(SiriQuestion.isQuestion("weather"))
+        XCTAssertFalse(SiriQuestion.isQuestion("what"))
+        XCTAssertFalse(SiriQuestion.isQuestion("isle"))
+        XCTAssertFalse(SiriQuestion.isQuestion("?"))
+    }
 }

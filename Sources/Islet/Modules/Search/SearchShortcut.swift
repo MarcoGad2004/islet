@@ -162,6 +162,23 @@ final class SearchShortcut {
         }
     }
 
+    /// Ask Siri: Spotlight answers a question typed into it with Siri on Return (macOS 27), so Islet opens Spotlight,
+    /// types the question and presses Return. Apps have no other way to reach Siri.
+    func askSiri(_ text: String) {
+        let s = Self.spotlightShortcut()
+        guard SiriQuestion.offered else { return }
+        ignoreUntil = Date().addingTimeInterval(1.2)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            Self.postKey(CGKeyCode(s.keyCode), flags: CGEventFlags(rawValue: s.flags))
+            try? await Task.sleep(for: .milliseconds(350))
+            Self.type(text)
+            // Spotlight settles on "Ask Siri" as you type; give it a moment before Return.
+            try? await Task.sleep(for: .milliseconds(450))
+            Self.postKey(CGKeyCode(kVK_Return), flags: [])
+        }
+    }
+
     private static func postKey(_ key: CGKeyCode, flags: CGEventFlags) {
         let src = CGEventSource(stateID: .hidSystemState)
         for down in [true, false] {
@@ -185,5 +202,40 @@ final class SearchShortcut {
             }
             i += 16
         }
+    }
+}
+
+/// When search offers Ask Siri (DESIGN.md "Search", "Ask Siri").
+enum SiriQuestion {
+    static let enabledKey = "searchAskSiri"
+
+    /// Turned on, macOS 27 or later (Siri in Spotlight), Accessibility (to type into Spotlight), and Spotlight has a
+    /// shortcut of its own to press.
+    @MainActor static var offered: Bool {
+        guard UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true else { return false }
+        guard ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0)) else { return false }
+        return AXIsProcessTrusted() && SearchShortcut.spotlightShortcut().enabled && !SearchShortcut.spotlightConflict
+    }
+
+    /// "siri what's on today" → "what's on today" (any case; "siri," and "siri:" too). Nil without the word.
+    static func prefixed(_ text: String) -> String? {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t.lowercased().hasPrefix("siri") else { return nil }
+        let rest = t.dropFirst(4)
+        if let c = rest.first, c.isLetter || c.isNumber { return nil } // "sirius"
+        return rest.trimmingCharacters(in: CharacterSet(charactersIn: " ,:"))
+    }
+
+    private static let starts: Set<String> = ["what", "what's", "whats", "how", "how's", "when", "why", "who", "who's", "whos",
+                                              "where", "which", "can", "could", "should", "would", "is", "are", "do", "does",
+                                              "did", "will", "tell", "explain"]
+
+    /// Reads like a question: ends in "?", or starts with a question word and has more words after it.
+    static func isQuestion(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        if t.hasSuffix("?") && t.count > 1 { return true }
+        let words = t.lowercased().replacingOccurrences(of: "’", with: "'").split(separator: " ")
+        guard words.count >= 2, let first = words.first else { return false }
+        return starts.contains(String(first))
     }
 }

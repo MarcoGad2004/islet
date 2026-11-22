@@ -82,6 +82,8 @@ final class LevelsController {
 
     /// Returns true when the event was ours and must not reach the system.
     private func handle(_ cg: CGEvent) -> Bool {
+        // Turned off (Settings > Islet, Features): the keys go to macOS's own display.
+        guard Feature.levels.isOn else { return false }
         guard let ns = NSEvent(cgEvent: cg), ns.type == .systemDefined, ns.subtype.rawValue == 8 else { return false }
         let key = (ns.data1 & 0xFFFF0000) >> 16
         let flags = ns.data1 & 0x0000FFFF

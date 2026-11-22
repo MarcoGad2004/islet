@@ -43,7 +43,7 @@ enum ContactAction: String, CaseIterable {
 
 /// One row search can show (DESIGN.md "Search").
 struct SearchItem: Identifiable, Equatable {
-    enum Kind: Equatable { case app, contact, shortcut, file, setting, calc, spotlight, web }
+    enum Kind: Equatable { case app, contact, shortcut, file, setting, calc, siri, spotlight, web }
     /// "kind:identity". Also the key Islet remembers opened results by.
     var id: String
     var kind: Kind
@@ -92,6 +92,7 @@ struct SearchItem: Identifiable, Equatable {
             else { detail.isEmpty ? "Contact" : detail }
         case .setting: "System Settings"
         case .calc: "Calculator"
+        case .siri: detail.isEmpty ? "Type what to ask" : "“\(detail)” · answers in Spotlight"
         case .spotlight, .web: ""
         }
     }

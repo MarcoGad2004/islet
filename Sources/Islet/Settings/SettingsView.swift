@@ -27,10 +27,12 @@ struct SettingsView: View {
     @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
+    @AppStorage(Feature.levelsKey) private var levelsInNotch = true
+    @AppStorage(Feature.focusKey) private var focusInNotch = true
+    @AppStorage(SiriQuestion.enabledKey) private var askSiri = true
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var messagesAccess = MessagesAccess()
     @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
-    @State private var showAllPermissions = false
     private let updater = Updater.shared
     private let powerMode = PowerModeController.shared
 
@@ -41,8 +43,7 @@ struct SettingsView: View {
 
     private var checks: SettingsChecks {
         SettingsChecks(face: face, levels: levels, media: media, focus: focus, wifi: wifi, messagesAccess: messagesAccess,
-                       camera: camera, spotlightConflict: spotlightConflict, notificationsOn: notificationsInNotch,
-                       messagesOn: messagesInNotch, requestCamera: requestCamera)
+                       camera: camera, spotlightConflict: spotlightConflict, requestCamera: requestCamera)
     }
 
     var body: some View {
@@ -141,16 +142,14 @@ struct SettingsView: View {
                 }
             }
             SettingsIssuesSection(issues: issues, title: "To fix") { pageRaw = $0.rawValue }
-            Section("At a glance") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-                    tile(.notifications, notificationsSummary, issues)
-                    tile(.search, searchSummary, issues)
-                    tile(.faceUnlock, faceSummary, issues)
-                    tile(.notch, (hasNotch ? "Has a notch" : "No notch") + (glassLook ? " · Glass" : " · Black"), issues)
-                    tile(.battery, powerMode.permissionInstalled ? "Energy Mode without a password" : "Energy Mode asks for a password", issues)
-                    tile(.updates, updatesSummary, issues)
+            Section {
+                ForEach(Feature.allCases) { f in
+                    if f.parent == nil || f.parent!.isOn { featureRow(f) }
                 }
-                .padding(.vertical, 4)
+            } header: {
+                Text("Features")
+            } footer: {
+                SettingsCaption("Turn off what you don't use, and Islet stops asking for what only it needs. The island itself, with now playing, charging and the controls, is always on.")
             }
         }
         .formStyle(.grouped)
@@ -164,46 +163,41 @@ struct SettingsView: View {
         return parts.count == 1 ? parts[0] + "." : parts.dropLast().joined(separator: ", ") + " and " + parts.last! + "."
     }
 
-    private func tile(_ p: SettingsPage, _ text: String, _ issues: [SettingsIssue]) -> some View {
-        let warn = issues.contains { $0.pages.contains(p) }
-        return Button { pageRaw = p.rawValue } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 7) { SettingsIcon(page: p, size: 18); Text(p.title).fontWeight(.semibold) }
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Circle().fill(warn ? Color.orange : .green).frame(width: 6, height: 6)
-                    Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
+    /// A feature on the Islet page: what it does, how it is, and its switch.
+    @ViewBuilder private func featureRow(_ f: Feature) -> some View {
+        let st = checks.state(f)
+        LabeledContent {
+            HStack(spacing: 10) {
+                HStack(spacing: 5) {
+                    if let ok = st.ok { Circle().fill(ok ? Color.green : .orange).frame(width: 7, height: 7) }
+                    Text(st.text).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if f == .faceUnlock, !face.faces.isReady {
+                    Button("Set Up…") { pageRaw = SettingsPage.faceUnlock.rawValue }
+                } else {
+                    Toggle(f.title, isOn: featureBinding(f)).labelsHidden().toggleStyle(.switch).controlSize(.small)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .topLeading)
-            .padding(10)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(Rectangle())
+        } label: {
+            SettingsLabel(f.title, f.detail).padding(.leading, f.parent == nil ? 0 : 16)
         }
-        .buttonStyle(.plain)
     }
 
-    private var notificationsSummary: String {
-        guard notificationsInNotch else { return "Off" }
-        if messagesInNotch, !focus.accessGranted || SettingsChecks.debugIssues { return "Messages need Full Disk Access" }
-        return messagesInNotch ? "In the notch, with Messages" : "In the notch"
-    }
-    private var searchSummary: String {
-        guard let c = SearchShortcutChoice(rawValue: searchShortcut), c != .off else { return "No shortcut" }
-        return "\(c.title) · \((WebSearchEngine(rawValue: webEngine) ?? .google).title)"
-    }
-    private var faceSummary: String {
-        guard face.faces.isReady else { return "Not set up" }
-        guard face.unlock.enabled else { return "Off" }
-        let n = face.faces.learned.count
-        return n == 0 ? "On" : "On · \(n) of \(FaceStore.maxLearned) looks learned"
-    }
-    private var updatesSummary: String {
-        switch updater.state {
-        case .available(let tag): "\(Updater.plain(tag)) ready to install"
-        case .upToDate: "\(versionLabel) · Up to date"
-        default: versionLabel
+    private func featureBinding(_ f: Feature) -> Binding<Bool> {
+        switch f {
+        case .levels: $levelsInNotch
+        case .notifications: $notificationsInNotch
+        case .messages: $messagesInNotch
+        case .focus: $focusInNotch
+        case .faceUnlock: Binding(get: { face.unlock.enabled }, set: { face.unlock.enabled = $0 })
+        case .search: Binding(get: { searchShortcut != SearchShortcutChoice.off.rawValue }, set: { on in
+            Feature.search.set(on)
+            searchShortcut = SearchShortcutChoice.current.rawValue
+            refresh()
+        })
         }
     }
+
     private var versionLabel: String {
         Bundle.main.object(forInfoDictionaryKey: "IsletBuildLabel") as? String ?? updater.currentVersion
     }
@@ -260,12 +254,12 @@ struct SettingsView: View {
     }
 
     private func notifications(_ here: [SettingsIssue]) -> some View {
-        let needs = !focus.accessGranted || SettingsChecks.debugIssues || !messagesAccess.contactsAllowed || !messagesAccess.automationAllowed
+        let needs = checks.state(.messages).ok == false
         return Form {
             SettingsIssuesSection(issues: here)
             Section {
                 Toggle(isOn: $notificationsInNotch) {
-                    SettingsLabel("Show notifications in the notch", "Banners appear under the notch instead of the top-right corner. Calls keep their own banner.")
+                    SettingsLabel("Show notifications in the notch", "Banners appear under the notch instead of the top-right corner. Calls keep their own banner. Needs Accessibility.")
                 }
                 if notificationsInNotch {
                     Toggle("Hide message text", isOn: $notificationsHideText)
@@ -287,26 +281,41 @@ struct SettingsView: View {
     }
 
     private func search(_ here: [SettingsIssue]) -> some View {
-        Form {
-            SettingsIssuesSection(issues: here)
+        let on = searchShortcut != SearchShortcutChoice.off.rawValue
+        return Form {
             Section {
-                Picker(selection: $searchShortcut) {
-                    ForEach(SearchShortcutChoice.allCases) { Text($0.title).tag($0.rawValue) }
-                } label: {
-                    SettingsLabel("Shortcut", "Search apps, files, contacts, Shortcuts and settings from the notch. Typing in the open panel searches too.")
+                Toggle(isOn: featureBinding(.search)) {
+                    SettingsLabel("Search from the notch", Feature.search.detail + " Typing in the open panel searches too.")
                 }
-                .onChange(of: searchShortcut) {
-                    SearchShortcut.shared.apply()
-                    spotlightConflict = SearchShortcut.spotlightConflict
+            }
+            if on {
+                Section {
+                    SearchShortcutChooser(shortcut: $searchShortcut)
+                } header: {
+                    Text("Shortcut")
                 }
-                if searchShortcut != SearchShortcutChoice.off.rawValue {
+                Section {
+                    Toggle(isOn: $askSiri) {
+                        SettingsLabel("Ask Siri", "Type “siri” and your question, or just a question. Return opens Spotlight with it asked, and Siri answers there. When Islet finds nothing, Ask Siri comes first too.")
+                    }
+                    if askSiri, !face.unlock.accessibilityTrusted {
+                        Label("Needs Accessibility, to type your question into Spotlight.", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.callout)
+                    }
                     Picker("Search the web with", selection: $webEngine) {
                         ForEach(WebSearchEngine.allCases) { Text($0.title).tag($0.rawValue) }
                     }
+                } header: {
+                    Text("Results")
                 }
             }
         }
         .formStyle(.grouped)
+        .onChange(of: searchShortcut) { refresh() }
+        // The chooser notices Spotlight moving; the sidebar's count follows.
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            spotlightConflict = SearchShortcut.spotlightConflict
+        }
     }
 
     private var battery: some View {
@@ -329,27 +338,42 @@ struct SettingsView: View {
     private func permissions(_ issues: [SettingsIssue]) -> some View {
         let all = checks.permissions
         let mine = issues.filter { $0.pages.first == .permissions }
-        let quiet = all.filter { $0.allowed || !$0.needed }
+        let used = all.filter(\.needed)
+        let rest = all.filter { !$0.needed }
         return Form {
             if mine.isEmpty {
                 Section {
-                    SettingsHero(symbol: "checkmark", color: .green,
-                                 title: all.allSatisfy(\.allowed) ? "All \(all.count) permissions are allowed" : "Everything Islet uses is allowed",
-                                 detail: "Islet checks again whenever this window comes to the front.")
+                    SettingsHero(symbol: "checkmark", color: .green, title: "Your features have what they need",
+                                 detail: "Islet only asks for what the features you have on use. It checks again whenever this window comes to the front.")
                 }
             }
             SettingsIssuesSection(issues: mine)
-            Section {
-                DisclosureGroup(isExpanded: Binding(get: { showAllPermissions || !mine.isEmpty }, set: { showAllPermissions = $0 })) {
-                    ForEach(quiet) { p in
+            if !used.isEmpty {
+                Section("Used by your features") {
+                    ForEach(used) { p in
                         LabeledContent {
                             if p.allowed { Text("Allowed").foregroundStyle(.secondary) } else { Button("Allow…", action: p.allow) }
                         } label: {
-                            SettingsLabel(p.name, p.allowed ? p.purpose : p.purpose + ". Not needed for what's turned on.")
+                            SettingsLabel(p.name, SettingsChecks.list(p.usedBy.map(\.title)))
                         }
                     }
-                } label: {
-                    Text(mine.isEmpty ? "What each one is for" : "\(quiet.count) more")
+                }
+            }
+            if !rest.isEmpty {
+                Section {
+                    ForEach(rest) { p in
+                        LabeledContent {
+                            if p.allowed { Text("Allowed").foregroundStyle(.secondary) }
+                            else if p.optional != nil { Button("Allow…", action: p.allow) }
+                            else { Text("Off").foregroundStyle(.secondary) }
+                        } label: {
+                            SettingsLabel(p.name, p.optional.map { "Optional. " + $0 } ?? "Nothing you have on uses it.")
+                        }
+                    }
+                } header: {
+                    Text("Not needed")
+                } footer: {
+                    SettingsCaption("Never shown as a problem. Allowed ones can be switched off in System Settings > Privacy & Security.")
                 }
             }
             Section {

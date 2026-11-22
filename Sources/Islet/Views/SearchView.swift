@@ -111,7 +111,7 @@ struct SearchView: View {
             ForEach(Array(hints.enumerated()), id: \.offset) { _, h in hint(h.0, h.1) }
             Spacer(minLength: 8)
             if model.isEmpty {
-                Text("Type to search apps, files, Shortcuts and settings").lineLimit(1)
+                Text(SiriQuestion.offered ? "Type to search, or start with “siri” to ask Siri" : "Type to search apps, files, Shortcuts and settings").lineLimit(1)
             } else {
                 hint("esc", "Clear")
             }
@@ -128,6 +128,7 @@ struct SearchView: View {
         switch s.kind {
         case .calc: return [("↩", "Copy")]
         case .shortcut: return [("↩", "Run")]
+        case .siri: return s.detail.isEmpty ? [] : [("↩", "Ask Siri")]
         case .spotlight: return [("↩", "Search in Spotlight")]
         case .web: return [("↩", "Open in browser")]
         case .setting: return [("↩", "Open")]
@@ -206,7 +207,7 @@ private struct SearchRow: View {
 
     /// The matched letters bright, the rest grey ("More" rows all bright).
     private var marked: AttributedString {
-        if item.kind == .spotlight || item.kind == .web {
+        if item.kind == .spotlight || item.kind == .web || item.kind == .siri {
             var a = AttributedString(item.name); a.foregroundColor = .isletText; return a
         }
         var out = AttributedString()
@@ -259,6 +260,12 @@ struct SearchIcon: View {
             case .setting:
                 let page = SearchIndex.page(named: item.name)
                 tile(LinearGradient(colors: [Color(hex: page?.color ?? 0x8E8E93)], startPoint: .top, endPoint: .bottom), page?.symbol ?? "gearshape.fill")
+            case .siri:
+                // Siri's orb: a ring of colour round a dark middle.
+                Circle().fill(AngularGradient(colors: [Color(hex: 0xFF5FA2), Color(hex: 0xFFB340), Color(hex: 0x5AD6FF),
+                                                       Color(hex: 0x8A5CFF), Color(hex: 0xFF5FA2)], center: .center, angle: .degrees(200)))
+                    .overlay(Circle().fill(Color.black.opacity(0.55)).padding(size * 0.28))
+                    .padding(size * 0.06)
             case .spotlight:
                 tile(LinearGradient(colors: [Color(hex: 0x8E8E93), Color(hex: 0x636366)], startPoint: .top, endPoint: .bottom), "magnifyingglass")
             case .web:

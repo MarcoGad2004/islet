@@ -106,7 +106,7 @@ struct ControlStage: View {
                 }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag) }
-                if let f = store.focus?.active { focusIcon(f) }
+                if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f) }
             }
             .opacity(mode == .controls ? 1 : 0)
             .allowsHitTesting(mode == .controls)

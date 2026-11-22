@@ -68,10 +68,13 @@ struct SettingsPermission: Identifiable {
     let name: String
     let purpose: String
     let allowed: Bool
-    /// Off but nothing that's turned on uses it: listed, never an issue.
-    let needed: Bool
+    /// The features that are on and can't work without it. Empty: listed, never an issue.
+    let usedBy: [Feature]
+    /// What it adds to features that are on and work without it ("show names instead of numbers").
+    var optional: String? = nil
     let allow: () -> Void
     var id: String { name }
+    var needed: Bool { !usedBy.isEmpty }
 }
 
 /// Builds the permissions and issues from the live state of each part of Islet.
@@ -85,60 +88,75 @@ struct SettingsChecks {
     let messagesAccess: MessagesAccess
     let camera: AVAuthorizationStatus
     let spotlightConflict: Bool
-    let notificationsOn: Bool
-    let messagesOn: Bool
     let requestCamera: () -> Void
 
-    private var messagesInUse: Bool { notificationsOn && messagesOn }
-    private var faceInUse: Bool { face.faces.isEnrolled || face.unlock.enabled }
+    /// The features that are on (Face Unlock counts once it's switched on).
+    var on: Set<Feature> {
+        var set = Set(Feature.allCases.filter { $0 != .faceUnlock && $0.isOn })
+        if face.unlock.enabled { set.insert(.faceUnlock) }
+        return set
+    }
+
+    private func used(_ name: String) -> [Feature] { Feature.allCases.filter { on.contains($0) && $0.needs.contains(name) } }
 
     var permissions: [SettingsPermission] {
-        [
-            SettingsPermission(name: "Accessibility", purpose: "Volume and brightness keys, the menu bar width check and typing your password for Face Unlock",
-                               allowed: face.unlock.accessibilityTrusted, needed: true) { face.unlock.requestPermission() },
+        let on = self.on
+        return [
+            SettingsPermission(name: "Accessibility", purpose: "Volume and brightness keys, notifications and typing your password for Face Unlock",
+                               allowed: face.unlock.accessibilityTrusted, usedBy: used("Accessibility"),
+                               optional: on.contains(.search) ? "Search: hand questions to Siri. The island: the wider layout when the menu bar has room."
+                                   : "The island: the wider layout when the menu bar has room.") { face.unlock.requestPermission() },
             SettingsPermission(name: "Full Disk Access", purpose: "Shows which Focus is on and reads your Messages conversations",
-                               allowed: focus.accessGranted && !Self.debugIssues, needed: true) { SystemSettings.open(SystemSettings.fullDisk) },
+                               allowed: focus.accessGranted && !Self.debugIssues, usedBy: used("Full Disk Access")) { SystemSettings.open(SystemSettings.fullDisk) },
             SettingsPermission(name: "Contacts", purpose: "Names on messages, and people in search",
-                               allowed: messagesAccess.contactsAllowed, needed: true) { messagesAccess.requestContacts() },
+                               allowed: messagesAccess.contactsAllowed, usedBy: used("Contacts"),
+                               optional: on.contains(.notifications) || on.contains(.search) ? "Names instead of numbers, and people in search." : nil) { messagesAccess.requestContacts() },
             SettingsPermission(name: "Control Messages", purpose: messagesAccess.asking ? "Answer the macOS prompt…" : "Sends your replies from the notch. Allow opens Messages to ask.",
-                               allowed: messagesAccess.automationAllowed, needed: messagesInUse) { messagesAccess.requestAutomation() },
-            SettingsPermission(name: "Location", purpose: "Names of nearby Wi-Fi networks",
-                               allowed: wifi.locationAllowed, needed: true) {
+                               allowed: messagesAccess.automationAllowed, usedBy: used("Control Messages")) { messagesAccess.requestAutomation() },
+            SettingsPermission(name: "Location", purpose: "Names of nearby Wi-Fi networks. Your location is never used.",
+                               allowed: wifi.locationAllowed, usedBy: [], optional: "The island: names of nearby Wi-Fi networks.") {
                 if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
             },
             SettingsPermission(name: "Camera", purpose: "Face Unlock",
-                               allowed: camera == .authorized, needed: faceInUse, allow: requestCamera),
+                               allowed: camera == .authorized, usedBy: used("Camera"), allow: requestCamera),
         ]
+    }
+
+    /// One line for a feature on the Islet page: Off, Ready, or what it still needs.
+    func state(_ f: Feature) -> (text: String, ok: Bool?) {
+        if f == .faceUnlock {
+            if !face.faces.isReady { return ("Not set up", nil) }
+            if !face.unlock.enabled { return ("Off", nil) }
+        } else if !f.isOn {
+            return (f.parent.map { $0.isOn ? "Off" : "Off with \($0.title)" } ?? "Off", nil)
+        }
+        let missing = permissions.filter { !$0.allowed && $0.usedBy.contains(f) }.map(\.name)
+        if !missing.isEmpty { return ("Needs " + Self.list(missing), false) }
+        if f == .search {
+            if spotlightConflict { return ("Spotlight still uses \(SearchShortcutChoice.current.title)", false) }
+            return ("Ready on \(SearchShortcutChoice.current.title)", true)
+        }
+        if f == .levels, !levels.tapActive { return ("Restart Islet to start", false) }
+        return ("Ready", true)
+    }
+
+    static func list(_ names: [String]) -> String {
+        names.count < 2 ? names.joined() : names.dropLast().joined(separator: ", ") + " and " + names.last!
     }
 
     var issues: [SettingsIssue] {
         var list: [SettingsIssue] = []
         for p in permissions where !p.allowed && p.needed {
             var pages: [SettingsPage] = [.permissions]
-            let detail: String
-            switch p.name {
-            case "Accessibility":
-                pages += faceInUse ? [.faceUnlock] : []
-                detail = "Volume and brightness keys, the menu bar width check and Face Unlock don't work without it."
-            case "Full Disk Access":
-                pages += messagesInUse ? [.notifications] : []
-                detail = "Focus and Messages conversations in the notch don't work without it."
-            case "Contacts":
-                pages += [.notifications, .search]
-                detail = "Messages show numbers instead of names, and search can't find people."
-            case "Control Messages":
-                pages += [.notifications]
-                detail = "Replies from the notch can't be sent without it."
-            case "Location":
-                detail = "The Wi-Fi page can't show the names of nearby networks without it."
-            default:
-                pages += [.faceUnlock]
-                detail = "Face Unlock can't see you without it."
-            }
+            if p.usedBy.contains(where: { [.notifications, .messages].contains($0) }) { pages.append(.notifications) }
+            if p.usedBy.contains(.faceUnlock) { pages.append(.faceUnlock) }
+            let names = p.usedBy.map(\.title)
+            let detail = Self.list(names) + (names.count > 1 ? " don't" : " doesn't") + " work without it. Turn "
+                + (names.count > 1 ? "them" : "it") + " off on the Islet page if you don't use " + (names.count > 1 ? "them." : "it.")
             list.append(SettingsIssue(id: "perm-" + p.name, pages: pages, title: "\(p.name) is off", detail: detail,
                                       actionTitle: "Allow…", action: p.allow))
         }
-        if face.unlock.accessibilityTrusted, !levels.tapActive {
+        if face.unlock.accessibilityTrusted, Feature.levels.isOn, !levels.tapActive {
             list.append(SettingsIssue(id: "keys", pages: [.permissions], title: "Volume and brightness keys aren't reaching Islet",
                                       detail: "Accessibility is on, but macOS hasn't handed the keys over yet. Restarting Islet fixes it.",
                                       actionTitle: "Restart Islet", action: { SettingsChecks.relaunch() }))
@@ -149,10 +167,10 @@ struct SettingsChecks {
         }
         if spotlightConflict {
             list.append(SettingsIssue(id: "spotlight", pages: [.search], title: "Spotlight still uses \(SearchShortcutChoice.current.title)",
-                                      detail: "Spotlight takes the keyboard first. Change its shortcut in Keyboard Shortcuts > Spotlight, or pick another one here.",
+                                      detail: "Spotlight takes the keyboard first, so search doesn't open. Move Spotlight to another shortcut, or keep it there and give Islet another one on the Search page.",
                                       actionTitle: "Keyboard Shortcuts…", action: { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) }))
         }
-        if faceInUse, !face.modelAvailable {
+        if face.unlock.enabled || face.faces.isEnrolled, !face.modelAvailable {
             list.append(SettingsIssue(id: "model", pages: [.faceUnlock], title: "The face model is missing",
                                       detail: "Face Unlock can't recognise anyone without it. Build Islet again after running scripts/fetch-model.sh."))
         }

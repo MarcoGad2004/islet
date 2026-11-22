@@ -54,6 +54,22 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - When the menu bar has room, the panel opens flush with the top of the screen, growing straight out of the notch with
   its header beside the camera. With menus or icons in the way, it hangs under the notch as before.
 
+### Pick your features
+
+- Setup starts by asking what you want Islet to do: volume and brightness, notifications, Messages, Focus, search and
+  Face Unlock. It then asks only for the permissions those need, each listed once with what it's for.
+- Settings' Islet page lists every feature with a switch and how it's doing ("Ready", "Needs Full Disk Access").
+  Turn one off and Islet stops asking for what only it needs. Permissions are grouped into what your features use
+  and what they don't.
+- Search's shortcut is a plain choice: take over ⌘Space (Spotlight moves) or keep ⌘Space for Spotlight and use
+  another one for Islet. Settings and setup show what's true right now and tick themselves off once Spotlight moves.
+
+### Ask Siri
+
+- Type "siri" and a question in search, or just a question, and press Return: Islet opens Spotlight with it asked,
+  and Siri answers there. When search finds nothing, Ask Siri comes first too. (macOS 27; turn it off in Settings >
+  Search.)
+
 ### Fixes
 
 - Clicking a notification in the panel's list now opens it in place, with its whole message and its buttons (Open, Reply, or the app's own). Before, it opened the app behind the panel and left the list showing.

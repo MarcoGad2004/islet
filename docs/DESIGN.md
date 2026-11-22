@@ -559,11 +559,13 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
 <https://claude.ai/artifact/N5iagkggjhWG5Yu5bGGEvW> (source docs/mockups/search.html). Feasibility: RESEARCH.md
 "Search from the notch". Preview: `-IsletDebugShape search -IsletDebugSearch <text>`.
 
-- **Opening**: the search shortcut (Settings > General > "Search shortcut": ⌘Space by default, or ⌥Space, ⌃Space,
-  ⇧⌘Space, Off) from anywhere,
-  including full-screen apps. ⌘Space only reaches Islet once Spotlight's own shortcut is changed in System Settings >
-  Keyboard > Keyboard Shortcuts > Spotlight; until then Settings shows "Spotlight still uses ⌘Space" with a button to
-  that page, and setup has the same row. Pressing the shortcut again closes it.
+- **Opening**: the search shortcut from anywhere (Settings > Search, and setup; owner, 2026-11-21): two choices, "Use
+  ⌘Space for Islet" (Spotlight, and Siri in it, move to another shortcut) or "Keep ⌘Space for Spotlight" (Islet takes
+  ⌥Space, ⌃Space or ⇧⌘Space, picked from a menu, the first one Spotlight isn't on). Under them, what's true now, read
+  from System Settings every second while it shows: "⌘Space opens Islet. Spotlight and Siri are on ⌥Space." with a
+  tick, or "Move Spotlight off ⌘Space" with Open Keyboard Shortcuts… and "Waiting for Spotlight to let go of ⌘Space"
+  with a spinner, which ticks itself off once Spotlight has moved. Search works in full-screen apps too. Until
+  Spotlight lets go, the Islet page also lists "Spotlight still uses ⌘Space". Pressing the shortcut again closes it.
 - **Shape**: a stem and body like the expanded panel, 500 wide, top 16, bottom 30, 10 pt inner curves. It opens with
   "Flow down, then bubble out" and takes the keyboard at once. With wings showing, it opens from the wings' width.
 - **Typing while it opens** (owner, 2026-11-21): you can press ⌘Space and type straight away. The opening animation
@@ -597,6 +599,15 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
   - Rows are 34 tall: icon 22, name 13 with the matched letters in `text` and the rest `secondary`.
   - **Calculator**: when the text is a sum ("12*7.5", "(3+4)/2"), the top hit is the answer ("= 90", 22 semibold,
     monospaced digits) with the sum above it in `tertiary`. Return copies it.
+  - **Ask Siri** (owner, 2026-11-21): Siri lives in Spotlight on macOS 27, and Spotlight answers a typed question with
+    Siri on Return; apps have no other way to reach it. Ask Siri opens Spotlight on its own shortcut, types the question
+    and presses Return, so Siri is already answering. It comes first, as a "Siri" section with an "Ask Siri" top hit
+    (Siri's coloured orb, "“question” · answers in Spotlight", footer "↩ Ask Siri"), when the text starts with "siri"
+    (any case; the word is dropped, and nothing else shows), reads like a question (ends in "?", or starts with what,
+    how, when, why, who, where, which, can, could, should, would, is, are, do, does, did, will, tell or explain and has
+    more words), or nothing here matches; the other results follow by kind. Otherwise it's the first row of More. Needs
+    macOS 27, Accessibility and a Spotlight shortcut that isn't search's; Settings > Search can turn it off. The empty
+    field's footer says "Type to search, or start with “siri” to ask Siri".
   - **More**: always last: "Search “text” in Spotlight" (presses Spotlight's own shortcut and types the text; without
     Accessibility, or with Spotlight's shortcut still on search's, a Finder search window instead) and "Search the web
     for “text”" (opens the default browser on Settings > General "Search the web with": Google, DuckDuckGo, Bing,
@@ -641,21 +652,52 @@ docs/mockups/settings.html).
   and "N things need attention"), then General, Notch, Notifications, Search, Battery, Face Unlock, and below a gap
   Permissions and Updates. A page something breaks has a count badge.
 - **Islet (status page)**: one big status line (green tick, or orange with the count), then "To fix" with each issue
-  and its fix (Allow…, Keyboard Shortcuts…, Install and Restart; else Show, which goes to its page), then "At a
-  glance": a tile per area with a one-line summary and a green or orange dot. A tile opens its page.
-- **What counts as an issue**: a permission that's off and used by something turned on (Control Messages only while
-  Messages in the notch is on, Camera only once Face Unlock is set up); the volume keys not reaching Islet although
+  and its fix (Allow…, Keyboard Shortcuts…, Install and Restart; else Show, which goes to its page), then "Features"
+  (owner, 2026-11-21, replacing the "At a glance" tiles): each feature with what it does, one state ("Ready", "Ready
+  on ⌘Space", "Off", "Needs Full Disk Access", with a green or orange dot) and its switch; Face Unlock has Set Up… until
+  it is set up. Messages sits indented under Notifications and hides while they're off.
+- **What counts as an issue**: a permission that's off and needed by a feature that's on (see "Features (1.4)"); the
+  volume keys not reaching Islet although
   Accessibility is on (Restart Islet); Now playing unavailable; Spotlight still holding the search shortcut; the face
   model missing; Face Unlock paused by a rejected password; an update ready to install. Everything that works stays
   quiet.
-- **Permissions**: while nothing is off, one green line "All 6 permissions are allowed" and a folded "What each one is
-  for" list (each row says "Allowed"). With something off: its card on top and the rest listed below. Now playing sits
+- **Permissions** (owner, 2026-11-21): a green line "Your features have what they need" while nothing is off, else the
+  issues on top. Then "Used by your features" (each with the features that use it, and Allowed or Allow…) and "Not
+  needed" (dimmed: "Optional. Names instead of numbers…" with Allow…, or "Nothing you have on uses it"). Now playing sits
   under "Not a permission". Islet checks everything again whenever the window comes to the front, so allowing one in
   System Settings and coming back clears it.
 - **Face Unlock**: one status line (on, off, not set up, needs attention) with the explanation, then the face (Scan
   Again…, "Enrolled · 7 of 24 looks learned") and password (Change…), Test recognition, Protection and learning, and
   Remove at the bottom.
-- **Setup** keeps its own permissions step. General has Run Setup… and Quit.
+- **Search**: a switch for search itself, then "Shortcut" (the choice under "Search", "Opening"), then "Results": the
+  Ask Siri switch (with "Needs Accessibility…" in orange when it's off) and the web search engine.
+- **Setup** (owner, 2026-11-21): Welcome, your Mac, "What should Islet do?" (a checkbox per feature, each with what it
+  needs; the island itself ticked and greyed), "Allow what you picked" (each needed permission once, "For Messages and
+  Focus. Opens System Settings…", ticking itself off; then "Optional" ones; "Skip for now" until all are allowed), "How
+  should search open?" (only when Search is ticked), Face Unlock (only when ticked), and "You're set" with each feature's
+  state, open at login and the menu bar icon. General has Run Setup… and Quit.
+
+## Features (1.4)
+
+Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/Dr9mECwP7ZuYuaacvnYXrr> (source
+docs/mockups/features.html).
+
+You pick what Islet does, and it only asks for what that needs. The island itself (now playing, charging and battery,
+the controls) is always on and needs nothing.
+
+| Feature | Needs | Off means |
+|---|---|---|
+| Volume and brightness | Accessibility | the keys go to macOS's own display |
+| Notifications | Accessibility | banners stay in the corner |
+| Messages (inside Notifications) | Full Disk Access, Contacts, Control Messages | message banners open in Messages |
+| Focus | Full Disk Access | no Focus notice or icon |
+| Search | nothing | no shortcut, and typing in the panel doesn't search |
+| Face Unlock | Camera, Accessibility (and the login password) | the lock screen as usual |
+
+- A permission only counts as missing while a feature that needs it is on. Some add to features that work without
+  them and are never shown as problems: Location (Wi-Fi names on the island), Contacts (names on notifications, people
+  in search), Accessibility (the wider layout when the menu bar has room; Ask Siri).
+- Turning Search off remembers its shortcut for when it comes back on.
 
 ## Visual tokens
 

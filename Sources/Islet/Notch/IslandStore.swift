@@ -449,7 +449,7 @@ final class IslandStore {
         guard expanded, !locked else { return false }
         if expandedPage == .search { return searchKey(key) }
         // A letter typed in the open panel starts a search with it (not in a conversation, where it's the reply).
-        if expandedPage != .messages, key.plainText, let c = key.characters, c != " " {
+        if expandedPage != .messages, Feature.search.isOn, key.plainText, let c = key.characters, c != " " {
             openSearch(initial: c)
             return true
         }

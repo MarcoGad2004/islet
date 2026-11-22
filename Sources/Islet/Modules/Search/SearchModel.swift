@@ -81,7 +81,11 @@ final class SearchModel {
         let previous = selected?.id
         let raw = text.trimmingCharacters(in: .whitespaces)
         var out: [Section] = []
-        if raw.isEmpty {
+        let siri = SiriQuestion.offered
+        if siri, let asked = SiriQuestion.prefixed(raw) {
+            // "siri …": only Siri, with the rest of the text as the question (DESIGN.md "Search", "Ask Siri").
+            out.append(Section(id: "siri", title: "Siri", style: .topHit, items: [Self.siriItem(asked, top: true)]))
+        } else if raw.isEmpty {
             out.append(Section(id: "recents", title: nil, style: .recents, items: index.recentApps(remembered: remembered)))
         } else if let (action, who) = ContactAction.parse(raw), case let people = contactActions(action, who), !people.isEmpty {
             // "call mom": the contacts as that action, the best first (DESIGN.md "Search", Contacts).
@@ -112,7 +116,14 @@ final class SearchModel {
             add(SearchIndex.settingsItems(), bonus: 1)
             add(fileResults, bonus: -4)
             scored.sort { $0.score > $1.score }
-            if let top = scored.first {
+            if siri, SiriQuestion.isQuestion(raw) || scored.isEmpty {
+                // A question, or nothing here to open: Siri first, then whatever matched, by kind.
+                out.append(Section(id: "siri", title: "Siri", style: .topHit, items: [Self.siriItem(raw, top: true)]))
+                for (kind, title) in [(SearchItem.Kind.app, "Applications"), (.contact, "Contacts"), (.shortcut, "Shortcuts"), (.file, "Files"), (.setting, "Settings")] {
+                    let items = scored.filter { $0.kind == kind }.prefix(3)
+                    if !items.isEmpty { out.append(Section(id: title, title: title, style: .list, items: Array(items))) }
+                }
+            } else if let top = scored.first {
                 out.append(Section(id: "top", title: "Top hit", style: .topHit, items: [top]))
                 for (kind, title) in [(SearchItem.Kind.app, "Applications"), (.contact, "Contacts"), (.shortcut, "Shortcuts"), (.file, "Files"), (.setting, "Settings")] {
                     let items = scored.filter { $0.kind == kind && $0.id != top.id }.prefix(3)
@@ -122,11 +133,11 @@ final class SearchModel {
                 out.append(Section(id: "none", title: nil, style: .none, items: []))
             }
         }
-        if !raw.isEmpty {
-            out.append(Section(id: "more", title: "More", style: .list, items: [
-                SearchItem(id: "spotlight", kind: .spotlight, name: "Search “\(raw)” in Spotlight", detail: raw),
-                SearchItem(id: "web", kind: .web, name: "Search the web for “\(raw)”", detail: raw),
-            ]))
+        if !raw.isEmpty, !(siri && SiriQuestion.prefixed(raw) != nil) {
+            var more = [SearchItem(id: "spotlight", kind: .spotlight, name: "Search “\(raw)” in Spotlight", detail: raw),
+                        SearchItem(id: "web", kind: .web, name: "Search the web for “\(raw)”", detail: raw)]
+            if siri, !out.contains(where: { $0.id == "siri" }) { more.insert(Self.siriItem(raw, top: false), at: 0) }
+            out.append(Section(id: "more", title: "More", style: .list, items: more))
         }
         sections = out
         rows = out.flatMap(\.items)
@@ -137,6 +148,10 @@ final class SearchModel {
             selection = 0
         }
         onChange?()
+    }
+
+    private static func siriItem(_ question: String, top: Bool) -> SearchItem {
+        SearchItem(id: "siri", kind: .siri, name: top ? "Ask Siri" : "Ask Siri “\(question)”", detail: question)
     }
 
     /// The contacts matching `who` that can do `action`, as "Call Mom" rows.
@@ -226,6 +241,8 @@ final class SearchModel {
     /// Return (or a click): open it, run it, copy it. ⌘Return shows a file or app in Finder.
     func activate(_ item: SearchItem? = nil, reveal: Bool = false) {
         guard let it = item ?? selected else { return }
+        // "siri" with nothing after it yet: nothing to ask.
+        if it.kind == .siri, it.detail.isEmpty { return }
         let ws = NSWorkspace.shared
         if let action = it.action { perform(action, on: it); return }
         close?()
@@ -254,6 +271,8 @@ final class SearchModel {
             Task.detached { _ = SearchIndex.run("/usr/bin/shortcuts", ["run", id]) }
         case .calc:
             copy(it.name.replacingOccurrences(of: ",", with: ""))
+        case .siri:
+            SearchShortcut.shared.askSiri(it.detail)
         case .spotlight:
             SearchShortcut.shared.handOff(it.detail)
         case .web:

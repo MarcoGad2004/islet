@@ -68,6 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "chin": notch.store.setBase(.chin)
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
+        case "setup":
+            // `-IsletDebugShape setup -IsletDebugStep choose` opens setup on that step.
+            onboarding.show()
         case "settings":
             // `-IsletDebugShape settings -IsletDebugPage faceUnlock` opens Settings on that page.
             settings.show(page: UserDefaults.standard.string(forKey: "IsletDebugPage").flatMap(SettingsPage.init(rawValue:)))
@@ -276,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
         focus.onChange = { [weak store] old, new in
+            guard Feature.focus.isOn else { return }
             if let new { store?.showEvent(IslandEvent(kind: .focusOn, icon: new.symbol, title: new.name, detail: "On", tint: new.color)) }
             else if let old { store?.showEvent(IslandEvent(kind: .focusOff, icon: old.symbol, title: old.name, detail: "Off")) }
         }
