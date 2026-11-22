@@ -1,0 +1,233 @@
+<title>Islet Charging</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a strip of desktop with the notch at the top, controls above, notes below. The island is drawn to scale (pt = px). */
+:root {
+  --page: #eceef2; --fg: #1d1d1f; --fg2: #6e6e73; --line: rgba(0,0,0,.1); --card: #ffffff; --accent: #0a7cff;
+  --desk1: #6d7fa3; --desk2: #2e3a57;
+  --green: #32d74b; --red: #ff453a; --redtext: #ff6961; --isle: #f5f5f7; --isle2: #a1a1a6;
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #17181c; --fg: #f2f2f4; --fg2: #9a9aa0; --line: rgba(255,255,255,.1); --card: #222327; --accent: #3b93ff; color-scheme: dark } }
+:root[data-theme="dark"] { --page: #17181c; --fg: #f2f2f4; --fg2: #9a9aa0; --line: rgba(255,255,255,.1); --card: #222327; --accent: #3b93ff; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--page); color: var(--fg); font: 13px var(--sys); padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; text-wrap: balance }
+header p { margin: 0; color: var(--fg2); max-width: 64ch; line-height: 1.45 }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; color: var(--fg2); font-size: 12px }
+.seg { display: inline-flex; background: var(--line); border-radius: 7px; padding: 2px; gap: 2px }
+.seg button, .play { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 4px 10px; border-radius: 5px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.15) }
+.play { background: var(--accent); color: #fff; padding: 5px 14px; border-radius: 7px }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+label.pct { display: inline-flex; gap: 8px; align-items: center }
+label.pct output { font-variant-numeric: tabular-nums; color: var(--fg); min-width: 3ch }
+
+.deskwrap { border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.25); background: linear-gradient(170deg, var(--desk1), var(--desk2)) }
+.scaler { width: 100%; overflow: hidden }
+.stage { width: 600px; height: 200px; position: relative; transform-origin: top left }
+.menubar { position: absolute; inset: 0 0 auto; height: 34px; background: rgba(0,0,0,.22); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: rgba(255,255,255,.85); font-size: 12px }
+.island { position: absolute; top: 0; left: 0; background: #000; z-index: 3; overflow: hidden }
+.content { position: absolute; inset: 0; color: var(--isle) }
+.slow { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; color: rgba(255,255,255,.75); font-size: 12px }
+
+/* Battery: outline, nub, fill, bolt on top. */
+.bat { position: absolute; width: 27px; height: 13px }
+.bat .body { position: absolute; left: 0; top: 0; width: 24px; height: 13px; border: 1.4px solid rgba(245,245,247,.45); border-radius: 4px }
+.bat .nub { position: absolute; left: 25px; top: 4px; width: 2px; height: 5px; border-radius: 0 1px 1px 0; background: rgba(245,245,247,.45) }
+.bat .fill { position: absolute; left: 2.5px; top: 2.5px; height: 8px; border-radius: 1.6px; background: var(--green) }
+.bat .bolt { position: absolute; left: 0; top: 0; width: 24px; height: 13px; display: grid; place-items: center }
+.bat .bolt svg { width: 8px; height: 10px; fill: #fff; filter: drop-shadow(0 0 1px rgba(0,0,0,.7)) }
+
+/* Odometer: a column per digit, each a strip 0–9 then 0 again so 9 rolls into 0. */
+.odo { position: absolute; display: flex; font: 600 13px var(--sys); font-variant-numeric: tabular-nums; height: 16px; line-height: 16px; overflow: hidden }
+.odo .col { width: 8px; position: relative; overflow: hidden; height: 16px; text-align: center }
+.odo .strip { position: absolute; left: 0; right: 0; top: 0; will-change: transform }
+.odo .strip span { display: block; height: 16px }
+.odo .pc { padding-left: 1px }
+.label { position: absolute; font: 600 13px var(--sys); white-space: nowrap }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.note { background: var(--card); border-radius: 10px; padding: 14px 16px; border: .5px solid var(--line); line-height: 1.5 }
+.note h4 { margin: 0 0 6px; font-size: 13px }
+.note ul { margin: 0; padding-left: 18px; color: var(--fg2) }
+.note li + li { margin-top: 4px }
+.note b { color: var(--fg) }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Charging animation</h1>
+    <p>As the notch opens, the percentage rolls up from empty to the charge, and a battery fills alongside it in step. Once both land, the charging bolt fades in on top of the battery. Low battery does the same in reverse: it rolls down and drains, in red, with no bolt.</p>
+  </header>
+
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="Event">
+      <button id="ev-charge" aria-pressed="true" data-ev="charge">Charger connected</button>
+      <button id="ev-full" aria-pressed="false" data-ev="full">Fully charged</button>
+      <button id="ev-low" aria-pressed="false" data-ev="low">Low battery</button>
+    </div>
+    <div class="seg" role="group" aria-label="Layout">
+      <button id="lay-wings" aria-pressed="true" data-lay="wings">Wings</button>
+      <button id="lay-chin" aria-pressed="false" data-lay="chin">Chin</button>
+    </div>
+    <label class="pct" for="pct">Charge <input id="pct" type="range" min="1" max="99" value="76"> <output id="pctOut">76%</output></label>
+    <button class="play" id="play">Plug in</button>
+  </div>
+
+  <div class="deskwrap"><div class="scaler" id="scaler"><div class="stage" id="stage">
+    <div class="menubar"><span>Finder &nbsp; File &nbsp; Edit &nbsp; View</span><span>Sat 21 Nov &nbsp;10:56</span></div>
+    <div class="island" id="island"><div class="content" id="content"></div></div>
+    <div class="slow" id="slow">Press Plug in to play it. It replays when you change an option.</div>
+  </div></div></div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>Timing</h4>
+      <ul>
+        <li><b>0 s</b> the notch springs out (same spring as now).</li>
+        <li><b>0.12 s</b> the battery and number fade in at empty (0%).</li>
+        <li><b>0.15 – 1.0 s</b> the number rolls up digit by digit and the fill grows with it, easing out as it lands.</li>
+        <li><b>1.05 s</b> the bolt fades and grows in over the battery (0.3 s).</li>
+        <li><b>3 s</b> it hands back, as now.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>What changes</h4>
+      <ul>
+        <li>The green bolt in the left wing becomes the battery page's battery glyph, with the bolt drawn on top of it at the end.</li>
+        <li><b>Fully charged</b> rolls up to 100% and fills completely, then the bolt.</li>
+        <li><b>Low battery</b> starts full and drains to 20% or 10%, rolling down, red, no bolt.</li>
+        <li>The chin keeps its label (“Charging · 1h 10m until full”) between the battery and the number.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+function start() {
+  const NW = 190, NH = 34, STAGE = 600, WING = 60, CHIN_W = 300, CHIN_H = 36;
+  const island = document.getElementById('island'), content = document.getElementById('content');
+  const stage = document.getElementById('stage'), scaler = document.getElementById('scaler');
+  const pct = document.getElementById('pct'), pctOut = document.getElementById('pctOut');
+  let ev = 'charge', lay = 'wings', raf = 0, t0 = 0, idleTimer = 0;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function fit() { const s = Math.min(1, scaler.clientWidth / STAGE); stage.style.transform = `scale(${s})`; scaler.style.height = (200 * s) + 'px'; }
+  addEventListener('resize', fit); fit();
+
+  // A damped spring from 0 to 1 (response 0.5 s, damping 0.82), like the island's.
+  function spring(t) {
+    if (t <= 0) return 0;
+    const w = 2 * Math.PI / 0.5, z = 0.82, wd = w * Math.sqrt(1 - z * z);
+    return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t));
+  }
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+
+  const BOLT = '<svg viewBox="0 0 8 12"><path d="M5 0 0 7h3l-1 5 6-7.4H4.6z"/></svg>';
+  function battery(x, y) {
+    return `<div class="bat" style="left:${x}px;top:${y}px"><div class="body"></div><div class="nub"></div><div class="fill" id="fill"></div><div class="bolt" id="bolt">${BOLT}</div></div>`;
+  }
+  function odo(right, y) {
+    const strip = () => `<div class="col"><div class="strip">${[0,1,2,3,4,5,6,7,8,9,0].map(d => `<span>${d}</span>`).join('')}</div></div>`;
+    return `<div class="odo" id="odo" style="right:${right}px;top:${y}px">${strip()}${strip()}${strip()}<div class="pc">%</div></div>`;
+  }
+  function label() {
+    return ev === 'low' ? 'Low battery' : ev === 'full' ? 'Fully charged' : 'Charging · 1h 10m until full';
+  }
+
+  function build() {
+    if (lay === 'wings') {
+      content.innerHTML = battery(14, (NH - 13) / 2) + odo(14, (NH - 16) / 2);
+    } else {
+      const top = NH + (CHIN_H - 16) / 2;
+      content.innerHTML = battery(16, NH + (CHIN_H - 13) / 2) +
+        `<div class="label" id="lbl" style="left:52px;top:${top}px;line-height:16px">${label()}</div>` + odo(16, top);
+    }
+    const lbl = document.getElementById('lbl');
+    if (lbl) lbl.style.color = ev === 'low' ? 'var(--redtext)' : 'var(--isle)';
+  }
+
+  // Each column's strip sits at a continuous position: the ones roll freely, a higher digit only moves while the one
+  // below it passes from 9 to 0, like a car's odometer.
+  function setNumber(v) {
+    const cols = [...document.querySelectorAll('#odo .strip')];
+    const pos = [Math.floor(v / 100) + clamp(v % 100 - 99), Math.floor(v / 10) % 10 + clamp(v % 10 - 9), v % 10];
+    const hide = [v < 99.5 && Math.floor(v / 100) === 0 ? 1 : 0, v < 9.5 ? 1 : 0, 0];
+    cols.forEach((s, i) => {
+      s.style.transform = `translateY(${-pos[i] * 16}px)`;
+      s.parentElement.style.width = hide[i] && (i === 0 || v < 9) ? '0px' : '8px';
+    });
+    const color = ev === 'low' ? 'var(--redtext)' : 'var(--green)';
+    document.getElementById('odo').style.color = color;
+  }
+  function setFill(v) {
+    const f = document.getElementById('fill');
+    f.style.width = Math.max(2, 19 * v / 100) + 'px';
+    f.style.background = ev === 'low' ? 'var(--red)' : 'var(--green)';
+  }
+
+  function shape(p) {
+    // p: 0 = bare notch, 1 = fully out; the spring may overshoot a little.
+    if (lay === 'wings') {
+      const w = NW + 2 * WING * p, h = NH;
+      Object.assign(island.style, { width: w + 'px', height: h + 'px', left: (STAGE - w) / 2 + 'px', borderRadius: `0 0 ${12}px ${12}px`, clipPath: 'none' });
+    } else {
+      // The stem (the notch) plus a body that grows out under it, overlapping so they read as one shape.
+      const bw = NW + (CHIN_W - NW) * Math.min(p, 1.05), bh = Math.max(0, CHIN_H * p);
+      const r = Math.min(16, bh / 2), ic = 10 * Math.min(1, p);
+      const sx = (CHIN_W - NW) / 2, bx = (CHIN_W - bw) / 2, by = NH - 0.5;
+      // Concave fillets where the stem meets the body, convex outer corners on the body.
+      Object.assign(island.style, { width: CHIN_W + 'px', height: (NH + CHIN_H + 4) + 'px', left: (STAGE - CHIN_W) / 2 + 'px', borderRadius: '0',
+        clipPath: bh < 1 ? `path('M${sx} 0 H${sx + NW} V${NH} H${sx} Z')` :
+        `path('M${sx} 0 H${sx + NW} V${by - ic} A${ic} ${ic} 0 0 0 ${sx + NW + ic} ${by} H${bx + bw - r} A${r} ${r} 0 0 1 ${bx + bw} ${by + r} V${NH + bh - r} A${r} ${r} 0 0 1 ${bx + bw - r} ${NH + bh} H${bx + r} A${r} ${r} 0 0 1 ${bx} ${NH + bh - r} V${by + r} A${r} ${r} 0 0 1 ${bx + r} ${by} H${sx - ic} A${ic} ${ic} 0 0 0 ${sx} ${by - ic} Z')` });
+    }
+  }
+
+  const target = () => ev === 'full' ? 100 : ev === 'low' ? (Number(pct.value) <= 15 ? 10 : 20) : Number(pct.value);
+  const from = () => ev === 'low' ? 100 : 0;
+
+  function frame(now) {
+    const t = (now - t0) / 1000;
+    const HOLD = 3.0;
+    const p = t < HOLD ? spring(t) : 1 - spring(t - HOLD) * 1.0;
+    shape(Math.max(0, p));
+    const fadeIn = clamp((t - 0.12) / 0.2), fadeOut = 1 - clamp((t - HOLD) / 0.12);
+    content.style.opacity = Math.min(fadeIn, fadeOut);
+    const k = reduce ? 1 : easeOut(clamp((t - 0.15) / 0.85));
+    const v = from() + (target() - from()) * k;
+    setNumber(Math.round(v * 10) / 10 >= target() - 0.05 && k === 1 ? target() : v);
+    setFill(v);
+    const b = clamp((t - 1.05) / 0.3);
+    const bolt = document.getElementById('bolt');
+    bolt.style.opacity = ev === 'low' ? 0 : b;
+    bolt.style.transform = `scale(${0.6 + 0.4 * easeOut(b)})`;
+    if (t < HOLD + 0.8) raf = requestAnimationFrame(frame);
+    else { shape(0); content.style.opacity = 0; }
+  }
+
+  function play() {
+    cancelAnimationFrame(raf); clearTimeout(idleTimer);
+    build(); t0 = performance.now(); raf = requestAnimationFrame(frame);
+  }
+
+  document.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => {
+    ev = b.dataset.ev; document.querySelectorAll('[data-ev]').forEach(x => x.setAttribute('aria-pressed', x === b)); play();
+  });
+  document.querySelectorAll('[data-lay]').forEach(b => b.onclick = () => {
+    lay = b.dataset.lay; document.querySelectorAll('[data-lay]').forEach(x => x.setAttribute('aria-pressed', x === b)); play();
+  });
+  pct.oninput = () => { pctOut.textContent = pct.value + '%'; };
+  pct.onchange = play;
+  document.getElementById('play').onclick = play;
+
+  // Rests on the settled frame so the page reads before anything is pressed.
+  build(); shape(1); content.style.opacity = 1; setNumber(target()); setFill(target());
+  const bolt = document.getElementById('bolt'); bolt.style.opacity = 1;
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
