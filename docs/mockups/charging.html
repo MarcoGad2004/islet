@@ -40,18 +40,19 @@ label.pct output { font-variant-numeric: tabular-nums; color: var(--fg); min-wid
 .bat .nub { position: absolute; left: 25px; top: 4px; width: 2px; height: 5px; border-radius: 0 1px 1px 0; background: rgba(245,245,247,.45) }
 .bat .fill { position: absolute; left: 2.5px; top: 2.5px; height: 8px; border-radius: 1.6px; background: var(--green) }
 .bat .bolt { position: absolute; left: 0; top: 0; width: 24px; height: 13px; display: grid; place-items: center }
-.bat .bolt { overflow: visible }
-.bat .bolt svg { width: 12px; height: 17px; overflow: visible; will-change: transform, opacity }
+.bat .bolt { overflow: visible; display: block }
+/* Centred on the battery body (not counting the nub), whatever its scale and twist. */
+.bat .bolt svg { position: absolute; left: 50%; top: 50%; width: 12px; height: 17px; margin: -8.5px 0 0 -6px; overflow: visible; transform-origin: 50% 50%; will-change: transform, opacity }
 .bat .bolt path { fill: #fff; stroke: #000; stroke-width: 1.6px; stroke-linejoin: round; paint-order: stroke }
 
 /* Odometer: a column per digit, each a strip 0–9 then 0 again so 9 rolls into 0. */
-.odo { position: absolute; display: flex; font: 600 13px var(--sys); font-variant-numeric: tabular-nums; height: 16px; line-height: 16px; overflow: hidden }
+.odo { position: absolute; display: flex; font: 600 13px var(--sys); font-variant-numeric: tabular-nums; height: 22px; line-height: 22px }
 .odo { transform-origin: right center; will-change: transform, opacity, filter }
 /* Digits fade as they roll through the top and bottom edges instead of being cut off. */
-.odo .col { width: 8px; position: relative; overflow: hidden; height: 16px; text-align: center; transition: width .25s ease;
-  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent) }
+.odo .col { width: 8px; position: relative; overflow: hidden; height: 22px; text-align: center; transition: width .25s ease;
+  -webkit-mask-image: linear-gradient(transparent, #000 24%, #000 76%, transparent); mask-image: linear-gradient(transparent, #000 24%, #000 76%, transparent) }
 .odo .strip { position: absolute; left: 0; right: 0; top: 0; will-change: transform }
-.odo .strip span { display: block; height: 16px }
+.odo .strip span { display: block; height: 22px }
 .odo .pc { padding-left: 1px }
 .label { position: absolute; font: 600 13px var(--sys); white-space: nowrap }
 
@@ -155,11 +156,11 @@ function start() {
 
   function build() {
     if (lay === 'wings') {
-      content.innerHTML = battery(14, (NH - 13) / 2) + odo(14, (NH - 16) / 2);
+      content.innerHTML = battery(14, (NH - 13) / 2) + odo(14, (NH - 22) / 2);
     } else {
       const top = NH + (CHIN_H - 16) / 2;
       content.innerHTML = battery(16, NH + (CHIN_H - 13) / 2) +
-        `<div class="label" id="lbl" style="left:52px;top:${top}px;line-height:16px">${label()}</div>` + odo(16, top);
+        `<div class="label" id="lbl" style="left:52px;top:${top}px;line-height:16px">${label()}</div>` + odo(16, top - 3);
     }
     const lbl = document.getElementById('lbl');
     if (lbl) lbl.style.color = ev === 'low' ? 'var(--redtext)' : 'var(--isle)';
@@ -172,7 +173,7 @@ function start() {
     const pos = [Math.floor(v / 100) + clamp(v % 100 - 99), Math.floor(v / 10) % 10 + clamp(v % 10 - 9), v % 10];
     const hide = [v < 99.5 && Math.floor(v / 100) === 0 ? 1 : 0, v < 9.5 ? 1 : 0, 0];
     cols.forEach((s, i) => {
-      s.style.transform = `translateY(${-pos[i] * 16}px)`;
+      s.style.transform = `translateY(${-pos[i] * 22}px)`;
       s.parentElement.style.width = hide[i] && (i === 0 || v < 9) ? '0px' : '8px';
     });
     const color = ev === 'low' ? 'var(--redtext)' : 'var(--green)';
