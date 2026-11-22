@@ -1,0 +1,327 @@
+<title>Islet Quick Info</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a strip of desktop with the notch at the top, controls above, notes below. The island is drawn to scale (pt = px). */
+:root {
+  --page: #eceef2; --fg: #1d1d1f; --fg2: #6e6e73; --line: rgba(0,0,0,.1); --card: #ffffff; --accent: #0a7cff;
+  --desk1: #6d7fa3; --desk2: #2e3a57;
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #17181c; --fg: #f2f2f4; --fg2: #9a9aa0; --line: rgba(255,255,255,.1); --card: #222327; --accent: #3b93ff; color-scheme: dark } }
+:root[data-theme="dark"] { --page: #17181c; --fg: #f2f2f4; --fg2: #9a9aa0; --line: rgba(255,255,255,.1); --card: #222327; --accent: #3b93ff; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--page); color: var(--fg); font: 13px var(--sys); padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; text-wrap: balance }
+header p { margin: 0; color: var(--fg2); max-width: 64ch; line-height: 1.45 }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; color: var(--fg2); font-size: 12px }
+.seg { display: inline-flex; background: var(--line); border-radius: 7px; padding: 2px; gap: 2px }
+.seg button { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 4px 10px; border-radius: 5px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.15) }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.deskwrap { border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.25); background: linear-gradient(170deg, var(--desk1), var(--desk2)) }
+.scaler { width: 100%; overflow: hidden }
+.stage { width: 600px; height: 330px; position: relative; transform-origin: top left }
+.menubar { position: absolute; inset: 0 0 auto; height: 34px; background: rgba(0,0,0,.22); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: rgba(255,255,255,.85); font-size: 12px }
+.hot { position: absolute; left: 205px; top: 0; width: 190px; height: 34px; cursor: pointer; z-index: 5 }
+.island { position: absolute; top: 0; background: #000; overflow: hidden; z-index: 3 }
+.island .el { position: absolute; color: #f5f5f7; white-space: nowrap; transform-origin: left center }
+.tilebg { position: absolute; border-radius: 14px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12) }
+.icn { display: grid; place-items: center; border-radius: 50%; position: absolute }
+.icn svg { width: 60%; height: 60%; fill: #fff }
+.batt { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-variant-numeric: tabular-nums }
+.batt i { display: inline-block; width: 22px; height: 11px; border-radius: 3px; border: 1.2px solid rgba(255,255,255,.55); position: relative; padding: 1px }
+.batt i b { display: block; height: 100%; border-radius: 1.5px; background: #32d74b }
+.batt i::after { content: ""; position: absolute; right: -3.5px; top: 3px; width: 1.6px; height: 3.5px; border-radius: 1px; background: rgba(255,255,255,.55) }
+.sub { color: #a1a1a6 }
+.slider { position: absolute; height: 40px; border-radius: 14px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12) }
+.slider span { position: absolute; left: 34px; right: 46px; top: 18px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2) }
+.slider span b { display: block; height: 100%; border-radius: 2px; background: #f5f5f7 }
+.hint { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: rgba(255,255,255,.75); font-size: 12px }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.note { background: var(--card); border-radius: 10px; padding: 14px 16px; border: .5px solid var(--line); line-height: 1.5 }
+.note h4 { margin: 0 0 6px; font-size: 13px }
+.note ul, .note ol { margin: 0; padding-left: 18px; color: var(--fg2) }
+.note li + li { margin-top: 4px }
+.note b { color: var(--fg) }
+@media (prefers-reduced-motion: reduce) { .seg button { transition: none } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Quick info on hover</h1>
+    <p>With nothing showing, hovering the notch opens it into your Wi-Fi network, Bluetooth device and battery instead of the small bounce. Click it and each piece glides to its place in the panel as the notch opens, all inside the black shape, even mid-animation.</p>
+  </header>
+
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="Layout">
+      <button data-lay="wings" aria-pressed="true">Wings (menu bar has room)</button>
+      <button data-lay="chin" aria-pressed="false">Chin (no room)</button>
+      <button data-lay="today" aria-pressed="false">Today: the bounce</button>
+    </div>
+    <div class="seg" role="group" aria-label="Wi-Fi">
+      <button data-wifi="wifi" aria-pressed="true">Wi-Fi</button>
+      <button data-wifi="hotspot" aria-pressed="false">Hotspot</button>
+      <button data-wifi="off" aria-pressed="false">Not connected</button>
+    </div>
+    <div class="seg" role="group" aria-label="Bluetooth">
+      <button data-bt="on" aria-pressed="true">AirPods</button>
+      <button data-bt="none" aria-pressed="false">No device</button>
+    </div>
+    <div class="seg" role="group" aria-label="Speed">
+      <button data-speed="1" aria-pressed="true">Real speed</button>
+      <button data-speed="4" aria-pressed="false">Slow motion</button>
+    </div>
+  </div>
+
+  <div class="deskwrap"><div class="scaler" id="scaler"><div class="stage" id="stage">
+    <div class="menubar"><span> Finder&nbsp;&nbsp;File&nbsp;&nbsp;Edit</span><span>Sat 21 Nov&nbsp;&nbsp;6:30</span></div>
+    <div class="island" id="island"></div>
+    <div class="hot" id="hot" title="Hover, then click"></div>
+    <div class="hint" id="hint">Hover the notch, then click it. Click outside it to close.</div>
+  </div></div></div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>What it shows</h4>
+      <ul>
+        <li><b>Wi-Fi</b>: the network's name, or the hotspot's with the hotspot icon. Not connected: a crossed-out Wi-Fi icon and "Not connected".</li>
+        <li><b>Bluetooth</b>: the connected device (AirPods, a keyboard…). Nothing connected leaves it out, so the left wing is Wi-Fi alone.</li>
+        <li><b>Battery</b>: the same pill as the panel's header, with the bolt while charging.</li>
+        <li>Only when the notch has nothing else to show. Music, a notification, volume and the rest always win.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>The motion</h4>
+      <ul>
+        <li>Hover: the notch springs out sideways to the panel's width (wings) or drops a chin, on the same spring as other wings, with the text fading in at ≈0.15 s.</li>
+        <li>Click: the shape morphs into the panel while the Wi-Fi name, Bluetooth device and battery each glide on the same spring to their tile or header chip. The rest of the panel fades in behind them.</li>
+        <li>The island clips everything, so a piece that would be outside the shape mid-morph is hidden rather than floating over the desktop.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>To decide</h4>
+      <ol>
+        <li>Wings when the menu bar has room, falling back to the chin? Or always the chin?</li>
+        <li>Should it show at once, or after resting on the notch for a moment (say 0.3 s) so passing the pointer across the top doesn't flash it?</li>
+        <li>On by default? Its switch would sit in Settings &gt; Notch, and on the Islet page's feature list.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const NOTCH = { w: 190, h: 34 }, CX = 300;
+const S = { lay: 'wings', wifi: 'wifi', bt: 'on', speed: 1, state: 'closed' };
+const ICONS = {
+  wifi: '<svg viewBox="0 0 24 24"><path d="M12 18.5a1.8 1.8 0 110 3.6 1.8 1.8 0 010-3.6zm-4.6-3.1a6.6 6.6 0 019.2 0l-1.5 1.5a4.5 4.5 0 00-6.2 0zM4.3 12.3a11 11 0 0115.4 0l-1.5 1.5a8.9 8.9 0 00-12.4 0zM1.2 9.2a15.4 15.4 0 0121.6 0l-1.5 1.5a13.3 13.3 0 00-18.6 0z"/></svg>',
+  wifioff: '<svg viewBox="0 0 24 24"><path d="M12 18.5a1.8 1.8 0 110 3.6 1.8 1.8 0 010-3.6zM1.2 9.2a15.4 15.4 0 0121.6 0l-1.5 1.5a13.3 13.3 0 00-18.6 0z" opacity=".45"/><path d="M3 3l18 18-1.4 1.4L1.6 4.4z"/></svg>',
+  hotspot: '<svg viewBox="0 0 24 24"><path d="M12 10a2.5 2.5 0 110 5 2.5 2.5 0 010-5zM7 7.6l1.4 1.4a5 5 0 000 7l-1.4 1.4a7 7 0 010-9.8zm10 0a7 7 0 010 9.8l-1.4-1.4a5 5 0 000-7zM4.2 4.8l1.4 1.4a9 9 0 000 12.6l-1.4 1.4a11 11 0 010-15.4zm15.6 0a11 11 0 010 15.4l-1.4-1.4a9 9 0 000-12.6z"/></svg>',
+  bt: '<svg viewBox="0 0 24 24"><path d="M11 2l6.5 5.5L13 12l4.5 4.5L11 22v-8l-4 3.5-1.3-1.4L10.6 12 5.7 7.9 7 6.5l4 3.5zm2 4.4v4.2l2.4-2.1zm0 7v4.2l2.4-2.1z"/></svg>',
+  air: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 5a7 7 0 016.1 10.4l-1.7-1A5 5 0 1012 7zM12 1a11 11 0 019.6 16.3l-1.7-1A9 9 0 1012 3z" opacity=".8"/></svg>',
+  mirror: '<svg viewBox="0 0 24 24"><path d="M3 5h12v9H3zm6 11h12V7h-4v2h2v5h-8v-1H9z"/></svg>',
+  gear: '<svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7zm-1.3-6.5h2.6l.5 2.6 1.6.7 2.2-1.5 1.8 1.8-1.5 2.2.7 1.6 2.6.5v2.6l-2.6.5-.7 1.6 1.5 2.2-1.8 1.8-2.2-1.5-1.6.7-.5 2.6h-2.6l-.5-2.6-1.6-.7-2.2 1.5-1.8-1.8 1.5-2.2-.7-1.6L2 13.3v-2.6l2.6-.5.7-1.6-1.5-2.2 1.8-1.8 2.2 1.5 1.6-.7z"/></svg>',
+  sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M11 1h2v4h-2zm0 18h2v4h-2zM1 11h4v2H1zm18 0h4v2h-4z"/></svg>',
+  vol: '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4z"/></svg>',
+};
+const wifiName = () => S.wifi === 'wifi' ? '808 Social Guest' : S.wifi === 'hotspot' ? 'Marco’s iPhone' : 'Not connected';
+const wifiIcon = () => S.wifi === 'wifi' ? 'wifi' : S.wifi === 'hotspot' ? 'hotspot' : 'wifioff';
+const btName = () => S.bt === 'on' ? 'AirPods Pro' : 'On';
+
+// Shapes, in stage points: the body's width and height (top is the stage's top), and its bottom radius.
+function shape(kind) {
+  if (kind === 'closed') return { w: NOTCH.w, h: NOTCH.h, r: 10 };
+  if (kind === 'today') return { w: NOTCH.w + 16, h: NOTCH.h + 6, r: 14 };
+  if (kind === 'wings') return { w: 500, h: NOTCH.h, r: 12 }; // as wide as the panel, so opening only grows down
+  if (kind === 'chin') return { w: 380, h: NOTCH.h + 40, r: 18 };
+  return { w: 500, h: NOTCH.h + 216, r: 30 }; // the panel
+}
+
+// Where each piece sits: x, y of its left edge / vertical centre, font size, opacity, for quick info and the panel.
+function layoutQuick() {
+  const L = {};
+  if (S.lay === 'wings') {
+    // Wi-Fi on the left wing; Bluetooth and the battery on the right.
+    const left = CX - 250 + 16, right = CX + NOTCH.w / 2 + 12;
+    L.wifiI = { x: left, y: 17, s: 20 };
+    L.wifiT = { x: left + 24, y: 17, f: 12.5, maxw: 116 };
+    if (S.bt === 'on') {
+      L.btI = { x: right, y: 17, s: 20 };
+      L.btT = { x: right + 22, y: 17, f: 12, maxw: 66 };
+    }
+    L.batt = { x: CX + 250 - 16 - 54, y: 17, f: 12 };
+  } else {
+    const y = NOTCH.h + 20, x0 = CX - 190 + 18;
+    L.wifiI = { x: x0, y, s: 20 };
+    L.wifiT = { x: x0 + 24, y, f: 12.5, maxw: 118 };
+    if (S.bt === 'on') { L.btI = { x: x0 + 156, y, s: 20 }; L.btT = { x: x0 + 178, y, f: 12.5, maxw: 90 }; }
+    L.batt = { x: CX + 190 - 18 - 58, y, f: 12 };
+  }
+  return L;
+}
+const P0 = CX - 250, BODY = NOTCH.h, TY = BODY + 16 + 26 + 12, TW = 110, TG = 8, TX0 = P0 + 18;
+const tileX = i => TX0 + i * (TW + TG);
+function layoutPanel() {
+  return {
+    wifiI: { x: tileX(0) + 55 - 12, y: TY + 16, s: 24, circle: 1 },
+    wifiT: { x: tileX(0) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
+    btI: { x: tileX(1) + 55 - 12, y: TY + 16, s: 24, circle: 1 },
+    btT: { x: tileX(1) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
+    batt: { x: P0 + 16 + 108, y: BODY + 16 + 13, f: 11.5 },
+  };
+}
+
+const island = $('#island');
+function build() {
+  island.innerHTML = `
+    <div class="el" data-k="rest" style="inset:0;position:absolute">
+      <div class="el sub" style="left:${P0 + 16}px;top:${BODY + 16 + 6}px;font-size:10.5px;font-weight:600;letter-spacing:.06em">CONTROLS</div>
+      <div class="icn" style="left:${P0 + 500 - 16 - 24}px;top:${BODY + 16 + 1}px;width:24px;height:24px;background:rgba(255,255,255,.1)">${ICONS.gear}</div>
+      ${[0, 1, 2, 3].map(i => `<div class="tilebg" style="left:${tileX(i)}px;top:${TY}px;width:${TW}px;height:58px"></div>`).join('')}
+      ${['Wi-Fi', 'Bluetooth', 'AirDrop', 'Mirroring'].map((n, i) => `<div class="el" style="left:${tileX(i)}px;width:${TW}px;text-align:center;top:${TY + 28}px;font-size:11.5px;font-weight:600">${n}</div>`).join('')}
+      <div class="icn" style="left:${tileX(2) + 43}px;top:${TY + 4}px;width:24px;height:24px;background:#0a84ff">${ICONS.air}</div>
+      <div class="el sub" style="left:${tileX(2)}px;width:${TW}px;text-align:center;top:${TY + 41}px;font-size:10.5px">Contacts</div>
+      <div class="icn" style="left:${tileX(3) + 43}px;top:${TY + 4}px;width:24px;height:24px;background:rgba(255,255,255,.16)">${ICONS.mirror}</div>
+      <div class="el sub" style="left:${tileX(3)}px;width:${TW}px;text-align:center;top:${TY + 41}px;font-size:10.5px">Displays</div>
+      <div class="slider" style="left:${TX0}px;top:${TY + 70}px;width:${(500 - 36 - 8) / 2}px"><div class="icn" style="left:8px;top:8px;width:24px;height:24px">${ICONS.sun}</div><span><b style="width:45%"></b></span></div>
+      <div class="slider" style="left:${TX0 + (500 - 36 - 8) / 2 + 8}px;top:${TY + 70}px;width:${(500 - 36 - 8) / 2}px"><div class="icn" style="left:8px;top:8px;width:24px;height:24px">${ICONS.vol}</div><span><b style="width:30%"></b></span></div>
+    </div>
+    <div class="icn el" data-k="wifiI">${ICONS[wifiIcon()]}</div>
+    <div class="el" data-k="wifiT">${wifiName()}</div>
+    <div class="icn el" data-k="btI">${ICONS.bt}</div>
+    <div class="el" data-k="btT">${btName()}</div>
+    <div class="el batt" data-k="batt"><i><b style="width:85%"></b></i>85%</div>`;
+}
+
+// One spring for the shape and everything riding on it.
+let p = 0, v = 0, from = 'closed', to = 'closed', raf = 0, quickFade = 0;
+const lerp = (a, b, t) => a + (b - a) * t;
+function frame() {
+  const now = performance.now();
+  const dt = Math.min(1 / 30, (now - (frame.t || now)) / 1000) / S.speed;
+  frame.t = now;
+  // response 0.5, damping 0.72 for growing; firmer closing
+  const target = 1, k = (2 * Math.PI / (to === 'closed' ? 0.38 : 0.5)) ** 2, c = 2 * (to === 'closed' ? 1 : 0.72) * Math.sqrt(k);
+  v += (-k * (p - target) - c * v) * dt;
+  p += v * dt;
+  quickFade = Math.min(1, quickFade + dt / 0.18);
+  draw();
+  if (Math.abs(p - 1) > 0.0005 || Math.abs(v) > 0.0005) raf = requestAnimationFrame(frame);
+  else { p = 1; v = 0; from = to; draw(); raf = 0; frame.t = 0; }
+}
+function go(state) {
+  if (state === to) return;
+  // Start from wherever the shape is now.
+  const cur = currentShape();
+  from = { custom: cur, pieces: currentPieces() };
+  to = state; p = 0;
+  if (state === 'quick') quickFade = 0;
+  if (!raf) { frame.t = 0; raf = requestAnimationFrame(frame); }
+}
+function kindOf(state) { return state === 'quick' ? (S.lay === 'today' ? 'today' : S.lay) : state; }
+let lastShape = shape('closed'), lastPieces = {};
+function currentShape() { return { ...lastShape }; }
+function currentPieces() { return JSON.parse(JSON.stringify(lastPieces)); }
+function piecesFor(state) {
+  if (state === 'panel') return { ...layoutPanel(), rest: { o: 1 } };
+  if (state === 'quick' && S.lay !== 'today') return { ...layoutQuick(), rest: { o: 0 } };
+  // closed / the bounce: pieces shrink into the notch's middle, hidden
+  const q = S.lay === 'today' ? null : layoutQuick();
+  const hid = {};
+  ['wifiI', 'wifiT', 'btI', 'btT', 'batt'].forEach(k => hid[k] = { ...(q && q[k] || { x: CX, y: 17, f: 12, s: 16 }), o: 0 });
+  hid.rest = { o: 0 };
+  return hid;
+}
+function draw() {
+  const a = typeof from === 'object' ? from.custom : shape(kindOf(from));
+  const b = shape(kindOf(to));
+  const t = p;
+  const w = lerp(a.w, b.w, t), h = lerp(a.h, b.h, t), r = lerp(a.r, b.r, Math.min(1, Math.max(0, t)));
+  lastShape = { w, h, r };
+  island.style.left = (CX - w / 2) + 'px';
+  island.style.width = w + 'px';
+  island.style.height = Math.max(0, h) + 'px';
+  island.style.borderRadius = `0 0 ${r}px ${r}px`;
+  const pa = typeof from === 'object' ? from.pieces : piecesFor(from);
+  const pb = piecesFor(to);
+  const offX = CX - w / 2;
+  const tt = Math.max(0, Math.min(1.08, t));
+  lastPieces = {};
+  for (const k of ['wifiI', 'wifiT', 'btI', 'btT', 'batt', 'rest']) {
+    const el = island.querySelector(`[data-k="${k}"]`);
+    if (!el) continue;
+    const A = pa[k] || { o: 0, ...(pb[k] || {}) }, B = pb[k] || { ...(A || {}), o: 0 };
+    const oa = A.o ?? 1, ob = B.o ?? 1;
+    // Quick info's text fades in a moment after the shape starts; the panel's other parts fade in over the second half.
+    let o = lerp(oa, ob, k === 'rest' ? Math.max(0, (t - 0.45) / 0.55) : Math.min(1, t * 1.6));
+    if (to === 'quick' && k !== 'rest') o = Math.min(o, quickFade);
+    o = Math.max(0, Math.min(1, o));
+    const cur = { o };
+    if (k !== 'rest') {
+      const x = lerp(A.x ?? B.x, B.x ?? A.x, tt), y = lerp(A.y ?? B.y, B.y ?? A.y, tt);
+      Object.assign(cur, { x, y });
+      if (A.s || B.s) {
+        const s = lerp(A.s ?? B.s, B.s ?? A.s, tt); cur.s = s;
+        const circ = lerp(A.circle ? 1 : 0, B.circle ? 1 : 0, tt); cur.circle = circ;
+        Object.assign(el.style, { left: (x - offX) + 'px', top: (y - s / 2) + 'px', width: s + 'px', height: s + 'px',
+          background: `rgba(10,132,255,${circ})` });
+        if (k === 'btI' && S.bt !== 'on' && to !== 'panel') cur.o = o = 0;
+      } else {
+        const f = lerp(A.f ?? B.f, B.f ?? A.f, tt); cur.f = f;
+        const mw = lerp(A.maxw ?? B.maxw ?? 200, B.maxw ?? A.maxw ?? 200, tt); cur.maxw = mw;
+        const ctr = lerp(A.center ? 1 : 0, B.center ? 1 : 0, tt), sub = lerp(A.sub ? 1 : 0, B.sub ? 1 : 0, tt);
+        cur.center = ctr > 0.5 ? 1 : 0; cur.sub = sub > 0.5 ? 1 : 0;
+        Object.assign(el.style, { left: (x - offX) + 'px', top: (y - f * 0.65) + 'px', fontSize: f + 'px',
+          maxWidth: mw + 'px', width: ctr > 0.5 ? mw + 'px' : 'auto', textAlign: ctr > 0.5 ? 'center' : 'left',
+          overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: k === 'batt' ? 600 : (sub > 0.5 ? 400 : 600),
+          color: sub > 0.5 ? '#a1a1a6' : '#f5f5f7' });
+        if (k === 'btT' && S.bt !== 'on' && to !== 'panel') cur.o = o = 0;
+      }
+    } else {
+      el.style.left = -offX + 'px';
+    }
+    el.style.opacity = o;
+    lastPieces[k] = cur;
+  }
+}
+
+// Pointer and clicks
+$('#hot').addEventListener('mouseenter', () => { if (to === 'closed') go('quick'); });
+$('#hot').addEventListener('click', () => { go(to === 'panel' ? 'closed' : 'panel'); });
+island.addEventListener('click', e => { if (to !== 'panel') go('panel'); });
+$('#stage').addEventListener('mouseleave', () => { if (to === 'quick') go('closed'); });
+$('#stage').addEventListener('mousemove', e => {
+  if (to !== 'quick') return;
+  const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
+  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+  const s = lastShape;
+  if (y > s.h + 12 || Math.abs(x - CX) > s.w / 2 + 12) go('closed');
+});
+$('#stage').addEventListener('click', e => {
+  const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
+  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+  if (to === 'panel' && (y > lastShape.h || Math.abs(x - CX) > lastShape.w / 2)) go('closed');
+});
+// touch: tap cycles
+$('#hot').addEventListener('touchstart', e => { e.preventDefault(); go(to === 'closed' ? 'quick' : to === 'quick' ? 'panel' : 'closed'); }, { passive: false });
+
+document.querySelectorAll('[data-lay],[data-wifi],[data-bt],[data-speed]').forEach(b => b.addEventListener('click', () => {
+  const key = Object.keys(b.dataset)[0];
+  S[key] = key === 'speed' ? +b.dataset[key] : b.dataset[key];
+  document.querySelectorAll(`[data-${key}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
+  build(); to = 'closed'; from = 'closed'; p = 1; v = 0; draw();
+}));
+
+function fit() {
+  const w = $('#scaler').clientWidth, sc = Math.min(1.5, w / 600);
+  $('#stage').style.transform = `scale(${sc})`;
+  $('#scaler').style.height = (330 * sc) + 'px';
+}
+addEventListener('resize', fit);
+build(); fit(); draw();
+</script>
