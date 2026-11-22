@@ -255,12 +255,24 @@ Short events; each shows, then hands back to what was showing.
 
 | Event                | Duration | Wings                          | Chin                                     |
 |----------------------|----------|--------------------------------|------------------------------------------|
-| Charger connected    | 3 s      | green bolt, green %            | bolt, "Charging · 1:10 to full", %       |
-| Fully charged        | 3 s      | green full battery, "100%"     | same with label                          |
+| Charger connected    | 3 s      | green battery with bolt, green % | battery, "Charging · 1:10 to full", %  |
+| Fully charged        | 3 s      | full green battery with bolt, "100%" | same with label                    |
 | Low battery 20%, 10% | 4 s      | red battery, red % (`#FF6961`) | red battery, "Low battery", red %        |
 | Charger removed      | none     | -                              | -                                        |
 
 "Fully charged" also fires at the charge limit if one is set. Low battery only fires when not charging.
+
+Motion (1.4, owner request 2026-11-21, mockup `docs/mockups/charging.html`), timed from the event appearing:
+- The battery (27 × 13, the battery page's look) fades in empty. The percentage drifts up 5 pt into place, growing from
+  80% and sharpening out of a 2.5 pt blur (0.1 s, over 0.45 s).
+- From 0.15 s to 1.3 s the percentage rolls from 0 to the charge like an odometer (each digit a column that scrolls,
+  fading at its top and bottom edges) and the fill grows with it. It eases in, then slows right down for the last few
+  percent.
+- The bolt (white with a black outline, a little taller than the battery, centred on its body) springs in from 0.9 s
+  (response 0.4 s, damping 0.62, about 8% overshoot and a 12° twist straightening) so it settles at 1.3 s as the fill
+  stops. Fully charged rolls to 100%.
+- Low battery starts full and rolls down to the charge, draining, in red, with no bolt.
+- With Reduce Motion it shows the end state at once.
 
 ### Volume and brightness
 

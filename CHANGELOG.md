@@ -27,6 +27,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Hovering music in the wings turns them into a wide bar with the song's name.
 - Swipe left or right with two fingers to change songs. It follows your fingers, the trackpad taps halfway, and it slides back if you don't go far enough.
 
+### Charging
+
+- Plugging in, the percentage rolls up from empty as a battery fills beside it, and the bolt springs in on top just as it lands. Low battery rolls down and drains in red.
+
 ### Search from the notch (⌘Space)
 
 - It finds:

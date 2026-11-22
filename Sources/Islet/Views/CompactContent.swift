@@ -140,7 +140,7 @@ struct CompactContentView: View {
                 MediaSlot(store: store, forward: true) { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
             }
         case .charge(let c):
-            Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
+            ChargeNumber(event: c)
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level(let l):
@@ -188,7 +188,7 @@ struct CompactContentView: View {
                 chargeIcon(c)
                 Text(chargeLabel(c)).font(.system(size: 13, weight: .semibold)).foregroundStyle(c.kind == .low ? Color.isletRedText : Color.isletText)
                 Spacer(minLength: 4)
-                Text("\(c.percent)%").font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(chargeColor(c, text: true))
+                ChargeNumber(event: c)
             }
         case .level(let l):
             HStack(spacing: 10) {
@@ -313,12 +313,8 @@ struct CompactContentView: View {
         }
     }
 
-    private func chargeColor(_ c: ChargeEvent, text: Bool) -> Color { c.kind == .low ? (text ? .isletRedText : .isletRed) : .isletGreen }
-
-    @ViewBuilder private func chargeIcon(_ c: ChargeEvent) -> some View {
-        let name = c.kind == .connected ? "bolt.fill" : c.kind == .full ? "battery.100" : (c.percent <= 10 ? "battery.0" : "battery.25")
-        PopIcon(name: name, color: chargeColor(c, text: false))
-    }
+    /// The battery filling with the bolt springing in on top (or draining, for low battery); see ChargeAnimation.
+    private func chargeIcon(_ c: ChargeEvent) -> some View { ChargeBattery(event: c) }
 
     private func chargeLabel(_ c: ChargeEvent) -> String {
         switch c.kind {
