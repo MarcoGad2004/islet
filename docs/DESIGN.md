@@ -265,12 +265,13 @@ Short events; each shows, then hands back to what was showing.
 Motion (1.4, owner request 2026-11-21, mockup `docs/mockups/charging.html`), timed from the event appearing:
 - The battery (27 × 13, the battery page's look) fades in empty. The percentage drifts up 5 pt into place, growing from
   80% and sharpening out of a 2.5 pt blur (0.1 s, over 0.45 s).
-- From 0.15 s to 1.3 s the percentage rolls from 0 to the charge like an odometer (each digit a column that scrolls,
-  fading at its top and bottom edges) and the fill grows with it. It eases in, then slows right down for the last few
-  percent.
-- The bolt (white with a black outline, a little taller than the battery, centred on its body) springs in from 0.9 s
-  (response 0.4 s, damping 0.62, about 8% overshoot and a 12° twist straightening) so it settles at 1.3 s as the fill
+- From 0.15 s to 0.85 s the percentage rolls from 0 to the charge like an odometer (each digit a column that scrolls,
+  fading at its top and bottom edges) and the fill grows with it. It eases in, then eases out as it lands.
+- The bolt (white with a black outline, a little taller than the battery, centred on its body) springs in from 0.45 s
+  (response 0.4 s, damping 0.62, about 8% overshoot and a 12° twist straightening) so it settles at 0.85 s as the fill
   stops. Fully charged rolls to 100%.
+- As they land (0.85 s), the battery and the percentage both give a small springy bounce: about 6% bigger, then back
+  to their size within half a second.
 - Low battery starts full and rolls down to the charge, draining, in red, with no bolt.
 - With Reduce Motion it shows the end state at once.
 

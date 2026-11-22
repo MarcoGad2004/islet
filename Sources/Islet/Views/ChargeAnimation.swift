@@ -3,14 +3,16 @@ import SwiftUI
 /// The charging event's motion (DESIGN.md "Charging and battery", mockup docs/mockups/charging.html), timed from the
 /// moment the event appears:
 /// - 0.1 s: the number drifts up into place, growing from 80% and sharpening out of a slight blur (0.45 s).
-/// - 0.15 to 1.3 s: it rolls from empty to the charge like an odometer and the battery fills with it; the roll starts
-///   gently and slows right down for the last few percent. Low battery starts full and rolls down, draining, in red.
-/// - 0.9 s: the bolt springs in over the battery, settling at 1.3 s just as the fill stops (not for low battery).
+/// - 0.15 to 0.85 s: it rolls from empty to the charge like an odometer and the battery fills with it; the roll starts
+///   gently and eases out as it lands. Low battery starts full and rolls down, draining, in red.
+/// - 0.45 s: the bolt springs in over the battery, settling at 0.85 s just as the fill stops (not for low battery).
+/// - 0.85 s: the battery and the number both give a small springy bounce (about 6% bigger, then back).
 struct ChargeTimeline {
     let event: ChargeEvent
     let t: Double
 
-    static let rollStart = 0.15, rollLength = 1.15, boltStart = 0.9
+    static let rollStart = 0.15, rollLength = 0.7, boltStart = 0.45
+    static var landing: Double { rollStart + rollLength }
 
     var from: Double { event.kind == .low ? 100 : 0 }
     var to: Double { event.kind == .full ? 100 : Double(event.percent) }
@@ -31,13 +33,20 @@ struct ChargeTimeline {
         return (Self.spring(b), min(b / 0.12, 1))
     }
 
-    var done: Bool { t > Self.rollStart + Self.rollLength + 0.2 }
+    /// The landing bounce: a damped wave that swells to about 1.06 and settles back to 1 within half a second.
+    var bounce: Double {
+        let b = t - Self.landing
+        guard b > 0 else { return 1 }
+        return 1 + 0.13 * exp(-7 * b) * sin(12 * b)
+    }
+
+    var done: Bool { t > Self.landing + 0.8 }
 
     static func easeOut(_ x: Double) -> Double { 1 - pow(1 - x, 3) }
 
-    /// Eases in for the first quarter, then a long tail out.
+    /// Eases in for the first quarter, then eases out.
     static func soft(_ x: Double) -> Double {
-        x < 0.25 ? 4 * x * x : 0.25 + 0.75 * (1 - pow(1 - (x - 0.25) / 0.75, 3.2))
+        x < 0.25 ? 4 * x * x : 0.25 + 0.75 * (1 - pow(1 - (x - 0.25) / 0.75, 2.4))
     }
 
     /// A gently underdamped spring (response 0.4 s, damping 0.62): about 8% past full size, settled in about 0.4 s.
@@ -95,6 +104,7 @@ struct ChargeBattery: View {
                     .frame(width: 2, height: 5)
             }
             .frame(width: 27, height: h)
+            .scaleEffect(tl.bounce)
         }
     }
 }
@@ -140,6 +150,7 @@ struct ChargeNumber: View {
             .blur(radius: (1 - n) * 2.5)
             .scaleEffect(0.8 + 0.2 * n, anchor: .trailing)
             .offset(y: (1 - n) * 5)
+            .scaleEffect(tl.bounce)
         }
     }
 

@@ -96,8 +96,9 @@ label.pct output { font-variant-numeric: tabular-nums; color: var(--fg); min-wid
       <ul>
         <li><b>0 s</b> the notch springs out (same spring as now).</li>
         <li><b>0.1 s</b> the battery fades in empty; the number drifts up into place, growing from 80% and sharpening out of a slight blur (0.45 s).</li>
-        <li><b>0.15 – 1.3 s</b> the number rolls, digits fading through the top and bottom edges, and the fill grows with it. It starts gently and slows right down for the last few percent.</li>
-        <li><b>0.9 s</b> a bigger, heavier bolt springs in over the battery, timed to settle at 1.3 s just as the fill stops: it overshoots about 8% with a slight twist and settles in about 0.4 s.</li>
+        <li><b>0.15 – 0.85 s</b> the number rolls, digits fading through the top and bottom edges, and the fill grows with it. It starts gently and eases out as it lands.</li>
+        <li><b>0.45 s</b> a bigger, heavier bolt springs in over the battery, timed to settle at 0.85 s just as the fill stops: it overshoots about 8% with a slight twist and settles in about 0.4 s.</li>
+        <li><b>0.85 s</b> the battery and number both bounce slightly, about 6% bigger and back within half a second.</li>
         <li><b>3 s</b> it hands back, as now.</li>
       </ul>
     </div>
@@ -134,7 +135,7 @@ function start() {
   const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
   const easeOut = x => 1 - Math.pow(1 - x, 3);
   // Eases in briefly, then a long tail out, so the last few percent tick by slowly.
-  const easeInOutSoft = x => x < 0.25 ? 4 * x * x : 0.25 + 0.75 * (1 - Math.pow(1 - (x - 0.25) / 0.75, 3.2));
+  const easeInOutSoft = x => x < 0.25 ? 4 * x * x : 0.25 + 0.75 * (1 - Math.pow(1 - (x - 0.25) / 0.75, 2.4));
   // A gently underdamped spring (response 0.4 s, damping 0.62): overshoots about 8% and settles in about 0.4 s.
   function springy(t) {
     const w = 2 * Math.PI / 0.4, z = 0.62, wd = w * Math.sqrt(1 - z * z);
@@ -213,7 +214,7 @@ function start() {
     const fadeIn = clamp((t - 0.12) / 0.2), fadeOut = 1 - clamp((t - HOLD) / 0.12);
     content.style.opacity = Math.min(fadeIn, fadeOut);
     // The roll: slow to start, quick through the middle, a long soft landing (1.15 s).
-    const k = reduce ? 1 : easeInOutSoft(clamp((t - 0.15) / 1.15));
+    const k = reduce ? 1 : easeInOutSoft(clamp((t - 0.15) / 0.7));
     const v = from() + (target() - from()) * k;
     setNumber(k === 1 ? target() : v);
     setFill(v);
@@ -221,10 +222,13 @@ function start() {
     const n = reduce ? 1 : easeOut(clamp((t - 0.1) / 0.45));
     const odoEl = document.getElementById('odo');
     odoEl.style.opacity = n;
-    odoEl.style.transform = `translateY(${(1 - n) * 5}px) scale(${0.8 + 0.2 * n})`;
+    // Both give a small springy bounce as they land (0.85 s): about 6% bigger, then back.
+    const lb = t - 0.85, bounce = lb > 0 && !reduce ? 1 + 0.13 * Math.exp(-7 * lb) * Math.sin(12 * lb) : 1;
+    odoEl.style.transform = `translateY(${(1 - n) * 5}px) scale(${(0.8 + 0.2 * n) * bounce})`;
+    document.querySelector('.bat').style.transform = `scale(${bounce})`;
     odoEl.style.filter = `blur(${(1 - n) * 2.5}px)`;
     // The bolt springs in so it settles just as the fill stops (1.3 s): it starts 0.4 s before.
-    const bt = t - 0.9;
+    const bt = t - 0.45;
     const bolt = document.getElementById('bolt').firstElementChild;
     if (ev === 'low' || bt <= 0) { bolt.style.opacity = 0; bolt.style.transform = 'scale(0)'; }
     else {
