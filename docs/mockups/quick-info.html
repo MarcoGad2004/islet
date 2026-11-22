@@ -27,7 +27,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .stage { width: 600px; height: 330px; position: relative; transform-origin: top left }
 .menubar { position: absolute; inset: 0 0 auto; height: 34px; background: rgba(0,0,0,.22); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: rgba(255,255,255,.85); font-size: 12px }
 .hot { position: absolute; left: 205px; top: 0; width: 190px; height: 34px; cursor: pointer; z-index: 5 }
-.island { position: absolute; top: 0; background: #000; overflow: hidden; z-index: 3 }
+.island { position: absolute; inset: 0; background: #000; z-index: 3 }
 .island .el { position: absolute; color: #f5f5f7; white-space: nowrap; transform-origin: left center }
 .tilebg { position: absolute; border-radius: 14px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12) }
 .icn { display: grid; place-items: center; border-radius: 50%; position: absolute }
@@ -54,7 +54,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 <div class="wrap">
   <header>
     <h1>Quick info on hover</h1>
-    <p>With nothing showing, hovering the notch drops it into the volume wide bar with your Wi-Fi network, Bluetooth device and battery, instead of the small bounce. Click it and each piece glides to its place in the panel as the notch opens, all inside the black shape, even mid-animation.</p>
+    <p>With nothing showing, hovering the notch drops it into the volume wide bar with the time and date, the battery, your Wi-Fi network and your Bluetooth device, instead of the small bounce. Click it and each piece glides to its place in the panel as the notch opens, all inside the black shape, even mid-animation.</p>
   </header>
 
   <div class="ctl">
@@ -81,7 +81,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   <div class="deskwrap"><div class="scaler" id="scaler"><div class="stage" id="stage">
     <div class="menubar"><span> Finder&nbsp;&nbsp;File&nbsp;&nbsp;Edit</span><span>Sat 21 Nov&nbsp;&nbsp;6:30</span></div>
     <div class="island" id="island"></div>
-    <div class="hot" id="hot" title="Hover, then click"></div>
+    <div class="hot" id="hot"></div>
     <div class="hint" id="hint">Hover the notch, then click it. Click outside it to close.</div>
   </div></div></div>
 
@@ -91,7 +91,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
       <ul>
         <li><b>Wi-Fi</b>: the network's name, or the hotspot's with the hotspot icon. Not connected: a crossed-out Wi-Fi icon and "Not connected".</li>
         <li><b>Bluetooth</b>: the connected device (AirPods, a keyboard…). Nothing connected leaves it out, so the left wing is Wi-Fi alone.</li>
-        <li><b>Layout</b>: like volume, the icon in the left wing (Wi-Fi) and the number in the right (battery). The network on the left of the body under them, the Bluetooth device on the right.</li>
+        <li><b>Wide bar</b>: the time over the date in the left wing, the battery in the right, and Wi-Fi and Bluetooth (icon and name) in the body under them.</li>
+        <li><b>Chin</b> (no room in the menu bar): the notch as its stem with a 340 × 60 body under it, the time, date and battery on the first row, Wi-Fi and Bluetooth on the second. It opens into the panel with its stem.</li>
         <li><b>Battery</b>: the same pill as the panel's header, with the bolt while charging.</li>
         <li>Only when the notch has nothing else to show. Music, a notification, volume and the rest always win.</li>
       </ul>
@@ -101,7 +102,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
       <ul>
         <li>Hover: the notch grows down into the wide bar volume uses (wings plus a 26 pt body), or drops a chin when the menu bar has no room, on the same spring as other wings, with the text fading in at ≈0.15 s.</li>
         <li>Click: the shape morphs into the panel while the Wi-Fi name, Bluetooth device and battery each glide on the same spring to their tile or header chip. The rest of the panel fades in behind them.</li>
-        <li>The island clips everything, so a piece that would be outside the shape mid-morph is hidden rather than floating over the desktop.</li>
+        <li>With room, the wide bar opens into the flush panel; the chin opens into the panel with the stem. The time and date fade as the panel takes over. The island clips everything, so a piece that would be outside the shape mid-morph is hidden rather than floating over the desktop.</li>
       </ul>
     </div>
     <div class="note">
@@ -133,35 +134,71 @@ const wifiName = () => S.wifi === 'wifi' ? '808 Social Guest' : S.wifi === 'hots
 const wifiIcon = () => S.wifi === 'wifi' ? 'wifi' : S.wifi === 'hotspot' ? 'hotspot' : 'wifioff';
 const btName = () => S.bt === 'on' ? 'AirPods Pro' : 'On';
 
-// Shapes, in stage points: the body's width and height (top is the stage's top), and its bottom radius.
+// Shapes, the way Islet draws them: a stem (the notch's width sw × sh) and a body under it (bw × bh) with top corners tr,
+// bottom corners br, and concave curves ic where the stem meets a wider body. Everything in between is interpolated.
 function shape(kind) {
-  if (kind === 'closed') return { w: NOTCH.w, h: NOTCH.h, r: 10 };
-  if (kind === 'today') return { w: NOTCH.w + 16, h: NOTCH.h + 6, r: 14 };
-  if (kind === 'wings') return { w: NOTCH.w + 120, h: NOTCH.h + 26, r: 18 }; // the volume wide bar
-  if (kind === 'chin') return { w: 380, h: NOTCH.h + 40, r: 18 };
-  return { w: 500, h: NOTCH.h + 216, r: 30 }; // the panel
+  const n = { sw: NOTCH.w, sh: NOTCH.h };
+  switch (kind) {
+    case 'closed': return { ...n, bw: NOTCH.w, bh: 0, tr: 0, br: 10, ic: 0 };
+    case 'today': return { sw: NOTCH.w + 16, sh: NOTCH.h + 6, bw: NOTCH.w + 16, bh: 0, tr: 0, br: 14, ic: 0 };
+    // The volume wide bar: wings 60 pt each side and a 26 pt body, bottom 18.
+    case 'wings': return { sw: NOTCH.w + 120, sh: NOTCH.h, bw: NOTCH.w + 120, bh: 26, tr: 0, br: 18, ic: 0 };
+    // Chin: the notch as the stem, a 340 × 60 body, corners 16 / 18, 10 pt curves into the stem.
+    case 'chin': return { ...n, bw: 340, bh: 60, tr: 16, br: 18, ic: 10 };
+    // The panel: flush (500 wide from the top) when there's room, else stem + body.
+    default: return S.lay === 'chin' ? { ...n, bw: 500, bh: 216, tr: 16, br: 30, ic: 10 }
+                                     : { sw: 500, sh: NOTCH.h, bw: 500, bh: 216, tr: 0, br: 30, ic: 0 };
+  }
+}
+function path(m) {
+  const L = CX - m.sw / 2, R = CX + m.sw / 2, bl = CX - m.bw / 2, brx = CX + m.bw / 2, top = m.sh, bot = m.sh + m.bh;
+  if (m.bh < 0.5) {
+    const r = Math.min(m.br, m.sw / 2, m.sh);
+    return `M${L},0 L${L},${m.sh - r} Q${L},${m.sh} ${L + r},${m.sh} L${R - r},${m.sh} Q${R},${m.sh} ${R},${m.sh - r} L${R},0 Z`;
+  }
+  const wider = m.bw - m.sw > 1;
+  const ic = wider ? Math.min(m.ic, (m.bw - m.sw) / 2) : 0, tr = wider ? Math.min(m.tr, (m.bw - m.sw) / 2 - ic) : 0;
+  const br = Math.min(m.br, m.bh + (wider ? 0 : m.sh), m.bw / 2);
+  if (!wider) {
+    // The stem and body are one: straight sides, rounded bottom.
+    return `M${bl},0 L${bl},${bot - br} Q${bl},${bot} ${bl + br},${bot} L${brx - br},${bot} Q${brx},${bot} ${brx},${bot - br} L${brx},0 Z`;
+  }
+  return `M${L},0 L${L},${top - ic} Q${L},${top} ${L - ic},${top} L${bl + tr},${top} Q${bl},${top} ${bl},${top + tr}
+    L${bl},${bot - br} Q${bl},${bot} ${bl + br},${bot} L${brx - br},${bot} Q${brx},${bot} ${brx},${bot - br}
+    L${brx},${top + tr} Q${brx},${top} ${brx - tr},${top} L${R + ic},${top} Q${R},${top} ${R},${top - ic} L${R},0 Z`;
 }
 
-// Where each piece sits: x, y of its left edge / vertical centre, font size, opacity, for quick info and the panel.
+const now = new Date();
+const timeText = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M/i, '');
+const dateText = now.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+
+// Where each piece sits (stage points): x of its left edge, y of its middle, size, and for text a width it's cut to.
 function layoutQuick() {
   const L = {};
   if (S.lay === 'wings') {
-    // The volume wide bar: the Wi-Fi icon in the left wing and the battery in the right (like volume's icon and
-    // number), the network and the Bluetooth device in the short body below, 20 pt in from the sides.
-    const half = NOTCH.w / 2 + 60, by = NOTCH.h + 12;
-    L.wifiI = { x: CX - half + 30 - 12, y: 17, s: 24 };
-    L.batt = { x: CX + half - 30 - 25, y: 17, f: 11 };
-    L.wifiT = { x: CX - half + 20, y: by, f: 12, maxw: S.bt === 'on' ? 140 : 260 };
+    // Left wing: the time over the date. Right wing: the battery. The body: Wi-Fi and Bluetooth.
+    const half = NOTCH.w / 2 + 60, wl = CX - half, wr = CX + NOTCH.w / 2, by = NOTCH.h + 11;
+    L.time = { x: wl + 4, y: 12, f: 13, maxw: 56, center: 1 };
+    L.date = { x: wl + 4, y: 25, f: 9.5, maxw: 56, center: 1, sub: 1 };
+    L.batt = { x: wr + 4, y: 17, f: 11, maxw: 56, center: 1 };
     if (S.bt === 'on') {
-      L.btI = { x: CX + half - 20 - 96 - 20, y: by, s: 16 };
-      L.btT = { x: CX + half - 20 - 96, y: by, f: 12, maxw: 96 };
+      L.wifiI = { x: wl + 18, y: by, s: 16 };
+      L.wifiT = { x: wl + 36, y: by, f: 12, maxw: half - 48 };
+      L.btI = { x: CX + 8, y: by, s: 16 };
+      L.btT = { x: CX + 26, y: by, f: 12, maxw: half - 44 };
+    } else {
+      L.wifiI = { x: wl + 18, y: by, s: 16 };
+      L.wifiT = { x: wl + 36, y: by, f: 12, maxw: 2 * half - 56 };
     }
   } else {
-    const y = NOTCH.h + 20, x0 = CX - 190 + 18;
-    L.wifiI = { x: x0, y, s: 20 };
-    L.wifiT = { x: x0 + 24, y, f: 12.5, maxw: 118 };
-    if (S.bt === 'on') { L.btI = { x: x0 + 156, y, s: 20 }; L.btT = { x: x0 + 178, y, f: 12.5, maxw: 90 }; }
-    L.batt = { x: CX + 190 - 18 - 58, y, f: 12 };
+    // Chin: the time and date with the battery across from them, then Wi-Fi and Bluetooth.
+    const bl = CX - 170, r1 = NOTCH.h + 19, r2 = NOTCH.h + 42;
+    L.time = { x: bl + 18, y: r1, f: 13, maxw: 44 };
+    L.date = { x: bl + 18 + 40, y: r1, f: 12, maxw: 120, sub: 1 };
+    L.batt = { x: CX + 170 - 18 - 54, y: r1, f: 11.5, maxw: 56 };
+    L.wifiI = { x: bl + 16, y: r2, s: 16 };
+    L.wifiT = { x: bl + 36, y: r2, f: 12, maxw: S.bt === 'on' ? 128 : 280 };
+    if (S.bt === 'on') { L.btI = { x: CX + 6, y: r2, s: 16 }; L.btT = { x: CX + 26, y: r2, f: 12, maxw: 130 }; }
   }
   return L;
 }
@@ -173,14 +210,15 @@ function layoutPanel() {
     wifiT: { x: tileX(0) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
     btI: { x: tileX(1) + 55 - 12, y: TY + 16, s: 24, circle: 1 },
     btT: { x: tileX(1) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
-    batt: { x: P0 + 16 + 108, y: BODY + 16 + 13, f: 11.5 },
+    batt: { x: P0 + 16 + 100, y: BODY + 16 + 13, f: 11.5, maxw: 56, center: 1 },
   };
 }
 
 const island = $('#island');
+const KEYS = ['time', 'date', 'wifiI', 'wifiT', 'btI', 'btT', 'batt'];
 function build() {
   island.innerHTML = `
-    <div class="el" data-k="rest" style="inset:0;position:absolute">
+    <div class="el" data-k="rest" style="position:absolute;inset:0">
       <div class="el sub" style="left:${P0 + 16}px;top:${BODY + 16 + 6}px;font-size:10.5px;font-weight:600;letter-spacing:.06em">CONTROLS</div>
       <div class="icn" style="left:${P0 + 500 - 16 - 24}px;top:${BODY + 16 + 1}px;width:24px;height:24px;background:rgba(255,255,255,.1)">${ICONS.gear}</div>
       ${[0, 1, 2, 3].map(i => `<div class="tilebg" style="left:${tileX(i)}px;top:${TY}px;width:${TW}px;height:58px"></div>`).join('')}
@@ -192,6 +230,8 @@ function build() {
       <div class="slider" style="left:${TX0}px;top:${TY + 70}px;width:${(500 - 36 - 8) / 2}px"><div class="icn" style="left:8px;top:8px;width:24px;height:24px">${ICONS.sun}</div><span><b style="width:45%"></b></span></div>
       <div class="slider" style="left:${TX0 + (500 - 36 - 8) / 2 + 8}px;top:${TY + 70}px;width:${(500 - 36 - 8) / 2}px"><div class="icn" style="left:8px;top:8px;width:24px;height:24px">${ICONS.vol}</div><span><b style="width:30%"></b></span></div>
     </div>
+    <div class="el" data-k="time">${timeText}</div>
+    <div class="el" data-k="date">${dateText}</div>
     <div class="icn el" data-k="wifiI">${ICONS[wifiIcon()]}</div>
     <div class="el" data-k="wifiT">${wifiName()}</div>
     <div class="icn el" data-k="btI">${ICONS.bt}</div>
@@ -199,92 +239,81 @@ function build() {
     <div class="el batt" data-k="batt"><i><b style="width:85%"></b></i>85%</div>`;
 }
 
-// One spring for the shape and everything riding on it.
-let p = 0, v = 0, from = 'closed', to = 'closed', raf = 0, quickFade = 0;
+// One spring drives the shape and everything riding on it.
+let p = 1, v = 0, from = 'closed', to = 'closed', raf = 0, quickFade = 1;
 const lerp = (a, b, t) => a + (b - a) * t;
 function frame() {
-  const now = performance.now();
-  const dt = Math.min(1 / 30, (now - (frame.t || now)) / 1000) / S.speed;
-  frame.t = now;
-  // response 0.5, damping 0.72 for growing; firmer closing
-  const target = 1, k = (2 * Math.PI / (to === 'closed' ? 0.38 : 0.5)) ** 2, c = 2 * (to === 'closed' ? 1 : 0.72) * Math.sqrt(k);
-  v += (-k * (p - target) - c * v) * dt;
+  const t0 = performance.now();
+  const dt = Math.min(1 / 30, (t0 - (frame.t || t0)) / 1000) / S.speed;
+  frame.t = t0;
+  const closing = to === 'closed';
+  const k = (2 * Math.PI / (closing ? 0.38 : 0.5)) ** 2, c = 2 * (closing ? 1 : 0.74) * Math.sqrt(k);
+  v += (-k * (p - 1) - c * v) * dt;
   p += v * dt;
-  quickFade = Math.min(1, quickFade + dt / 0.18);
+  quickFade = Math.min(1, quickFade + dt / 0.2);
   draw();
   if (Math.abs(p - 1) > 0.0005 || Math.abs(v) > 0.0005) raf = requestAnimationFrame(frame);
-  else { p = 1; v = 0; from = to; draw(); raf = 0; frame.t = 0; }
+  else { p = 1; v = 0; draw(); raf = 0; frame.t = 0; }
 }
+let lastShape = shape('closed'), lastPieces = {};
 function go(state) {
   if (state === to) return;
-  // Start from wherever the shape is now.
-  const cur = currentShape();
-  from = { custom: cur, pieces: currentPieces() };
+  from = { custom: { ...lastShape }, pieces: JSON.parse(JSON.stringify(lastPieces)) };
   to = state; p = 0;
   if (state === 'quick') quickFade = 0;
   if (!raf) { frame.t = 0; raf = requestAnimationFrame(frame); }
 }
-function kindOf(state) { return state === 'quick' ? (S.lay === 'today' ? 'today' : S.lay) : state; }
-let lastShape = shape('closed'), lastPieces = {};
-function currentShape() { return { ...lastShape }; }
-function currentPieces() { return JSON.parse(JSON.stringify(lastPieces)); }
-function piecesFor(state) {
-  if (state === 'panel') return { ...layoutPanel(), rest: { o: 1 } };
-  if (state === 'quick' && S.lay !== 'today') return { ...layoutQuick(), rest: { o: 0 } };
-  // closed / the bounce: pieces shrink into the notch's middle, hidden
-  const q = S.lay === 'today' ? null : layoutQuick();
-  const hid = {};
-  ['wifiI', 'wifiT', 'btI', 'btT', 'batt'].forEach(k => hid[k] = { ...(q && q[k] || { x: CX, y: 17, f: 12, s: 16 }), o: 0 });
-  hid.rest = { o: 0 };
+const kindOf = st => st === 'quick' ? (S.lay === 'today' ? 'today' : S.lay) : st;
+function piecesFor(st) {
+  if (st === 'panel') return { ...layoutPanel(), rest: { o: 1 } };
+  if (st === 'quick' && S.lay !== 'today') return { ...layoutQuick(), rest: { o: 0 } };
+  // Closed, or today's bounce: the pieces sit where quick info has them, hidden.
+  const q = S.lay === 'today' ? {} : layoutQuick();
+  const hid = { rest: { o: 0 } };
+  KEYS.forEach(k => hid[k] = { ...(q[k] || { x: CX, y: 17, f: 12, s: 16, maxw: 40 }), o: 0 });
   return hid;
 }
 function draw() {
   const a = typeof from === 'object' ? from.custom : shape(kindOf(from));
   const b = shape(kindOf(to));
-  const t = p;
-  const w = lerp(a.w, b.w, t), h = lerp(a.h, b.h, t), r = lerp(a.r, b.r, Math.min(1, Math.max(0, t)));
-  lastShape = { w, h, r };
-  island.style.left = (CX - w / 2) + 'px';
-  island.style.width = w + 'px';
-  island.style.height = Math.max(0, h) + 'px';
-  island.style.borderRadius = `0 0 ${r}px ${r}px`;
+  const t = p, tc = Math.max(0, Math.min(1, t));
+  const m = {};
+  for (const key of ['sw', 'sh', 'bw', 'bh', 'tr', 'br', 'ic']) m[key] = Math.max(0, lerp(a[key], b[key], key === 'br' || key === 'tr' || key === 'ic' ? tc : t));
+  lastShape = m;
+  island.style.clipPath = `path("${path(m).replace(/\s+/g, ' ')}")`;
   const pa = typeof from === 'object' ? from.pieces : piecesFor(from);
   const pb = piecesFor(to);
-  const offX = CX - w / 2;
   const tt = Math.max(0, Math.min(1.08, t));
   lastPieces = {};
-  for (const k of ['wifiI', 'wifiT', 'btI', 'btT', 'batt', 'rest']) {
+  for (const k of [...KEYS, 'rest']) {
     const el = island.querySelector(`[data-k="${k}"]`);
     if (!el) continue;
-    const A = pa[k] || { o: 0, ...(pb[k] || {}) }, B = pb[k] || { ...(A || {}), o: 0 };
+    const A = pa[k] || { ...(pb[k] || {}), o: 0 }, B = pb[k] || { ...A, o: 0 };
     const oa = A.o ?? 1, ob = B.o ?? 1;
-    // Quick info's text fades in a moment after the shape starts; the panel's other parts fade in over the second half.
+    // Quick info's text fades in a moment after the shape starts; the panel's other parts fade in over its second half.
     let o = lerp(oa, ob, k === 'rest' ? Math.max(0, (t - 0.45) / 0.55) : Math.min(1, t * 1.6));
     if (to === 'quick' && k !== 'rest') o = Math.min(o, quickFade);
+    if ((k === 'btI' || k === 'btT') && S.bt !== 'on' && to !== 'panel') o = 0;
     o = Math.max(0, Math.min(1, o));
     const cur = { o };
     if (k !== 'rest') {
       const x = lerp(A.x ?? B.x, B.x ?? A.x, tt), y = lerp(A.y ?? B.y, B.y ?? A.y, tt);
       Object.assign(cur, { x, y });
       if (A.s || B.s) {
-        const s = lerp(A.s ?? B.s, B.s ?? A.s, tt); cur.s = s;
-        const circ = lerp(A.circle ? 1 : 0, B.circle ? 1 : 0, tt); cur.circle = circ;
-        Object.assign(el.style, { left: (x - offX) + 'px', top: (y - s / 2) + 'px', width: s + 'px', height: s + 'px',
+        const s = lerp(A.s ?? B.s, B.s ?? A.s, tt), circ = lerp(A.circle ? 1 : 0, B.circle ? 1 : 0, tt);
+        Object.assign(cur, { s, circle: circ });
+        Object.assign(el.style, { left: x + 'px', top: (y - s / 2) + 'px', width: s + 'px', height: s + 'px',
           background: `rgba(10,132,255,${circ})` });
-        if (k === 'btI' && S.bt !== 'on' && to !== 'panel') cur.o = o = 0;
+        el.querySelector('svg').style.cssText = `width:${circ > 0.5 ? 60 : 100}%;height:${circ > 0.5 ? 60 : 100}%`;
       } else {
-        const f = lerp(A.f ?? B.f, B.f ?? A.f, tt); cur.f = f;
-        const mw = lerp(A.maxw ?? B.maxw ?? 200, B.maxw ?? A.maxw ?? 200, tt); cur.maxw = mw;
-        const ctr = lerp(A.center ? 1 : 0, B.center ? 1 : 0, tt), sub = lerp(A.sub ? 1 : 0, B.sub ? 1 : 0, tt);
-        cur.center = ctr > 0.5 ? 1 : 0; cur.sub = sub > 0.5 ? 1 : 0;
-        Object.assign(el.style, { left: (x - offX) + 'px', top: (y - f * 0.65) + 'px', fontSize: f + 'px',
-          maxWidth: mw + 'px', width: ctr > 0.5 ? mw + 'px' : 'auto', textAlign: ctr > 0.5 ? 'center' : 'left',
-          overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: k === 'batt' ? 600 : (sub > 0.5 ? 400 : 600),
-          color: sub > 0.5 ? '#a1a1a6' : '#f5f5f7' });
-        if (k === 'btT' && S.bt !== 'on' && to !== 'panel') cur.o = o = 0;
+        const f = lerp(A.f ?? B.f, B.f ?? A.f, tt), mw = lerp(A.maxw ?? B.maxw ?? 200, B.maxw ?? A.maxw ?? 200, tt);
+        const ctr = (tt < 0.5 ? A.center : B.center) ? 1 : 0, sub = (tt < 0.5 ? A.sub : B.sub) ? 1 : 0;
+        Object.assign(cur, { f, maxw: mw, center: ctr, sub });
+        Object.assign(el.style, { left: x + 'px', top: (y - f * 0.62) + 'px', fontSize: f + 'px', lineHeight: 1.2,
+          width: ctr ? mw + 'px' : 'auto', maxWidth: mw + 'px', textAlign: ctr ? 'center' : 'left',
+          overflow: 'hidden', textOverflow: 'ellipsis', justifyContent: ctr ? 'center' : 'flex-start',
+          fontWeight: k === 'date' || sub ? 400 : 600, color: sub ? '#a1a1a6' : '#f5f5f7' });
       }
-    } else {
-      el.style.left = -offX + 'px';
     }
     el.style.opacity = o;
     lastPieces[k] = cur;
@@ -294,19 +323,19 @@ function draw() {
 // Pointer and clicks
 $('#hot').addEventListener('mouseenter', () => { if (to === 'closed') go('quick'); });
 $('#hot').addEventListener('click', () => { go(to === 'panel' ? 'closed' : 'panel'); });
-island.addEventListener('click', e => { if (to !== 'panel') go('panel'); });
+island.addEventListener('click', e => { if (to === 'quick') go('panel'); });
 $('#stage').addEventListener('mouseleave', () => { if (to === 'quick') go('closed'); });
 $('#stage').addEventListener('mousemove', e => {
   if (to !== 'quick') return;
   const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
   const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
-  const s = lastShape;
-  if (y > s.h + 12 || Math.abs(x - CX) > s.w / 2 + 12) go('closed');
+  const s = lastShape, w = Math.max(s.sw, s.bw);
+  if (y > s.sh + s.bh + 12 || Math.abs(x - CX) > w / 2 + 12) go('closed');
 });
 $('#stage').addEventListener('click', e => {
   const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
   const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
-  if (to === 'panel' && (y > lastShape.h || Math.abs(x - CX) > lastShape.w / 2)) go('closed');
+  if (to === 'panel' && (y > lastShape.sh + lastShape.bh || Math.abs(x - CX) > Math.max(lastShape.sw, lastShape.bw) / 2)) go('closed');
 });
 // touch: tap cycles
 $('#hot').addEventListener('touchstart', e => { e.preventDefault(); go(to === 'closed' ? 'quick' : to === 'quick' ? 'panel' : 'closed'); }, { passive: false });
@@ -315,7 +344,7 @@ document.querySelectorAll('[data-lay],[data-wifi],[data-bt],[data-speed]').forEa
   const key = Object.keys(b.dataset)[0];
   S[key] = key === 'speed' ? +b.dataset[key] : b.dataset[key];
   document.querySelectorAll(`[data-${key}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
-  build(); to = 'closed'; from = 'closed'; p = 1; v = 0; draw();
+  build(); to = 'closed'; from = 'closed'; p = 1; v = 0; lastPieces = {}; draw();
 }));
 
 function fit() {
