@@ -4,6 +4,8 @@ import SwiftUI
 struct IslandView: View {
     let store: IslandStore
     @AppStorage(GlassLook.key) private var glassLook = true
+    /// Quick info's pieces and the panel's share it, so they glide from one to the other (DESIGN.md "Quick info").
+    @Namespace private var quickInfo
 
     /// Content fades in after the shape has mostly settled: 0.12 s for wings, 0.36 s for body shapes.
     private func fade(_ delay: Double = 0.36) -> AnyTransition {
@@ -72,8 +74,11 @@ struct IslandView: View {
                         SearchView(store: store, model: store.search, bodyWidth: m.bw).padding(.top, top)
                             .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
                     } else {
+                        // From quick info its pieces glide in, so the panel itself doesn't fade (the rest of it does).
                         ExpandedView(store: store).padding(.top, top)
-                            .transition(fade())
+                            .transition(store.expandedFromQuickInfo
+                                        ? .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12)))
+                                        : fade())
                     }
                 case .notification:
                     if case .notification(let n)? = content {
@@ -85,6 +90,11 @@ struct IslandView: View {
                                            levelBody: pres == .levelWings, hintBody: pres == .lockHint, eventBar: pres == .eventWings)
                             .id(key).transition(pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
+                case .quickBar, .quickChin:
+                    QuickInfoView(store: store, bar: pres == .quickBar)
+                        .transition(.asymmetric(
+                            insertion: .opacity.animation(.easeOut(duration: 0.25).delay(pres == .quickBar ? 0.1 : 0.2)),
+                            removal: .opacity.animation(.easeOut(duration: 0.1))))
                 case .peek, .closed:
                     if floating && pres == .peek, let g = store.geometry {
                         // The orb: an arrow at the tip of the drop, for the swipe down.
@@ -97,7 +107,9 @@ struct IslandView: View {
                 }
                 }
             }
-            .animation(.easeOut(duration: 0.3), value: key)
+            // Opening from quick info, the pieces glide on the shape's spring.
+            .animation(store.expandedFromQuickInfo && pres == .expanded ? .spring(response: 0.5, dampingFraction: 0.82) : .easeOut(duration: 0.3), value: key)
+            .environment(\.quickInfoNamespace, quickInfo)
             .scaleEffect(swellScale, anchor: .top)
             // Floating, everything above sits at the card's top, wherever it is on its way.
             .offset(y: floating && pres != .peek ? m.y : 0)

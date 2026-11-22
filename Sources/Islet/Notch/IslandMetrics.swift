@@ -38,6 +38,9 @@ enum IslandLayout {
     static let messagesBodyHeight: CGFloat = 300
     /// Search at its tallest: field 52, hairline, 300 of results, footer 28 (DESIGN.md "Search").
     static let searchMaxBodyHeight: CGFloat = 52 + 1 + 300 + 28
+    /// Quick info's chin: two rows under the notch.
+    static let quickChinWidth: Double = 340
+    static let quickChinHeight: Double = 60
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150
@@ -56,6 +59,8 @@ enum IslandLayout {
 /// What the island is showing. Features set these; the shape morphs between them.
 enum Presentation: Equatable {
     case closed, peek, wings, lockWings, lockHint, levelWings, eventWings, chin, scan, expanded, enrol, notification
+    /// Quick info on hover (DESIGN.md "Quick info"): the wide bar when the menu bar has room, else a two-row chin.
+    case quickBar, quickChin
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -130,9 +135,11 @@ extension Presentation {
         case .eventWings:
             let w = nw + 2 * L.eventWing
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: 0, tr: 0, br: 12, ic: 0)
-        case .levelWings:
+        case .levelWings, .quickBar:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: Double(L.levelBodyHeight), tr: 0, br: 18, ic: 0)
+        case .quickChin:
+            return IslandMetrics(sw: nw, sh: nh, bw: L.quickChinWidth, bh: L.quickChinHeight, tr: 16, br: 18, ic: 10)
         case .chin:
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 16, br: 16, ic: 10) // all four corners 16
         case .notification:

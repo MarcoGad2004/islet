@@ -4,8 +4,20 @@ import SwiftUI
 /// sliders, names and cards to their new positions instead of swapping views (see ControlStage).
 struct ExpandedView: View {
     let store: IslandStore
+    /// Opened from quick info: everything but the pieces that glide in fades in a beat later.
+    @State private var rest: Double = 1
 
     var body: some View {
+        content
+            .environment(\.quickInfoRest, rest)
+            .onAppear {
+                guard store.expandedFromQuickInfo else { return }
+                rest = 0
+                withAnimation(.easeOut(duration: 0.3).delay(0.16)) { rest = 1 }
+            }
+    }
+
+    @ViewBuilder private var content: some View {
         if store.expandedPage == .messages, let c = store.messages?.open {
             ConversationView(store: store, conversation: c)
                 .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
@@ -16,7 +28,7 @@ struct ExpandedView: View {
             // Waiting notifications as a pill at the top; the page moves down under it (DESIGN.md "In the panel").
             VStack(spacing: 0) {
                 if store.showsNotificationPill {
-                    NotificationPill(store: store)
+                    NotificationPill(store: store).opacity(rest)
                         .padding(.horizontal, 16).padding(.top, 12)
                         .frame(height: IslandLayout.notificationPillHeight, alignment: .bottom)
                         .transition(.opacity.combined(with: .move(edge: .top)))

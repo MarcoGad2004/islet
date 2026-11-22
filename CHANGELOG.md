@@ -64,6 +64,12 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Search's shortcut is a plain choice: take over ⌘Space (Spotlight moves) or keep ⌘Space for Spotlight and use
   another one for Islet. Settings and setup show what's true right now and tick themselves off once Spotlight moves.
 
+### Quick info
+
+- Rest the pointer on the notch while nothing is showing to see the time and date, the battery, and your Wi-Fi network
+  and Bluetooth device. Click and they glide into their places in the panel as it opens. Turn it off in Settings >
+  Notch.
+
 ### Ask Siri
 
 - Type "siri" and a question in search, or just a question, and press Return: Islet opens Spotlight with it asked,

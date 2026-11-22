@@ -22,6 +22,9 @@ struct ControlStage: View {
     let store: IslandStore
     /// Flush with a notification pill showing: the header row goes up past the pill into the band beside the camera.
     var headerLift: CGFloat = 0
+    /// Opened from quick info: what doesn't glide in from it fades in (DESIGN.md "Quick info").
+    @Environment(\.quickInfoRest) private var rest
+    @Environment(\.quickInfoNamespace) private var ns
 
     private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, battery, media }
 
@@ -60,7 +63,7 @@ struct ControlStage: View {
         ZStack(alignment: .topLeading) {
             header(mode)
             controlsElements(mode)
-            mediaElements(mode)
+            mediaElements(mode).opacity(rest)
             if let power = store.power, power.state.hasBattery {
                 BatteryPage(power: power).slot(below, visible: mode == .battery)
             }
@@ -103,10 +106,11 @@ struct ControlStage: View {
             HStack(spacing: 8) {
                 if !flush {
                     Text("CONTROLS").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
+                        .opacity(rest)
                 }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
-                if let u = store.updater, let tag = u.availableTag { updatePill(u, tag) }
-                if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f) }
+                if let u = store.updater, let tag = u.availableTag { updatePill(u, tag).opacity(rest) }
+                if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f).opacity(rest) }
             }
             .opacity(mode == .controls ? 1 : 0)
             .allowsHitTesting(mode == .controls)
@@ -174,10 +178,12 @@ struct ControlStage: View {
         HStack(spacing: 4) {
             Image(systemName: s.charging || s.onAC ? "bolt.fill" : "battery.75")
                 .font(.system(size: 10, weight: .semibold)).foregroundStyle(s.charging ? Color.isletGreen : Color.isletSecondary)
+                .quickInfoPiece(.batteryIcon, ns)
             Text("\(s.percent)%").font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                .quickInfoPiece(.batteryText, ns)
         }
         .padding(.horizontal, 8).frame(height: 22)
-        .background(IsletCard(shape: Capsule()))
+        .background(IsletCard(shape: Capsule()).opacity(rest))
         .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -190,7 +196,7 @@ struct ControlStage: View {
     }
 
     private var gear: some View {
-        SettingsGear(store: store).slot(CGRect(x: W - 26, y: headerY, width: 26, height: 26))
+        SettingsGear(store: store).slot(CGRect(x: W - 26, y: headerY, width: 26, height: 26)).opacity(rest)
     }
 
     // MARK: Controls, tiles and sliders
@@ -202,7 +208,8 @@ struct ControlStage: View {
                 TileFace(icon: !wifi.powerOn ? "wifi.slash" : wifi.hotspot ? "personalhotspot" : "wifi",
                          title: wifi.hotspot ? "Hotspot" : "Wi-Fi",
                          status: wifi.powerOn ? (wifi.ssid ?? "Not connected") : "Off", on: wifi.powerOn,
-                         toggle: { wifi.setPower(!wifi.powerOn) }, open: { store.setControlDetail(.wifi) })
+                         toggle: { wifi.setPower(!wifi.powerOn) }, open: { store.setControlDetail(.wifi) },
+                         iconPiece: .wifiIcon, statusPiece: .wifiName)
             } detail: { WiFiContent(wifi: wifi).frame(width: W, height: 232, alignment: .topLeading) }
         }
         if let bt = store.bluetooth {
@@ -210,7 +217,9 @@ struct ControlStage: View {
             card(index: 1, active: mode == .bluetooth, mode: mode, detailHeight: 232) {
                 TileFace(icon: "bluetooth", title: "Bluetooth",
                          status: !bt.powerOn ? "Off" : (connected.count == 1 ? connected[0].name : (connected.isEmpty ? "On" : "\(connected.count) devices")),
-                         on: bt.powerOn, toggle: { bt.setPower(!bt.powerOn) }, open: { store.setControlDetail(.bluetooth) })
+                         on: bt.powerOn, toggle: { bt.setPower(!bt.powerOn) }, open: { store.setControlDetail(.bluetooth) },
+                         iconPiece: QuickInfoView.showsBluetooth(store) ? .bluetoothIcon : nil,
+                         statusPiece: QuickInfoView.showsBluetooth(store) ? .bluetoothName : nil)
             } detail: { BluetoothContent(bt: bt).frame(width: W, height: 232, alignment: .topLeading) }
         }
         if let ad = store.airdrop {
@@ -219,6 +228,7 @@ struct ControlStage: View {
                 .frame(width: tileW, height: 74, alignment: .topLeading)
                 .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
                 .slot(tile(2), visible: inControls)
+                .opacity(rest)
         }
         card(index: 3, active: mode == .mirroring, mode: mode, detailHeight: 148) {
             TileFace(icon: "rectangle.on.rectangle", title: "Mirroring", status: Self.mirroringStatus(store.sidecar), on: false,
@@ -231,6 +241,7 @@ struct ControlStage: View {
                        iconAction: { if !bright { store.setControlDetail(.display) } },
                        set: { levels.setBrightness($0) }, expand: { store.setControlDetail(.display) })
                 .slot(bright ? sliderBig : brightSmall, visible: inControls || bright)
+                .opacity(rest)
             // Keyboard backlight: only on the Display page, under the screen's slider, when the Mac has one.
             SliderCard(icon: levels.keyboard == 0 ? "light.min" : "light.max", value: levels.keyboard, enabled: true, large: true,
                        iconAction: {}, set: { levels.setKeyboard($0) }, expand: {})
@@ -241,6 +252,7 @@ struct ControlStage: View {
                        iconAction: { if loud { levels.toggleMute() } else { store.setControlDetail(.sound) } },
                        set: { levels.setVolume($0) }, expand: { store.setControlDetail(.sound) })
                 .slot(loud ? sliderBig : volumeSmall, visible: inControls || loud)
+                .opacity(rest)
             SoundOutputList(levels: levels).slot(CGRect(x: 0, y: 102, width: W, height: max(H - 102, 60)), visible: loud)
         }
         if let d = store.display {
@@ -263,8 +275,9 @@ struct ControlStage: View {
         // The fill is the card's own background, sized by the card's frame, and drawn afresh on each page change:
         // a fill that shrank back from the detail page sometimes stopped drawing, leaving the tile without its card.
         // Open, the page sits straight on the island: the tile's box fades away as it glides out, and back as it returns.
-        .background(IsletCard(shape: shape).id(active).transition(.identity).opacity(active ? 0 : 1))
-        .clipShape(shape)
+        .background(IsletCard(shape: shape).id(active).transition(.identity).opacity(active ? 0 : rest))
+        // While pieces glide in from quick info they start outside the tile, so the clip opens up until they land.
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous).inset(by: rest < 1 ? -600 : 0))
         .offset(x: r.minX, y: r.minY)
         .opacity(mode == .controls || active ? 1 : 0)
         .allowsHitTesting(mode == .controls || active)
@@ -353,6 +366,11 @@ struct TileFace: View {
     var on: Bool
     var toggle: () -> Void
     var open: () -> Void
+    /// Opened from quick info, these glide in from it; the rest of the tile fades in.
+    var iconPiece: QuickInfoPieceID? = nil
+    var statusPiece: QuickInfoPieceID? = nil
+    @Environment(\.quickInfoRest) private var rest
+    @Environment(\.quickInfoNamespace) private var ns
 
     var body: some View {
         // Icon and text centred in the tile, both ways.
@@ -362,10 +380,13 @@ struct TileFace: View {
                     Circle().fill(on ? Color(hex: 0x0A84FF) : Color(hex: 0x3A3A3C))
                     glyph.foregroundStyle(.white)
                 }.frame(width: 28, height: 28)
+                .modifier(PieceOrRest(piece: iconPiece, ns: ns, rest: rest))
             }.buttonStyle(.plain)
             VStack(alignment: .center, spacing: 0) {
                 Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                    .opacity(rest)
                 Text(status).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
+                    .modifier(PieceOrRest(piece: statusPiece, ns: ns, rest: rest))
             }
             .frame(maxWidth: .infinity)
         }
@@ -459,5 +480,15 @@ struct BluetoothGlyph: View {
             p.addLine(to: CGPoint(x: 0.95 * w, y: 0.28 * h)); p.addLine(to: CGPoint(x: 0.05 * w, y: 0.72 * h))
             ctx.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
         }
+    }
+}
+
+/// A piece that glides in from quick info, or otherwise fades in with the rest of the panel.
+private struct PieceOrRest: ViewModifier {
+    let piece: QuickInfoPieceID?
+    let ns: Namespace.ID?
+    let rest: Double
+    func body(content: Content) -> some View {
+        if let piece { content.quickInfoPiece(piece, ns) } else { content.opacity(rest) }
     }
 }

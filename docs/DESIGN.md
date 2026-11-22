@@ -89,6 +89,7 @@ docs/mockups/expanded-flush.html).
 | Chin          | stem + 300 × 36 body              | 16 all round       |
 | Face scan     | stem + notch-wide × 150 body      | bottom 44          |
 | Expanded      | stem + 500 × 216 body             | top 16, bottom 30  |
+| Quick info    | the wide bar, or stem + 340 × 60  | bottom 18 (chin top 16) |
 
 Hover peek is the closed notch's hover shape. Over anything compact that is showing (wings, wide bar, chin), hover
 swells it instead: 12 pt wider and 3 pt taller (the chin's body 14 × 4), bottom corners + 2, on a springy bubble
@@ -676,6 +677,29 @@ docs/mockups/settings.html).
   Focus. Opens System Settings…", ticking itself off; then "Optional" ones; "Skip for now" until all are allowed), "How
   should search open?" (only when Search is ticked), Face Unlock (only when ticked), and "You're set" with each feature's
   state, open at login and the menu bar icon. General has Run Setup… and Quit.
+
+## Quick info (1.4)
+
+Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/FHqTKpznAKMcB8YQVdLybj> (source
+docs/mockups/quick-info.html).
+
+- **When**: the pointer rests on the notch for 0.25 s while nothing is showing (no music, notification, level or
+  event; not hidden music's peek). It replaces the hover peek then. Leaving folds it back. Settings > Notch "Quick
+  info on hover" (on by default). Notch mode only (not menu bar or bezel mode).
+- **Wide bar** (menu bar has room): the volume wide bar's shape (wings 60 pt a side and a 26 pt body, bottom 18). Left
+  wing: the time (13 semibold, no AM/PM) over the date (9.5, `secondary`, "Sat, Nov 21"). Right wing: the percentage
+  (11.5 semibold) over the battery (the battery page's glyph, 28 × 13; green charging, red at 20% or less, a bolt
+  plugged in). Each centred in its wing, so they mirror. Body: Wi-Fi (icon and network, 12 semibold; the hotspot icon
+  for a hotspot; "Not connected" or "Wi-Fi Off" with the crossed-out icon) and the connected Bluetooth device ("2
+  devices" for more; left out when none), centred together 24 pt apart.
+- **Chin** (no room): the notch as the stem, a 340 × 60 body (top 16, bottom 18, 10 pt curves). First row, 18 pt in:
+  the time and date on the left, the battery and percentage on the right. Second row: Wi-Fi and Bluetooth centred.
+- **Motion**: the shape springs out like the wings, the text fading in at 0.1 s (0.2 s in the chin). The swell applies.
+- **Opening the panel** (a click): the Wi-Fi icon and name glide into the Wi-Fi tile's round button and status line,
+  the Bluetooth ones into its tile, and the percentage and battery into the header's battery chip, on the shape's
+  spring (0.5, damping 0.82). The time and date fade (0.1 s). Everything else in the panel fades in a beat later
+  (0.3 s from 0.16 s). The island clips everything, and the tiles don't clip while pieces glide into them, so nothing
+  shows outside the shape or gets cut off on the way.
 
 ## Features (1.4)
 

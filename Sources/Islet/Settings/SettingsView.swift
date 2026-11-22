@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var loginError: String?
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @AppStorage(GlassLook.key) private var glassLook = true
+    @AppStorage(IslandStore.quickInfoKey) private var quickInfo = true
     @AppStorage(NotchGeometry.hasNotchKey) private var hasNotch = NotchGeometry.detectedNotch
     @AppStorage(NotchlessStyle.key) private var notchlessStyle = NotchlessStyle.bezel.rawValue
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
@@ -236,6 +237,9 @@ struct SettingsView: View {
                 .fixedSize()
                 Toggle(isOn: $glassLook) {
                     SettingsLabel("Glass look", "Below the notch the island fades from black into glass. Off, it stays solid black.")
+                }
+                Toggle(isOn: $quickInfo) {
+                    SettingsLabel("Quick info on hover", "Rest the pointer on the notch while nothing is showing to see the time, the battery, and your Wi-Fi network and Bluetooth device.")
                 }
             }
             Section {

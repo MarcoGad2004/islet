@@ -203,7 +203,43 @@ final class IslandStore {
             return compactLayout
         }
         if let base { return base }
+        if pointerInside, quickInfo { return wingsFit ? .quickBar : .quickChin }
         return pointerInside ? .peek : .closed
+    }
+
+    // MARK: Quick info (DESIGN.md "Quick info")
+
+    static let quickInfoKey = "quickInfoOnHover"
+    /// The pointer has rested on an idle notch: it shows the time, battery, Wi-Fi and Bluetooth.
+    private(set) var quickInfo = false
+    /// The panel opened from quick info: its pieces glide into their places instead of fading in.
+    private(set) var expandedFromQuickInfo = false
+    @ObservationIgnored private var quickInfoTask: Task<Void, Never>?
+
+    /// Nothing else would show under the pointer: no content, no hidden music's peek, the notch itself.
+    private var quickInfoAllowed: Bool {
+        guard UserDefaults.standard.object(forKey: Self.quickInfoKey) as? Bool ?? true else { return false }
+        guard let g = geometry, g.mode == .notch, !paused, !expanded, base == nil, content == nil else { return false }
+        return !(mediaHidden && media != nil && mediaFresh)
+    }
+
+    /// Resting on the notch for a moment shows it, so passing the pointer across the top doesn't flash it.
+    private func updateQuickInfo() {
+        if pointerInside && quickInfoAllowed {
+            guard !quickInfo, quickInfoTask == nil else { return }
+            quickInfoTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(0.25))
+                guard let self, !Task.isCancelled else { return }
+                self.quickInfoTask = nil
+                guard self.pointerInside, self.quickInfoAllowed else { return }
+                self.wifi?.refresh(); self.bluetooth?.refresh()
+                self.quickInfo = true
+                self.refresh()
+            }
+        } else {
+            quickInfoTask?.cancel(); quickInfoTask = nil
+            if !pointerInside { quickInfo = false }
+        }
     }
 
     /// Media swiped away and the pointer over the notch: the peek takes the album's colours (DESIGN.md "Media peek").
@@ -282,6 +318,7 @@ final class IslandStore {
     }
 
     private func refresh() {
+        updateQuickInfo()
         // Search's height follows the results without a bounce, and mid-opening only its target moves.
         if let m = targetMetrics() { animator.go(to: m, smoothHeight: expanded && expandedPage == .search) }
         animator.setSwell(hoverSwell)
@@ -296,9 +333,9 @@ final class IslandStore {
         switch presentation {
         case .wings, .lockWings, .eventWings:
             return IslandMetrics(sw: w, sh: h, bw: w, bh: 0, tr: 0, br: 2, ic: 0)
-        case .levelWings, .lockHint:
+        case .levelWings, .lockHint, .quickBar:
             return IslandMetrics(sw: w, sh: 0, bw: w, bh: h, tr: 0, br: 2, ic: 0)
-        case .chin, .notification:
+        case .chin, .notification, .quickChin:
             return IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
         default:
             return .zero
@@ -328,6 +365,7 @@ final class IslandStore {
     func pointerMoved(inside: Bool) {
         guard inside != pointerInside else { return }
         pointerInside = inside
+        updateQuickInfo()
         if !notifications.isEmpty, !expanded {
             // Hovering pauses them; leaving gives them a little longer.
             if inside { notificationTask?.cancel() } else { armNotification(Self.notificationAfterHover) }
@@ -367,6 +405,8 @@ final class IslandStore {
 
     func expand() {
         guard !expanded, !locked else { return }
+        // From quick info, its pieces glide into the panel (DESIGN.md "Quick info").
+        expandedFromQuickInfo = presentation == .quickBar || presentation == .quickChin
         // Always the panel's own page; waiting notifications ride along as a pill at its top.
         expandedPage = (level == nil && mediaPlaying) ? .media : .displaySound
         levels?.refresh()
@@ -393,7 +433,7 @@ final class IslandStore {
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
         if value { flushPanel = geometry?.mode == .notch && panelLayoutCheck?() == true }
-        if !value { notificationReturnPage = nil; openNotificationID = nil }
+        if !value { notificationReturnPage = nil; openNotificationID = nil; expandedFromQuickInfo = false; quickInfo = false }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
