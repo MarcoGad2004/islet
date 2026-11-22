@@ -97,7 +97,7 @@ label.pct output { font-variant-numeric: tabular-nums; color: var(--fg); min-wid
         <li><b>0 s</b> the notch springs out (same spring as now).</li>
         <li><b>0.1 s</b> the battery fades in empty; the number drifts up into place, growing from 80% and sharpening out of a slight blur (0.45 s).</li>
         <li><b>0.15 – 1.3 s</b> the number rolls, digits fading through the top and bottom edges, and the fill grows with it. It starts gently and slows right down for the last few percent.</li>
-        <li><b>1.3 s</b> a bigger, heavier bolt springs in over the battery: it overshoots about 25% with a small twist and settles in under half a second.</li>
+        <li><b>1.3 s</b> a bigger, heavier bolt springs in over the battery: it overshoots about 8% with a slight twist and settles in about 0.4 s.</li>
         <li><b>3 s</b> it hands back, as now.</li>
       </ul>
     </div>
@@ -135,9 +135,9 @@ function start() {
   const easeOut = x => 1 - Math.pow(1 - x, 3);
   // Eases in briefly, then a long tail out, so the last few percent tick by slowly.
   const easeInOutSoft = x => x < 0.25 ? 4 * x * x : 0.25 + 0.75 * (1 - Math.pow(1 - (x - 0.25) / 0.75, 3.2));
-  // An underdamped spring (response 0.42 s, damping 0.42): overshoots about 25% and settles in under half a second.
+  // A gently underdamped spring (response 0.4 s, damping 0.62): overshoots about 8% and settles in about 0.4 s.
   function springy(t) {
-    const w = 2 * Math.PI / 0.42, z = 0.42, wd = w * Math.sqrt(1 - z * z);
+    const w = 2 * Math.PI / 0.4, z = 0.62, wd = w * Math.sqrt(1 - z * z);
     return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t));
   }
 
@@ -230,7 +230,7 @@ function start() {
     else {
       const s = reduce ? 1 : springy(bt);
       bolt.style.opacity = clamp(bt / 0.12);
-      bolt.style.transform = `scale(${s}) rotate(${(1 - s) * -24}deg)`;
+      bolt.style.transform = `scale(${s}) rotate(${(1 - s) * -12}deg)`;
     }
     if (t < HOLD + 0.8) raf = requestAnimationFrame(frame);
     else { shape(0); content.style.opacity = 0; }
