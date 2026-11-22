@@ -32,10 +32,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .tilebg { position: absolute; border-radius: 14px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12) }
 .icn { display: grid; place-items: center; border-radius: 50%; position: absolute }
 .icn svg { width: 60%; height: 60%; fill: #fff }
-.batt { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-variant-numeric: tabular-nums }
-.batt i { display: inline-block; width: 22px; height: 11px; border-radius: 3px; border: 1.2px solid rgba(255,255,255,.55); position: relative; padding: 1px }
-.batt i b { display: block; height: 100%; border-radius: 1.5px; background: #32d74b }
-.batt i::after { content: ""; position: absolute; right: -3.5px; top: 3px; width: 1.6px; height: 3.5px; border-radius: 1px; background: rgba(255,255,255,.55) }
+.bico { border: 1.3px solid rgba(255,255,255,.55); padding: 1.5px; box-sizing: border-box }
+.bico b { display: block; height: 100%; border-radius: 2px; background: #32d74b }
+.bico::after { content: ""; position: absolute; right: -4px; top: 30%; width: 2px; height: 40%; border-radius: 1px; background: rgba(255,255,255,.55) }
 .sub { color: #a1a1a6 }
 .slider { position: absolute; height: 40px; border-radius: 14px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12) }
 .slider span { position: absolute; left: 34px; right: 46px; top: 18px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2) }
@@ -91,7 +90,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
       <ul>
         <li><b>Wi-Fi</b>: the network's name, or the hotspot's with the hotspot icon. Not connected: a crossed-out Wi-Fi icon and "Not connected".</li>
         <li><b>Bluetooth</b>: the connected device (AirPods, a keyboard…). Nothing connected leaves it out, so the left wing is Wi-Fi alone.</li>
-        <li><b>Wide bar</b>: the time over the date in the left wing, the battery in the right, and Wi-Fi and Bluetooth (icon and name) in the body under them.</li>
+        <li><b>Wide bar</b>: the time over the date in the left wing, the battery over its percentage in the right, each centred in its wing so the two mirror each other. Wi-Fi and Bluetooth (icon and name) are centred together in the body under them.</li>
         <li><b>Chin</b> (no room in the menu bar): the notch as its stem with a 340 × 60 body under it, the time, date and battery on the first row, Wi-Fi and Bluetooth on the second. It opens into the panel with its stem.</li>
         <li><b>Battery</b>: the same pill as the panel's header, with the bolt while charging.</li>
         <li>Only when the notch has nothing else to show. Music, a notification, volume and the rest always win.</li>
@@ -172,33 +171,48 @@ const now = new Date();
 const timeText = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M/i, '');
 const dateText = now.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
 
+// Text widths, so groups can be centred.
+const ctx = document.createElement('canvas').getContext('2d');
+function tw(text, f, weight = 600) { ctx.font = `${weight} ${f}px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif`; return ctx.measureText(text).width; }
+
+// Wi-Fi and Bluetooth as one group, centred on `cx` within `room`: icon, 6 pt, name, 24 pt, icon, 6 pt, name.
+function centredPair(L, cx, y, room, f) {
+  const icon = 16, gap = 6, between = 24;
+  const bt = S.bt === 'on';
+  let wt = tw(wifiName(), f), bw = bt ? tw(btName(), f) : 0;
+  const fixed = icon + gap + (bt ? between + icon + gap : 0);
+  // Too long for the room: trim the longer name first.
+  while (fixed + wt + bw > room && (wt > 40 || bw > 40)) { if (wt >= bw) wt -= 2; else bw -= 2; }
+  const total = fixed + wt + bw;
+  let x = cx - total / 2;
+  L.wifiI = { x, y, s: icon }; x += icon + gap;
+  L.wifiT = { x, y, f, maxw: wt + 1 }; x += wt + between;
+  if (bt) { L.btI = { x, y, s: icon }; x += icon + gap; L.btT = { x, y, f, maxw: bw + 1 }; }
+}
+
 // Where each piece sits (stage points): x of its left edge, y of its middle, size, and for text a width it's cut to.
 function layoutQuick() {
   const L = {};
   if (S.lay === 'wings') {
-    // Left wing: the time over the date. Right wing: the battery. The body: Wi-Fi and Bluetooth.
-    const half = NOTCH.w / 2 + 60, wl = CX - half, wr = CX + NOTCH.w / 2, by = NOTCH.h + 11;
-    L.time = { x: wl + 4, y: 12, f: 13, maxw: 56, center: 1 };
-    L.date = { x: wl + 4, y: 25, f: 9.5, maxw: 56, center: 1, sub: 1 };
-    L.batt = { x: wr + 4, y: 17, f: 11, maxw: 56, center: 1 };
-    if (S.bt === 'on') {
-      L.wifiI = { x: wl + 18, y: by, s: 16 };
-      L.wifiT = { x: wl + 36, y: by, f: 12, maxw: half - 48 };
-      L.btI = { x: CX + 8, y: by, s: 16 };
-      L.btT = { x: CX + 26, y: by, f: 12, maxw: half - 44 };
-    } else {
-      L.wifiI = { x: wl + 18, y: by, s: 16 };
-      L.wifiT = { x: wl + 36, y: by, f: 12, maxw: 2 * half - 56 };
-    }
+    // Left wing: the time over the date. Right wing: the battery over its percentage. Both centred in their wing, so
+    // they mirror each other. The body: Wi-Fi and Bluetooth, centred together.
+    const half = NOTCH.w / 2 + 60, lc = CX - half + 30, rc = CX + half - 30, by = NOTCH.h + 12;
+    L.time = { x: lc - 28, y: 12, f: 13, maxw: 56, center: 1 };
+    L.date = { x: lc - 28, y: 25, f: 9.5, maxw: 56, center: 1, sub: 1 };
+    L.battI = { x: rc - 14.5, y: 11.5, s: 13.5 };
+    L.battT = { x: rc - 28, y: 25, f: 10.5, maxw: 56, center: 1 };
+    centredPair(L, CX, by, 2 * half - 40, 12);
   } else {
-    // Chin: the time and date with the battery across from them, then Wi-Fi and Bluetooth.
-    const bl = CX - 170, r1 = NOTCH.h + 19, r2 = NOTCH.h + 42;
-    L.time = { x: bl + 18, y: r1, f: 13, maxw: 44 };
-    L.date = { x: bl + 18 + 40, y: r1, f: 12, maxw: 120, sub: 1 };
-    L.batt = { x: CX + 170 - 18 - 54, y: r1, f: 11.5, maxw: 56 };
-    L.wifiI = { x: bl + 16, y: r2, s: 16 };
-    L.wifiT = { x: bl + 36, y: r2, f: 12, maxw: S.bt === 'on' ? 128 : 280 };
-    if (S.bt === 'on') { L.btI = { x: CX + 6, y: r2, s: 16 }; L.btT = { x: CX + 26, y: r2, f: 12, maxw: 130 }; }
+    // Chin: the time and date on the left and the battery on the right of the first row, 18 pt in from each side;
+    // Wi-Fi and Bluetooth centred together on the second.
+    const bl = CX - 170, br = CX + 170, r1 = NOTCH.h + 18, r2 = NOTCH.h + 42;
+    const timeW = tw(timeText, 13);
+    L.time = { x: bl + 18, y: r1, f: 13, maxw: timeW + 1 };
+    L.date = { x: bl + 18 + timeW + 6, y: r1, f: 12, maxw: 120, sub: 1 };
+    const pw = tw('85%', 12);
+    L.battT = { x: br - 18 - pw, y: r1, f: 12, maxw: pw + 1 };
+    L.battI = { x: br - 18 - pw - 5 - 26, y: r1, s: 12 };
+    centredPair(L, CX, r2, 340 - 36, 12);
   }
   return L;
 }
@@ -210,12 +224,13 @@ function layoutPanel() {
     wifiT: { x: tileX(0) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
     btI: { x: tileX(1) + 55 - 12, y: TY + 16, s: 24, circle: 1 },
     btT: { x: tileX(1) + 10, y: TY + 47, f: 10.5, maxw: TW - 20, center: 1, sub: 1 },
-    batt: { x: P0 + 16 + 100, y: BODY + 16 + 13, f: 11.5, maxw: 56, center: 1 },
+    battI: { x: P0 + 16 + 100, y: BODY + 16 + 13, s: 11 },
+    battT: { x: P0 + 16 + 100 + 28, y: BODY + 16 + 13, f: 11.5, maxw: 40 },
   };
 }
 
 const island = $('#island');
-const KEYS = ['time', 'date', 'wifiI', 'wifiT', 'btI', 'btT', 'batt'];
+const KEYS = ['time', 'date', 'wifiI', 'wifiT', 'btI', 'btT', 'battI', 'battT'];
 function build() {
   island.innerHTML = `
     <div class="el" data-k="rest" style="position:absolute;inset:0">
@@ -236,7 +251,8 @@ function build() {
     <div class="el" data-k="wifiT">${wifiName()}</div>
     <div class="icn el" data-k="btI">${ICONS.bt}</div>
     <div class="el" data-k="btT">${btName()}</div>
-    <div class="el batt" data-k="batt"><i><b style="width:85%"></b></i>85%</div>`;
+    <div class="el bico" data-k="battI"><b style="width:85%"></b></div>
+    <div class="el" data-k="battT" style="font-variant-numeric:tabular-nums">85%</div>`;
 }
 
 // One spring drives the shape and everything riding on it.
@@ -299,7 +315,11 @@ function draw() {
     if (k !== 'rest') {
       const x = lerp(A.x ?? B.x, B.x ?? A.x, tt), y = lerp(A.y ?? B.y, B.y ?? A.y, tt);
       Object.assign(cur, { x, y });
-      if (A.s || B.s) {
+      if (k === 'battI') {
+        // The battery: s is its height; the body is 2.15 times as wide, the cap outside it.
+        const s = lerp(A.s ?? B.s, B.s ?? A.s, tt); cur.s = s;
+        Object.assign(el.style, { left: x + 'px', top: (y - s / 2) + 'px', width: s * 2.15 + 'px', height: s + 'px', borderRadius: s * 0.28 + 'px' });
+      } else if (A.s || B.s) {
         const s = lerp(A.s ?? B.s, B.s ?? A.s, tt), circ = lerp(A.circle ? 1 : 0, B.circle ? 1 : 0, tt);
         Object.assign(cur, { s, circle: circ });
         Object.assign(el.style, { left: x + 'px', top: (y - s / 2) + 'px', width: s + 'px', height: s + 'px',
@@ -312,7 +332,7 @@ function draw() {
         Object.assign(el.style, { left: x + 'px', top: (y - f * 0.62) + 'px', fontSize: f + 'px', lineHeight: 1.2,
           width: ctr ? mw + 'px' : 'auto', maxWidth: mw + 'px', textAlign: ctr ? 'center' : 'left',
           overflow: 'hidden', textOverflow: 'ellipsis', justifyContent: ctr ? 'center' : 'flex-start',
-          fontWeight: k === 'date' || sub ? 400 : 600, color: sub ? '#a1a1a6' : '#f5f5f7' });
+          whiteSpace: 'nowrap', fontWeight: k === 'date' || sub ? 400 : 600, color: sub ? '#a1a1a6' : '#f5f5f7' });
       }
     }
     el.style.opacity = o;
