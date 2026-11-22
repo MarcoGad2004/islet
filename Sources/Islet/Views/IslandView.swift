@@ -93,7 +93,7 @@ struct IslandView: View {
                 case .quickBar, .quickChin:
                     QuickInfoView(store: store, bar: pres == .quickBar)
                         .transition(.asymmetric(
-                            insertion: .opacity.animation(.easeOut(duration: 0.25).delay(pres == .quickBar ? 0.1 : 0.2)),
+                            insertion: .opacity.animation(.easeOut(duration: 0.2).delay(pres == .quickBar ? 0.06 : 0.12)),
                             removal: .opacity.animation(.easeOut(duration: 0.1))))
                 case .peek, .closed:
                     if floating && pres == .peek, let g = store.geometry {

@@ -239,7 +239,7 @@ struct SettingsView: View {
                     SettingsLabel("Glass look", "Below the notch the island fades from black into glass. Off, it stays solid black.")
                 }
                 Toggle(isOn: $quickInfo) {
-                    SettingsLabel("Quick info on hover", "Rest the pointer on the notch while nothing is showing to see the time, the battery, and your Wi-Fi network and Bluetooth device.")
+                    SettingsLabel("Quick info on hover", "Move the pointer over the notch while nothing is showing to see the time, the battery, and your Wi-Fi network and Bluetooth device.")
                 }
             }
             Section {

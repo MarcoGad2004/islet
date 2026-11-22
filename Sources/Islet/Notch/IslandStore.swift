@@ -214,7 +214,6 @@ final class IslandStore {
     private(set) var quickInfo = false
     /// The panel opened from quick info: its pieces glide into their places instead of fading in.
     private(set) var expandedFromQuickInfo = false
-    @ObservationIgnored private var quickInfoTask: Task<Void, Never>?
 
     /// Nothing else would show under the pointer: no content, no hidden music's peek, the notch itself.
     private var quickInfoAllowed: Bool {
@@ -223,22 +222,14 @@ final class IslandStore {
         return !(mediaHidden && media != nil && mediaFresh)
     }
 
-    /// Resting on the notch for a moment shows it, so passing the pointer across the top doesn't flash it.
+    /// The pointer over an idle notch shows it at once, in place of the peek (owner, 2026-11-21: a quick peek).
     private func updateQuickInfo() {
         if pointerInside && quickInfoAllowed {
-            guard !quickInfo, quickInfoTask == nil else { return }
-            quickInfoTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(0.25))
-                guard let self, !Task.isCancelled else { return }
-                self.quickInfoTask = nil
-                guard self.pointerInside, self.quickInfoAllowed else { return }
-                self.wifi?.refresh(); self.bluetooth?.refresh()
-                self.quickInfo = true
-                self.refresh()
-            }
-        } else {
-            quickInfoTask?.cancel(); quickInfoTask = nil
-            if !pointerInside { quickInfo = false }
+            guard !quickInfo else { return }
+            wifi?.refresh(); bluetooth?.refresh()
+            quickInfo = true
+        } else if !pointerInside {
+            quickInfo = false
         }
     }
 

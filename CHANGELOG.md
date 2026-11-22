@@ -66,7 +66,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Quick info
 
-- Rest the pointer on the notch while nothing is showing to see the time and date, the battery, and your Wi-Fi network
+- Move the pointer over the notch while nothing is showing to see the time and date, the battery, and your Wi-Fi network
   and Bluetooth device. Click and they glide into their places in the panel as it opens. Turn it off in Settings >
   Notch.
 
