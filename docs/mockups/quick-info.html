@@ -90,7 +90,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
       <ul>
         <li><b>Wi-Fi</b>: the network's name, or the hotspot's with the hotspot icon. Not connected: a crossed-out Wi-Fi icon and "Not connected".</li>
         <li><b>Bluetooth</b>: the connected device (AirPods, a keyboard…). Nothing connected leaves it out, so the left wing is Wi-Fi alone.</li>
-        <li><b>Wide bar</b>: the time over the date in the left wing, the battery over its percentage in the right, each centred in its wing so the two mirror each other. Wi-Fi and Bluetooth (icon and name) are centred together in the body under them.</li>
+        <li><b>Wide bar</b>: the time over the date in the left wing, the battery's percentage over its icon in the right, each centred in its wing so the two mirror each other. Wi-Fi and Bluetooth (icon and name) are centred together in the body under them.</li>
         <li><b>Chin</b> (no room in the menu bar): the notch as its stem with a 340 × 60 body under it, the time, date and battery on the first row, Wi-Fi and Bluetooth on the second. It opens into the panel with its stem.</li>
         <li><b>Battery</b>: the same pill as the panel's header, with the bolt while charging.</li>
         <li>Only when the notch has nothing else to show. Music, a notification, volume and the rest always win.</li>
@@ -194,13 +194,14 @@ function centredPair(L, cx, y, room, f) {
 function layoutQuick() {
   const L = {};
   if (S.lay === 'wings') {
-    // Left wing: the time over the date. Right wing: the battery over its percentage. Both centred in their wing, so
+    // Left wing: the time over the date. Right wing: the percentage over the battery. Both centred in their wing, so
     // they mirror each other. The body: Wi-Fi and Bluetooth, centred together.
     const half = NOTCH.w / 2 + 60, lc = CX - half + 30, rc = CX + half - 30, by = NOTCH.h + 12;
     L.time = { x: lc - 28, y: 12, f: 13, maxw: 56, center: 1 };
     L.date = { x: lc - 28, y: 25, f: 9.5, maxw: 56, center: 1, sub: 1 };
-    L.battI = { x: rc - 14.5, y: 11.5, s: 13.5 };
-    L.battT = { x: rc - 28, y: 25, f: 10.5, maxw: 56, center: 1 };
+    // The percentage over the icon, like the time over the date.
+    L.battT = { x: rc - 28, y: 12, f: 13, maxw: 56, center: 1 };
+    L.battI = { x: rc - 12.5, y: 25.5, s: 11.5 };
     centredPair(L, CX, by, 2 * half - 40, 12);
   } else {
     // Chin: the time and date on the left and the battery on the right of the first row, 18 pt in from each side;
