@@ -133,15 +133,39 @@ struct NotificationIcon: View {
     }
 }
 
-/// The expanded panel's list of everything that just came in (a two-finger swipe down).
+/// The expanded panel's list of everything that just came in (DESIGN.md "Notifications", "The list"). Clicking a row
+/// opens it in place: the whole message and its buttons.
 struct NotificationList: View {
     let store: IslandStore
     @AppStorage(NotificationWatcher.hideTextKey) private var hideText = false
 
     static let rowHeight: CGFloat = 52
     static let headerHeight: CGFloat = 32
-    /// Padding top and bottom, the header, and the rows (at most 4 showing; then it scrolls).
-    static func height(rows: Int) -> CGFloat { 12 + headerHeight + 4 + CGFloat(min(max(rows, 1), 4)) * rowHeight + 12 }
+    /// Padding top and bottom, the header, and the rows (at most 4 showing; then it scrolls), the open one taller.
+    static func height(rows: Int, open: NotificationItem? = nil) -> CGFloat {
+        let extra = open.map { openRowHeight($0) - rowHeight } ?? 0
+        return 12 + headerHeight + 4 + CGFloat(min(max(rows, 1), 4)) * rowHeight + extra + 12
+    }
+
+    /// The message's width in an open row: the panel, less the list's and row's padding, the icon and the close button.
+    static let openTextWidth: CGFloat = CGFloat(IslandLayout.expandedWidth) - 28 - 20 - 28 - 12 - 12 - 24
+    static let openLines = 6
+    static let buttonsHeight: CGFloat = 28
+
+    /// An open row: the title line, the whole message (up to 6 lines), then its buttons.
+    static func openRowHeight(_ item: NotificationItem) -> CGFloat {
+        let hide = UserDefaults.standard.bool(forKey: NotificationWatcher.hideTextKey)
+        var text: CGFloat = 0
+        if !hide && !item.line.isEmpty {
+            let font = NSFont.systemFont(ofSize: 12)
+            let fit = (item.line as NSString).boundingRect(with: NSSize(width: openTextWidth, height: .greatestFiniteMagnitude),
+                                                          options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                                          attributes: [.font: font]).height
+            let line = ceil(font.ascender - font.descender + font.leading)
+            text = min(ceil(fit), line * CGFloat(openLines)) + 2
+        }
+        return 10 + max(28, 17 + text) + 10 + buttonsHeight + 10
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -165,11 +189,12 @@ struct NotificationList: View {
             PanelScrollView(indicators: false) {
                 VStack(spacing: 0) {
                     ForEach(store.notifications) { item in
-                        NotificationRow(store: store, item: item, hideText: hideText)
+                        NotificationRow(store: store, item: item, hideText: hideText, open: store.openNotificationID == item.id)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 .animation(.easeOut(duration: 0.22), value: store.notifications.map(\.id))
+                .animation(.spring(response: 0.32, dampingFraction: 0.9), value: store.openNotificationID)
             }
         }
         .padding(.vertical, 12).padding(.horizontal, 14)
@@ -180,39 +205,61 @@ private struct NotificationRow: View {
     let store: IslandStore
     let item: NotificationItem
     let hideText: Bool
+    let open: Bool
     @State private var hover = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                if !(item.isMessages && store.openConversation(item)) { store.removeNotification(item, .shown) }
-            } label: {
-                HStack(spacing: 12) {
-                    NotificationIcon(item: item, size: 28)
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(item.heading).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                            Spacer(minLength: 4)
-                            NotificationWhen(item: item, prefix: item.app)
-                        }
-                        if !hideText && !item.line.isEmpty {
-                            Text(item.line).font(.system(size: 12)).foregroundStyle(Color.isletSecondary).lineLimit(1)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: open ? .top : .center, spacing: 12) {
+                Button { store.toggleNotificationRow(item) } label: {
+                    HStack(alignment: open ? .top : .center, spacing: 12) {
+                        NotificationIcon(item: item, size: 28)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(item.heading).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                                Spacer(minLength: 4)
+                                NotificationWhen(item: item, prefix: item.app)
+                            }
+                            if !hideText && !item.line.isEmpty {
+                                Text(item.line).font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
+                                    .lineLimit(open ? NotificationList.openLines : 1)
+                                    .fixedSize(horizontal: false, vertical: open)
+                            }
                         }
                     }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                Button { store.removeNotification(item, .closed) } label: {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.isletText)
+                        .frame(width: 24, height: 24).background(Circle().fill(Color.isletRing))
+                }
+                .buttonStyle(.plain).accessibilityLabel("Close")
             }
-            .buttonStyle(.plain)
-            NotificationActions(store: store, item: item, height: 26)
-            Button { store.removeNotification(item, .closed) } label: {
-                Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.isletText)
-                    .frame(width: 24, height: 24).background(Circle().fill(Color.isletRing))
+            if open {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    NotificationActions(store: store, item: item, height: NotificationList.buttonsHeight)
+                    if !store.canReply(item) {
+                        // The last pill is the main action: Open, unless the banner has its own.
+                        Button { store.openNotificationInApp(item) } label: {
+                            let primary = item.actions.isEmpty
+                            Text("Open").font(.system(size: 12, weight: .semibold)).foregroundStyle(primary ? Color.black : Color.isletText)
+                                .padding(.horizontal, 14).frame(height: NotificationList.buttonsHeight)
+                                .background(Capsule().fill(primary ? Color.isletText : Color.isletRing))
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 10)
+                .transition(.opacity)
             }
-            .buttonStyle(.plain).accessibilityLabel("Close")
         }
         .padding(.horizontal, 10)
-        .frame(height: NotificationList.rowHeight)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(hover ? 0.06 : 0)))
+        .padding(.vertical, open ? 10 : 0)
+        .frame(height: open ? NotificationList.openRowHeight(item) : NotificationList.rowHeight, alignment: open ? .top : .center)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(open ? 0.08 : hover ? 0.06 : 0)))
         .onHover { hover = $0 }
     }
 }

@@ -90,6 +90,8 @@ final class IslandStore {
     let search = SearchModel()
     /// The page the notification list was opened from (the pill), to go back to.
     @ObservationIgnored private var notificationReturnPage: ExpandedPage?
+    /// The row of the notification list that's open: its whole message and its buttons (DESIGN.md "The list").
+    private(set) var openNotificationID: UUID?
     /// Search took over the open panel (a letter typed there), so the shape is already out.
     private(set) var searchFromPanel = false
     /// Lists scrolling in the panel, where they are (top-left window points) and whether they're at either end
@@ -146,7 +148,9 @@ final class IslandStore {
 
     /// The page itself, under the pill.
     var pageBodyHeight: CGFloat {
-        if expandedPage == .notifications { return NotificationList.height(rows: notifications.count) }
+        if expandedPage == .notifications {
+            return NotificationList.height(rows: notifications.count, open: notifications.first { $0.id == openNotificationID })
+        }
         if expandedPage == .messages { return IslandLayout.messagesBodyHeight }
         if expandedPage == .search { return search.bodyHeight }
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
@@ -389,7 +393,7 @@ final class IslandStore {
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
         if value { flushPanel = geometry?.mode == .notch && panelLayoutCheck?() == true }
-        if !value { notificationReturnPage = nil }
+        if !value { notificationReturnPage = nil; openNotificationID = nil }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -639,6 +643,7 @@ final class IslandStore {
     func removeNotification(_ n: NotificationItem, _ how: NotificationEnd) {
         guard notifications.contains(where: { $0.id == n.id }) else { return }
         notifications.removeAll { $0.id == n.id }
+        if openNotificationID == n.id { openNotificationID = nil }
         finish(n, how)
         if notifications.isEmpty {
             notificationTask?.cancel()
@@ -652,6 +657,7 @@ final class IslandStore {
         guard expanded, !notifications.isEmpty, expandedPage != .notifications else { return }
         notificationReturnPage = expandedPage
         controlDetail = nil
+        openNotificationID = nil
         expandedPage = .notifications
         refresh()
     }
@@ -661,7 +667,23 @@ final class IslandStore {
         guard expanded, expandedPage == .notifications else { return }
         expandedPage = notificationReturnPage ?? (mediaPlaying ? .media : .displaySound)
         notificationReturnPage = nil
+        openNotificationID = nil
         refresh()
+    }
+
+    /// A row of the list clicked: it opens in place (another one closes), or closes again.
+    func toggleNotificationRow(_ n: NotificationItem) {
+        guard expanded, expandedPage == .notifications else { return }
+        openNotificationID = openNotificationID == n.id ? nil : n.id
+        refresh()
+    }
+
+    /// The open row's Open: the notification in its app (the banner's own Show), and the panel closes so the app shows.
+    /// A Messages one opens as its conversation in the panel instead, when it can.
+    func openNotificationInApp(_ n: NotificationItem) {
+        if n.isMessages && openConversation(n) { return }
+        removeNotification(n, .shown)
+        collapse()
     }
 
     /// All of them: swiped up, "Clear all", the time running out, or the list closing.

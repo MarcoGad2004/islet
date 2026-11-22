@@ -56,6 +56,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Fixes
 
+- Clicking a notification in the panel's list now opens it in place, with its whole message and its buttons (Open, Reply, or the app's own). Before, it opened the app behind the panel and left the list showing.
 - Without a notch, the chevron no longer drops down over Mission Control when the pointer reaches the top of the
   screen, so the windows and Spaces up there can be clicked.
 - Swiping music away while hovering the notch: the song's name now fades as the notch pulls in, instead of showing on

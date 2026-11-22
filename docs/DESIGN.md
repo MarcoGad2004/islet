@@ -437,8 +437,8 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
   a grey rounded square with an iPhone glyph stands in for the icon.
 - **The banner's buttons** (Duo's Approve / Deny, Slack's Remind Me…): never in the compact shapes, so a stray click
   can't approve anything. The card grows 36 pt and shows them as 28 pt pills on the right under the text, the last one
-  white with black text (it's the app's main action); more than two go under an "Options" menu pill. Each list row has
-  them too (26 pt). Pressing one presses the banner's own button and takes the notification away.
+  white with black text (it's the app's main action); more than two go under an "Options" menu pill. A list row shows
+  them once it's open (28 pt). Pressing one presses the banner's own button and takes the notification away.
 - **Timing**: everything showing goes 5 s after the last arrival, then the island folds back to what was showing.
   Hovering pauses it; leaving gives it 3 s more.
 - **Stacking** (several arrive close together, newest on top):
@@ -459,7 +459,11 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
   in Notification Center.
 - **The list**: clicking the pill opens it on the panel (500 wide, as tall as the rows need: 52 pt each, at most 4
   showing, then it scrolls): a back chevron, "JUST NOW · N" and a "Clear all" pill on top; each row the icon (28),
-  title and "App · now", the message, the banner's buttons, and a close button. Clicking a row opens it. The chevron,
+  title and "App · now", the message (one line) and a close button. Clicking a row opens it in place (owner,
+  2026-11-21): it grows to the whole message (up to 6 lines) on a soft highlight (white 8%), with its buttons under it
+  on the right: the banner's own, then Reply for Messages or Open (white when it's the only one). Open opens it in its
+  app (the banner's own Show) and closes the panel so the app shows; Reply opens the conversation in the panel.
+  Clicking the open row again, or another row, closes it. The chevron,
   or the list emptying, goes back to the page it came from; a swipe up, a click outside or the pointer leaving for
   1 s close the panel as usual, and whatever is left stays in Notification Center.
 - **Two-finger swipe down** over a notification: opens the panel with the pill, like a click on the closed notch.
