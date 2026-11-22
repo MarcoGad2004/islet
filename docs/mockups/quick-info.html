@@ -54,12 +54,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 <div class="wrap">
   <header>
     <h1>Quick info on hover</h1>
-    <p>With nothing showing, hovering the notch opens it into your Wi-Fi network, Bluetooth device and battery instead of the small bounce. Click it and each piece glides to its place in the panel as the notch opens, all inside the black shape, even mid-animation.</p>
+    <p>With nothing showing, hovering the notch drops it into the volume wide bar with your Wi-Fi network, Bluetooth device and battery, instead of the small bounce. Click it and each piece glides to its place in the panel as the notch opens, all inside the black shape, even mid-animation.</p>
   </header>
 
   <div class="ctl">
     <div class="seg" role="group" aria-label="Layout">
-      <button data-lay="wings" aria-pressed="true">Wings (menu bar has room)</button>
+      <button data-lay="wings" aria-pressed="true">Wide bar (menu bar has room)</button>
       <button data-lay="chin" aria-pressed="false">Chin (no room)</button>
       <button data-lay="today" aria-pressed="false">Today: the bounce</button>
     </div>
@@ -91,6 +91,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
       <ul>
         <li><b>Wi-Fi</b>: the network's name, or the hotspot's with the hotspot icon. Not connected: a crossed-out Wi-Fi icon and "Not connected".</li>
         <li><b>Bluetooth</b>: the connected device (AirPods, a keyboard…). Nothing connected leaves it out, so the left wing is Wi-Fi alone.</li>
+        <li><b>Layout</b>: like volume, the icon in the left wing (Wi-Fi) and the number in the right (battery). The network on the left of the body under them, the Bluetooth device on the right.</li>
         <li><b>Battery</b>: the same pill as the panel's header, with the bolt while charging.</li>
         <li>Only when the notch has nothing else to show. Music, a notification, volume and the rest always win.</li>
       </ul>
@@ -98,7 +99,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
     <div class="note">
       <h4>The motion</h4>
       <ul>
-        <li>Hover: the notch springs out sideways to the panel's width (wings) or drops a chin, on the same spring as other wings, with the text fading in at ≈0.15 s.</li>
+        <li>Hover: the notch grows down into the wide bar volume uses (wings plus a 26 pt body), or drops a chin when the menu bar has no room, on the same spring as other wings, with the text fading in at ≈0.15 s.</li>
         <li>Click: the shape morphs into the panel while the Wi-Fi name, Bluetooth device and battery each glide on the same spring to their tile or header chip. The rest of the panel fades in behind them.</li>
         <li>The island clips everything, so a piece that would be outside the shape mid-morph is hidden rather than floating over the desktop.</li>
       </ul>
@@ -106,7 +107,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
     <div class="note">
       <h4>To decide</h4>
       <ol>
-        <li>Wings when the menu bar has room, falling back to the chin? Or always the chin?</li>
         <li>Should it show at once, or after resting on the notch for a moment (say 0.3 s) so passing the pointer across the top doesn't flash it?</li>
         <li>On by default? Its switch would sit in Settings &gt; Notch, and on the Islet page's feature list.</li>
       </ol>
@@ -137,7 +137,7 @@ const btName = () => S.bt === 'on' ? 'AirPods Pro' : 'On';
 function shape(kind) {
   if (kind === 'closed') return { w: NOTCH.w, h: NOTCH.h, r: 10 };
   if (kind === 'today') return { w: NOTCH.w + 16, h: NOTCH.h + 6, r: 14 };
-  if (kind === 'wings') return { w: 500, h: NOTCH.h, r: 12 }; // as wide as the panel, so opening only grows down
+  if (kind === 'wings') return { w: NOTCH.w + 120, h: NOTCH.h + 26, r: 18 }; // the volume wide bar
   if (kind === 'chin') return { w: 380, h: NOTCH.h + 40, r: 18 };
   return { w: 500, h: NOTCH.h + 216, r: 30 }; // the panel
 }
@@ -146,15 +146,16 @@ function shape(kind) {
 function layoutQuick() {
   const L = {};
   if (S.lay === 'wings') {
-    // Wi-Fi on the left wing; Bluetooth and the battery on the right.
-    const left = CX - 250 + 16, right = CX + NOTCH.w / 2 + 12;
-    L.wifiI = { x: left, y: 17, s: 20 };
-    L.wifiT = { x: left + 24, y: 17, f: 12.5, maxw: 116 };
+    // The volume wide bar: the Wi-Fi icon in the left wing and the battery in the right (like volume's icon and
+    // number), the network and the Bluetooth device in the short body below, 20 pt in from the sides.
+    const half = NOTCH.w / 2 + 60, by = NOTCH.h + 12;
+    L.wifiI = { x: CX - half + 30 - 12, y: 17, s: 24 };
+    L.batt = { x: CX + half - 30 - 25, y: 17, f: 11 };
+    L.wifiT = { x: CX - half + 20, y: by, f: 12, maxw: S.bt === 'on' ? 140 : 260 };
     if (S.bt === 'on') {
-      L.btI = { x: right, y: 17, s: 20 };
-      L.btT = { x: right + 22, y: 17, f: 12, maxw: 66 };
+      L.btI = { x: CX + half - 20 - 96 - 20, y: by, s: 16 };
+      L.btT = { x: CX + half - 20 - 96, y: by, f: 12, maxw: 96 };
     }
-    L.batt = { x: CX + 250 - 16 - 54, y: 17, f: 12 };
   } else {
     const y = NOTCH.h + 20, x0 = CX - 190 + 18;
     L.wifiI = { x: x0, y, s: 20 };
