@@ -1,0 +1,601 @@
+<title>Islet Features and Siri</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a System Settings–style window (sidebar + grouped form) on a quiet desktop, demo switches above, notes below. */
+:root {
+  --desk: #c9cdd6; --desk2: #aab3c2;
+  --win: #ececec; --side: #e3e2e7; --content: #f2f2f4; --group: #ffffff;
+  --line: rgba(0,0,0,.09); --fg: #1d1d1f; --fg2: #6e6e73; --fg3: #a1a1a6;
+  --sel: #0a63d6; --selfg: #fff; --hover: rgba(0,0,0,.05);
+  --blue: #0a7cff; --green: #28a745; --orange: #e8890c; --red: #e5423b;
+  --warnbg: #fff4e2; --warnline: #f3d39c; --okbg: #e9f7ec;
+  --ctl: #ffffff; --ctlline: rgba(0,0,0,.14); --toggleoff: #d6d6db;
+  --shadow: 0 30px 70px rgba(30,40,60,.28), 0 0 0 .5px rgba(0,0,0,.25);
+  --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --desk: #1b1d24; --desk2: #2b2f3b;
+  --win: #232325; --side: #2b2a2e; --content: #1e1e20; --group: #2c2c2e;
+  --line: rgba(255,255,255,.08); --fg: #f2f2f4; --fg2: #9a9aa0; --fg3: #6b6b70;
+  --sel: #0a5fd0; --hover: rgba(255,255,255,.06);
+  --warnbg: #3a2d16; --warnline: #6a4d1c; --okbg: #1d3322;
+  --ctl: #4a4a4e; --ctlline: rgba(255,255,255,.08); --toggleoff: #48484c;
+  --shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.15);
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --desk: #1b1d24; --desk2: #2b2f3b;
+  --win: #232325; --side: #2b2a2e; --content: #1e1e20; --group: #2c2c2e;
+  --line: rgba(255,255,255,.08); --fg: #f2f2f4; --fg2: #9a9aa0; --fg3: #6b6b70;
+  --sel: #0a5fd0; --hover: rgba(255,255,255,.06);
+  --warnbg: #3a2d16; --warnline: #6a4d1c; --okbg: #1d3322;
+  --ctl: #4a4a4e; --ctlline: rgba(255,255,255,.08); --toggleoff: #48484c;
+  --shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.15);
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: linear-gradient(160deg, var(--desk), var(--desk2)); color: var(--fg); font-family: var(--sys); font-size: 13px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; min-height: 100% }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px }
+header h1 { font-size: 22px; margin: 0 0 4px; text-wrap: balance; letter-spacing: -.01em }
+header p { margin: 0; color: var(--fg2); max-width: 62ch; line-height: 1.45 }
+.demo { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; color: var(--fg2); font-size: 12px }
+.seg { display: inline-flex; background: var(--hover); border-radius: 7px; padding: 2px; gap: 2px }
+.seg button { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 4px 11px; border-radius: 5px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--ctl); box-shadow: 0 1px 2px rgba(0,0,0,.15) }
+button:focus-visible, .nav:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+
+/* the window */
+.win { display: grid; grid-template-columns: 214px minmax(0, 1fr); height: 600px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); background: var(--win) }
+.side { background: var(--side); border-right: .5px solid var(--line); display: flex; flex-direction: column; min-height: 0 }
+.lights { display: flex; gap: 8px; padding: 14px 14px 10px }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.2) }
+.lights i:nth-child(2) { background: #febc2e } .lights i:nth-child(3) { background: #28c840 }
+.navs { overflow-y: auto; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 1px }
+.nav { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; color: var(--fg); border: 0; background: none; font: inherit; text-align: left; width: 100% }
+.nav:hover { background: var(--hover) }
+.nav[aria-current="page"] { background: var(--sel); color: var(--selfg) }
+.nav .lbl { flex: 1; min-width: 0 }
+.ico { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; flex: none; color: #fff }
+.ico svg { width: 13px; height: 13px }
+.badge { min-width: 17px; height: 17px; border-radius: 9px; background: var(--orange); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; padding: 0 5px }
+.nav[aria-current="page"] .badge { background: #fff; color: var(--orange) }
+.gap { height: 10px }
+.me { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; margin-bottom: 8px }
+.me .app { width: 34px; height: 34px; border-radius: 9px; background: #000; display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2) }
+.me .app span { width: 18px; height: 6px; border-radius: 4px; background: #fff }
+.me b { display: block; font-size: 13px }
+.me small { display: flex; gap: 5px; align-items: center; color: var(--fg2); font-size: 11px }
+.nav[aria-current="page"] small { color: rgba(255,255,255,.85) }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none }
+.dot.warn { background: var(--orange) }
+
+.main { background: var(--content); display: flex; flex-direction: column; min-width: 0; min-height: 0 }
+.bar { height: 44px; display: flex; align-items: center; padding: 0 20px; font-weight: 600; font-size: 14px; border-bottom: .5px solid var(--line); flex: none; gap: 8px }
+.page { overflow-y: auto; padding: 18px 22px 28px; display: flex; flex-direction: column; gap: 18px; min-height: 0 }
+
+/* grouped form */
+.sec { display: flex; flex-direction: column; gap: 6px }
+.sec > h3 { margin: 0 0 0 10px; font-size: 12px; font-weight: 600; color: var(--fg2) }
+.sec > .foot { margin: 0 10px; font-size: 11px; color: var(--fg2); line-height: 1.4 }
+.grp { background: var(--group); border-radius: 9px; border: .5px solid var(--line) }
+.row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; min-height: 38px }
+.row + .row { border-top: .5px solid var(--line) }
+.row .t { flex: 1; min-width: 0 }
+.row .t small { display: block; color: var(--fg2); font-size: 11px; margin-top: 2px; line-height: 1.35 }
+.row.sub { padding-left: 32px }
+.row.dim .t, .row.dim .tg { opacity: .45 }
+.val { color: var(--fg2) }
+.tg { width: 32px; height: 19px; border-radius: 10px; background: var(--toggleoff); position: relative; flex: none; border: 0; cursor: pointer; padding: 0 }
+.tg::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .18s }
+.tg.on { background: var(--blue) } .tg.on::after { left: 15px }
+.pop { border: .5px solid var(--ctlline); background: var(--ctl); color: var(--fg); border-radius: 6px; padding: 3px 24px 3px 9px; font: inherit; position: relative; white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.1) }
+.pop::after { content: "⌃⌄"; position: absolute; right: 7px; top: 50%; transform: translateY(-50%); font-size: 8px; line-height: .6; writing-mode: vertical-lr; color: var(--fg2) }
+.btn { border: .5px solid var(--ctlline); background: var(--ctl); color: var(--fg); border-radius: 6px; padding: 3px 11px; font: inherit; cursor: pointer; white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.1) }
+.btn.pri { background: var(--blue); color: #fff; border-color: transparent }
+.btn.danger { color: var(--red) }
+.segc { display: inline-flex; border: .5px solid var(--ctlline); border-radius: 6px; overflow: hidden; background: var(--ctl) }
+.segc span { padding: 3px 10px } .segc span.on { background: var(--blue); color: #fff }
+.kbd { font-family: var(--sys); background: var(--hover); border-radius: 4px; padding: 1px 6px; color: var(--fg) }
+
+/* status */
+.hero { display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 11px; border: .5px solid var(--line); background: var(--group) }
+.hero .big { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff }
+.hero .big svg { width: 24px; height: 24px }
+.hero h2 { margin: 0 0 3px; font-size: 16px }
+.hero p { margin: 0; color: var(--fg2); line-height: 1.4 }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }
+.tile { background: var(--group); border: .5px solid var(--line); border-radius: 9px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; text-align: left; font: inherit; color: var(--fg) }
+.tile:hover { border-color: var(--fg3) }
+.tile .h { display: flex; gap: 7px; align-items: center; font-weight: 600 }
+.tile .s { color: var(--fg2); font-size: 11px; display: flex; gap: 5px; align-items: center }
+.issue { display: flex; gap: 12px; align-items: flex-start; padding: 11px 12px; background: var(--warnbg); border: .5px solid var(--warnline); border-radius: 9px }
+.issue .w { color: var(--orange); flex: none; margin-top: 1px }
+.issue .w svg { width: 16px; height: 16px; display: block }
+.issue .t { flex: 1; min-width: 0; line-height: 1.4 }
+.issue .t b { display: block }
+.issue .t small { color: var(--fg2); font-size: 11.5px }
+.ok { display: flex; gap: 8px; align-items: center; color: var(--fg2) }
+.ok svg { width: 15px; height: 15px; color: var(--green); flex: none }
+details.more summary { cursor: pointer; color: var(--blue); list-style: none; margin-left: 10px; font-size: 12px }
+details.more summary::-webkit-details-marker { display: none }
+details.more[open] summary { margin-bottom: 6px }
+.slider { flex: 1; max-width: 220px; height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--blue) 45%, var(--toggleoff) 45%); position: relative }
+.slider::after { content: ""; position: absolute; left: calc(45% - 9px); top: -7px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35) }
+
+
+/* this mockup */
+.views { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; color: var(--fg2); font-size: 12px }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: var(--hover); color: var(--fg2); white-space: nowrap }
+.chip.ok { background: var(--okbg); color: var(--green) }
+.chip.need { background: var(--warnbg); color: var(--orange) }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px }
+.state { font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; color: var(--fg2); white-space: nowrap }
+.state .dot.off { background: var(--fg3) }
+
+/* setup window */
+.setup { width: 100%; max-width: 560px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); background: var(--content); display: flex; flex-direction: column; min-height: 640px }
+.setup .top { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0 }
+.setup .body { flex: 1; padding: 18px 32px 22px; display: flex; flex-direction: column; gap: 14px }
+.setup h2 { margin: 0; font-size: 22px; letter-spacing: -.01em; text-wrap: balance }
+.setup .sub { margin: 0; color: var(--fg2); line-height: 1.45 }
+.setup .foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: .5px solid var(--line) }
+.steps { display: flex; gap: 6px; flex: 1; justify-content: center }
+.steps i { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); opacity: .45 }
+.steps i.on { background: var(--blue); opacity: 1 }
+.pick { display: flex; gap: 12px; align-items: flex-start; padding: 11px 12px; cursor: pointer }
+.pick + .pick { border-top: .5px solid var(--line) }
+.pick .t { flex: 1; min-width: 0; line-height: 1.35 }
+.pick .t small { display: block; color: var(--fg2); font-size: 11.5px; margin-top: 2px }
+.pick.locked { cursor: default }
+.pick.child { padding-left: 44px }
+.pick.child.hide { display: none }
+.box { width: 18px; height: 18px; border-radius: 5px; border: .5px solid var(--ctlline); background: var(--ctl); flex: none; display: grid; place-items: center; margin-top: 1px; color: #fff; padding: 0; cursor: pointer }
+.box.on { background: var(--blue); border-color: transparent }
+.box svg { width: 11px; height: 11px; opacity: 0 } .box.on svg { opacity: 1 }
+.box[disabled] { opacity: .55; cursor: default }
+.need-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px }
+.need-row + .need-row { border-top: .5px solid var(--line) }
+.need-row .t { flex: 1; min-width: 0; line-height: 1.35 }
+.need-row .t small { display: block; color: var(--fg2); font-size: 11.5px; margin-top: 2px }
+.need-row .ic { width: 22px; flex: none; color: var(--fg2); display: grid; place-items: center; margin-top: 1px }
+.need-row .ic svg { width: 16px; height: 16px }
+.done-mark { color: var(--green); display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap }
+.done-mark svg { width: 15px; height: 15px }
+.quiet { color: var(--fg2); font-size: 12px; line-height: 1.45; margin: 0 }
+.link { color: var(--blue); background: none; border: 0; font: inherit; padding: 0; cursor: pointer }
+
+/* the search choice */
+.choice { display: flex; flex-direction: column; gap: 8px }
+.opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 10px; border: .5px solid var(--line); background: var(--group); cursor: pointer; text-align: left; font: inherit; color: var(--fg); width: 100% }
+.opt[aria-checked="true"] { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset }
+.radio { width: 16px; height: 16px; border-radius: 50%; border: .5px solid var(--ctlline); background: var(--ctl); flex: none; margin-top: 2px; position: relative }
+.opt[aria-checked="true"] .radio { background: var(--blue); border-color: transparent }
+.opt[aria-checked="true"] .radio::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: #fff }
+.opt .t { flex: 1; min-width: 0; line-height: 1.4 }
+.opt .t small { display: block; color: var(--fg2); font-size: 11.5px; margin-top: 2px }
+.keys { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px }
+.keys span { font-size: 11.5px; background: var(--hover); border-radius: 6px; padding: 3px 8px; color: var(--fg) }
+.keys span b { font-weight: 600 }
+.guide { display: flex; flex-direction: column; gap: 0; background: var(--group); border: .5px solid var(--line); border-radius: 10px }
+.gstep { display: flex; gap: 12px; align-items: center; padding: 10px 12px }
+.gstep + .gstep { border-top: .5px solid var(--line) }
+.gstep .n { width: 20px; height: 20px; border-radius: 50%; background: var(--hover); color: var(--fg2); font-size: 11px; font-weight: 600; display: grid; place-items: center; flex: none }
+.gstep.ok .n { background: var(--green); color: #fff }
+.gstep .t { flex: 1; min-width: 0; line-height: 1.4 }
+.gstep .t small { display: block; color: var(--fg2); font-size: 11.5px }
+.spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--fg3); border-top-color: transparent; animation: spin .9s linear infinite; flex: none }
+@keyframes spin { to { transform: rotate(360deg) } }
+.inline-pop { display: inline-block }
+
+/* the island */
+.desk { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); background: linear-gradient(170deg, #5a6e96, #2b3550 60%, #1b2235); min-height: 470px; position: relative; padding-top: 0 }
+.menubar { height: 30px; background: rgba(0,0,0,.18); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: rgba(255,255,255,.85); font-size: 12px }
+.island { position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: min(500px, calc(100% - 32px)); background: #000; color: #fff; border-radius: 0 0 30px 30px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.45) }
+.field { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px; margin-top: 30px; border-bottom: .5px solid rgba(255,255,255,.08); margin-inline: 0 }
+.field svg { width: 17px; height: 17px; color: rgba(255,255,255,.35); flex: none }
+.field input { flex: 1; min-width: 0; background: transparent; border: 0; color: #fff; font: 19px var(--sys); outline: none }
+.field input::placeholder { color: rgba(255,255,255,.3) }
+.res { padding: 6px 0 4px }
+.lab { font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,.35); letter-spacing: .06em; text-transform: uppercase; height: 22px; display: flex; align-items: flex-end; padding: 0 20px 3px }
+.r { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; margin: 0 8px; border-radius: 10px; font-size: 13px; color: rgba(255,255,255,.62) }
+.r.big { height: 52px }
+.r.sel { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12); color: #fff }
+.r .ri { width: 22px; height: 22px; border-radius: 6px; flex: none; display: grid; place-items: center }
+.r.big .ri { width: 32px; height: 32px; border-radius: 9px }
+.r .rt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.r .rt b { color: #fff; font-weight: 600; font-size: 15px; display: block }
+.r .rt small { color: rgba(255,255,255,.38); font-size: 11px }
+.siri { background: conic-gradient(from 200deg, #ff5fa2, #ffb340, #5ad6ff, #8a5cff, #ff5fa2) }
+.siri::after { content: ""; width: 42%; height: 42%; border-radius: 50%; background: rgba(0,0,0,.55); display: block }
+.ri.spot { background: #3b3b3f } .ri.web { background: #1f5fd6 } .ri.app { background: linear-gradient(#5ba3ff, #1e64f0) }
+.ri svg { width: 13px; height: 13px; color: #fff }
+.ifoot { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 10.5px; color: rgba(255,255,255,.38); background: linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,.08)) }
+.tries { display: flex; flex-wrap: wrap; gap: 6px; position: absolute; left: 0; right: 0; bottom: 14px; justify-content: center; padding: 0 16px }
+.tries button { border: 0; border-radius: 12px; padding: 4px 10px; background: rgba(255,255,255,.14); color: #fff; font: 12px var(--sys); cursor: pointer }
+
+/* notes */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.note { background: var(--content); border-radius: 10px; padding: 14px 16px; border: .5px solid var(--line); line-height: 1.5 }
+.note h4 { margin: 0 0 6px; font-size: 13px }
+.note ul, .note ol { margin: 0; padding-left: 18px; color: var(--fg2) }
+.note li + li { margin-top: 4px }
+.note b { color: var(--fg) }
+@media (max-width: 700px) {
+  .win { grid-template-columns: 1fr; height: auto }
+  .side { border-right: 0; border-bottom: .5px solid var(--line) }
+  .navs { flex-direction: row; overflow-x: auto; padding-bottom: 10px }
+  .navs .nav { width: auto; flex: none }
+  .navs .nav .lbl { white-space: nowrap }
+  .gap { display: none }
+  .me { flex: none }
+  .page { max-height: 640px }
+  .setup .body { padding: 16px 18px }
+}
+@media (prefers-reduced-motion: reduce) { .tg::after { transition: none } .spin { animation: none } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Pick your features</h1>
+    <p>You choose what Islet does, and it only asks for what those features need. Search gets a clear choice between taking over ⌘Space or leaving Spotlight and Siri where they are. Everything here is clickable, and the switches change what this Mac has allowed.</p>
+  </header>
+
+  <div class="views">
+    <div class="seg" role="group" aria-label="Which window">
+      <button data-view="setup" aria-pressed="true">Setup</button>
+      <button data-view="settings" aria-pressed="false">Settings</button>
+      <button data-view="island" aria-pressed="false">Search and Siri</button>
+    </div>
+    <span>This Mac:</span>
+    <div class="seg" role="group" aria-label="Permissions on this Mac">
+      <button data-mac="fresh" aria-pressed="true">Fresh install</button>
+      <button data-mac="fda" aria-pressed="false">Full Disk Access off</button>
+      <button data-mac="all" aria-pressed="false">Everything allowed</button>
+    </div>
+  </div>
+
+  <div id="v-setup"></div>
+  <div id="v-settings" hidden></div>
+  <div id="v-island" hidden></div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>Features first, then permissions</h4>
+      <ul>
+        <li><b>Setup starts with a checklist of features.</b> Each one says what it needs. Untick Notifications and Messages, and Full Disk Access, Contacts and Control Messages are never asked for.</li>
+        <li><b>The next step only lists what you picked</b>, grouped by feature, with each line ticking itself off as you allow it.</li>
+        <li><b>In Settings, the Islet page lists each feature with a switch and one state:</b> Ready, Off, or what it still needs. A feature that's off is never an issue and never gets a badge.</li>
+        <li><b>“Can use” permissions never nag.</b> Contacts for people in search, or Location for Wi-Fi names, show as a quiet “Allow to also…” line, not a warning.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>Search and Siri</h4>
+      <ul>
+        <li><b>Two plain choices:</b> “Use ⌘Space for Islet” (Spotlight moves to ⌥Space) or “Keep ⌘Space for Spotlight” (Islet uses another shortcut). The first walks you through the System Settings change and ticks it off when it sees it.</li>
+        <li><b>Siri:</b> apps can’t ask Siri directly, but Siri lives in Spotlight, and on your Mac Spotlight sends a typed question to Siri on Return. Islet does both: it opens Spotlight, types your question and presses Return, so Siri is already answering.</li>
+        <li><b>When Siri comes first:</b> text starting with “siri” (any case; the word itself is dropped), a question (what, how, when, why, who, can, should, is…, or ending in “?”), or nothing Islet can find. Otherwise “Ask Siri” waits in More, next to Spotlight and the web.</li>
+        <li>Needs Accessibility, to type into Spotlight. Without it, Ask Siri isn’t offered.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>To decide</h4>
+      <ol>
+        <li>Should the setup checklist start with everything ticked, or with only the island ticked?</li>
+        <li>Should Settings hide the pages of features that are off, or show them dimmed with a switch at the top, as here?</li>
+        <li>Should a question Islet can’t answer go to Siri on Return, or should Return still open the top app or file when there is one? Here, a question always goes to Siri first.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const svg = {
+  check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+  checkc: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7.5" fill="currentColor"/><path d="M4.6 8.3l2.3 2.3 4.5-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warn: '<svg viewBox="0 0 16 16"><path d="M8 1.5l7 12.5H1z" fill="currentColor"/><path d="M8 6v4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12" r=".9" fill="#fff"/></svg>',
+  mag: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg>',
+  globe: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"/></svg>',
+  key: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="8" r="3"/><path d="M8 8h6.5M12 8v2.5M14 8v2"/></svg>',
+  lock: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>',
+  person: '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14.5c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5z"/></svg>',
+  disk: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"/><circle cx="11" cy="10" r=".8" fill="currentColor"/></svg>',
+  cam: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="4.5" width="9" height="7" rx="1.5"/><path d="M10.5 7l4-2v6l-4-2"/></svg>',
+  msg: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7.5C2 4.7 4.7 2.5 8 2.5s6 2.2 6 5-2.7 5-6 5c-.8 0-1.5-.1-2.2-.3L3 13.5l.7-2.4C2.6 10.1 2 8.9 2 7.5z"/></svg>',
+  loc: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 2L2 7.2l5.2 1.6L8.8 14z"/></svg>',
+  hand: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 8V3.5a1 1 0 012 0V7M7 6.5v-4a1 1 0 012 0V7M9 7V3.5a1 1 0 012 0V9M5 8.5l-.8-1a1 1 0 00-1.6 1.2l2.4 3.6C6 13.6 7.2 14.5 9 14.5c2 0 3-1.5 3-3.5V5.5a1 1 0 00-2 0"/></svg>',
+};
+
+// What Islet asks for, and what each is for.
+const PERMS = {
+  ax:   { name: 'Accessibility', icon: 'hand', how: 'Opens System Settings. Switch Islet on, then come back.' },
+  fda:  { name: 'Full Disk Access', icon: 'disk', how: 'Opens System Settings. Switch Islet on; Islet restarts itself.' },
+  con:  { name: 'Contacts', icon: 'person', how: 'macOS asks right here.' },
+  auto: { name: 'Control Messages', icon: 'msg', how: 'Messages opens in the background and macOS asks.' },
+  loc:  { name: 'Location', icon: 'loc', how: 'macOS asks right here. Your location is never used.' },
+  cam:  { name: 'Camera', icon: 'cam', how: 'macOS asks right here.' },
+  pw:   { name: 'Login password', icon: 'key', how: 'Checked against your account, then kept in this Mac’s Keychain.' },
+};
+
+// Features: needs are asked for; "can use" ones are offered quietly and never become an issue.
+const FEATURES = [
+  { id: 'island', name: 'The island', desc: 'Now playing, charging and battery, and Wi-Fi, Bluetooth and AirDrop in the open panel.', locked: true,
+    needs: [], can: [['loc', 'show the names of nearby Wi-Fi networks'], ['ax', 'use the wider layout when the menu bar has room']] },
+  { id: 'levels', name: 'Volume and brightness', desc: 'The keys show their level in the notch instead of the middle of the screen.', needs: ['ax'], can: [] },
+  { id: 'notif', name: 'Notifications', desc: 'Banners come out of the notch instead of the top-right corner.', needs: ['ax'], can: [['con', 'show names instead of numbers']] },
+  { id: 'msgs', name: 'Messages', parent: 'notif', desc: 'Click a message to read the conversation and reply from the notch.', needs: ['fda', 'con', 'auto'], can: [] },
+  { id: 'focus', name: 'Focus', desc: 'Shows which Focus is on when it changes.', needs: ['fda'], can: [] },
+  { id: 'search', name: 'Search', desc: 'Apps, files, people, Shortcuts and settings from the notch, and questions handed to Siri.', needs: [],
+    can: [['con', 'find people'], ['ax', 'hand questions to Siri and searches to Spotlight']] },
+  { id: 'face', name: 'Face Unlock', desc: 'Unlocks the lock screen when it sees you. Weaker than Touch ID.', needs: ['cam', 'ax', 'pw'], can: [] },
+];
+const F = Object.fromEntries(FEATURES.map(f => [f.id, f]));
+
+const S = {
+  view: 'setup', mac: 'fresh', step: 1, page: 'status',
+  on: new Set(['island', 'levels', 'notif', 'msgs', 'focus', 'search']),
+  allowed: new Set(),
+  mode: 'islet',            // 'islet' = ⌘Space for Islet, 'spotlight' = keep ⌘Space for Spotlight
+  islKey: '⌥Space',
+  spotMoved: false,         // Spotlight's own shortcut moved off ⌘Space
+  query: 'what’s the weather this weekend',
+};
+function setMac(m) {
+  S.mac = m;
+  S.allowed = new Set(m === 'all' ? Object.keys(PERMS) : m === 'fda' ? ['ax', 'con', 'auto', 'loc', 'cam', 'pw'] : []);
+  S.spotMoved = m !== 'fresh';
+  if (m !== 'fresh') S.on.add('face');
+}
+const active = f => S.on.has(f.id) && (!f.parent || S.on.has(f.parent));
+const missing = f => f.needs.filter(p => !S.allowed.has(p));
+const searchIssue = () => S.on.has('search') && S.mode === 'islet' && !S.spotMoved;
+function issues() {
+  const out = [];
+  const seen = new Map();
+  FEATURES.filter(active).forEach(f => missing(f).forEach(p => {
+    if (!seen.has(p)) { seen.set(p, []); }
+    seen.get(p).push(f.name);
+  }));
+  seen.forEach((fs, p) => out.push({ p, title: PERMS[p].name + (p === 'pw' ? ' isn’t stored' : ' is off'), detail: fs.join(', ') + (fs.length > 1 ? ' don’t work' : ' doesn’t work') + ' without it.', pages: fs }));
+  if (searchIssue()) out.push({ p: 'spot', title: 'Spotlight still uses ⌘Space', detail: 'Search opens once Spotlight moves to another shortcut, or keep ⌘Space for Spotlight and give Islet ⌥Space.', pages: ['Search'] });
+  return out;
+}
+function featureState(f) {
+  if (!active(f)) return { dot: 'off', text: f.parent && !S.on.has(f.parent) ? 'Off with Notifications' : 'Off' };
+  const m = missing(f);
+  if (f.id === 'search' && searchIssue()) return { dot: 'warn', text: 'Needs Spotlight’s shortcut moved' };
+  if (m.length) return { dot: 'warn', text: 'Needs ' + m.map(p => PERMS[p].name).join(', ') };
+  if (f.id === 'search') return { dot: '', text: 'Ready on ' + (S.mode === 'islet' ? '⌘Space' : S.islKey) };
+  return { dot: '', text: 'Ready' };
+}
+const allow = p => { S.allowed.add(p); render(); };
+const toggle = id => { S.on.has(id) ? S.on.delete(id) : S.on.add(id); render(); };
+
+// ---------- Setup ----------
+const STEPS = ['Welcome', 'Choose', 'Set up', 'Search', 'Done'];
+function setupView() {
+  const st = S.step;
+  let body = '';
+  if (st === 0) body = `<div style="flex:1;display:grid;place-items:center;text-align:center"><div style="display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div class="app" style="width:96px;height:96px;border-radius:22px;background:#000;display:grid;place-items:center"><span style="width:46px;height:14px;border-radius:8px;background:#fff"></span></div>
+      <h2>Welcome to Islet</h2><p class="sub" style="max-width:40ch">Your MacBook’s notch becomes a live island. Pick what you want it to do, and Islet asks only for what that needs.</p></div></div>`;
+  if (st === 1) body = `<h2>What should Islet do?</h2><p class="sub">Pick what you want. You can change this any time in Settings, and Islet only asks for permissions the ticked ones need.</p>
+      <div class="grp">${FEATURES.map(f => {
+        const on = S.on.has(f.id), hide = f.parent && !S.on.has(f.parent);
+        const chips = f.needs.length ? f.needs.map(p => `<span class="chip">${PERMS[p].name}</span>`).join('') : '<span class="chip ok">Needs nothing</span>';
+        return `<div class="pick ${f.locked ? 'locked' : ''} ${f.parent ? 'child' : ''} ${hide ? 'hide' : ''}" data-pick="${f.id}">
+          <button class="box ${on ? 'on' : ''}" ${f.locked ? 'disabled' : ''} aria-pressed="${on}" aria-label="${f.name}">${svg.check}</button>
+          <div class="t"><b>${f.name}</b>${f.locked ? ' <span class="chip">Always on</span>' : ''}<small>${f.desc}</small><div class="chips">${chips}</div></div></div>`;
+      }).join('')}</div>`;
+  if (st === 2) {
+    const chosen = FEATURES.filter(active).filter(f => f.needs.length);
+    const totalMissing = new Set(chosen.flatMap(missing));
+    body = `<h2>${totalMissing.size ? 'Allow what you picked' : 'Everything you picked is ready'}</h2>
+      <p class="sub">${totalMissing.size ? 'Only what your features need. Each line ticks itself off once it’s allowed.' : 'Nothing else to allow. Carry on to search.'}</p>
+      ${chosen.length ? '' : '<p class="quiet">The features you picked don’t need any permissions.</p>'}
+      ${chosen.map(f => `<div class="sec"><h3>${f.name}</h3><div class="grp">${f.needs.map(p => {
+          const ok = S.allowed.has(p), shared = chosen.filter(g => g !== f && g.needs.includes(p) && chosen.indexOf(g) < chosen.indexOf(f));
+          return `<div class="need-row"><span class="ic">${svg[PERMS[p].icon]}</span><div class="t">${PERMS[p].name}<small>${shared.length ? 'Already asked for ' + shared[0].name + '.' : PERMS[p].how}</small></div>
+            ${ok ? `<span class="done-mark">${svg.checkc} Allowed</span>` : shared.length ? '<span class="state">Above</span>' : `<button class="btn" data-allow="${p}">${p === 'pw' ? 'Enter…' : 'Allow…'}</button>`}</div>`;
+        }).join('')}</div></div>`).join('')}
+      ${canUse()}`;
+  }
+  if (st === 3) body = S.on.has('search') ? `<h2>How do you want to open search?</h2>
+      <p class="sub">Spotlight, and Siri inside it, use ⌘Space. Islet can take it over, or leave it alone and use another shortcut.</p>
+      ${searchChoice(true)}` :
+      `<h2>Search is off</h2><p class="sub">You didn’t tick Search, so Spotlight keeps ⌘Space and nothing changes. Turn it on any time in Settings &gt; Search.</p>`;
+  if (st === 4) body = `<div style="display:flex;flex-direction:column;gap:12px;margin-top:20px">
+      <span style="color:var(--green)">${svg.checkc.replace('<svg', '<svg width="48" height="48"')}</span><h2>You’re set</h2>
+      <div class="grp">${FEATURES.filter(active).map(f => { const s = featureState(f); return `<div class="row"><span class="t">${f.name}</span><span class="state"><i class="dot ${s.dot === 'warn' ? 'warn' : ''}"></i>${s.text}</span></div>`; }).join('')}</div>
+      <p class="quiet">${issues().length ? 'Anything still missing waits in Settings, on the Islet page.' : 'Hover the notch and it bubbles out. Click it to open the panel.'}</p></div>`;
+  const next = st === 0 ? 'Get started' : st === 4 ? 'Finish' : st === 2 && issues().some(i => i.p !== 'spot') ? 'Skip for now' : 'Continue';
+  return `<div class="setup">
+    <div class="top"><div class="lights"><i></i><i></i><i></i></div></div>
+    <div class="body">${body}</div>
+    <div class="foot">${st ? '<button class="btn" data-step="-1">Back</button>' : '<span style="width:52px"></span>'}
+      <div class="steps">${STEPS.map((s, i) => `<i class="${i === st ? 'on' : ''}" title="${s}"></i>`).join('')}</div>
+      <button class="btn pri" data-step="1">${next}</button></div></div>`;
+}
+function canUse() {
+  const offers = [];
+  FEATURES.filter(active).forEach(f => f.can.forEach(([p, why]) => { if (!S.allowed.has(p) && !offers.some(o => o.p === p && o.f === f)) offers.push({ p, why, f }); }));
+  if (!offers.length) return '';
+  return `<div class="sec"><h3>Optional</h3><div class="grp">${offers.map(o => `<div class="need-row"><span class="ic">${svg[PERMS[o.p].icon]}</span>
+      <div class="t">${PERMS[o.p].name}<small>${o.f.name}: allow it to ${o.why}. Fine without it.</small></div><button class="link" data-allow="${o.p}">Allow…</button></div>`).join('')}</div></div>`;
+}
+function searchChoice(inSetup) {
+  const islet = S.mode === 'islet';
+  const guide = islet ? `<div class="guide">
+      <div class="gstep ${S.spotMoved ? 'ok' : ''}"><span class="n">${S.spotMoved ? svg.check.replace('<svg', '<svg width="11" height="11"') : '1'}</span>
+        <div class="t">${S.spotMoved ? 'Spotlight now uses ⌥Space' : 'Move Spotlight to ⌥Space'}<small>${S.spotMoved ? '⌘Space opens Islet. Siri is still in Spotlight on ⌥Space.' : 'In Keyboard Shortcuts &gt; Spotlight, double-click “Show Spotlight search” and press ⌥Space.'}</small></div>
+        ${S.spotMoved ? '' : '<button class="btn" data-open-ks>Open Keyboard Shortcuts…</button>'}</div>
+      ${S.spotMoved ? '' : `<div class="gstep"><span class="spin" aria-hidden="true"></span><div class="t">Waiting for Spotlight to let go of ⌘Space<small>This ticks itself off when it sees the change. <button class="link" data-sim>Pretend I changed it</button></small></div></div>`}
+    </div>` : `<div class="guide"><div class="gstep ok"><span class="n">${svg.check.replace('<svg', '<svg width="11" height="11"')}</span>
+      <div class="t">Nothing to change in System Settings<small>⌘Space stays Spotlight, with Siri. ${S.islKey} opens Islet.</small></div></div></div>`;
+  return `<div class="choice" role="radiogroup" aria-label="Search shortcut">
+      <button class="opt" role="radio" aria-checked="${islet}" data-mode="islet"><span class="radio"></span><span class="t"><b>Use ⌘Space for Islet</b>
+        <small>Islet’s search replaces Spotlight on ⌘Space. Spotlight and Siri move to ⌥Space.</small>
+        <span class="keys"><span><b>⌘Space</b> Islet</span><span><b>⌥Space</b> Spotlight and Siri</span></span></span></button>
+      <button class="opt" role="radio" aria-checked="${!islet}" data-mode="spotlight"><span class="radio"></span><span class="t"><b>Keep ⌘Space for Spotlight</b>
+        <small>Nothing in System Settings changes. Pick another shortcut for Islet.</small>
+        <span class="keys"><span><b>⌘Space</b> Spotlight and Siri</span><span><b>${S.islKey}</b> Islet</span>${!islet ? `<span class="pop" style="padding-block:1px">${S.islKey}</span>` : ''}</span></span></button>
+    </div>${guide}
+    <p class="quiet">Ask Siri: type a question into Islet’s search and pick Ask Siri. Islet opens Spotlight with it typed in${S.allowed.has('ax') ? '.' : ', once Accessibility is allowed.'}</p>`;
+}
+
+// ---------- Settings ----------
+const PAGES = [
+  { id: 'general', name: 'General', color: '#8e8e93' },
+  { id: 'notch', name: 'Notch', color: '#2a2a2c' },
+  { id: 'levels', name: 'Volume and Brightness', color: '#5856d6', f: 'levels' },
+  { id: 'notif', name: 'Notifications', color: '#e5423b', f: 'notif' },
+  { id: 'search', name: 'Search', color: '#0a7cff', f: 'search' },
+  { id: 'battery', name: 'Battery', color: '#28a745' },
+  { id: 'face', name: 'Face Unlock', color: '#1aa7a1', f: 'face' },
+];
+function settingsView() {
+  const is = issues();
+  const badge = pg => {
+    if (!pg.f) return 0;
+    const fs = FEATURES.filter(f => f.id === pg.f || f.parent === pg.f).filter(active);
+    let n = new Set(fs.flatMap(missing)).size;
+    if (pg.f === 'search' && searchIssue()) n++;
+    return n;
+  };
+  const nav = p => {
+    const n = badge(p), off = p.f && !S.on.has(p.f);
+    return `<button class="nav" data-page="${p.id}" ${S.page === p.id ? 'aria-current="page"' : ''}><span class="ico" style="background:${p.color}"></span><span class="lbl">${p.name}</span>${n ? `<span class="badge">${n}</span>` : off ? '<span class="state" style="color:inherit;opacity:.6">Off</span>' : ''}</button>`;
+  };
+  const permBadge = is.filter(i => i.p !== 'spot').length;
+  const side = `<button class="nav me" data-page="status" ${S.page === 'status' ? 'aria-current="page"' : ''}><span class="app"><span></span></span><span><b>Islet 1.4</b><small><i class="dot ${is.length ? 'warn' : ''}"></i>${is.length ? is.length + (is.length > 1 ? ' things need' : ' thing needs') + ' attention' : 'Everything is set up'}</small></span></button>
+    ${PAGES.map(nav).join('')}<div class="gap"></div>
+    <button class="nav" data-page="perms" ${S.page === 'perms' ? 'aria-current="page"' : ''}><span class="ico" style="background:#5e5ce6"></span><span class="lbl">Permissions</span>${permBadge ? `<span class="badge">${permBadge}</span>` : ''}</button>
+    <button class="nav" data-page="updates" ${S.page === 'updates' ? 'aria-current="page"' : ''}><span class="ico" style="background:#8e8e93"></span><span class="lbl">Updates</span></button>`;
+  const titles = { status: 'Islet', perms: 'Permissions', updates: 'Updates' };
+  PAGES.forEach(p => titles[p.id] = p.name);
+  return `<div class="win"><aside class="side"><div class="lights"><i></i><i></i><i></i></div><nav class="navs">${side}</nav></aside>
+    <section class="main"><div class="bar">${titles[S.page]}</div><div class="page">${pageBody(is)}</div></section></div>`;
+}
+function issueRow(i) {
+  const act = i.p === 'spot' ? '<button class="btn" data-mode="spotlight">Keep ⌘Space for Spotlight</button><button class="btn" data-open-ks>Keyboard Shortcuts…</button>'
+    : `<button class="btn" data-allow="${i.p}">${i.p === 'pw' ? 'Enter…' : 'Allow…'}</button>`;
+  return `<div class="issue"><span class="w">${svg.warn}</span><span class="t"><b>${i.title}</b><small>${i.detail}</small></span><span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${act}</span></div>`;
+}
+function pageBody(is) {
+  const pg = S.page;
+  if (pg === 'status') {
+    return `<div class="hero"><span class="big" style="background:${is.length ? 'var(--orange)' : 'var(--green)'}">${is.length ? svg.warn : svg.check}</span>
+        <span><h2>${is.length ? is.length + (is.length > 1 ? ' things need attention' : ' thing needs attention') : 'Everything is set up'}</h2>
+        <p>${is.length ? 'Only for features you have on. Each says what it affects.' : 'Every feature you have on has what it needs.'}</p></span></div>
+      ${is.length ? `<div class="sec"><h3>To fix</h3>${is.map(issueRow).join('')}</div>` : ''}
+      <div class="sec"><h3>Features</h3><div class="grp">${FEATURES.map(f => {
+        const s = featureState(f), on = S.on.has(f.id), hide = f.parent && !S.on.has(f.parent);
+        return hide ? '' : `<div class="row ${f.parent ? 'sub' : ''}"><span class="t">${f.name}<small>${f.desc}</small></span>
+          <span class="state"><i class="dot ${s.dot}"></i>${s.text}</span>${f.locked ? '' : `<button class="tg ${on ? 'on' : ''}" data-toggle="${f.id}" aria-pressed="${on}" aria-label="${f.name}"></button>`}</div>`;
+      }).join('')}</div><p class="foot">Turning a feature off stops Islet asking for what only it needs.</p></div>`;
+  }
+  if (pg === 'perms') {
+    const used = {}, canBy = {};
+    FEATURES.filter(active).forEach(f => { f.needs.forEach(p => (used[p] = used[p] || []).push(f.name)); f.can.forEach(([p]) => (canBy[p] = canBy[p] || []).push(f.name)); });
+    const rows = Object.keys(PERMS).filter(p => used[p]);
+    const quiet = Object.keys(PERMS).filter(p => !used[p]);
+    const mine = is.filter(i => i.p !== 'spot');
+    return `${mine.length ? `<div class="sec">${mine.map(issueRow).join('')}</div>` : `<div class="hero"><span class="big" style="background:var(--green)">${svg.check}</span><span><h2>Your features have what they need</h2><p>Islet only lists what the features you have on use.</p></span></div>`}
+      <div class="sec"><h3>Used by your features</h3><div class="grp">${rows.map(p => `<div class="row"><span class="t">${PERMS[p].name}<small>${used[p].join(', ')}</small></span>${S.allowed.has(p) ? '<span class="val">Allowed</span>' : `<button class="btn" data-allow="${p}">${p === 'pw' ? 'Enter…' : 'Allow…'}</button>`}</div>`).join('') || '<div class="row"><span class="t">None</span></div>'}</div></div>
+      ${quiet.length ? `<div class="sec"><h3>Not needed</h3><div class="grp">${quiet.map(p => `<div class="row dim"><span class="t">${PERMS[p].name}<small>${canBy[p] ? 'Optional for ' + canBy[p].join(', ') : 'Nothing you have on uses it'}</small></span><span class="val">${S.allowed.has(p) ? 'Allowed' : 'Off'}</span></div>`).join('')}</div>
+        <p class="foot">Never shown as a problem. Allowed ones can be switched off in System Settings &gt; Privacy &amp; Security.</p></div>` : ''}`;
+  }
+  const p = PAGES.find(x => x.id === pg);
+  if (!p.f) return `<div class="sec"><div class="grp"><div class="row"><span class="t">Same as today</span></div></div><p class="foot">Unchanged by this mockup.</p></div>`;
+  const f = F[p.f], on = S.on.has(f.id), here = is.filter(i => i.pages.includes(f.name) || (f.id === 'notif' && i.pages.includes('Messages')));
+  const top = `<div class="sec"><div class="grp"><div class="row"><span class="t"><b>${f.name}</b><small>${f.desc}</small></span><button class="tg ${on ? 'on' : ''}" data-toggle="${f.id}" aria-pressed="${on}" aria-label="${f.name}"></button></div>
+    ${on ? needsRow(f) : ''}</div></div>`;
+  if (!on) return top + `<p class="quiet" style="margin-left:10px">Off. Islet doesn’t ask for anything this needs${f.needs.length ? ' (' + f.needs.map(x => PERMS[x].name).join(', ') + ')' : ''}.</p>`;
+  let rest = '';
+  if (f.id === 'notif') {
+    const m = F.msgs, mon = S.on.has('msgs');
+    rest = `<div class="sec"><h3>Messages</h3><div class="grp"><div class="row"><span class="t">Open conversations in the notch<small>${m.desc}</small></span><button class="tg ${mon ? 'on' : ''}" data-toggle="msgs" aria-pressed="${mon}" aria-label="Messages"></button></div>${mon ? needsRow(m) : ''}</div></div>
+      <div class="sec"><div class="grp"><div class="row"><span class="t">Hide message text</span><button class="tg" aria-label="Hide message text"></button></div></div></div>`;
+  }
+  if (f.id === 'search') {
+    rest = `<div class="sec"><h3>Shortcut</h3>${searchChoice(false)}</div>
+      <div class="sec"><h3>Results</h3><div class="grp">
+        <div class="row"><span class="t">Ask Siri<small>Questions get “Ask Siri” at the top. It opens Spotlight with the question typed in.</small></span><button class="tg on" aria-pressed="true" aria-label="Ask Siri"></button></div>
+        <div class="row"><span class="t">Search the web with</span><span class="pop">Google</span></div></div></div>`;
+  }
+  return top + (here.length ? `<div class="sec">${here.map(issueRow).join('')}</div>` : '') + rest;
+}
+function needsRow(f) {
+  const parts = f.needs.map(p => `<span class="chip ${S.allowed.has(p) ? 'ok' : 'need'}">${S.allowed.has(p) ? '✓ ' : ''}${PERMS[p].name}</span>`);
+  const can = f.can.filter(([p]) => !S.allowed.has(p)).map(([p, why]) => `<button class="link" data-allow="${p}" style="font-size:11.5px">Allow ${PERMS[p].name} to ${why}</button>`);
+  if (!parts.length && !can.length) return `<div class="row"><span class="t"><small style="margin:0">Needs nothing.</small></span></div>`;
+  return `<div class="row"><span class="t">${parts.length ? `<span class="chips" style="margin:0">${parts.join('')}</span>` : '<small style="margin:0">Needs nothing.</small>'}${can.length ? `<small style="margin-top:6px">Optional: ${can.join(' · ')}</small>` : ''}</span></div>`;
+}
+
+// ---------- Search and Siri ----------
+const isQuestion = t => /\?\s*$/.test(t) || /^(what|what’s|whats|how|when|why|who|where|which|can|should|is|are|do|does|will|tell me)\b/i.test(t.trim());
+function islandView() {
+  const raw = S.query.trim();
+  const prefixed = /^siri\b[\s,:]*/i.test(raw);
+  const q = prefixed ? raw.replace(/^siri\b[\s,:]*/i, '') : raw;
+  const siriRow = (sel, big) => `<div class="r ${big ? 'big' : ''} ${sel ? 'sel' : ''}"><span class="ri siri"></span><span class="rt">${big ? `<b>Ask Siri</b><small>${q ? '“' + q + '”' : 'Type what to ask'} · answers in Spotlight</small>` : `Ask Siri “${q}”`}</span></div>`;
+  let res = '';
+  if (prefixed) {
+    res = `<div class="lab">Siri</div>${siriRow(true, true)}`;
+  } else if (q) {
+    const apps0 = [['Weather'], ['Safari'], ['Notes'], ['Calendar'], ['Music']].filter(([n]) => n.toLowerCase().startsWith(q.toLowerCase().slice(0, 3)));
+    const question = isQuestion(q) || !apps0.length;
+    const apps = [['Weather', 'weather'], ['Safari', 'safari'], ['Notes', 'notes'], ['Calendar', 'cal'], ['Music', 'music']].filter(([n]) => n.toLowerCase().startsWith(q.toLowerCase().slice(0, 3)));
+    if (question) res += `<div class="lab">Siri</div>${siriRow(true, true)}`;
+    else if (apps.length) res += `<div class="lab">Top hit</div><div class="r big sel"><span class="ri app">${svg.globe}</span><span class="rt"><b>${apps[0][0]}</b><small>Application</small></span></div>`;
+    if (!question && !apps.length) res += `<div style="padding:10px 20px;font-size:13px;color:rgba(255,255,255,.55)">No results for “${q}”</div>`;
+    res += `<div class="lab">More</div>
+      ${question ? '' : siriRow(!apps.length, false)}
+      <div class="r"><span class="ri spot">${svg.mag}</span><span class="rt">Search “${q}” in Spotlight</span></div>
+      <div class="r"><span class="ri web">${svg.globe}</span><span class="rt">Search the web for “${q}”</span></div>`;
+  }
+  const foot = prefixed ? (q ? '↩ Ask Siri' : 'Type what to ask Siri') : q ? (isQuestion(q) || !res.includes('Top hit') ? '↩ Ask Siri' : '↩ Open') : 'Type to search apps, files, people, Shortcuts and settings, or ask Siri';
+  return `<div class="desk"><div class="menubar"><span>Finder</span><span>Fri 21 Nov 9:41</span></div>
+    <div class="island"><div class="field">${svg.mag}<input id="q" value="${q.replace(/"/g, '&quot;')}" placeholder="Search" aria-label="Search"></div>
+      <div class="res">${res}</div><div class="ifoot"><span>${foot}</span><span>esc Clear</span></div></div>
+    <div class="tries"><span style="color:rgba(255,255,255,.6);font-size:12px;align-self:center">Try:</span>
+      ${['siri set a timer for 10 minutes', 'what’s the weather this weekend', 'weather', 'best pizza near me'].map(t => `<button data-try="${t}">${t}</button>`).join('')}</div></div>`;
+}
+
+// ---------- wiring ----------
+function render() {
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === S.view));
+  document.querySelectorAll('[data-mac]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mac === S.mac));
+  ['setup', 'settings', 'island'].forEach(v => $('#v-' + v).hidden = v !== S.view);
+  if (S.view === 'setup') $('#v-setup').innerHTML = setupView();
+  if (S.view === 'settings') $('#v-settings').innerHTML = settingsView();
+  if (S.view === 'island') {
+    const had = document.activeElement && document.activeElement.id === 'q';
+    $('#v-island').innerHTML = islandView();
+    if (had) { const i = $('#q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  }
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, .pick');
+  if (!t) return;
+  if (t.dataset.view) { S.view = t.dataset.view; }
+  else if (t.dataset.mac) { setMac(t.dataset.mac); }
+  else if (t.dataset.step) { S.step = Math.max(0, Math.min(4, S.step + +t.dataset.step)); }
+  else if (t.dataset.allow) { S.allowed.add(t.dataset.allow); }
+  else if (t.dataset.toggle) { toggle(t.dataset.toggle); return; }
+  else if (t.dataset.mode) { S.mode = t.dataset.mode; }
+  else if ('sim' in t.dataset) { S.spotMoved = true; }
+  else if ('openKs' in t.dataset) { return; }
+  else if (t.dataset.page) { S.page = t.dataset.page; }
+  else if (t.dataset.try) { S.query = t.dataset.try; }
+  else if (t.dataset.pick || t.closest('[data-pick]')) {
+    const id = (t.dataset.pick ? t : t.closest('[data-pick]')).dataset.pick;
+    if (F[id].locked) return;
+    toggle(id); return;
+  } else return;
+  render();
+});
+document.addEventListener('input', e => { if (e.target.id === 'q') { S.query = e.target.value; render(); } });
+setMac('fresh');
+render();
+</script>
