@@ -265,7 +265,7 @@ struct KeyPress {
     /// The field being typed in has text selected (⌘C copies that, not the selected result).
     let fieldHasSelection: Bool
 
-    static let returnKey: UInt16 = 36, tab: UInt16 = 48, delete: UInt16 = 51, escape: UInt16 = 53, enter: UInt16 = 76
+    static let returnKey: UInt16 = 36, tab: UInt16 = 48, space: UInt16 = 49, delete: UInt16 = 51, escape: UInt16 = 53, enter: UInt16 = 76
     static let left: UInt16 = 123, right: UInt16 = 124, down: UInt16 = 125, up: UInt16 = 126
 
     @MainActor init(_ e: NSEvent) {

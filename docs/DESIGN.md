@@ -503,9 +503,15 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
   arrow. Then the latest 50 messages, newest at the bottom: theirs on `#2C2C2E`, yours blue `#0A84FF` (iMessage) or green
   (SMS / RCS), 13 pt in 16 pt-round bubbles up to 300 wide; a time between messages more than an hour apart (10,
   `tertiary`); in groups the sender's name over their first message in a run. Photos and other attachments show as a
-  grey "Photo" / "Attachment" bubble. Reactions and edits are left out. Under your last message: "Sending…", then
-  "Delivered" or, in red, "Not delivered".
-- **Reply field**: a 32 pt pill ("iMessage" / "Text Message" placeholder) with a round send button (grey until there's
+  grey "Photo" / "Attachment" bubble. Edits are left out. Tapbacks sit on the bubble's top corner like Messages (one of
+  each emoji in a small dark pill, yours on a blue circle). Under your last message: "Sending…", then "Delivered",
+  "Read 2:31 PM" (or "Read Yesterday", a weekday, a date) when they share read receipts, or, in red, "Not delivered".
+- **Right-click a message**: the six tapbacks (yours ticked; choosing it again takes it off), "Other Emoji in
+  Messages…" (opens that message's menu in Messages, which stays in front) and Copy. A tapback is sent by pressing
+  Messages' own button (RESEARCH.md Q57): Messages comes forward for a moment and the app you were in comes back.
+  Needs Accessibility; a group has to be open in Messages already.
+- **Reply field**: a round smiley button on its left opens Emoji & Symbols (as does ⌃⌘Space), then a 32 pt pill
+  ("iMessage" / "Text Message" placeholder) with a round send button (grey until there's
   text). It has the cursor when the page opens. Return sends (through Messages); Esc closes the page.
 - **Live**: new messages in the conversation appear as they arrive (Islet watches Messages' database while the page is
   open). A notification for the open conversation doesn't show again; others go to the system banner while it's open.

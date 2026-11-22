@@ -84,8 +84,8 @@ struct ConversationView: View {
                             Text(sender).font(.system(size: 10)).foregroundStyle(Color.isletTertiary).padding(.horizontal, 12).padding(.top, 3)
                         }
                         bubble(m)
-                        if i == lastMine, m.status != .none {
-                            Text(m.status == .sending ? "Sending…" : m.status == .delivered ? "Delivered" : "Not delivered")
+                        if i == lastMine, let status = Self.statusText(m.status) {
+                            Text(status)
                                 .font(.system(size: 10)).foregroundStyle(m.status == .failed ? Color.isletRedText : Color.isletTertiary)
                                 .padding(.horizontal, 4).padding(.top, 2)
                         }
@@ -111,11 +111,52 @@ struct ConversationView: View {
         }
         if !m.text.isEmpty {
             Text(m.text).font(.system(size: 13)).lineSpacing(2).foregroundStyle(m.mine ? .white : Color.isletText)
-                .textSelection(.enabled)
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
+                .overlay(alignment: m.mine ? .topLeading : .topTrailing) {
+                    if !m.reactions.isEmpty { reactions(m) }
+                }
+                .padding(.top, m.reactions.isEmpty ? 0 : 12)
                 .frame(maxWidth: 300, alignment: m.mine ? .trailing : .leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .contextMenu { menu(m) }
+        }
+    }
+
+    /// The tapbacks on a message, on its top corner like Messages: one of each, yours tinted.
+    private func reactions(_ m: MessagesStore.Message) -> some View {
+        var seen = Set<String>()
+        let unique = m.reactions.filter { seen.insert($0.emoji).inserted }
+        let mine = Set(m.reactions.filter(\.mine).map(\.emoji))
+        return HStack(spacing: 1) {
+            ForEach(unique, id: \.emoji) { r in
+                Text(r.emoji).font(.system(size: 11))
+                    .frame(minWidth: 18, minHeight: 18)
+                    .background(Circle().fill(mine.contains(r.emoji) ? tint : Color(hex: 0x3A3A3C)))
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Color(hex: 0x1C1C1E)))
+        .offset(x: m.mine ? -10 : 10, y: -14)
+        .help(m.reactions.count > unique.count ? "\(m.reactions.count) reactions" : "")
+    }
+
+    /// Right-click: the six tapbacks (yours ticked; choosing it again takes it off), any emoji in Messages, Copy.
+    @ViewBuilder private func menu(_ m: MessagesStore.Message) -> some View {
+        let mine = m.reactions.first(where: \.mine)
+        if m.id > 0 {
+            ForEach(Tapback.allCases) { t in
+                Button { store.messages?.react(t, to: m) } label: {
+                    if mine?.tapback == t { Label("\(t.emoji)  \(t.name)", systemImage: "checkmark") } else { Text("\(t.emoji)  \(t.name)") }
+                }
+            }
+            Button("Other Emoji in Messages…") { store.messages?.react(nil, to: m) }
+            Divider()
+        }
+        Button("Copy") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(m.text, forType: .string)
         }
     }
 
@@ -124,6 +165,11 @@ struct ConversationView: View {
     private var replyField: some View {
         let hasText = !store.messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(spacing: 8) {
+            Button { showEmoji() } label: {
+                Image(systemName: "face.smiling").font(.system(size: 15)).foregroundStyle(Color.isletSecondary)
+                    .frame(width: 30, height: 30).background(Circle().fill(Color.isletRing))
+            }
+            .buttonStyle(.plain).help("Emoji & Symbols (⌃⌘Space)").accessibilityLabel("Emoji")
             TextField("", text: $store.messageDraft, prompt: Text(conversation.placeholder).foregroundStyle(Color.isletTertiary))
                 .textFieldStyle(.plain).font(.system(size: 13)).foregroundStyle(Color.isletText)
                 .focused($focused)
@@ -140,7 +186,34 @@ struct ConversationView: View {
         }
     }
 
+    /// The system's Emoji & Symbols picker, into the reply field.
+    private func showEmoji() {
+        focused = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            NSApp.orderFrontCharacterPalette(nil)
+        }
+    }
+
     // MARK: Helpers
+
+    /// "Sending…", "Delivered", "Read 2:31 PM", "Read Yesterday", "Read Mon", "Read 12 Nov", "Not delivered".
+    static func statusText(_ s: MessagesStore.Message.Status) -> String? {
+        switch s {
+        case .none: return nil
+        case .sending: return "Sending…"
+        case .delivered: return "Delivered"
+        case .failed: return "Not delivered"
+        case .read(let d):
+            let cal = Calendar.current
+            if cal.isDateInToday(d) { return "Read \(d.formatted(date: .omitted, time: .shortened))" }
+            if cal.isDateInYesterday(d) { return "Read Yesterday" }
+            if let days = cal.dateComponents([.day], from: d, to: Date()).day, days < 7 {
+                return "Read \(d.formatted(.dateTime.weekday(.abbreviated)))"
+            }
+            return "Read \(d.formatted(.dateTime.day().month(.abbreviated)))"
+        }
+    }
 
     /// "Today 2:31 PM", "Yesterday 9:04 AM", "Mon 2:31 PM", "12 Nov 2:31 PM".
     static func stamp(_ d: Date) -> String {

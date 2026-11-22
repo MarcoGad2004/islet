@@ -12,8 +12,10 @@ final class MessagesStore {
     static let enabledKey = "messagesInNotch"
 
     struct Message: Identifiable, Equatable {
-        enum Status: Equatable { case none, sending, delivered, failed }
+        enum Status: Equatable { case none, sending, delivered, read(Date), failed }
         let id: Int64
+        /// Messages' own id, which reactions point at.
+        var guid: String = ""
         var text: String
         var mine: Bool
         var date: Date
@@ -21,6 +23,15 @@ final class MessagesStore {
         var sender: String?
         var attachment: Bool
         var status: Status
+        /// Tapbacks on it, oldest first.
+        var reactions: [Reaction] = []
+    }
+
+    struct Reaction: Equatable {
+        var emoji: String
+        var mine: Bool
+        /// The tapback, when it's one of the six (not any emoji).
+        var tapback: Tapback?
     }
 
     struct Conversation: Equatable {
@@ -47,6 +58,8 @@ final class MessagesStore {
     private(set) var pending: [Message] = []
     /// The send itself failed (no permission, Messages refused).
     private(set) var sendError: String?
+    /// A tapback is on its way (Messages is in front for a moment).
+    private(set) var reacting = false
 
     var enabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
 
@@ -54,6 +67,9 @@ final class MessagesStore {
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var names: ContactNames?
+    /// Whether `message` has `associated_message_emoji` (any-emoji tapbacks, macOS 15 and later).
+    @ObservationIgnored private lazy var hasEmojiColumn: Bool =
+        rows("pragma table_info(message)").contains { ($0[1] as? String) == "associated_message_emoji" }
 
     private static var dbPath: String {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Messages/chat.db").path
@@ -144,7 +160,8 @@ final class MessagesStore {
         let display = (c[1] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let title = display ?? (handles.isEmpty ? "Messages" : handles.map { name(for: $0) }.joined(separator: ", "))
         let raw = rows("""
-            select m.ROWID, m.text, m.attributedBody, m.is_from_me, m.date, m.cache_has_attachments, m.is_delivered, m.error, h.id
+            select m.ROWID, m.text, m.attributedBody, m.is_from_me, m.date, m.cache_has_attachments, m.is_delivered, m.error, h.id,
+                   m.guid, m.date_read
             from message m join chat_message_join j on j.message_id = m.ROWID left join handle h on h.ROWID = m.handle_id
             where j.chat_id = ? and m.associated_message_type = 0 order by m.date desc limit 50
             """, [chatID])
@@ -155,16 +172,54 @@ final class MessagesStore {
             var text = Self.text(r[1] as? String, r[2] as? Data) ?? ""
             text = text.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty && !attachment { return nil }
-            let status: Message.Status = !mine ? .none : ((r[7] as? Int64 ?? 0) != 0 ? .failed : (r[6] as? Int64) == 1 ? .delivered : .sending)
-            return Message(id: id, text: text, mine: mine, date: Self.date(r[4] as? Int64 ?? 0),
+            let read = r[10] as? Int64 ?? 0
+            let status: Message.Status = !mine ? .none
+                : (r[7] as? Int64 ?? 0) != 0 ? .failed
+                : read > 0 ? .read(Self.date(read))
+                : (r[6] as? Int64) == 1 ? .delivered : .sending
+            return Message(id: id, guid: r[9] as? String ?? "", text: text, mine: mine, date: Self.date(r[4] as? Int64 ?? 0),
                            sender: isGroup && !mine ? (r[8] as? String).map { name(for: $0) } : nil,
                            attachment: attachment, status: status)
         }
+        addReactions(to: &messages, chatID: chatID)
         // A reply sent from the notch that the history now has replaces its "Sending…" copy.
         pending.removeAll { p in messages.contains { $0.mine && $0.text == p.text && $0.date >= p.date.addingTimeInterval(-5) } }
         messages += pending
         return Conversation(chatID: chatID, guid: guid, title: title, isGroup: isGroup, people: handles.count + 1,
                             iMessage: service == "iMessage", messages: messages)
+    }
+
+    /// Tapbacks on the loaded messages. Each person has one at a time on a message: the newest add (2000-2006) or
+    /// removal (3000-3006) wins. `associated_message_guid` is "p:0/<guid>" (a part of the message) or "bp:<guid>".
+    private func addReactions(to messages: inout [Message], chatID: Int64) {
+        guard let oldest = messages.first?.date else { return }
+        let emoji = hasEmojiColumn ? "m.associated_message_emoji" : "null"
+        let raw = rows("""
+            select m.associated_message_guid, m.associated_message_type, m.is_from_me, m.handle_id, \(emoji)
+            from message m join chat_message_join j on j.message_id = m.ROWID
+            where j.chat_id = ? and m.date >= ? and m.associated_message_type between 2000 and 3006 order by m.date
+            """, [chatID, Self.dbDate(oldest)])
+        var latest: [String: [String: Reaction?]] = [:] // message guid → person → reaction
+        var order: [String: [String]] = [:]
+        for r in raw {
+            guard let target = r[0] as? String, let type = r[1] as? Int64 else { continue }
+            let guid = target.components(separatedBy: "/").last.map { $0.hasPrefix("bp:") ? String($0.dropFirst(3)) : $0 } ?? target
+            let mine = (r[2] as? Int64) == 1
+            let person = mine ? "me" : "\(r[3] as? Int64 ?? 0)"
+            var reaction: Reaction?
+            if type < 3000 {
+                let tapback = Tapback(rawValue: Int(type))
+                guard let e = tapback?.emoji ?? (r[4] as? String) else { continue }
+                reaction = Reaction(emoji: e, mine: mine, tapback: tapback)
+            }
+            if latest[guid]?[person] == nil { order[guid, default: []].append(person) }
+            latest[guid, default: [:]][person] = .some(reaction)
+        }
+        for i in messages.indices {
+            let g = messages[i].guid
+            guard let people = order[g] else { continue }
+            messages[i].reactions = people.compactMap { latest[g]?[$0] ?? nil }
+        }
     }
 
     private func name(for handle: String) -> String { names?.name(for: handle) ?? Self.pretty(handle) }
@@ -217,6 +272,22 @@ final class MessagesStore {
         pending.append(p)
         open?.messages.append(p)
         scheduleReload()
+    }
+
+    // MARK: Reacting
+
+    /// Sends a tapback on a message through Messages; nil opens the message's menu in Messages for any emoji.
+    func react(_ tapback: Tapback?, to message: Message) {
+        guard let c = open, !reacting, message.id > 0, let i = c.messages.firstIndex(of: message) else { return }
+        let occurrence = c.messages[(i + 1)...].filter { $0.mine == message.mine && $0.text == message.text }.count
+        sendError = nil
+        reacting = true
+        Task {
+            let error = await TapbackSender.react(tapback, to: message, in: c, occurrence: occurrence)
+            reacting = false
+            if open?.chatID == c.chatID { sendError = error }
+            scheduleReload()
+        }
     }
 
     // MARK: Helpers

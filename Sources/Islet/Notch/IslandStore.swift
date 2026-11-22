@@ -478,6 +478,11 @@ final class IslandStore {
     /// A key pressed while the panel has the keyboard. True when it was used here and goes no further.
     func handleKey(_ key: KeyPress) -> Bool {
         guard expanded, !locked else { return false }
+        // ⌃⌘Space: Emoji & Symbols, as in any app (Islet has no Edit menu to give it the shortcut).
+        if key.control, key.command, key.code == KeyPress.space, expandedPage == .messages || expandedPage == .search {
+            NSApp.orderFrontCharacterPalette(nil)
+            return true
+        }
         if expandedPage == .search { return searchKey(key) }
         // A letter typed in the open panel starts a search with it (not in a conversation, where it's the reply).
         if expandedPage != .messages, Feature.search.isOn, key.plainText, let c = key.characters, c != " " {

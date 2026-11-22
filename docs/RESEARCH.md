@@ -453,3 +453,26 @@ phone call answered on the Mac.
 **Verdict:** calls on the Mac (phone or FaceTime) can be shown fully, with controls. A FaceTime call on the iPhone can be
 shown with name and timer, ended by the Handoff item. A phone call on the iPhone can be shown starting, but its end can
 only come from the call history, if that syncs quickly enough (Q56).
+
+## Tapbacks, read receipts and emoji in the conversation (2026-11-22)
+
+Owner request: read receipts, right-click to react like Messages, and emoji in replies. Probed Messages (macOS 27.2) with
+a small Accessibility tool from the shell; nothing was sent.
+
+57. **Can Islet send a tapback?** Not through Apple Events (Messages' dictionary has no command for it), but through
+    Accessibility: each bubble in Messages' window is an `AXGroup` whose description is "Your iMessage, <text>, <time>"
+    (yours) or "<Name>, <text>, [You loved this,] <time>" (theirs), with actions `AXShowMenu` and named ones (Reply…,
+    Copy, Edit…). `AXShowMenu` opens its menu with the tapback row as `AXMenuItem`s identified `heart`, `thumbs_up`,
+    `thumbs_down`, `ha_ha!`, `exclamation_mark`, `question_mark`, then a row of recent emoji (identified by the emoji)
+    and a button for any emoji. A walk of the window takes about 0.1 s natively (18 s through System Events). The menu
+    only opens with Messages in front and the conversation showing, so Islet opens it (`sms:` for a one-to-one chat;
+    a group has to be open in Messages already), presses the tapback, and brings back the app that was in front.
+    Edit > "Tapback Last Message…" (⌘T) also exists but only reaches the last message.
+58. **Reading reactions:** rows with `associated_message_type` 2000-2005 (heart … question), 2006 (any emoji, in
+    `associated_message_emoji`, macOS 15 on) and 3000-3006 (taking one off); `associated_message_guid` is
+    "p:<part>/<guid>" or "bp:<guid>" of the message. Each person has one at a time, so the newest row per person wins.
+59. **Read receipts:** your message's `date_read` is set (ns since 2001) once the other person read it, if they share
+    read receipts; Messages shows "Read <time>" for today, "Read Yesterday", a weekday within a week, else a date.
+60. **Emoji while typing:** Islet is an agent app with no Edit menu, so ⌃⌘Space (Emoji & Symbols) did nothing in the
+    reply field; Islet now opens the picker itself (`NSApp.orderFrontCharacterPalette`). Typing a word first and then
+    ⌃⌘Space searches the picker for it, as in other apps.

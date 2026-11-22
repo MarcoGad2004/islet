@@ -18,6 +18,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - Click a message (or Reply) and the conversation opens under the notch, with contact names and a reply field that sends through Messages.
 - New messages appear as they arrive.
+- Read receipts: your last message says "Read 2:31 PM" once they've seen it (when they share read receipts).
+- Right-click a message to react with a tapback, or "Other Emoji in Messages…" for any emoji. Reactions show on the bubbles.
+- Emoji in replies: the smiley button or ⌃⌘Space opens Emoji & Symbols. Type a word like "smile" first to search for it.
 - Two fingers scroll lists in the panel (conversations, notifications, Wi-Fi, Bluetooth). Swiping up only closes the panel once the list can't scroll further.
 
 ### Music
