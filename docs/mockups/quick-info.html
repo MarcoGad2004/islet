@@ -341,38 +341,42 @@ function draw() {
   }
 }
 
-// Pointer and clicks
-$('#hot').addEventListener('mouseenter', () => { if (to === 'closed') go('quick'); });
-$('#hot').addEventListener('click', () => { go(to === 'panel' ? 'closed' : 'panel'); });
-island.addEventListener('click', e => { if (to === 'quick') go('panel'); });
-$('#stage').addEventListener('mouseleave', () => { if (to === 'quick') go('closed'); });
-$('#stage').addEventListener('mousemove', e => {
-  if (to !== 'quick') return;
-  const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
-  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
-  const s = lastShape, w = Math.max(s.sw, s.bw);
-  if (y > s.sh + s.bh + 12 || Math.abs(x - CX) > w / 2 + 12) go('closed');
-});
-$('#stage').addEventListener('click', e => {
-  const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
-  const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
-  if (to === 'panel' && (y > lastShape.sh + lastShape.bh || Math.abs(x - CX) > Math.max(lastShape.sw, lastShape.bw) / 2)) go('closed');
-});
-// touch: tap cycles
-$('#hot').addEventListener('touchstart', e => { e.preventDefault(); go(to === 'closed' ? 'quick' : to === 'quick' ? 'panel' : 'closed'); }, { passive: false });
+// Everything that hooks into the page runs once per load, so a republish into an open page starts clean.
+function start() {
+  // Pointer and clicks
+  $('#hot').addEventListener('mouseenter', () => { if (to === 'closed') go('quick'); });
+  $('#hot').addEventListener('click', () => { go(to === 'panel' ? 'closed' : 'panel'); });
+  island.addEventListener('click', e => { if (to === 'quick') go('panel'); });
+  $('#stage').addEventListener('mouseleave', () => { if (to === 'quick') go('closed'); });
+  $('#stage').addEventListener('mousemove', e => {
+    if (to !== 'quick') return;
+    const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
+    const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+    const s = lastShape, w = Math.max(s.sw, s.bw);
+    if (y > s.sh + s.bh + 12 || Math.abs(x - CX) > w / 2 + 12) go('closed');
+  });
+  $('#stage').addEventListener('click', e => {
+    const r = $('#stage').getBoundingClientRect(), sc = r.width / 600;
+    const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+    if (to === 'panel' && (y > lastShape.sh + lastShape.bh || Math.abs(x - CX) > Math.max(lastShape.sw, lastShape.bw) / 2)) go('closed');
+  });
+  // touch: tap cycles
+  $('#hot').addEventListener('touchstart', e => { e.preventDefault(); go(to === 'closed' ? 'quick' : to === 'quick' ? 'panel' : 'closed'); }, { passive: false });
 
-document.querySelectorAll('[data-lay],[data-wifi],[data-bt],[data-speed]').forEach(b => b.addEventListener('click', () => {
-  const key = Object.keys(b.dataset)[0];
-  S[key] = key === 'speed' ? +b.dataset[key] : b.dataset[key];
-  document.querySelectorAll(`[data-${key}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
-  build(); to = 'closed'; from = 'closed'; p = 1; v = 0; lastPieces = {}; draw();
-}));
+  document.querySelectorAll('[data-lay],[data-wifi],[data-bt],[data-speed]').forEach(b => b.addEventListener('click', () => {
+    const key = Object.keys(b.dataset)[0];
+    S[key] = key === 'speed' ? +b.dataset[key] : b.dataset[key];
+    document.querySelectorAll(`[data-${key}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
+    build(); to = 'closed'; from = 'closed'; p = 1; v = 0; lastPieces = {}; draw();
+  }));
 
-function fit() {
-  const w = $('#scaler').clientWidth, sc = Math.min(1.5, w / 600);
-  $('#stage').style.transform = `scale(${sc})`;
-  $('#scaler').style.height = (330 * sc) + 'px';
+  function fit() {
+    const w = $('#scaler').clientWidth, sc = Math.min(1.5, w / 600);
+    $('#stage').style.transform = `scale(${sc})`;
+    $('#scaler').style.height = (330 * sc) + 'px';
+  }
+  addEventListener('resize', fit);
+  build(); fit(); to = 'closed'; from = 'closed'; p = 1; v = 0; draw();
 }
-addEventListener('resize', fit);
-build(); fit(); draw();
+if (window.claude?.hot?.ready) window.claude.hot.ready(start); else start();
 </script>
