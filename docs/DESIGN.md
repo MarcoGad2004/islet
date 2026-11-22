@@ -700,7 +700,7 @@ docs/mockups/quick-info.html).
   info on hover" (on by default). Notch mode only (not menu bar or bezel mode).
 - **Wide bar** (menu bar has room): the volume wide bar's shape (wings 60 pt a side and a 26 pt body, bottom 18). Left
   wing: the time (13 semibold, no AM/PM) over the date (9.5, `secondary`, "Sat, Nov 21"). Right wing: the percentage
-  (11.5 semibold) over the battery (the battery page's glyph, 28 × 13; green charging, red at 20% or less, a bolt
+  (11.5 semibold) over the battery (the battery page's glyph, 28 × 13; green while plugged in, red at 20% or less, a bolt
   plugged in). Each centred in its wing, so they mirror. Body: Wi-Fi (icon and network, 12 semibold; the hotspot icon
   for a hotspot; "Not connected" or "Wi-Fi Off" with the crossed-out icon) and the connected Bluetooth device ("2
   devices" for more; left out when none), centred together 24 pt apart.
