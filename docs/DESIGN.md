@@ -669,7 +669,7 @@ docs/mockups/settings.html).
   and its fix (Allow…, Keyboard Shortcuts…, Install and Restart; else Show, which goes to its page), then "Features"
   (owner, 2026-11-21, replacing the "At a glance" tiles): each feature with what it does, one state ("Ready", "Ready
   on ⌘Space", "Off", "Needs Full Disk Access", with a green or orange dot) and its switch; Face Unlock has Set Up… until
-  it is set up. Messages sits indented under Notifications and hides while they're off.
+  it is set up. Messages sits indented under Notifications behind a turn-down-right arrow (in setup too) and hides while they're off.
 - **What counts as an issue**: a permission that's off and needed by a feature that's on (see "Features (1.4)"); the
   volume keys not reaching Islet although
   Accessibility is on (Restart Islet); Now playing unavailable; Spotlight still holding the search shortcut; the face

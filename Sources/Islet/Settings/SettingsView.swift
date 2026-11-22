@@ -180,7 +180,16 @@ struct SettingsView: View {
                 }
             }
         } label: {
-            SettingsLabel(f.title, f.detail).padding(.leading, f.parent == nil ? 0 : 16)
+            if f.parent == nil {
+                SettingsLabel(f.title, f.detail)
+            } else {
+                // Part of the row above: an arrow turning down and in ties it to its parent.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "arrow.turn.down.right").font(.callout.weight(.medium)).foregroundStyle(.tertiary)
+                        .accessibilityLabel("Part of \(f.parent!.title)")
+                    SettingsLabel(f.title, f.detail)
+                }
+            }
         }
     }
 

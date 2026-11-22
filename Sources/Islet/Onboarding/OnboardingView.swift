@@ -123,7 +123,13 @@ struct OnboardingView: View {
 
     private func pickRow(_ f: Feature) -> some View {
         let parentOff = f.parent.map { !picked.contains($0) } ?? false
-        return Toggle(isOn: Binding(get: { isPicked(f) }, set: { pick(f, $0) })) {
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if let parent = f.parent {
+                // Part of the row above: an arrow turning down and in ties it to its parent.
+                Image(systemName: "arrow.turn.down.right").font(.callout.weight(.medium)).foregroundStyle(.tertiary)
+                    .accessibilityLabel("Part of \(parent.title)")
+            }
+            Toggle(isOn: Binding(get: { isPicked(f) }, set: { pick(f, $0) })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(f.title).fontWeight(.semibold)
                 Text(f.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -132,9 +138,10 @@ struct OnboardingView: View {
             }
             .padding(.leading, 4)
         }
-        .toggleStyle(.checkbox)
-        .disabled(parentOff)
-        .padding(.leading, f.parent == nil ? 0 : 24)
+            .toggleStyle(.checkbox)
+            .disabled(parentOff)
+        }
+        .padding(.leading, f.parent == nil ? 0 : 6)
     }
 
     private func pick(_ f: Feature, _ on: Bool) {

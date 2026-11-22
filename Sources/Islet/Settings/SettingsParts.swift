@@ -96,9 +96,13 @@ struct SettingsIcon: View {
     let page: SettingsPage
     var size: CGFloat = 20
     var body: some View {
+        // Every glyph fits the same box inside the tile, so wide ones (the battery, the notch) keep the same margin as
+        // the rest instead of running to the edges.
         Image(systemName: page.symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
+            .resizable().scaledToFit()
+            .fontWeight(.semibold)
             .foregroundStyle(.white)
+            .frame(width: size * 0.6, height: size * 0.6)
             .frame(width: size, height: size)
             .background(page.color.gradient, in: RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
     }
