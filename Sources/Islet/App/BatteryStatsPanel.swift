@@ -14,6 +14,13 @@ final class BatteryStatsPanel {
     var openControls: (() -> Void)?
 
     var isOpen: Bool { panel?.isVisible == true }
+    private var builtGlass: Bool?
+
+    /// Liquid Glass (macOS 26 and later) when the island uses the glass look (DESIGN.md "Glass").
+    private static var wantsGlass: Bool {
+        guard #available(macOS 26, *) else { return false }
+        return UserDefaults.standard.object(forKey: GlassLook.key) as? Bool ?? true
+    }
 
     init(power: PowerMonitor) { self.power = power }
 
@@ -24,7 +31,10 @@ final class BatteryStatsPanel {
     func show(under button: NSStatusBarButton) {
         guard let window = button.window else { return }
         anchor = window
-        let panel = self.panel ?? makePanel()
+        // The look follows the glass setting; a change since the panel was made builds it again.
+        let glass = Self.wantsGlass
+        if self.panel != nil, builtGlass != glass { self.panel?.orderOut(nil); self.panel = nil; self.host = nil }
+        let panel = self.panel ?? makePanel(glass: glass)
         power.refresh()
         power.watchDetails(true)
         power.history.backfillIfNeeded()
@@ -44,7 +54,7 @@ final class BatteryStatsPanel {
         monitors = []
     }
 
-    private func makePanel() -> NSPanel {
+    private func makePanel(glass: Bool) -> NSPanel {
         let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -55,33 +65,46 @@ final class BatteryStatsPanel {
         panel.hidesOnDeactivate = false
         panel.onCancel = { [weak self] in self?.close() }
 
-        let radius: CGFloat = 14
-        let glass = NSVisualEffectView()
-        glass.material = .hudWindow
-        glass.blendingMode = .behindWindow
-        glass.state = .active
-        glass.appearance = NSAppearance(named: .darkAqua)
-        glass.maskImage = Self.roundedMask(radius)
-
         let content = BatteryStatsView(power: power, openControls: { [weak self] in
             self?.close()
             self?.openControls?()
         })
-        .background(Color.black.opacity(0.35))
+        // Glass: the tiles and pills turn to glass too, and the text sits on the glass with a dark tint behind it.
+        .environment(\.isletGlass, glass)
+        .background(glass ? Color.clear : Color.black.opacity(0.35))
         let host = FittingHostingView(rootView: AnyView(content))
         host.onSizeChange = { [weak self] in
             guard let self, let w = self.anchor, self.isOpen else { return }
             self.fit(below: w)
         }
-        host.translatesAutoresizingMaskIntoConstraints = false
-        glass.addSubview(host)
-        NSLayoutConstraint.activate([
-            host.leadingAnchor.constraint(equalTo: glass.leadingAnchor),
-            host.trailingAnchor.constraint(equalTo: glass.trailingAnchor),
-            host.topAnchor.constraint(equalTo: glass.topAnchor),
-            host.bottomAnchor.constraint(equalTo: glass.bottomAnchor),
-        ])
-        panel.contentView = glass
+
+        if glass, #available(macOS 26, *) {
+            // Liquid Glass, as in Control Center: the desktop shows through blurred and refracted at the edges.
+            let view = NSGlassEffectView()
+            view.cornerRadius = 24
+            view.tintColor = NSColor.black.withAlphaComponent(0.28) // keeps white text readable over light wallpapers
+            view.appearance = NSAppearance(named: .darkAqua)
+            view.contentView = host
+            panel.contentView = view
+        } else {
+            let radius: CGFloat = 14
+            let blur = NSVisualEffectView()
+            blur.material = .hudWindow
+            blur.blendingMode = .behindWindow
+            blur.state = .active
+            blur.appearance = NSAppearance(named: .darkAqua)
+            blur.maskImage = Self.roundedMask(radius)
+            host.translatesAutoresizingMaskIntoConstraints = false
+            blur.addSubview(host)
+            NSLayoutConstraint.activate([
+                host.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
+                host.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
+                host.topAnchor.constraint(equalTo: blur.topAnchor),
+                host.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
+            ])
+            panel.contentView = blur
+        }
+        builtGlass = glass
         self.host = host
         self.panel = panel
         return panel

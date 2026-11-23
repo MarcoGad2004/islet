@@ -69,6 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch UserDefaults.standard.string(forKey: "IsletDebugShape") {
         case "wings": notch.store.setBase(.wings)
         case "chin": notch.store.setBase(.chin)
+        // The battery stats panel open under the icon, to look at it.
+        case "batterystats":
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self, let button = self.statusItem?.button else { return }
+                self.batteryStats.show(under: button)
+            }
         // The unlock with the volume turned up during it, for the level row under it (repeats so it can be watched).
         case "unlocklevel":
             Task { @MainActor [weak self] in

@@ -304,7 +304,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.
 - Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.
-- The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt dark glass
+- The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt panel: with the glass look (macOS 26 and later) Liquid Glass like Control Center's (24 pt corners, a 28% black tint so the white text reads on light wallpapers, glass tiles and pills inside), otherwise dark glass
   panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or "Time to 85%"
   with a charge limit, timed to the limit, or the status), the charge limit right under it when there is one, and
   time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or °C by
