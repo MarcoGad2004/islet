@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Draws the Islet app icon and writes Sources/Islet/Assets.xcassets/AppIcon.appiconset (run: swift scripts/make-icon.swift).
+// Draws the Dynamic Peninsula app icon (a peninsula of black land joined to the top edge, in a turquoise sea) and writes Sources/Islet/Assets.xcassets/AppIcon.appiconset (run: swift scripts/make-icon.swift).
 import AppKit
 
 func render(_ px: Int) -> Data {
@@ -24,35 +24,56 @@ func render(_ px: Int) -> Data {
     ctx.restoreGState()
     ctx.saveGState()
     ctx.addPath(tilePath); ctx.clip()
-    let bg = CGGradient(colorsSpace: rgb, colors: [col(0x3B4A7A), col(0x1B2038), col(0x0C0E1A)] as CFArray, locations: [0, 0.55, 1])!
-    ctx.drawLinearGradient(bg, start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 100), options: [])
-    // Soft cyan glow behind the face grid.
-    let glow = CGGradient(colorsSpace: rgb, colors: [col(0x64D2FF, 0.35), col(0x64D2FF, 0)] as CFArray, locations: [0, 1])!
-    ctx.drawRadialGradient(glow, startCenter: CGPoint(x: 512, y: 430), startRadius: 0, endCenter: CGPoint(x: 512, y: 430), endRadius: 330, options: [])
 
-    // The island: a black capsule hanging from the top edge, like the notch.
-    let w: CGFloat = 520, h: CGFloat = 150, top: CGFloat = 924
-    let island = CGPath(roundedRect: CGRect(x: 512 - w / 2, y: top - h, width: w, height: h + 60), cornerWidth: 75, cornerHeight: 75, transform: nil)
+    // The sea: shallow turquoise by the shore, deeper blue further out.
+    let sea = CGGradient(colorsSpace: rgb, colors: [col(0x5EE6E0), col(0x1FA3C9), col(0x0B4F8A), col(0x072A55)] as CFArray,
+                         locations: [0, 0.3, 0.72, 1])!
+    ctx.drawLinearGradient(sea, start: CGPoint(x: 512, y: 900), end: CGPoint(x: 512, y: 100), options: [])
+    // Sunlight on the water.
+    let sun = CGGradient(colorsSpace: rgb, colors: [col(0xFFFFFF, 0.28), col(0xFFFFFF, 0)] as CFArray, locations: [0, 1])!
+    ctx.drawRadialGradient(sun, startCenter: CGPoint(x: 512, y: 600), startRadius: 0, endCenter: CGPoint(x: 512, y: 600),
+                           endRadius: 420, options: [])
+
+    // The land: the top edge (the mainland) and the peninsula joined to it, curving into it like the island's own
+    // top corners do. A strip of sand runs round it, then the black land.
+    let shoreY: CGFloat = 830          // the mainland's coastline
+    let pw: CGFloat = 400, tip: CGFloat = 470, round: CGFloat = 120, fillet: CGFloat = 70
+    func land(grow g: CGFloat) -> CGPath {
+        let p = CGMutablePath()
+        let l = 512 - pw / 2 - g, r = 512 + pw / 2 + g, bottom = tip - g, shore = shoreY - g
+        p.move(to: CGPoint(x: 0, y: 1024))
+        p.addLine(to: CGPoint(x: 0, y: shore))
+        p.addLine(to: CGPoint(x: l - fillet, y: shore))
+        p.addQuadCurve(to: CGPoint(x: l, y: shore - fillet), control: CGPoint(x: l, y: shore))
+        p.addLine(to: CGPoint(x: l, y: bottom + round))
+        p.addQuadCurve(to: CGPoint(x: l + round, y: bottom), control: CGPoint(x: l, y: bottom))
+        p.addLine(to: CGPoint(x: r - round, y: bottom))
+        p.addQuadCurve(to: CGPoint(x: r, y: bottom + round), control: CGPoint(x: r, y: bottom))
+        p.addLine(to: CGPoint(x: r, y: shore - fillet))
+        p.addQuadCurve(to: CGPoint(x: r + fillet, y: shore), control: CGPoint(x: r, y: shore))
+        p.addLine(to: CGPoint(x: 1024, y: shore))
+        p.addLine(to: CGPoint(x: 1024, y: 1024))
+        p.closeSubpath()
+        return p
+    }
+    // Surf: two pale rings out in the water, following the coast.
+    for (g, a) in [(CGFloat(78), CGFloat(0.22)), (CGFloat(128), CGFloat(0.12))] {
+        ctx.addPath(land(grow: g)); ctx.setStrokeColor(col(0xFFFFFF, a)); ctx.setLineWidth(8); ctx.strokePath()
+    }
+    // Shallows, then the beach.
+    ctx.addPath(land(grow: 44)); ctx.setFillColor(col(0x8FF2E6, 0.55)); ctx.fillPath()
+    ctx.addPath(land(grow: 24)); ctx.setFillColor(col(0xF4D9A0)); ctx.fillPath()
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -8), blur: 22, color: col(0x000000, 0.5))
-    ctx.addPath(island); ctx.setFillColor(col(0x000000)); ctx.fillPath()
+    ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 16, color: col(0x6B4A1A, 0.45))
+    ctx.addPath(land(grow: 0)); ctx.setFillColor(col(0x000000)); ctx.fillPath()
     ctx.restoreGState()
-    // Camera lens and a green status dot inside the island.
-    ctx.setFillColor(col(0x15151C)); ctx.fillEllipse(in: CGRect(x: 512 - 26, y: top - h / 2 - 26 + 18, width: 52, height: 52))
-    ctx.setFillColor(col(0x2A3A66)); ctx.fillEllipse(in: CGRect(x: 512 - 11, y: top - h / 2 - 11 + 18, width: 22, height: 22))
-    ctx.setFillColor(col(0x32D74B)); ctx.fillEllipse(in: CGRect(x: 512 + 150, y: top - h / 2 - 14 + 18, width: 28, height: 28))
 
-    // Face-scan dot grid inside a ring, below the island.
-    let cx: CGFloat = 512, cy: CGFloat = 430, ring: CGFloat = 215
-    ctx.setStrokeColor(col(0x64D2FF, 0.9)); ctx.setLineWidth(14)
-    ctx.strokeEllipse(in: CGRect(x: cx - ring, y: cy - ring, width: ring * 2, height: ring * 2))
-    let step: CGFloat = 52
-    for i in -3...3 { for j in -3...3 {
-        let x = cx + CGFloat(i) * step, y = cy + CGFloat(j) * step
-        if hypot(x - cx, y - cy) > ring - 62 { continue }
-        let r: CGFloat = 11
-        ctx.setFillColor(col(0xE8F6FF, 0.92)); ctx.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
-    } }
+    // The camera in the land, and a green status dot, as on the island.
+    let lensY: CGFloat = 690
+    ctx.setFillColor(col(0x15151C)); ctx.fillEllipse(in: CGRect(x: 512 - 34, y: lensY - 34, width: 68, height: 68))
+    ctx.setFillColor(col(0x2A3A66)); ctx.fillEllipse(in: CGRect(x: 512 - 14, y: lensY - 14, width: 28, height: 28))
+    ctx.setFillColor(col(0xFFFFFF, 0.35)); ctx.fillEllipse(in: CGRect(x: 512 - 4, y: lensY + 2, width: 8, height: 8))
+    ctx.setFillColor(col(0x32D74B)); ctx.fillEllipse(in: CGRect(x: 512 + 70, y: lensY - 13, width: 26, height: 26))
     ctx.restoreGState()
     // Hairline highlight on the tile edge.
     ctx.addPath(tilePath); ctx.setStrokeColor(col(0xFFFFFF, 0.10)); ctx.setLineWidth(3); ctx.strokePath()
@@ -60,7 +81,7 @@ func render(_ px: Int) -> Data {
     return rep.representation(using: .png, properties: [:])!
 }
 
-let dir = "Sources/Islet/Assets.xcassets/AppIcon.appiconset"
+let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Sources/Islet/Assets.xcassets/AppIcon.appiconset"
 try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 var images: [[String: String]] = []
 for base in [16, 32, 128, 256, 512] {
