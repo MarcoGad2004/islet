@@ -19,10 +19,11 @@ struct NotificationCard: View {
                         NotificationWhen(item: item)
                     }
                     Text(hideText || item.line.isEmpty ? item.app : "\(item.app) · \(item.line)")
-                        .font(.system(size: 12)).foregroundStyle(Color.isletSecondary).lineLimit(1).truncationMode(.tail)
+                        .font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
+                        .lineLimit(NotificationText.cardLines).truncationMode(.tail).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(height: CGFloat(IslandLayout.notificationHeight))
+            .frame(height: NotificationText.cardBody(item))
             if store.notificationHasButtons(item) {
                 HStack(spacing: 8) {
                     Spacer()
@@ -40,6 +41,47 @@ struct NotificationCard: View {
         .animation(.easeOut(duration: 0.2), value: item.id)
         .padding(.top, nh)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+/// How tall a notification's text is once it wraps (DESIGN.md "Notifications": the island grows with the text, up to a
+/// limit, so it needn't be hovered to be read).
+@MainActor enum NotificationText {
+    static let compactLines = 6
+    static let cardLines = 10
+
+    /// Height of "Title · message" (title semibold) wrapped to `width`, at most `lines` lines. One line when text is hidden.
+    static func height(_ item: NotificationItem, size: CGFloat, width: CGFloat, lines: Int, withApp: Bool = false) -> CGFloat {
+        let hide = UserDefaults.standard.bool(forKey: NotificationWatcher.hideTextKey)
+        let font = NSFont.systemFont(ofSize: size)
+        let one = ceil(font.ascender - font.descender + font.leading)
+        guard !hide, !item.line.isEmpty else { return one }
+        let text = NSMutableAttributedString()
+        if withApp {
+            text.append(NSAttributedString(string: "\(item.app) · \(item.line)", attributes: [.font: font]))
+        } else {
+            text.append(NSAttributedString(string: item.heading, attributes: [.font: NSFont.systemFont(ofSize: size, weight: .semibold)]))
+            text.append(NSAttributedString(string: " · \(item.line)", attributes: [.font: font]))
+        }
+        let fit = text.boundingRect(with: NSSize(width: max(width, 40), height: .greatestFiniteMagnitude),
+                                    options: [.usesLineFragmentOrigin, .usesFontLeading]).height
+        return min(ceil(fit) + 1, one * CGFloat(lines) + 1)
+    }
+
+    /// Extra height the wide bar's body needs beyond its one-line 26 pt, and the chin's beyond its 36 pt.
+    static func barBody(_ item: NotificationItem, notchWidth nw: Double) -> CGFloat {
+        let w = CGFloat(nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset)
+        return max(IslandLayout.levelBodyHeight, height(item, size: 12, width: w, lines: compactLines) + 14)
+    }
+    static func chinBody(_ item: NotificationItem, more: Bool) -> CGFloat {
+        let w = CGFloat(IslandLayout.chinWidth) - 32 - 30 - (more ? 56 : 0)
+        return max(CGFloat(IslandLayout.chinHeight), height(item, size: 13, width: w, lines: compactLines) + 18)
+    }
+    static func cardBody(_ item: NotificationItem) -> CGFloat {
+        let w = CGFloat(IslandLayout.notificationWidth) - 32 - 34 - 12
+        let one = height(item, size: 12, width: w, lines: 1, withApp: true)
+        let all = height(item, size: 12, width: w, lines: cardLines, withApp: true)
+        return CGFloat(IslandLayout.notificationHeight) + (all - one)
     }
 }
 
@@ -268,13 +310,15 @@ private struct NotificationRow: View {
 struct NotificationLine: View {
     let item: NotificationItem
     var size: CGFloat = 12
+    /// Wraps to this many lines (the island grows to fit); 1 cuts it short.
+    var lines = 1
     @AppStorage(NotificationWatcher.hideTextKey) private var hideText = false
 
     var body: some View {
         let line = hideText ? "" : item.line
         (Text(item.heading).font(.system(size: size, weight: .semibold)).foregroundColor(.isletText)
          + Text(line.isEmpty ? "" : " · \(line)").font(.system(size: size)).foregroundColor(.isletSecondary))
-            .lineLimit(1).truncationMode(.tail)
+            .lineLimit(lines).truncationMode(.tail).fixedSize(horizontal: false, vertical: lines > 1)
     }
 }
 

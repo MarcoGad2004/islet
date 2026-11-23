@@ -501,6 +501,8 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
     each side. The subtitle, when there is one, leads the message ("Subtitle · Body").
   - **Chin** otherwise: the 300 x 36 body with the icon (20 pt), "**Title** · message" (13) and, on the right, the stack
     count.
+- **Grows with the text** (owner, 2026-11-23): the wide bar's body and the chin grow downward to wrap the whole
+  message, up to 6 lines; the hover card up to 10. The shape animates between heights as notifications change.
 - **Card** (hover): the compact shape grows into the 360 x 72 card under the stem (top 16, bottom 20, 10 pt inner
   curves): icon 34 pt (radius 9), the title (13 semibold) with "now" (11, `tertiary`) on the right, and "App · message"
   (12, `secondary`, one line). Leaving folds it back.

@@ -292,6 +292,13 @@ final class IslandStore {
         }
         if case .notification(let n)? = content, presentation != .expanded {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
+            // The text decides the height, up to a limit: the island grows downward so it needn't be hovered to be read.
+            switch presentation {
+            case .notification: m.bh = Double(NotificationText.cardBody(n))
+            case .levelWings: m.bh = Double(NotificationText.barBody(n, notchWidth: g.width))
+            case .chin: m.bh = Double(NotificationText.chinBody(n, more: notifications.count >= 3))
+            default: break
+            }
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
             if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
         }

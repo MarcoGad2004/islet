@@ -3,6 +3,10 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## Next
+
+- Notifications grow downward to fit their text (up to 6 lines in the bar, 10 on the hover card) instead of cutting it to one line, so most can be read without hovering.
+
 ## 1.5 (2026-11-23)
 
 ### Islet is now Dynamic Peninsula

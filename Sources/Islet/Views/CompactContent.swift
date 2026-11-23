@@ -15,6 +15,12 @@ struct CompactContentView: View {
     /// Focus / Wi-Fi / Bluetooth events: wings wide enough for a name.
     var eventBar = false
 
+    /// The chin's height: a notification's text makes it taller.
+    private var chinHeight: CGFloat {
+        if case .notification(let n) = content { return NotificationText.chinBody(n, more: store.notificationCount >= 3) }
+        return IslandLayout.chinHeight
+    }
+
     var body: some View {
         let nw = store.geometry?.width ?? 190, nh = store.geometry?.height ?? 34
         let barH = lockBar ? nh + IslandLayout.lockBarExtra : nh
@@ -60,9 +66,9 @@ struct CompactContentView: View {
                     }
                     if levelBody, case .notification(let n) = content {
                         // A notification: "Title · message" under the wings; the newest fades across.
-                        NotificationLine(item: n, size: 12)
+                        NotificationLine(item: n, size: 12, lines: NotificationText.compactLines)
                             .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
-                                   height: IslandLayout.levelBodyHeight, alignment: .leading).offset(y: -1)
+                                   height: NotificationText.barBody(n, notchWidth: nw), alignment: .leading).offset(y: -1)
                             .id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
                     }
                     if levelBody, case .event(let e) = content {
@@ -94,7 +100,7 @@ struct CompactContentView: View {
             } else {
                 chin
                     .padding(.horizontal, 16)
-                    .frame(width: IslandLayout.chinWidth, height: IslandLayout.chinHeight)
+                    .frame(width: IslandLayout.chinWidth, height: chinHeight)
                     .padding(.top, nh)
             }
         }
@@ -225,9 +231,9 @@ struct CompactContentView: View {
                 }
             }
         case .notification(let n):
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 NotificationIcon(item: n, size: 20)
-                NotificationLine(item: n, size: 13).frame(maxWidth: .infinity, alignment: .leading)
+                NotificationLine(item: n, size: 13, lines: NotificationText.compactLines).frame(maxWidth: .infinity, alignment: .leading)
                 moreLabel
             }
             .id(n.id).transition(.opacity.animation(.easeOut(duration: 0.2)))
