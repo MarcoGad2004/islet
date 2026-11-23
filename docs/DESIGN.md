@@ -292,7 +292,7 @@ icon), so one icon can do the job of macOS's battery and Islet's. As a battery i
 icon" says, and works the same with a notch, the bezel island, the menu bar island, or none.
 
 - The icon follows macOS's: a 27 × 13 pt battery, a pale outline (40%), the charge as a solid fill, a bolt while
-  charging and a plug when plugged in and not charging (each with a gap cut round it so it reads over the fill). Red
+  charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Red
   fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.
 - Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.
@@ -301,8 +301,12 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   status) and time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or
   °C by region), battery health (System Settings' maximum capacity), the charge limit and Low Power Mode when they
   apply; a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
-  the bottom; a rule; "Power distribution", pills from the source to where it goes (battery → Mac, or charger → Mac
-  and battery, in watts); a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
+  the bottom; a rule; "Power distribution", a flow diagram: Charger, Mac and Battery as round glass nodes in a row
+  with their watts under them, a line from the charger into the Mac, one from the battery into the Mac, and an arc
+  from the charger over the Mac into the battery. A line runs only while power moves along it (faint rails
+  otherwise), thicker for a bigger share, with dashes drifting the way the power goes: green from the charger,
+  yellow from the battery. So it shows battery only, charger only, charger charging the battery, and a charger too
+  weak for the load with the battery helping. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
   Numbers refresh every 3 s while open. A click elsewhere, Esc or the icon closes it.
 - In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
   Controls pill.

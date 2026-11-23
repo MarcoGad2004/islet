@@ -164,42 +164,165 @@ extension ChargeChart {
     }
 }
 
-/// Where the power goes: from the battery to the Mac, or from the charger to the Mac and the battery.
-private struct PowerFlow: View {
+/// Where the power is flowing right now, worked out from the charger's input, the battery's current and the Mac's
+/// draw. Each flow is a line that runs only while power moves along it, as thick as its share, with dashes drifting
+/// the way the power goes.
+struct PowerFlows: Equatable {
+    var chargerConnected: Bool
+    var chargerToMac: Double = 0
+    var chargerToBattery: Double = 0
+    var batteryToMac: Double = 0
+    var mac: Double?
+    var charger: Double?
+
+    /// Under this many watts a flow counts as stopped.
+    static let still = 0.1
+
+    init(state: PowerMonitor.State, details d: PowerMonitor.Details) {
+        chargerConnected = state.onAC
+        mac = d.systemWatts
+        let battery = d.batteryWatts ?? 0 // + into the battery, - out of it
+        if state.onAC {
+            batteryToMac = max(0, -battery) // a charger too weak for the load: the battery helps
+            chargerToBattery = max(0, battery)
+            chargerToMac = max(0, (d.systemWatts ?? 0) - batteryToMac)
+            charger = d.adapterInWatts ?? (chargerToMac + chargerToBattery)
+        } else {
+            batteryToMac = d.batteryWatts.map { max(0, -$0) } ?? d.systemWatts ?? 0
+        }
+    }
+
+    var total: Double { max(chargerToMac + chargerToBattery + batteryToMac, 1) }
+}
+
+struct PowerFlow: View {
     let state: PowerMonitor.State
     let details: PowerMonitor.Details
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let chargerTint = Color.isletGreen
+    private static let batteryTint = Color(hex: 0xFFD60A)
+    private static let node: CGFloat = 38
+    /// Space above the nodes for the charger-to-battery arc over the Mac.
+    private static let arcRoom: CGFloat = 16
+
+    private func batteryTint(_ f: PowerFlows) -> Color {
+        f.batteryToMac > PowerFlows.still ? Self.batteryTint : f.chargerToBattery > PowerFlows.still ? Self.chargerTint : Color.isletSecondary
+    }
 
     var body: some View {
-        let d = details
-        HStack(spacing: 8) {
-            if state.onAC {
-                pill("powerplug.portrait.fill", d.adapterInWatts ?? sum(d.systemWatts, max(0, d.batteryWatts ?? 0)))
-                arrow
-                VStack(spacing: 6) {
-                    pill("laptopcomputer", d.systemWatts)
-                    if let b = d.batteryWatts, b > 0.1 { pill("battery.75percent", b) }
+        let f = PowerFlows(state: state, details: details)
+        TimelineView(.animation(paused: reduceMotion)) { time in
+            let phase = reduceMotion ? 0 : CGFloat(time.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 10) * 14)
+            GeometryReader { geo in
+                let w = geo.size.width
+                let r = Self.node / 2
+                let y = Self.arcRoom + r
+                let chargerAt = CGPoint(x: r + 14, y: y)
+                let macAt = CGPoint(x: w / 2, y: y)
+                let batteryAt = CGPoint(x: w - r - 14, y: y)
+                let toMacFromCharger = Self.line(from: CGPoint(x: chargerAt.x + r + 3, y: y), to: CGPoint(x: macAt.x - r - 3, y: y))
+                let toMacFromBattery = Self.line(from: CGPoint(x: batteryAt.x - r - 3, y: y), to: CGPoint(x: macAt.x + r + 3, y: y))
+                let toBattery = Self.arc(from: chargerAt, to: batteryAt, r: r)
+                ZStack {
+                    // Faint rails for every route, so the diagram keeps its shape when a flow stops.
+                    rail(toMacFromCharger)
+                    rail(toMacFromBattery)
+                    rail(toBattery)
+                    flow(toMacFromCharger, f.chargerToMac, f.total, Self.chargerTint, phase)
+                    flow(toBattery, f.chargerToBattery, f.total, Self.chargerTint, phase)
+                    flow(toMacFromBattery, f.batteryToMac, f.total, Self.batteryTint, phase)
+
+                    nodeView("powerplug.portrait.fill", tint: Self.chargerTint, active: f.chargerConnected)
+                        .position(chargerAt)
+                    nodeView("laptopcomputer", tint: Color.isletText, active: true)
+                        .position(macAt)
+                    nodeView(batterySymbol, tint: batteryTint(f), active: true)
+                        .position(batteryAt)
+                    label("Charger", f.chargerConnected ? BatteryPage.watts(f.charger) : "Unplugged", lit: f.chargerConnected)
+                        .position(x: chargerAt.x, y: y + r + 18)
+                    label("Mac", BatteryPage.watts(f.mac), lit: true)
+                        .position(x: macAt.x, y: y + r + 18)
+                    label("Battery", batteryText(f), lit: true)
+                        .position(x: batteryAt.x, y: y + r + 18)
                 }
-            } else {
-                pill("battery.75percent", d.batteryWatts.map { -$0 } ?? d.systemWatts)
-                arrow
-                pill("laptopcomputer", d.systemWatts)
             }
         }
+        .frame(height: Self.arcRoom + Self.node + 36)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.summary(f))
     }
 
-    private var arrow: some View {
-        Image(systemName: "arrow.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletTertiary)
+    private var batterySymbol: String {
+        let p = state.percent
+        return p >= 88 ? "battery.100percent" : p >= 63 ? "battery.75percent" : p >= 38 ? "battery.50percent" : p >= 13 ? "battery.25percent" : "battery.0percent"
     }
 
-    private func sum(_ a: Double?, _ b: Double) -> Double? { a.map { $0 + b } }
+    private func batteryText(_ f: PowerFlows) -> String {
+        if f.batteryToMac > PowerFlows.still { return "\(BatteryPage.watts(f.batteryToMac)) out" }
+        if f.chargerToBattery > PowerFlows.still { return "\(BatteryPage.watts(f.chargerToBattery)) in" }
+        return "Resting"
+    }
 
-    private func pill(_ symbol: String, _ watts: Double?) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(Color.isletSecondary)
-            Text(BatteryPage.watts(watts.map { max(0, $0) })).font(.system(size: 13, weight: .medium)).monospacedDigit()
-                .foregroundStyle(Color.isletText)
+    static func summary(_ f: PowerFlows) -> String {
+        var parts: [String] = []
+        if f.chargerToMac > PowerFlows.still { parts.append("charger to Mac \(BatteryPage.watts(f.chargerToMac))") }
+        if f.chargerToBattery > PowerFlows.still { parts.append("charger to battery \(BatteryPage.watts(f.chargerToBattery))") }
+        if f.batteryToMac > PowerFlows.still { parts.append("battery to Mac \(BatteryPage.watts(f.batteryToMac))") }
+        return parts.isEmpty ? "No power flowing" : parts.joined(separator: ", ")
+    }
+
+    private func nodeView(_ symbol: String, tint: Color, active: Bool) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(active ? tint : Color.isletTertiary)
+            .frame(width: Self.node, height: Self.node)
+            .background(IsletCard(shape: Circle()))
+            .overlay(Circle().stroke(active ? tint.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
+            .opacity(active ? 1 : 0.55)
+    }
+
+    private func label(_ title: String, _ value: String, lit: Bool) -> some View {
+        VStack(spacing: 0) {
+            Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(Color.isletTertiary)
+            Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(lit ? Color.isletText : Color.isletTertiary)
+                .contentTransition(.numericText())
         }
-        .frame(maxWidth: .infinity).frame(height: 34)
-        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 10, style: .continuous)))
+        .frame(width: 84)
+        .animation(.easeOut(duration: 0.3), value: value)
+    }
+
+    private func rail(_ path: Path) -> some View {
+        path.stroke(Color.white.opacity(0.07), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+    }
+
+    /// A glowing line with dashes drifting along it; thicker for a bigger share of the power.
+    @ViewBuilder private func flow(_ path: Path, _ watts: Double, _ total: Double, _ tint: Color, _ phase: CGFloat) -> some View {
+        if watts > PowerFlows.still {
+            let width = 2 + 3 * CGFloat(min(1, watts / total))
+            ZStack {
+                path.stroke(tint.opacity(0.28), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                path.stroke(tint, style: StrokeStyle(lineWidth: width, lineCap: .round, dash: [4, 9], dashPhase: -phase))
+                    .shadow(color: tint.opacity(0.6), radius: 3)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    /// From the charger up over the Mac and down into the battery.
+    private static func arc(from a: CGPoint, to b: CGPoint, r: CGFloat) -> Path {
+        Path { p in
+            let start = CGPoint(x: a.x + r * 0.55, y: a.y - r * 0.85), end = CGPoint(x: b.x - r * 0.55, y: b.y - r * 0.85)
+            p.move(to: start)
+            p.addCurve(to: end, control1: CGPoint(x: start.x + 30, y: 0), control2: CGPoint(x: end.x - 30, y: 0))
+        }
+    }
+
+    private static func line(from a: CGPoint, to b: CGPoint) -> Path {
+        Path { p in
+            p.move(to: a)
+            p.addLine(to: b)
+        }
     }
 }

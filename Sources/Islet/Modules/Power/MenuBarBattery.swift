@@ -48,9 +48,11 @@ enum MenuBarBattery {
                 let s = symbol.size
                 let at = NSRect(x: body.midX - s.width / 2, y: body.midY - s.height / 2, width: s.width, height: s.height)
                 // A gap around the mark so it reads over the fill.
-                for dx in [-1.0, 0, 1.0] { for dy in [-1.0, 0, 1.0] where dx != 0 || dy != 0 {
-                    symbol.draw(in: at.offsetBy(dx: dx, dy: dy), from: .zero, operation: .destinationOut, fraction: 1)
-                } }
+                for i in 0..<16 {
+                    let angle = Double(i) / 16 * 2 * .pi
+                    symbol.draw(in: at.offsetBy(dx: 1.1 * cos(angle), dy: 1.1 * sin(angle)), from: .zero,
+                                operation: .destinationOut, fraction: 1)
+                }
                 tinted(symbol, ink).draw(in: at)
             }
 
