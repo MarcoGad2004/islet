@@ -202,6 +202,14 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   settings: Options > "Connect to this Mac" > "When last connected to this Mac"
   (discussions.apple.com/thread/254640801, support.airbuddy.app). Nothing found for the Focus banner; check System Settings >
   Notifications and Focus on this Mac. Plan: show the island animation and tell the owner which system toggles remove the duplicate.
+  **AirPods card, verified (2026-11-23, `-IsletDebugShape bannerspike`, `Spike/BannerSpike.swift`):** it is not a
+  notification. `com.apple.MenuBarAgent` opens a layer-101 window, 367 x 154 pt at the top right, whose `AXWindow` has
+  identifier `smart-routing-system-banner`; inside, `AXStaticText` values "Marco's AirPods Pro" and "Moved to iPhone" and
+  an `AXButton` "Undo" (`arrow.uturn.backward`). A connect card's texts are the name, the battery ("41") and
+  "Connected", with no button. Control Center renders the same content off screen (y = 982) in an
+  `AXHostedViewSceneWindow`. `AXCreated` arrives with the texts already in. Switching the AirPods to the iPhone and back
+  fired no IOBluetooth connect or disconnect on the Mac, so the card's text is the only signal. Islet moves a "Connected"
+  card's window to (-3000, -3000) as it does notification banners and leaves other cards alone (`RoutingBannerWatcher`).
 - **Q23 Event sources: verified on this Mac (2026-11-19, `-IsletDebugShape spikewatch`, Full Disk Access granted).**
   - **Focus works.** With Full Disk Access, `~/Library/DoNotDisturb/DB/Assertions.json` is readable (11 KB). Watching the DB
     folder with a `DispatchSource` file-system source fired within a second of toggling. Turning Do Not Disturb on parsed as

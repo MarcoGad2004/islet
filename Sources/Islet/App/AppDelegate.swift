@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
     private let notifications = NotificationWatcher()
+    private let routingBanners = RoutingBannerWatcher()
     private let messages = MessagesStore()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
@@ -158,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? await Task.sleep(for: .seconds(2))
                 store.setControlDetail(.wifi)
             }
+        case "bannerspike": let s = BannerSpike(); bannerSpike = s; Task { await s.run() }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
         case "focuson", "wificonnect", "btconnect", "eventchin":
@@ -328,7 +330,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.updater = Updater.shared
         Updater.shared.startAutomaticChecks()
         wifi.start()
-        bluetooth.onConnected = { [weak store] name, icon in store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected")) }
+        // One "Connected" per connect: IOBluetooth and the AirPods card can both report it, with different names.
+        var lastConnected = Date.distantPast
+        let showConnected = { [weak store] (name: String, icon: String) in
+            guard Date().timeIntervalSince(lastConnected) > 6 else { return }
+            lastConnected = Date()
+            store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected"))
+        }
+        bluetooth.onConnected = { name, icon in showConnected(name, icon) }
         bluetooth.start()
         display.refresh()
         airdrop.refresh()
@@ -344,6 +353,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
         store.notificationAction = { [weak self] in self?.notifications.perform($0, action: $1) }
         notifications.start()
+        // The AirPods "Connected" card goes with the notifications: into the notch only.
+        routingBanners.enabled = { Feature.notifications.isOn }
+        routingBanners.onConnected = { [weak store] name in
+            guard let store, store.canShowEvent else { return false }
+            showConnected(name, BluetoothController.icon(name: name, major: 0))
+            return true
+        }
+        routingBanners.start()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.onEventUpdate = { [weak store] in store?.updateCharge($0) }
@@ -369,7 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { store?.recomputeLayout() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry() }
+            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry(); self?.routingBanners.retry() }
         }
     }
 
@@ -514,6 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     #if DEBUG
     private var controlSpike: ControlSpike?
+    private var bannerSpike: BannerSpike?
     private var messagesSpike: MessagesSpike?
     private var searchSpike: SearchSpike?
     @objc private func runSpike() {

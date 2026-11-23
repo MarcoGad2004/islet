@@ -1072,6 +1072,11 @@ final class IslandStore {
         refresh()
     }
 
+    /// Whether an event would show now (it is dropped otherwise).
+    var canShowEvent: Bool {
+        geometry != nil && !paused && !lockScreen && !expanded && Date().timeIntervalSince(lastInUse) > Self.quietAfterUse
+    }
+
     func showEvent(_ e: IslandEvent) {
         guard !expanded, Date().timeIntervalSince(lastInUse) > Self.quietAfterUse else { return }
         recomputeLayout()

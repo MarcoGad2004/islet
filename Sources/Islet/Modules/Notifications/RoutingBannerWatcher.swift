@@ -1,0 +1,130 @@
+import AppKit
+import ApplicationServices
+
+/// Keeps the AirPods "Connected" card out of the top-right corner, so a device connecting to this Mac shows only in the
+/// notch (RESEARCH.md Q22).
+///
+/// The card is not a notification: `com.apple.MenuBarAgent` opens a window identified `smart-routing-system-banner`
+/// holding the device's name and the status. A card saying the device connected is moved off screen the moment it is
+/// created, and kept there until it closes by itself. Every other card (such as "Moved to iPhone") is left alone, as
+/// are all other windows. When the notch can't show the event (panel open, locked) the card stays where macOS put it.
+@MainActor
+final class RoutingBannerWatcher {
+    static let agentBundleID = "com.apple.MenuBarAgent"
+    static let bannerID = "smart-routing-system-banner"
+
+    /// A device connected (its name). Returns whether the notch shows it; if not, the card stays.
+    var onConnected: ((_ name: String) -> Bool)?
+    var enabled: () -> Bool = { true }
+
+    private var observer: AXObserver?
+    private var retryTask: Task<Void, Never>?
+
+    /// Diagnostics while hiding is being tuned (device names and statuses only).
+    private let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-airpods-card.log")
+    private func log(_ s: String) {
+        let line = "\(Date().formatted(.iso8601))  " + s + "\n"
+        if !FileManager.default.fileExists(atPath: logURL.path) { try? "".write(to: logURL, atomically: true, encoding: .utf8) }
+        if let h = try? FileHandle(forWritingTo: logURL) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
+    }
+
+    func start() {
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            guard id == Self.agentBundleID else { return }
+            MainActor.assumeIsolated { self?.attach() }
+        }
+        attach()
+    }
+
+    /// Accessibility may be allowed later: try again then.
+    func retry() { if observer == nil { attach() } }
+
+    private func attach() {
+        retryTask?.cancel()
+        guard AXIsProcessTrusted(),
+              let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.agentBundleID).first else {
+            retryTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(10))
+                guard !Task.isCancelled else { return }
+                self?.attach()
+            }
+            return
+        }
+        if let observer { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes) }
+        observer = nil
+        var obs: AXObserver?
+        guard AXObserverCreate(app.processIdentifier, routingCallback, &obs) == .success, let obs else { log("observer failed"); return }
+        let r = AXObserverAddNotification(obs, AXUIElementCreateApplication(app.processIdentifier), kAXCreatedNotification as CFString,
+                                          Unmanaged.passUnretained(self).toOpaque())
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
+        observer = obs
+        log("attached to MenuBarAgent pid \(app.processIdentifier) (\(r.rawValue))")
+    }
+
+    fileprivate func created(_ window: AXUIElement) {
+        guard AX.role(window) == kAXWindowRole as String else { return }
+        look(at: window, attempt: 0)
+    }
+
+    /// Whether the card's status says the device connected (to this Mac), not that it moved away.
+    static func isConnect(_ status: String) -> Bool {
+        let s = status.lowercased()
+        return s.contains("connected") && !s.contains("disconnected") && !s.contains("moved")
+    }
+
+    /// The card's texts are there as the window is created; give them a moment if not.
+    private func look(at window: AXUIElement, attempt: Int) {
+        guard AX.identifier(window) == Self.bannerID else { return }
+        let texts = AX.all(in: window, depth: 6) { AX.role($0) == kAXStaticTextRole as String }
+            .compactMap { AX.string($0, kAXValueAttribute) }.filter { !$0.isEmpty }
+        guard texts.count >= 2 else {
+            if attempt < 8 {
+                Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(25))
+                    self?.look(at: window, attempt: attempt + 1)
+                }
+            } else { log("card without texts: \(texts)") }
+            return
+        }
+        let origin = AX.position(window)
+        log("card \(texts) at \(origin.map { "\($0)" } ?? "?")")
+        // Name first, then the texts: a "Connected" card also has the battery ("41") between them.
+        guard enabled(), texts.dropFirst().contains(where: Self.isConnect) else { log("  left alone"); return }
+        var settable = DarwinBoolean(false)
+        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &settable)
+        let moved = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
+        log("  position settable=\(settable.boolValue) set=\(moved) now=\(AX.position(window).map { "\($0)" } ?? "?")")
+        guard onConnected?(texts[0]) == true else {
+            if let origin { AX.setPosition(window, origin) }
+            log("  notch busy: card put back")
+            return
+        }
+        keepAway(window)
+    }
+
+    /// MenuBarAgent may place the card again as it animates in: keep it off screen until it closes (at most 10 s).
+    private func keepAway(_ window: AXUIElement) {
+        Task { [weak self] in
+            let start = Date()
+            var lastLogged = -1.0
+            while Date().timeIntervalSince(start) < 10, AX.alive(window) {
+                let p = AX.position(window)
+                if let p, p.x > -2000 {
+                    let ok = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
+                    let t = Date().timeIntervalSince(start)
+                    if t - lastLogged > 0.2 { self?.log(String(format: "  +%.2fs back at %@, moved again: %@", t, "\(p)", ok ? "yes" : "no")); lastLogged = t }
+                }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            self?.log(String(format: "  card gone after %.1fs", Date().timeIntervalSince(start)))
+        }
+    }
+}
+
+private let routingCallback: AXObserverCallback = { _, element, _, refcon in
+    guard let refcon else { return }
+    let watcher = Unmanaged<RoutingBannerWatcher>.fromOpaque(refcon).takeUnretainedValue()
+    nonisolated(unsafe) let el = element
+    MainActor.assumeIsolated { watcher.created(el) }
+}
