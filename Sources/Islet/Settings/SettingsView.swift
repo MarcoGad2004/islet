@@ -93,7 +93,9 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Dynamic Peninsula " + versionLabel.components(separatedBy: " (").first!).fontWeight(.semibold)
+                Text("Dynamic Peninsula").fontWeight(.semibold).lineLimit(1)
+                // The version on its own line: the name no longer leaves room beside it.
+                Text(versionLabel.components(separatedBy: " (").first!).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 HStack(spacing: 5) {
                     Circle().fill(issues.isEmpty ? Color.green : .orange).frame(width: 7, height: 7)
                     Text(Self.summary(issues.count)).font(.caption).foregroundStyle(.secondary)
