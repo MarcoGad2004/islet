@@ -1,4 +1,5 @@
 import AppKit
+import CoreBluetooth
 import IOBluetooth
 
 struct BTDevice: Identifiable, Equatable {
@@ -28,19 +29,37 @@ final class BluetoothController: NSObject {
 
     private typealias GetPower = @convention(c) () -> Int32
     private typealias SetPower = @convention(c) (Int32) -> Void
-    private static let handle = dlopen("/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", RTLD_NOW)
-    private static let getPower = handle.flatMap { dlsym($0, "IOBluetoothPreferenceGetControllerPowerState") }.map { unsafeBitCast($0, to: GetPower.self) }
+    nonisolated(unsafe) private static let handle = dlopen("/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", RTLD_NOW)
+    nonisolated(unsafe) private static let getPower = handle.flatMap { dlsym($0, "IOBluetoothPreferenceGetControllerPowerState") }.map { unsafeBitCast($0, to: GetPower.self) }
     private static let setPower = handle.flatMap { dlsym($0, "IOBluetoothPreferenceSetControllerPowerState") }.map { unsafeBitCast($0, to: SetPower.self) }
 
     var powerAvailable: Bool { Self.getPower != nil && Self.setPower != nil }
 
+    @ObservationIgnored private var waiting = false
+
     func start() {
+        // Until Bluetooth access is decided, the first IOBluetooth call waits on the permission prompt; on the main
+        // thread that froze the whole app at launch until the prompt was answered. Ask from a background thread
+        // instead and start once there's an answer.
+        guard CBManager.authorization == .allowedAlways else {
+            guard CBManager.authorization == .notDetermined, !waiting else { return }
+            waiting = true
+            Task.detached(priority: .utility) {
+                _ = Self.getPower?()
+                await MainActor.run { [weak self] in
+                    self?.waiting = false
+                    if CBManager.authorization == .allowedAlways { self?.start() }
+                }
+            }
+            return
+        }
         refresh()
         connectedNow = Set(devices.filter(\.connected).map(\.id))
         note = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connectCallback(_:device:)))
     }
 
     func refresh() {
+        guard CBManager.authorization == .allowedAlways else { return }
         powerOn = (Self.getPower?() ?? 1) != 0
         let paired = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []
         devices = paired.compactMap { d in
