@@ -126,4 +126,19 @@ final class BatteryStatsTests: XCTestCase {
         XCTAssertEqual(resting.chargerToBattery, 0)
         XCTAssertEqual(resting.batteryToMac, 0)
     }
+
+    /// Faster with more power, never racing, and a change of speed never moves the dashes backwards.
+    func testFlowSpeed() {
+        XCTAssertLessThan(FlowClock.speed(6), FlowClock.speed(50))
+        XCTAssertEqual(FlowClock.speed(500), 30, accuracy: 0.001)
+        let clock = FlowClock()
+        var t = Date(timeIntervalSinceReferenceDate: 0)
+        var last = clock.tick(t, watts: [5])[0]
+        for step in 0..<60 {
+            t += 1.0 / 60
+            let now = clock.tick(t, watts: [step < 30 ? 5 : 90])[0]
+            XCTAssertGreaterThan(now, last)
+            last = now
+        }
+    }
 }

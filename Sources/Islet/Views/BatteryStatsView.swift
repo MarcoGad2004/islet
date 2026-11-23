@@ -213,6 +213,7 @@ struct PowerFlow: View {
     let state: PowerMonitor.State
     let details: PowerMonitor.Details
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var clock = FlowClock()
 
     private static let chargerTint = Color.isletGreen
     private static let batteryTint = Color(hex: 0xFFD60A)
@@ -227,7 +228,7 @@ struct PowerFlow: View {
     var body: some View {
         let f = PowerFlows(state: state, details: details)
         TimelineView(.animation(paused: reduceMotion)) { time in
-            let phase = reduceMotion ? 0 : CGFloat(time.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 10) * 14)
+            let phases = reduceMotion ? [0, 0, 0] : clock.tick(time.date, watts: [f.chargerToMac, f.chargerToBattery, f.batteryToMac])
             GeometryReader { geo in
                 let w = geo.size.width
                 let r = Self.node / 2
@@ -243,9 +244,9 @@ struct PowerFlow: View {
                     rail(toMacFromCharger)
                     rail(toMacFromBattery)
                     rail(toBattery)
-                    flow(toMacFromCharger, f.chargerToMac, f.total, Self.chargerTint, phase)
-                    flow(toBattery, f.chargerToBattery, f.total, Self.chargerTint, phase)
-                    flow(toMacFromBattery, f.batteryToMac, f.total, Self.batteryTint, phase)
+                    flow(toMacFromCharger, f.chargerToMac, f.total, Self.chargerTint, phases[0])
+                    flow(toBattery, f.chargerToBattery, f.total, Self.chargerTint, phases[1])
+                    flow(toMacFromBattery, f.batteryToMac, f.total, Self.batteryTint, phases[2])
 
                     nodeView("powerplug.portrait.fill", tint: Self.chargerTint, active: f.chargerConnected)
                         .position(chargerAt)
@@ -345,8 +346,33 @@ struct PowerFlow: View {
     }
 }
 
+/// How far each line's dashes have drifted. The speed follows the line's watts (faster for more power, on a square
+/// root so it never races) and eases toward a new reading; each line keeps its own running distance so a change of
+/// speed never makes its dashes jump.
+@MainActor
+final class FlowClock {
+    private var last: Date?
+    private var speeds: [Double] = []
+    private var phases: [Double] = []
+
+    /// Points per second: 8 when barely moving, 30 at 100 W.
+    nonisolated static func speed(_ watts: Double) -> Double { 8 + 22 * min(1, (max(0, watts) / 100).squareRoot()) }
+
+    func tick(_ now: Date, watts: [Double]) -> [CGFloat] {
+        let targets = watts.map(Self.speed)
+        if speeds.count != targets.count { speeds = targets; phases = Array(repeating: 0, count: targets.count) }
+        let dt = min(0.1, max(0, last.map { now.timeIntervalSince($0) } ?? 0))
+        last = now
+        for i in targets.indices {
+            speeds[i] += (targets[i] - speeds[i]) * min(1, dt * 2.5) // about a second to settle
+            phases[i] = (phases[i] + speeds[i] * dt).truncatingRemainder(dividingBy: 13 * 1000) // 13 = one dash and gap
+        }
+        return phases.map { CGFloat($0) }
+    }
+}
+
 /// A flow line as a filled outline, so its thickness and how far along the line it reaches animate (a stroke's width
-/// doesn't). The dashes' drift (`phase`) comes from the timeline, not the animation.
+/// doesn't). The dashes' drift (`phase`) comes from `FlowClock`, not the animation.
 private struct FlowStroke: Shape {
     var path: Path
     var width: CGFloat
