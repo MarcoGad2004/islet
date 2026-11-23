@@ -838,7 +838,6 @@ final class IslandStore {
         m.openChat(chat)
         guard m.open != nil else { return false }
         conversationFromInbox = fromInbox
-        m.markSeen(chat)
         if expandedPage == .search { search.end() } // from search's Message: the conversation takes its place
         expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
         controlDetail = nil

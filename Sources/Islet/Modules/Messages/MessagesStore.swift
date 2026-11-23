@@ -90,7 +90,7 @@ final class MessagesStore {
         var title: String
         var preview: String
         var date: Date
-        /// Incoming messages Messages hasn't marked read and the island hasn't shown yet.
+        /// Incoming messages Messages hasn't marked read.
         var unread: Int
         var id: Int64 { chatID }
         var initial: String { String(title.first(where: { $0.isLetter || $0.isNumber }) ?? "#") }
@@ -98,11 +98,10 @@ final class MessagesStore {
 
     /// Chats with something new first, then the other recent ones.
     private(set) var inbox: [ChatSummary] = []
-    /// New messages across all chats: the panel's messages pill shows when there are any.
+    /// Unread messages across all chats, as Messages counts them: the panel's messages pill shows when there are any.
     private(set) var unreadCount = 0
     @ObservationIgnored private var inboxWatcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var inboxTask: Task<Void, Never>?
-    static let seenKey = "messagesSeenUntil"
     /// A reply that went out but hasn't shown up in the history yet: shown at once, "Sending…".
     private(set) var pending: [Message] = []
     /// The send itself failed (no permission, Messages refused).
@@ -222,15 +221,15 @@ final class MessagesStore {
         guard available else { inbox = []; unreadCount = 0; return }
         names = names ?? ContactNames()
         names?.load()
-        let seen = UserDefaults.standard.dictionary(forKey: Self.seenKey) as? [String: Double] ?? [:]
+        // Exactly what Messages has unread (reading on any device clears it, as it syncs), however old.
         var unread: [Int64: Int] = [:]
         for r in rows("""
-            select j.chat_id, m.date from message m join chat_message_join j on j.message_id = m.ROWID
-            where m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0 and m.date > ?
-            """, [Self.dbDate(Date().addingTimeInterval(-14 * 86400))]) {
-            guard let chat = r[0] as? Int64, let d = r[1] as? Int64 else { continue }
-            if let until = seen[String(chat)], Self.date(d).timeIntervalSinceReferenceDate <= until { continue }
-            unread[chat, default: 0] += 1
+            select j.chat_id, count(*) from message m join chat_message_join j on j.message_id = m.ROWID
+            where m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
+            group by j.chat_id
+            """) {
+            guard let chat = r[0] as? Int64, let n = r[1] as? Int64, n > 0 else { continue }
+            unread[chat] = Int(n)
         }
         let recent = rows("""
             select j.chat_id, max(m.date) from message m join chat_message_join j on j.message_id = m.ROWID
@@ -271,17 +270,6 @@ final class MessagesStore {
             .compactMap { $0[0] as? String }
         let display = (c[0] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return (display ?? (handles.isEmpty ? "Messages" : handles.map { name(for: $0) }.joined(separator: ", ")), (c[1] as? Int64) == 43)
-    }
-
-    /// Shown in the island: what's there now no longer counts as new, even though Messages still has it unread (the
-    /// island can only read Messages' history, not mark it).
-    func markSeen(_ chat: Int64) {
-        var seen = UserDefaults.standard.dictionary(forKey: Self.seenKey) as? [String: Double] ?? [:]
-        seen[String(chat)] = Date().timeIntervalSinceReferenceDate
-        // Only chats from the last couple of weeks matter.
-        if seen.count > 200 { seen = seen.filter { Date().timeIntervalSinceReferenceDate - $0.value < 30 * 86400 } }
-        UserDefaults.standard.set(seen, forKey: Self.seenKey)
-        refreshInbox()
     }
 
     // MARK: The open conversation

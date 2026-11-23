@@ -582,13 +582,14 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 ### Messages inbox (1.5, owner request 2026-11-23)
 
 - A messages pill (blue message bubble and the count) sits beside the battery pill in the panel's header while there
-  are new messages: incoming ones from the last two weeks that Messages hasn't marked read and the island hasn't shown.
+  are unread messages: exactly the ones Messages has unread (from its database, so reading on the iPhone clears them
+  too), however old (owner's choice, 2026-11-23).
 - Click it for the inbox, in the panel at the conversation's height: "‹ MESSAGES", "n new" in blue and Open Messages,
   then chats with new messages first (bold name, the preview in white, the time and a count in blue, a faint card
   behind) and the other chats from the last 30 days (12 at most) under them.
-- A row opens its conversation, whose header gets a back button to the inbox. Opening a conversation in the island
-  counts what's in it as seen, so the pill clears; Messages itself still has them unread (the island only reads its
-  history).
+- A row opens its conversation, whose header gets a back button to the inbox. Reading a conversation in the island
+  doesn't clear it: the island can only read Messages' history, so it stays unread until it's read in Messages or on
+  another device.
 - In a conversation, photos show as rounded thumbnails up to 200 pt (click opens them), stickers on their own up to
   96 pt with no bubble, and stickers placed on a message overlap its bottom corner at 40 pt, tilted a little. Other
   files are a chip saying what they are (Video, Audio message, the file's name).
