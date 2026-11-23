@@ -14,6 +14,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Optional: "Raise the threshold as it learns my face". After 20 unlocks the match threshold moves up to just under your usual scores (at most 0.15 above the slider). Only your own confirmed unlocks move it.
 - Test recognition shows the spoof model's verdict, and Check Light runs the brightness check and shows what it measured.
 - In direct sun, Automatic skips the brightness swell and asks for the blink (or smile, or turn) straight away: it spots sun on your face from one side being much brighter than the other, or blown-out skin. The spoof model doesn't refuse your face in that light either; the challenge decides. Test recognition shows when it sees harsh light.
+- Settings > Face Unlock > "When a challenge is needed, just ask me to blink" (under Automatic): the fallback is always a blink instead of a random blink, smile or head turn. Off by default.
 - The light check is quicker: it decides as soon as the swell peaks instead of waiting for the screen to come back, and once it gets no response in a scan, the next tries go straight to the challenge.
 
 ## 1.4 (2026-11-22)

@@ -222,7 +222,7 @@ final class FaceUnlockService {
             let faces = owner.faces
             let engine = ScanEngine(embedder: embedder, antiSpoof: faces.spoofModel ? owner.antiSpoof : nil,
                                     enrolled: faces.allEmbeddings, threshold: faces.effectiveThreshold,
-                                    liveness: faces.liveness) { event in
+                                    liveness: faces.liveness, blinkFallback: faces.blinkFallback) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine

@@ -43,6 +43,8 @@ final class ScanEngine: @unchecked Sendable {
     private let enrolled: [[Float]]
     private let threshold: Float
     private let liveness: LivenessMode
+    /// Automatic's fallback challenge is always a blink.
+    private let blinkFallback: Bool
     private let onEvent: @Sendable (Event) -> Void
     private let lock = NSLock()
     private var matches = 0, misses = 0, best: Float = 0
@@ -74,19 +76,22 @@ final class ScanEngine: @unchecked Sendable {
     static let earlyPeakFrames = 4
 
     init(embedder: FaceEmbedder, antiSpoof: AntiSpoofModel?, enrolled: [[Float]], threshold: Float, liveness: LivenessMode,
+         blinkFallback: Bool = false,
          onEvent: @escaping @Sendable (Event) -> Void) {
         self.embedder = embedder
         self.antiSpoof = antiSpoof
         self.enrolled = enrolled
         self.threshold = threshold
         self.liveness = liveness
+        self.blinkFallback = blinkFallback
         self.onEvent = onEvent
-        detector = ChallengeDetector(Self.pick(liveness))
+        detector = ChallengeDetector(Self.pick(liveness, blinkFallback: blinkFallback))
     }
 
-    /// Blink mode always asks for a blink; the others pick again for every attempt.
-    private static func pick(_ mode: LivenessMode) -> LivenessChallenge {
-        mode == .blink ? .blink : LivenessChallenge.allCases.randomElement() ?? .blink
+    /// Blink mode always asks for a blink, and so does Automatic when its fallback is set to blink only; otherwise a
+    /// new pick for every attempt.
+    static func pick(_ mode: LivenessMode, blinkFallback: Bool) -> LivenessChallenge {
+        mode == .blink || (mode == .automatic && blinkFallback) ? .blink : LivenessChallenge.allCases.randomElement() ?? .blink
     }
 
     /// Random challenges, and Automatic's fallback, only count once they're shown.
@@ -96,7 +101,7 @@ final class ScanEngine: @unchecked Sendable {
     func resume() {
         lock.lock(); defer { lock.unlock() }
         paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
-        detector = ChallengeDetector(Self.pick(liveness)); promptedAt = nil
+        detector = ChallengeDetector(Self.pick(liveness, blinkFallback: blinkFallback)); promptedAt = nil
         spoof.reset(); pulse = .idle; fallback = false; scores = []; lastMatch = nil
         pulseSchedule = nil; harshHistory = []
     }

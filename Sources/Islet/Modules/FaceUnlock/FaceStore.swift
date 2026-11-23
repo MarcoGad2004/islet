@@ -47,6 +47,7 @@ final class FaceStore {
     private static let scoresKey = "faceUnlockGenuineScores"
     private static let pulseKey = "faceUnlockPulseProfiles"
     private static let spoofKey = "faceUnlockSpoofModel"
+    private static let blinkFallbackKey = "faceUnlockBlinkFallback"
     /// Unlock scores kept for the adaptive threshold, and learned pulse patterns.
     static let maxScores = 60
     static let maxPulseProfiles = 20
@@ -79,6 +80,8 @@ final class FaceStore {
 
     /// What the face has to do before it unlocks, so a photo (or, with random challenges, a video) can't.
     var liveness: LivenessMode { didSet { UserDefaults.standard.set(liveness.rawValue, forKey: Self.livenessKey) } }
+    /// Automatic: when the light check can't vouch, always ask for a blink rather than a random challenge.
+    var blinkFallback: Bool { didSet { UserDefaults.standard.set(blinkFallback, forKey: Self.blinkFallbackKey) } }
     /// Add new looks from successful unlocks.
     var learnFromUnlocks: Bool { didSet { UserDefaults.standard.set(learnFromUnlocks, forKey: Self.learnKey) } }
     /// Raise the screen brightness while scanning in a dark room.
@@ -100,6 +103,7 @@ final class FaceStore {
         brightenInDark = UserDefaults.standard.bool(forKey: Self.brightenKey)
         adaptiveThreshold = d.bool(forKey: Self.adaptiveKey)
         spoofModel = d.bool(forKey: Self.spoofKey)
+        blinkFallback = d.bool(forKey: Self.blinkFallbackKey)
         genuineScores = (d.array(forKey: Self.scoresKey) as? [NSNumber])?.map(\.floatValue) ?? []
         pulseProfiles = (d.array(forKey: Self.pulseKey) as? [[NSNumber]])?.map { $0.map(\.doubleValue) } ?? []
         reload()

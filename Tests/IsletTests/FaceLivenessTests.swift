@@ -100,6 +100,15 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertEqual(FacePulse.judge([], schedule: schedule, exposureHeld: true, learned: []).reason, "too few frames")
     }
 
+    func testBlinkOnlyFallback() {
+        for _ in 0..<20 {
+            XCTAssertEqual(ScanEngine.pick(.automatic, blinkFallback: true), .blink)
+            XCTAssertEqual(ScanEngine.pick(.blink, blinkFallback: false), .blink)
+        }
+        // Without it, Automatic's fallback varies like Random.
+        XCTAssertGreaterThan(Set((0..<60).map { _ in ScanEngine.pick(.automatic, blinkFallback: false) }).count, 1)
+    }
+
     // MARK: Harsh light
 
     /// A 640x480 frame lit `left` on the image's left half and `right` on its right half (gamma values 0...1).

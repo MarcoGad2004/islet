@@ -190,6 +190,7 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   already above 0.7) over 0.25 s, held 0.35 s, back over 0.3 s, after a random 0.35-0.6 s wait. One smooth
   swell, never a flicker (the owner was worried about discomfort). If the light check and the spoof model both
   vouch for the face, it's the match with nothing to do; otherwise the random challenge is asked, as Random.
+  Optional (owner request 2026-11-23, off by default): Automatic's fallback is always "Blink to unlock".
   It's judged as soon as the swell peaks (the screen still eases back afterwards). **Harsh light** (owner request
   2026-11-23): when the camera sees direct sun on the face (one side ≥ 3× brighter than the other, or ≥ 6% of the
   face blown out), there's no swell: the challenge is asked as soon as the face matches. The same for the rest of

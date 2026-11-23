@@ -225,6 +225,12 @@ struct FaceUnlockSettings: View {
                 Text("Blink").tag(LivenessMode.blink)
                 Text("Off").tag(LivenessMode.off)
             }
+            if faces.liveness == .automatic {
+                Toggle(isOn: Binding(get: { faces.blinkFallback }, set: { faces.blinkFallback = $0 })) {
+                    SettingsLabel("When a challenge is needed, just ask me to blink",
+                                  "Instead of a random blink, smile or head turn. Simpler, but a video of you blinking could pass it more easily.")
+                }
+            }
             Toggle("Brighten the screen to light my face in the dark", isOn: Binding(get: { faces.brightenInDark }, set: { faces.brightenInDark = $0 }))
             Toggle(isOn: Binding(get: { faces.spoofModel }, set: { faces.spoofModel = $0 })) {
                 SettingsLabel("Refuse faces that look like a photo or screen",
