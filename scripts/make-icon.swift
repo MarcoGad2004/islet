@@ -36,8 +36,11 @@ func render(_ px: Int) -> Data {
 
     // The land: the top edge (the mainland) and the peninsula joined to it, curving into it like the island's own
     // top corners do. A strip of sand runs round it, then the black land.
-    let shoreY: CGFloat = 830          // the mainland's coastline
-    let pw: CGFloat = 400, tip: CGFloat = 470, round: CGFloat = 120, fillet: CGFloat = 70
+    // The peninsula has the MacBook notch's proportions: 185 x 32 pt, so about 5.8 times as wide as it is deep, with
+    // bottom corners about a third of its depth and small curves where it meets the edge.
+    let shoreY: CGFloat = 864          // the mainland's coastline
+    let pw: CGFloat = 610, depth: CGFloat = 106
+    let tip = shoreY - depth, round: CGFloat = 34, fillet: CGFloat = 22
     func land(grow g: CGFloat) -> CGPath {
         let p = CGMutablePath()
         let l = 512 - pw / 2 - g, r = 512 + pw / 2 + g, bottom = tip - g, shore = shoreY - g
@@ -57,7 +60,7 @@ func render(_ px: Int) -> Data {
         return p
     }
     // Surf: two pale rings out in the water, following the coast.
-    for (g, a) in [(CGFloat(78), CGFloat(0.22)), (CGFloat(128), CGFloat(0.12))] {
+    for (g, a) in [(CGFloat(70), CGFloat(0.26)), (CGFloat(102), CGFloat(0.14))] {
         ctx.addPath(land(grow: g)); ctx.setStrokeColor(col(0xFFFFFF, a)); ctx.setLineWidth(8); ctx.strokePath()
     }
     // Shallows, then the beach.
@@ -69,11 +72,11 @@ func render(_ px: Int) -> Data {
     ctx.restoreGState()
 
     // The camera in the land, and a green status dot, as on the island.
-    let lensY: CGFloat = 690
-    ctx.setFillColor(col(0x15151C)); ctx.fillEllipse(in: CGRect(x: 512 - 34, y: lensY - 34, width: 68, height: 68))
-    ctx.setFillColor(col(0x2A3A66)); ctx.fillEllipse(in: CGRect(x: 512 - 14, y: lensY - 14, width: 28, height: 28))
-    ctx.setFillColor(col(0xFFFFFF, 0.35)); ctx.fillEllipse(in: CGRect(x: 512 - 4, y: lensY + 2, width: 8, height: 8))
-    ctx.setFillColor(col(0x32D74B)); ctx.fillEllipse(in: CGRect(x: 512 + 70, y: lensY - 13, width: 26, height: 26))
+    let lensY: CGFloat = tip + depth * 0.55
+    ctx.setFillColor(col(0x15151C)); ctx.fillEllipse(in: CGRect(x: 512 - 26, y: lensY - 26, width: 52, height: 52))
+    ctx.setFillColor(col(0x2A3A66)); ctx.fillEllipse(in: CGRect(x: 512 - 11, y: lensY - 11, width: 22, height: 22))
+    ctx.setFillColor(col(0xFFFFFF, 0.35)); ctx.fillEllipse(in: CGRect(x: 512 - 3, y: lensY + 2, width: 6, height: 6))
+    ctx.setFillColor(col(0x32D74B)); ctx.fillEllipse(in: CGRect(x: 512 + 56, y: lensY - 10, width: 20, height: 20))
     ctx.restoreGState()
     // Hairline highlight on the tile edge.
     ctx.addPath(tilePath); ctx.setStrokeColor(col(0xFFFFFF, 0.10)); ctx.setLineWidth(3); ctx.strokePath()
