@@ -80,12 +80,14 @@ final class BatteryStatsPanel {
 
         if glass, #available(macOS 26, *) {
             // Liquid Glass, as in Control Center: the desktop shows through blurred and refracted at the edges.
+            // No tint or forced appearance of our own: the system's glass then follows System Settings (Liquid Glass
+            // clear or tinted, Reduce Transparency) like Control Center does.
             let view = NSGlassEffectView()
             view.cornerRadius = 24
-            view.tintColor = NSColor.black.withAlphaComponent(0.28) // keeps white text readable over light wallpapers
-            view.appearance = NSAppearance(named: .darkAqua)
             view.contentView = host
             panel.contentView = view
+            // The window's own shadow is drawn for its square frame, which showed as a dark box around the glass.
+            panel.hasShadow = false
         } else {
             let radius: CGFloat = 14
             let blur = NSVisualEffectView()
