@@ -87,7 +87,8 @@ final class ShazamListener {
 
     private func finish(_ outcome: Outcome, _ done: (Outcome) -> Void) {
         timeoutTask?.cancel(); timeoutTask = nil
-        session?.cancel(); session = nil
+        // The session has already answered: cancelling it now crashes inside ShazamKit (EXC_BAD_ACCESS, 2026-11-23).
+        session = nil
         task = nil
         done(outcome)
     }
