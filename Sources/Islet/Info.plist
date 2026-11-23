@@ -34,5 +34,7 @@
 	<string>Copyright © 2026 Marcorios Gad</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dynamic Peninsula listens for a few seconds when you ask Shazam to name a song.</string>
 </dict>
 </plist>

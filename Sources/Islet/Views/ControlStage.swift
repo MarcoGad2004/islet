@@ -109,6 +109,7 @@ struct ControlStage: View {
                         .opacity(rest)
                 }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
+                if Feature.shazam.isOn { shazamButton.opacity(rest) }
                 if Feature.messages.isOn, let m = store.messages, m.unreadCount > 0 { messagesChip(m.unreadCount).opacity(rest) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag).opacity(rest) }
                 if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f).opacity(rest) }
@@ -206,6 +207,18 @@ struct ControlStage: View {
         .buttonStyle(.plain)
         .help(n == 1 ? "1 chat with unread messages" : "\(n) chats with unread messages")
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
+    }
+
+    /// Names the song playing nearby: the panel closes and the notch listens (DESIGN.md "Shazam").
+    private var shazamButton: some View {
+        Button { store.startShazam() } label: {
+            Image(systemName: "shazam.logo.fill").font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(ShazamView.blue)
+                .frame(width: 22, height: 22).background(IsletCard(shape: Circle()))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Shazam: name the song playing nearby")
     }
 
     private func focusIcon(_ f: FocusMode) -> some View {

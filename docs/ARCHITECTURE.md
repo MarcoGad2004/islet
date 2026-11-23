@@ -54,7 +54,7 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
 Sources/Islet/
   App/          entry point, app delegate, menu bar item, battery stats panel
   Notch/        panel, geometry, layout check, island shape, state store
-  Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/
+  Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/, Shazam/
   Views/        compact (wings/chin) and expanded views, face scan view
   Settings/
   Support/      design tokens, helpers

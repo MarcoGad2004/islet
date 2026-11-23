@@ -36,6 +36,7 @@ targets:
         NSAppleEventsUsageDescription: "Dynamic Peninsula toggles Dark Mode through System Events."
         NSContactsUsageDescription: "Dynamic Peninsula shows the names of the people messaging you."
         NSCameraUsageDescription: "Dynamic Peninsula uses the camera to recognise you for face unlock."
+        NSMicrophoneUsageDescription: "Dynamic Peninsula listens for a few seconds when you ask Shazam to name a song."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
     postBuildScripts:
       - name: Build media adapter
@@ -53,6 +54,7 @@ targets:
       properties:
         com.apple.security.app-sandbox: false
         com.apple.security.device.camera: true
+        com.apple.security.device.audio-input: true   # Shazam: without it the hardened runtime gives silence
         com.apple.security.device.bluetooth: true
         com.apple.security.personal-information.location: true
         com.apple.security.personal-information.addressbook: true   # Contacts: without it the hardened runtime denies silently

@@ -45,6 +45,13 @@ final class IslandStore {
     private(set) var wingsFit = false
     private(set) var eventWingsFit = false
     private(set) var event: IslandEvent?
+    /// Shazam listening or showing what it found (DESIGN.md "Shazam").
+    private(set) var shazam: ShazamState?
+    @ObservationIgnored private let shazamListener = ShazamListener()
+    @ObservationIgnored private var shazamTask: Task<Void, Never>?
+    /// A sideways swipe that is for Shazam rather than skipping (whether it has fired: once, past `shazamSwipeDistance`).
+    @ObservationIgnored private var shazamSwipe: Bool?
+    static let shazamSwipeDistance: Double = 40
     private(set) var progress: ConnectionProgress?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var progressAction: (() -> Void)?
@@ -171,6 +178,7 @@ final class IslandStore {
         if lockScreen && (!floating || (lockHint && lockHintFull)) { return .locked } // floating: only the ⌘⇧ reminder
         if let level { return .level(level) }
         if let notification { return .notification(notification) }
+        if let shazam { return .shazam(shazam) }
         if let progress { return .progress(progress) }
         if let event { return .event(event) }
         if let charge { return .charge(charge) }
@@ -214,6 +222,7 @@ final class IslandStore {
             if case .progress = c { return wingsFit ? .levelWings : .chin } // the step goes in the body
             if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
+            if case .shazam = c { return .shazam } // sized in targetMetrics: the bar, the chin, or the song's card
             // Hovered: the card. Otherwise the wide bar with the text in its body, or the chin.
             if case .notification = c { return pointerInside ? .notification : (wingsFit ? .levelWings : .chin) }
             // Media under the pointer (or mid-swipe): the wide bar, with the song's name in its body.
@@ -302,6 +311,14 @@ final class IslandStore {
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
             if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
         }
+        if case .shazam(let s)? = content, presentation == .shazam {
+            typealias L = IslandLayout
+            if s.song != nil {
+                m = IslandMetrics(sw: Double(g.width), sh: Double(g.height), bw: L.shazamCardWidth, bh: L.shazamCardHeight, tr: 16, br: 22, ic: 10)
+            } else if !wingsFit {
+                m = Presentation.chin.metrics(notchWidth: g.width, notchHeight: g.height)
+            }
+        }
         if levelTray != nil {
             // At least the wide bar's width, so the level row has the room it has on its own.
             let w = Double(g.width) + IslandLayout.wingsExtra
@@ -363,6 +380,9 @@ final class IslandStore {
             return IslandMetrics(sw: w, sh: h, bw: w, bh: 0, tr: 0, br: 2, ic: 0)
         case .levelWings, .lockHint, .quickBar:
             return IslandMetrics(sw: w, sh: 0, bw: w, bh: h, tr: 0, br: 2, ic: 0)
+        case .shazam:
+            return wingsFit && shazam?.song == nil ? IslandMetrics(sw: w, sh: 0, bw: w, bh: h, tr: 0, br: 2, ic: 0)
+                : IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
         case .chin, .notification, .quickChin:
             return IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
         default:
@@ -394,6 +414,10 @@ final class IslandStore {
         guard inside != pointerInside else { return }
         pointerInside = inside
         updateQuickInfo()
+        if let s = shazam, !s.listening, !expanded {
+            // Hovering the result keeps it; leaving gives it a little longer.
+            if inside { shazamTask?.cancel() } else { armShazam(3) }
+        }
         if !notifications.isEmpty, !expanded {
             // Hovering pauses them; leaving gives them a little longer.
             if inside { notificationTask?.cancel() } else { armNotification(Self.notificationAfterHover) }
@@ -419,6 +443,7 @@ final class IslandStore {
     /// Click: opens the panel (Display and Sound if a level bar was showing, else media if it is). A result with a
     /// button (the update's "What's new") does that instead.
     func click() {
+        if case .shazam? = content, !expanded { shazamClicked(); return }
         if let n = notification, !expanded {
             if n.isMessages, openConversation(n) { return }
             removeNotification(n, .shown); return
@@ -588,6 +613,7 @@ final class IslandStore {
 
     func swipeUp() {
         if skip != nil { return }
+        if case .shazam? = content, !expanded { endShazam(); return }
         if !notifications.isEmpty, !expanded { endAllNotifications(.closed); return }
         if expanded { collapse(); return }
         if mediaVisible && charge == nil && level == nil && event == nil && unlockStart == nil {
@@ -624,6 +650,8 @@ final class IslandStore {
 
     /// The fingers started sideways over the island. Only playing media (showing, or hidden behind the peek) skips.
     func skipBegan() -> Bool {
+        shazamSwipe = nil
+        if shazamSwipeAllowed { shazamSwipe = false; return true }
         guard !expanded, base == nil, !paused, let m = media, mediaMonitor != nil else { return false }
         let onMedia: Bool = if case .media? = content { true } else { false }
         guard onMedia || showsMediaPeek else { return false }
@@ -635,6 +663,14 @@ final class IslandStore {
 
     /// Finger travel since the swipe began, in points: negative is left (next), positive right (previous).
     func skipChanged(_ dx: Double) {
+        if let fired = shazamSwipe {
+            guard !fired, abs(dx) >= Self.shazamSwipeDistance else { return }
+            shazamSwipe = true
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            // Over Shazam listening, the swipe stops it; over its result, it listens again.
+            if shazam?.listening == true { endShazam() } else { startShazam() }
+            return
+        }
         guard var s = skip, case .tracking = s.phase else { return }
         if dx < 0 { s.dir = 1 } else if dx > 0 { s.dir = -1 }
         let wasArmed = s.armed
@@ -648,6 +684,7 @@ final class IslandStore {
     /// The fingers lifted, moving at `velocity` (points per second, positive right). The spring starts from where
     /// they left it at their speed: past half way, or flung in, the neighbour lands and the song changes now.
     func skipEnded(velocity: Double) {
+        if shazamSwipe != nil { shazamSwipe = nil; return }
         guard var s = skip, case .tracking = s.phase else { return }
         guard s.dir != 0 else { skip = nil; refresh(); return }
         // Progress per second (+ is further in): the fingers' speed through the pull's resistance at this point.
@@ -700,6 +737,79 @@ final class IslandStore {
         animator.setExtra(IslandMetrics(sw: 0, sh: depth, bw: 0, bh: 0, tr: 0, br: 0, ic: 0))
     }
 
+
+    // MARK: Shazam (DESIGN.md "Shazam")
+
+    /// A sideways swipe names the song playing nearby: over the idle notch (quick info, the peek), or over Shazam's
+    /// own result to listen again. Media takes the swipe for skipping first.
+    private var shazamSwipeAllowed: Bool {
+        guard Feature.shazam.isOn, pointerInside, !expanded, base == nil, !paused, !lockScreen, skip == nil else { return false }
+        if case .shazam? = content { return true }
+        return content == nil && !showsMediaPeek
+    }
+
+    /// The button in the controls, or the swipe: the island listens, then shows the song.
+    func startShazam() {
+        guard !lockScreen, !paused else { return }
+        if expanded { collapse() }
+        recomputeLayout()
+        shazamTask?.cancel()
+        shazam = ShazamState()
+        refresh()
+        shazamListener.listen { [weak self] outcome in self?.shazamFinished(outcome) }
+    }
+
+    private func shazamFinished(_ outcome: ShazamListener.Outcome) {
+        guard shazam != nil else { return }
+        let phase: ShazamState.Phase = switch outcome {
+        case .match(let song): .match(song)
+        case .noMatch: .noMatch
+        case .micDenied: .micDenied
+        case .failed(let message): .failed(message)
+        }
+        if case .match = phase { NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now) }
+        shazam?.phase = phase
+        recomputeLayout()
+        refresh()
+        // Under the pointer it waits until the pointer leaves.
+        if !pointerInside { armShazam(shazam?.hold ?? 3) }
+    }
+
+    private func armShazam(_ seconds: Double) {
+        shazamTask?.cancel()
+        shazamTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            self?.endShazam()
+        }
+    }
+
+    /// Stops listening (a swipe up, a click while listening) or puts the result away.
+    func endShazam() {
+        shazamListener.cancel()
+        shazamTask?.cancel()
+        guard shazam != nil else { return }
+        shazam = nil
+        refresh()
+    }
+
+    /// While listening a click stops it; on a song it opens it in Apple Music (or Shazam's page); on no match it
+    /// listens again; with the microphone off it opens that pane of System Settings.
+    private func shazamClicked() {
+        guard let s = shazam else { return }
+        switch s.phase {
+        case .listening: endShazam()
+        case .match(let song):
+            endShazam()
+            if let url = song.url { NSWorkspace.shared.open(url) }
+        case .noMatch, .failed: startShazam()
+        case .micDenied:
+            endShazam()
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
 
     /// A click outside: closes the panel.
     func dismiss() { collapse() }

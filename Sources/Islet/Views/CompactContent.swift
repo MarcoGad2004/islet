@@ -111,6 +111,7 @@ struct CompactContentView: View {
 
     @ViewBuilder private var left: some View {
         switch content {
+        case .shazam: EmptyView() // ShazamView draws its own
         case .media:
             if let m = store.media {
                 MediaSlot(store: store, forward: false) {
@@ -143,6 +144,7 @@ struct CompactContentView: View {
 
     @ViewBuilder private var right: some View {
         switch content {
+        case .shazam: EmptyView() // ShazamView draws its own
         case .media:
             if let m = store.media {
                 MediaSlot(store: store, forward: true) { SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing) }
@@ -181,6 +183,7 @@ struct CompactContentView: View {
 
     @ViewBuilder private var chin: some View {
         switch content {
+        case .shazam: EmptyView() // ShazamView draws its own
         case .media:
             if let m = store.media {
                 HStack(spacing: 10) {

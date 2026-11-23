@@ -33,6 +33,7 @@ struct SettingsView: View {
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
     @AppStorage(Feature.levelsKey) private var levelsInNotch = true
     @AppStorage(Feature.focusKey) private var focusInNotch = true
+    @AppStorage(Feature.shazamKey) private var shazamInNotch = true
     @AppStorage(SiriQuestion.enabledKey) private var askSiri = true
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var messagesAccess = MessagesAccess()
@@ -204,6 +205,7 @@ struct SettingsView: View {
         case .notifications: $notificationsInNotch
         case .messages: $messagesInNotch
         case .focus: $focusInNotch
+        case .shazam: $shazamInNotch
         case .faceUnlock: Binding(get: { face.unlock.enabled }, set: { face.unlock.enabled = $0 })
         case .menuBarBattery: Binding(get: { menuBarIconStyle == MenuBarIconStyle.battery.rawValue },
                                       set: { menuBarIconStyle = ($0 ? MenuBarIconStyle.battery : .pill).rawValue })

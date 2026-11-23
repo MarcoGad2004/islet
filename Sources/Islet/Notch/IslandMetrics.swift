@@ -40,6 +40,9 @@ enum IslandLayout {
     static let messagesBodyHeight: CGFloat = 300
     /// Search at its tallest: field 52, hairline, 300 of results, footer 28 (DESIGN.md "Search").
     static let searchMaxBodyHeight: CGFloat = 52 + 1 + 300 + 28
+    /// Shazam's card with the song: artwork, title and artist under the stem.
+    static let shazamCardWidth: Double = 360
+    static let shazamCardHeight: Double = 76
     /// Quick info's chin: two rows under the notch.
     static let quickChinWidth: Double = 340
     static let quickChinHeight: Double = 60
@@ -63,6 +66,9 @@ enum Presentation: Equatable {
     case closed, peek, wings, lockWings, lockHint, levelWings, eventWings, chin, scan, expanded, enrol, notification
     /// Quick info on hover (DESIGN.md "Quick info"): the wide bar when the menu bar has room, else a two-row chin.
     case quickBar, quickChin
+    /// Shazam (DESIGN.md "Shazam"): the wide bar with a body while listening, the card with the song after; the store
+    /// sizes it for the chin and the card.
+    case shazam
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -137,7 +143,7 @@ extension Presentation {
         case .eventWings:
             let w = nw + 2 * L.eventWing
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: 0, tr: 0, br: 12, ic: 0)
-        case .levelWings, .quickBar:
+        case .levelWings, .quickBar, .shazam:
             let w = nw + L.wingsExtra
             return IslandMetrics(sw: w, sh: nh, bw: w, bh: Double(L.levelBodyHeight), tr: 0, br: 18, ic: 0)
         case .quickChin:

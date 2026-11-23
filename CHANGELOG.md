@@ -13,6 +13,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Notifications grow downward to fit their text (up to 6 lines in the bar, 10 on the hover card) instead of cutting it to one line, so most can be read without hovering.
 - Replying to a message from the notch now clears the red badge in Messages: Messages flashes forward for a moment with the chat open so it marks it read (one-to-one chats; groups can't be opened that way).
 - The notch no longer has dark lines around it when the island is collapsed: the glass look's Liquid Glass layer drew its own edge and shadow outside the notch, so it now fades in only with the part of the island under the notch.
+- **Shazam in the notch.** Press the new Shazam button in the controls, or swipe sideways with two fingers over the idle notch, and it listens: the Shazam mark pulses with ripples while a little equaliser dances beside it. When it finds the song, the notch grows into a card, the mark flies into the cover's place and the title and artist slide in; click it to open the song in Apple Music. It asks for the microphone the first time, and can be turned off in Settings under Features.
 
 ## 1.5 (2026-11-23)
 

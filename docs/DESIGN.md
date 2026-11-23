@@ -470,7 +470,7 @@ Plays when macOS reports the screen unlocked (whatever unlocked it). See "Lock o
 
 ### Priority
 
-Face scan > lock opens > volume/brightness > FaceTime ringing > notification > charging/battery > media (1.4). Short
+Face scan > lock opens > volume/brightness > FaceTime ringing > notification > Shazam (1.6) > charging/battery > media (1.4). Short
 events cover media and hand back when they end. A FaceTime call in progress takes media's place.
 
 ### Gestures
@@ -481,7 +481,8 @@ With the pointer over the island:
   different app starts playing. Short events (volume, charging, unlock) still appear. On the open
   panel, swipe up closes it.
 - **Two-finger swipe down**: brings hidden media back; with nothing hidden, opens the panel.
-- **Two-finger swipe left / right** over media: next / previous track (see Media, "Skip and previous").
+- **Two-finger swipe left / right** over media: next / previous track (see Media, "Skip and previous"). Over the
+  idle notch (quick info or the peek), either way: Shazam (see "Shazam").
 - When media is hidden, hovering the notch shows the media peek (see Media).
 - Media from the app in front stays out of the notch (you're already in the player) and comes back when you
   switch away. The panel's media page still has it.
@@ -831,6 +832,33 @@ docs/mockups/quick-info.html).
   (0.3 s from 0.16 s). The island clips everything, and the tiles don't clip while pieces glide into them, so nothing
   shows outside the shape or gets cut off on the way.
 
+## Shazam (1.6)
+
+Owner request, 2026-11-23: name the song playing nearby from the notch.
+
+- **Starting it**: a round Shazam button (the blue Shazam mark on a glass circle, 22 pt) in the controls' header,
+  right of the battery chip; it closes the panel and the notch listens. Or a two-finger swipe left or right over the
+  idle notch (quick info, the peek; not over media, where it skips), firing once past 40 pt of finger travel with a
+  light tap on the trackpad. Settings > Dynamic Peninsula > Features "Shazam" (on by default) removes both.
+- **Listening** (up to 15 s): the wide bar with a body, like volume (or the chin when the menu bar has no room). The
+  Shazam mark (white S on blue, 22 pt) in the left wing beats softly while three blue rings ripple out of it; a
+  five-bar equaliser (cyan to blue) dances in the right wing; "Listening…" in the body with a light sweeping across
+  it. A click, a swipe up or another sideways swipe stops it.
+- **A song**: the island grows into a 360 × 76 card under the notch. The mark flies down into the artwork's place and
+  grows into a 52 pt rounded square, the cover lands on it with a spring and a blue ring bursts out of it, then the
+  title (14 semibold) and artist (12, `secondary`) slide in from the left. An open-in icon on the right. A firm tap on
+  the trackpad when it's found. It stays 8 s (held while hovered, 3 s after the pointer leaves). A click opens it in
+  Apple Music (Shazam's page when Apple Music doesn't have it); a sideways swipe listens again; a swipe up puts it away.
+  The song is also added to the Shazam library, as Control Center's Music Recognition does, so it's in Shazam's history
+  on the iPhone.
+- **No match**: the mark turns grey and shakes its head, the bars lie down, "No match. Try closer to the sound" (3 s).
+  A click listens again. Errors the same way in red ("Couldn't reach Shazam", 4 s); with the microphone off, "Allow
+  the microphone in Settings ›", which a click opens.
+- Priority: under notifications (a banner shows over it and hands back), above charging, events and media. Reduce Motion: no ripples, beat, bars or burst.
+- **Network and microphone**: the microphone is asked the first time it listens and only used while it does. ShazamKit
+  sends a signature of the sound (not the audio) to Shazam, and the cover is downloaded from Apple; nothing else.
+  It hears the room, so music playing through headphones isn't heard (see RESEARCH.md "Shazam").
+
 ## Features (1.4)
 
 Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/Dr9mECwP7ZuYuaacvnYXrr> (source
@@ -846,6 +874,7 @@ the controls) is always on and needs nothing.
 | Messages (inside Notifications) | Full Disk Access, Contacts, Control Messages | message banners open in Messages |
 | Focus | Full Disk Access | no Focus notice or icon |
 | Search | nothing | no shortcut, and typing in the panel doesn't search |
+| Shazam (1.6) | nothing (the microphone is asked the first time it listens) | no button in the controls, no swipe |
 | Face Unlock | Camera, Accessibility (and the login password) | the lock screen as usual |
 
 - A permission only counts as missing while a feature that needs it is on. Some add to features that work without

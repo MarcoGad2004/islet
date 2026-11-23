@@ -99,6 +99,13 @@ struct IslandView: View {
                             .id(key).transition(levelGlide(content) ? .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.1)))
                                                 : pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
+                case .shazam:
+                    if case .shazam(let s)? = content {
+                        ShazamView(store: store, state: s)
+                            .transition(.asymmetric(
+                                insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.08)),
+                                removal: .opacity.combined(with: .scale(scale: 0.85)).animation(.easeOut(duration: 0.14))))
+                    }
                 case .quickBar, .quickChin:
                     QuickInfoView(store: store, bar: pres == .quickBar)
                         .transition(.asymmetric(

@@ -12,6 +12,8 @@ enum IslandContent {
     case progress(ConnectionProgress)
     /// A banner taken from Notification Center (DESIGN.md "Notifications"): the card under the notch.
     case notification(NotificationItem)
+    /// Shazam listening, then the song it found (DESIGN.md "Shazam").
+    case shazam(ShazamState)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -24,6 +26,7 @@ enum IslandContent {
         case .event(let e): "event-\(e.kind)"
         case .progress: "progress"
         case .notification: "notification" // a new one fades across inside the card, not by remounting
+        case .shazam: "shazam" // listening turns into the result in place, so its pieces can move
         case .media: "media"
         }
     }
@@ -101,6 +104,45 @@ struct IslandEvent: Equatable {
     /// A Focus's own colour; the kind's colour when nil.
     var tint: Color? = nil
     var seconds: Double { 3 }
+}
+
+/// Shazam in the notch: listening, then what it heard. One content kind throughout, so the glyph can fly from the wing
+/// into the artwork's place.
+struct ShazamState: Equatable {
+    enum Phase: Equatable {
+        case listening
+        case match(ShazamSong)
+        case noMatch
+        case micDenied
+        case failed(String)
+    }
+    var phase = Phase.listening
+    /// When listening began, for the ripples' clock.
+    var started = Date()
+
+    var song: ShazamSong? { if case .match(let s) = phase { s } else { nil } }
+    var listening: Bool { phase == .listening }
+
+    /// The line in the body (or the chin) while there's no song.
+    var text: String {
+        switch phase {
+        case .listening: "Listening…"
+        case .match(let s): s.title
+        case .noMatch: "No match. Try closer to the sound"
+        case .micDenied: "Allow the microphone in Settings ›"
+        case .failed(let m): m
+        }
+    }
+
+    /// How long the result stays.
+    var hold: Double {
+        switch phase {
+        case .listening: .infinity
+        case .match: 8
+        case .noMatch: 3
+        case .micDenied, .failed: 4
+        }
+    }
 }
 
 /// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.

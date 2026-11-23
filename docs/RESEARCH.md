@@ -580,3 +580,16 @@ name>` (points from the right edge) in the app's own defaults, and reads it when
 own were Clock 105, BentoBox 96, ScreenMirroring 171. Islet sets 230 for its item ("IsletMenuBarItem") when there's no
 value yet, then sets the autosave name. A ⌘-drag writes the key, so the owner's own placement wins after that.
 
+## Shazam (2026-11-23)
+
+- `SHManagedSession` (macOS 14) records from the microphone itself and answers with `SHMatch`, no match, or an error;
+  `prepare()` warms it up. It needs `NSMicrophoneUsageDescription` and, under the hardened runtime,
+  `com.apple.security.device.audio-input`, or it hears silence. Islet stops it after 15 s and calls that no match.
+- Matching against Shazam's catalog needs the **ShazamKit App Service** switched on for the App ID
+  (`com.marcogad.islet`) at developer.apple.com > Identifiers; Xcode's automatic signing doesn't do it. Without it
+  every attempt fails (expected `SHErrorDomain` 202, `matchAttemptFailed`), which the notch shows as "Couldn't reach
+  Shazam". Not yet tried on this Mac: check the `shazam` log category the first time.
+- Only the microphone: music playing on the Mac through headphones isn't heard. Hearing the Mac's own sound would
+  take a Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.2+, its own "System Audio Recording"
+  permission) fed to `SHSession.matchStreamingBuffer`. Not built.
+- `SHLibrary.default.addItems` puts a match into the user's Shazam library (synced with the Shazam app's history).
