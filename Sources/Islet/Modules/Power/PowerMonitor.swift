@@ -65,6 +65,7 @@ final class PowerMonitor {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var delayed: Task<Void, Never>?
     @ObservationIgnored private var ticker: Task<Void, Never>?
+    @ObservationIgnored private var followUp: Task<Void, Never>?
 
     func start() {
         state = Self.read()
@@ -228,6 +229,19 @@ final class PowerMonitor {
         if detailsTask != nil { details = Self.readDetails() }
         guard started, new.hasBattery else { return }
 
+        // A charger in or out: nothing announces the moment charging actually starts (or stops), so look again every
+        // second for a while; the menu bar battery's bolt follows within a second.
+        if new.onAC != old.onAC {
+            followUp?.cancel()
+            followUp = Task { [weak self] in
+                for _ in 0..<15 {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard let self, !Task.isCancelled else { return }
+                    let s = Self.read()
+                    if s != self.state { self.state = s }
+                }
+            }
+        }
         if new.onAC && !old.onAC {
             // Shown at once; the time to full is often unknown for a second or two after plugging in, so it's filled in
             // when it arrives.
@@ -280,8 +294,13 @@ final class PowerMonitor {
                 }
                 s.charging = flags.external && flags.charging
                 s.charged = s.onAC && (s.charged || flags.full || s.percent >= 100)
-                if s.charging { s.charged = false }
             }
+            // The battery's flags refresh only every so often; the SMC's power figures are live. More coming in than
+            // the Mac is using means the rest is going into the battery: it's charging, whatever the flags say yet.
+            if s.onAC, !s.charging, let p = SMCSensors.power(), let input = p.chargerIn, input - p.system > 2 {
+                s.charging = true
+            }
+            if s.charging { s.charged = false }
             return s
         }
         s.hasBattery = false
