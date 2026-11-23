@@ -141,17 +141,27 @@ final class BatteryStatsPanel {
         panel.setFrame(NSRect(x: x, y: top - size.height, width: size.width, height: size.height), display: true)
     }
 
+    /// The pointer is on the icon. The status item can be delivered the press from a window other than `anchor`, so
+    /// the position is checked too; otherwise the press closes the panel and the click's action opens it again.
+    private var overIcon: Bool {
+        guard let frame = anchor?.frame else { return false }
+        return frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
+    }
+
     private func watchOutside(_ button: NSStatusBarButton) {
         for m in monitors { NSEvent.removeMonitor(m) }
         monitors = []
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let m = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
-            MainActor.assumeIsolated { self?.close() }
+            MainActor.assumeIsolated {
+                guard let self, !self.overIcon else { return }
+                self.close()
+            }
         }) { monitors.append(m) }
         // Clicks in Islet's own windows (the island, Settings), but not the icon, which toggles it itself.
         if let m = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
             MainActor.assumeIsolated {
-                guard let self, event.window !== self.panel, event.window !== self.anchor else { return }
+                guard let self, event.window !== self.panel, event.window !== self.anchor, !self.overIcon else { return }
                 self.close()
             }
             return event
