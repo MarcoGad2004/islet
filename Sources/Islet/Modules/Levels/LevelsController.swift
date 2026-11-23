@@ -199,12 +199,15 @@ final class LevelsController {
     /// Face unlock's depth check: one smooth swell of the screen brightness and back (never a flicker). It brightens
     /// by `change` when there's room, and dims by it when the screen is already bright. Waits for a dark-room ramp to
     /// finish first. Returns when the ramp up started and which way it went, or nil when brightness can't be set.
-    func pulseForFaceScan(change: Double = FacePulse.change) async -> FacePulse.Schedule? {
+    /// `onStart` runs as the swell begins, so the scan can judge it at its peak.
+    func pulseForFaceScan(change: Double = FacePulse.change,
+                          onStart: (FacePulse.Schedule) -> Void = { _ in }) async -> FacePulse.Schedule? {
         await rampTask?.value
         guard displayServices.available, let now = displayServices.get(displayID).map(Double.init) else { return nil }
         let up = now <= 1 - change
         let target = up ? now + change : now - change
         let start = Date()
+        onStart(FacePulse.Schedule(start: start, brighter: up))
         ramp(from: now, to: target, over: FacePulse.rise)
         await rampTask?.value
         try? await Task.sleep(for: .seconds(FacePulse.hold))

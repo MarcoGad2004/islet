@@ -100,6 +100,48 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertEqual(FacePulse.judge([], schedule: schedule, exposureHeld: true, learned: []).reason, "too few frames")
     }
 
+    // MARK: Harsh light
+
+    /// A 640x480 frame lit `left` on the image's left half and `right` on its right half (gamma values 0...1).
+    private func frame(left: Double, right: Double) -> CVPixelBuffer {
+        var pb: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 640, 480, kCVPixelFormatType_32BGRA, nil, &pb)
+        CVPixelBufferLockBaseAddress(pb!, [])
+        let base = CVPixelBufferGetBaseAddress(pb!)!.assumingMemoryBound(to: UInt8.self), row = CVPixelBufferGetBytesPerRow(pb!)
+        for y in 0..<480 {
+            for x in 0..<640 {
+                let v = UInt8(((x < 320 ? left : right) * 255).rounded())
+                let o = y * row + x * 4
+                base[o] = v; base[o + 1] = v; base[o + 2] = v; base[o + 3] = 255
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pb!, [])
+        return pb!
+    }
+
+    /// A face centred in the frame: eyes 80 px apart.
+    private let facePoints = [CGPoint(x: 280, y: 280), CGPoint(x: 360, y: 280), CGPoint(x: 320, y: 240), CGPoint(x: 290, y: 190), CGPoint(x: 350, y: 190)]
+    private let faceBox = CGRect(x: 0.36, y: 0.3, width: 0.28, height: 0.45)
+
+    func testEvenLightIsNotHarsh() {
+        let l = FacePulse.lighting(frame(left: 0.55, right: 0.5), points: facePoints, face: faceBox)!
+        XCTAssertFalse(l.harsh)
+        XCTAssertEqual(l.clipped, 0)
+    }
+
+    func testSunOnOneSideIsHarsh() {
+        // Sun from the left: that side bright, the other in shadow (linear ratio ~4.5).
+        let l = FacePulse.lighting(frame(left: 0.85, right: 0.43), points: facePoints, face: faceBox)!
+        XCTAssertGreaterThan(l.sideRatio, FacePulse.Lighting.harshSideRatio)
+        XCTAssertTrue(l.harsh)
+    }
+
+    func testBlownOutFaceIsHarsh() {
+        let l = FacePulse.lighting(frame(left: 1.0, right: 1.0), points: facePoints, face: faceBox)!
+        XCTAssertEqual(l.clipped, 1)
+        XCTAssertTrue(l.harsh)
+    }
+
     // MARK: Spoof model
 
     func testCropMatchesTrainingCode() {

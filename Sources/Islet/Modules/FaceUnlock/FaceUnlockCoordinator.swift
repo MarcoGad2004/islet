@@ -37,6 +37,8 @@ final class FaceUnlockCoordinator {
     /// Test recognition: the last light check, and whether one is running.
     private(set) var testPulse: FacePulse.Verdict?
     private(set) var testPulsing = false
+    /// Test recognition: how the face is lit (harsh = direct sun, the challenge is asked at once).
+    private(set) var testLighting: FacePulse.Lighting?
     private(set) var modelAvailable = false
 
     private let island: IslandStore
@@ -162,12 +164,14 @@ final class FaceUnlockCoordinator {
                                                      matched: (score ?? 0) >= threshold))
                     }
                 }
+                let lighting = a.flatMap { FacePulse.lighting(pb, points: $0.points, face: $0.box) }
                 let live = a.flatMap { a in antiSpoof?.live(pb, face: a.box) }.map { spoof.add($0) } ?? spoof.mean
                 let seen = liveness.add(a)
                 let light = FrameLight.luma(pb)
                 Task { @MainActor in
                     guard let self, self.testingFace else { return }
                     self.testScore = score; self.testFramed = framed; self.testLight = light; self.testLive = live
+                    self.testLighting = lighting
                     self.testSeen.formUnion(seen)
                 }
             }
@@ -181,6 +185,7 @@ final class FaceUnlockCoordinator {
         testingFace = false
         testScore = nil
         testSeen = []; testFramed = false; testLight = nil; testLive = nil; testPulse = nil; testPulsing = false
+        testLighting = nil
         testRecorder = nil
     }
 

@@ -281,9 +281,11 @@ final class FaceUnlockService {
             Task { await runPulse() }
         case .pulseResult(let verdict):
             let r = verdict.reading
-            Self.log.info("pulse \(String(describing: verdict.passed)) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
+            Self.log.notice("pulse \(String(describing: verdict.passed)) \(verdict.reason ?? "", privacy: .public) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
+        case .pulseSkipped(let why):
+            Self.log.notice("pulse skipped: \(why, privacy: .public)")
         case .match(let score, let embedding, let live, let typical, let pulse):
-            Self.log.info("match score=\(score) typical=\(typical) live=\(live) pulse=\(pulse != nil)")
+            Self.log.notice("match score=\(score) typical=\(typical) live=\(live) pulse=\(pulse != nil)")
             model.challenge = nil
             pendingLearn = live ? embedding : nil
             pendingScore = live ? typical : nil
@@ -296,7 +298,7 @@ final class FaceUnlockService {
             Task { await completeMatch() }
         case .noMatch(let score, let refused):
             attempts += 1
-            Self.log.info("no match best=\(score) refused=\(refused) attempt=\(self.attempts)")
+            Self.log.notice("no match best=\(score) refused=\(refused) attempt=\(self.attempts)")
             if !refused, score > 0 { lastMiss = (score, Date()) }
             model.phase = .noMatch
             model.shakes += 1
@@ -319,11 +321,13 @@ final class FaceUnlockService {
         guard let engine, let camera else { return }
         let held = camera.holdExposure(true)
         try? await Task.sleep(for: .seconds(Double.random(in: FacePulse.lead)))
-        guard self.engine === engine else { camera.holdExposure(false); return }
-        let schedule = await island.levels?.pulseForFaceScan()
+        // Gone, or already moved on to a challenge (the sun came out): leave the screen alone.
+        guard self.engine === engine, engine.isPulsing else { camera.holdExposure(false); return }
+        let learned = owner.faces.pulseProfiles
+        let schedule = await island.levels?.pulseForFaceScan { engine.pulseStarted($0, exposureHeld: held, learned: learned) }
         try? await Task.sleep(for: .milliseconds(100))
         camera.holdExposure(false)
-        engine.finishPulse(schedule, exposureHeld: held, learned: owner.faces.pulseProfiles)
+        engine.finishPulse(schedule, exposureHeld: held, learned: learned)
     }
 
     /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.

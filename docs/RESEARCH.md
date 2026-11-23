@@ -92,6 +92,16 @@ lock screen. Each question below can block it:
     - *Adaptive threshold:* scores are each confirmed unlock's median frame score (not the first matching frame,
       which would only ever be above the threshold and ratchet it up), plus the best score of a miss followed by a
       password unlock within 60 s. Threshold = 5th percentile − 0.05, clamped to [slider, slider + 0.15].
+    - *Direct sun (2026-11-23, owner report: in direct sunlight it struggled to tell a real face from a photo):* the
+      screen's light (~100-200 lux at the face) is lost in sunlight (10,000+ lux), so the pulse can't respond, and
+      harsh light is where texture models misjudge real faces. macOS doesn't expose the camera's exposure time or ISO
+      (iOS-only on `AVCaptureDevice`), so a bright room can't be read directly: auto-exposure makes it look normal.
+      Instead `FacePulse.lighting` looks for the signs of sun on the face: the two sides' linear brightness ratio
+      (≥ 3 = harsh) and the share of the face box blown out (luma > 0.96, ≥ 6% = harsh), majority of the last 6
+      frames. Then Automatic skips the pulse, and the spoof model's "fake" no longer refuses (in any mode); the
+      challenge decides. Thresholds unverified: Test recognition shows the side ratio and blown-out share. The pulse
+      is also judged at its peak (4 peak frames) instead of after the fall, saving ~0.4 s, and the lead is 0.3-0.45 s.
+      The unlock log lines (pulse, skipped, match, no match) are now `notice`, so `log show` keeps them.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

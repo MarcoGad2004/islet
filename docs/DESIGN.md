@@ -190,6 +190,10 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   already above 0.7) over 0.25 s, held 0.35 s, back over 0.3 s, after a random 0.35-0.6 s wait. One smooth
   swell, never a flicker (the owner was worried about discomfort). If the light check and the spoof model both
   vouch for the face, it's the match with nothing to do; otherwise the random challenge is asked, as Random.
+  It's judged as soon as the swell peaks (the screen still eases back afterwards). **Harsh light** (owner request
+  2026-11-23): when the camera sees direct sun on the face (one side ≥ 3× brighter than the other, or ≥ 6% of the
+  face blown out), there's no swell: the challenge is asked as soon as the face matches. The same for the rest of
+  the scan once a swell got no response.
 - **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),

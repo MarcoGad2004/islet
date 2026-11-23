@@ -125,7 +125,7 @@ struct FaceUnlockSettings: View {
                 }.disabled(face.isEnrolling)
             } label: {
                 SettingsLabel("Try your face, then someone else's",
-                              "Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. A photo of you should say Photo edge or Fake and tick nothing. Check light shows whether the screen-light check would vouch for what's in front of the camera.")
+                              "Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. A photo of you should say Photo edge or Fake and tick nothing. Check light shows whether the screen-light check would vouch for what's in front of the camera; in direct sun it should say Harsh light.")
             }
             if face.testingFace { testResult }
             LabeledContent {
@@ -151,7 +151,8 @@ struct FaceUnlockSettings: View {
     private var testResult: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let score = face.testScore {
-                let fake = face.testLive.map { $0 < SpoofTracker.spoofLevel } ?? false
+                // In harsh light a fake-looking score asks for the challenge instead of refusing.
+                let fake = (face.testLive.map { $0 < SpoofTracker.spoofLevel } ?? false) && !(face.testLighting?.harsh ?? false)
                 let match = score >= face.faces.effectiveThreshold && !face.testFramed && !fake
                 Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : fake ? "Fake" : match ? "Match" : "No match"),
                       systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -178,6 +179,11 @@ struct FaceUnlockSettings: View {
                     let seen = face.testSeen.contains(c)
                     Label(Self.testLabel(c), systemImage: seen ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(seen ? .green : .secondary)
+                }
+                if let l = face.testLighting {
+                    Label(String(format: "%@ · sides %.1f× · %.0f%% blown out", l.harsh ? "Harsh light: asks at once" : "Even light", l.sideRatio, l.clipped * 100),
+                          systemImage: l.harsh ? "sun.max.fill" : "sun.min")
+                        .foregroundStyle(l.harsh ? .orange : .secondary).monospacedDigit()
                 }
                 if let light = face.testLight {
                     Label(String(format: "Light %.2f%@", light, light < 0.25 ? " (dark)" : ""), systemImage: "sun.min")

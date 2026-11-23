@@ -16,7 +16,7 @@ enum FacePulse {
     static let change = 0.3
     static let rise = 0.25, hold = 0.35, fall = 0.3
     /// Wait after holding the exposure before the swell: it settles, and the moment can't be predicted.
-    static let lead = 0.35...0.6
+    static let lead = 0.3...0.45
 
     static let minContrast = 0.05
     static let minShape = 0.15
@@ -145,17 +145,7 @@ enum FacePulse {
             return g > 0.94 || g < 0.02 ? nil : sum / n
         }
 
-        let eL = points[0], eR = points[1], nose = points[2], m1 = points[3], m2 = points[4]
-        let ed = hypot(eR.x - eL.x, eR.y - eL.y)
-        let u = CGPoint(x: (eR.x - eL.x) / ed, y: (eR.y - eL.y) / ed), v = CGPoint(x: -u.y, y: u.x)
-        let eyeMid = CGPoint(x: (eL.x + eR.x) / 2, y: (eL.y + eR.y) / 2)
-        let mouthMid = CGPoint(x: (m1.x + m2.x) / 2, y: (m1.y + m2.y) / 2)
-        func at(_ p: CGPoint, _ a: Double, _ b: Double) -> CGPoint { CGPoint(x: p.x + u.x * a * ed + v.x * b * ed, y: p.y + u.y * a * ed + v.y * b * ed) }
-        let centres: [Patch: CGPoint] = [
-            .forehead: at(eyeMid, 0, 0.55), .nose: nose, .chin: at(mouthMid, 0, -0.45),
-            .leftCheek: at(eL, 0, -0.55), .rightCheek: at(eR, 0, -0.55),
-            .leftSide: at(eyeMid, -0.85, -0.3), .rightSide: at(eyeMid, 0.85, -0.3),
-        ]
+        let (centres, ed) = patchCentres(points)
         let face = Patch.allCases.map { patch(centres[$0]!, radius: 0.1 * ed) }
 
         // The top corners, unless the face reaches into them.
@@ -165,6 +155,81 @@ enum FacePulse {
             .insetBy(dx: -r * 2, dy: -r * 2)
         let bg = corners.filter { !faceRect.contains($0) }.compactMap { patch($0, radius: r) }
         return (face, bg.isEmpty ? nil : bg.reduce(0, +) / Double(bg.count))
+    }
+
+    /// Where each patch sits on the face, and the eye distance. `points` as in `measure`.
+    private static func patchCentres(_ points: [CGPoint]) -> ([Patch: CGPoint], Double) {
+        let eL = points[0], eR = points[1], nose = points[2], m1 = points[3], m2 = points[4]
+        let ed = max(hypot(eR.x - eL.x, eR.y - eL.y), 1)
+        let u = CGPoint(x: (eR.x - eL.x) / ed, y: (eR.y - eL.y) / ed), v = CGPoint(x: -u.y, y: u.x)
+        let eyeMid = CGPoint(x: (eL.x + eR.x) / 2, y: (eL.y + eR.y) / 2)
+        let mouthMid = CGPoint(x: (m1.x + m2.x) / 2, y: (m1.y + m2.y) / 2)
+        func at(_ p: CGPoint, _ a: Double, _ b: Double) -> CGPoint { CGPoint(x: p.x + u.x * a * ed + v.x * b * ed, y: p.y + u.y * a * ed + v.y * b * ed) }
+        return ([
+            .forehead: at(eyeMid, 0, 0.55), .nose: nose, .chin: at(mouthMid, 0, -0.45),
+            .leftCheek: at(eL, 0, -0.55), .rightCheek: at(eR, 0, -0.55),
+            .leftSide: at(eyeMid, -0.85, -0.3), .rightSide: at(eyeMid, 0.85, -0.3),
+        ], ed)
+    }
+
+    // MARK: Harsh light
+
+    /// How the face is lit in one frame, to spot direct sun before trying the pulse.
+    struct Lighting: Sendable, Equatable {
+        /// Brighter side of the face over the darker, in linear light (1 = even).
+        var sideRatio: Double
+        /// Share of the face's pixels blown out to white.
+        var clipped: Double
+
+        /// Sun on the face: one side far brighter than the other, or much of the skin blown out. The screen's light
+        /// is lost in it, and a texture model sees an unusual face.
+        var harsh: Bool { sideRatio >= Lighting.harshSideRatio || clipped >= Lighting.harshClipped }
+        static let harshSideRatio = 3.0
+        static let harshClipped = 0.06
+    }
+
+    /// Reads the lighting of the face: its two sides (cheek and side patches) and a grid over the face box.
+    static func lighting(_ pb: CVPixelBuffer, points: [CGPoint], face box: CGRect) -> Lighting? {
+        guard points.count == 5, CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA else { return nil }
+        CVPixelBufferLockBaseAddress(pb, .readOnly); defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pb) else { return nil }
+        let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb), row = CVPixelBufferGetBytesPerRow(pb)
+        let px = base.assumingMemoryBound(to: UInt8.self)
+        /// Gamma luma (0...1) at a point with a bottom-left origin, or nil off the frame.
+        func luma(_ x: Double, _ y: Double) -> Double? {
+            guard x >= 0, y >= 0, x < Double(w), y < Double(h) else { return nil }
+            let o = (h - 1 - Int(y)) * row + Int(x) * 4
+            return (0.114 * Double(px[o]) + 0.587 * Double(px[o + 1]) + 0.299 * Double(px[o + 2])) / 255
+        }
+        let (centres, ed) = patchCentres(points)
+        func side(_ patches: [Patch]) -> Double? {
+            let r = 0.1 * ed
+            var sum = 0.0, n = 0.0
+            for p in patches {
+                guard let c = centres[p] else { continue }
+                for j in -2...2 {
+                    for i in -2...2 {
+                        let x: Double = c.x + Double(i) * r / 2, y: Double = c.y + Double(j) * r / 2
+                        if let v = luma(x, y) { sum += pow(v, 2.2); n += 1 }
+                    }
+                }
+            }
+            return n > 0 ? sum / n : nil
+        }
+        guard let l = side([.leftCheek, .leftSide]), let r = side([.rightCheek, .rightSide]) else { return nil }
+        let ratio = max(l, r) / max(min(l, r), 0.0005)
+
+        // A 12x12 grid over the middle of the face box (inset so hair and background stay out).
+        let fx = box.minX * Double(w), fy = box.minY * Double(h), fw = box.width * Double(w), fh = box.height * Double(h)
+        var clipped = 0.0, n = 0.0
+        for j in 0..<12 {
+            for i in 0..<12 {
+                guard let v = luma(fx + fw * (0.15 + 0.7 * Double(i) / 11), fy + fh * (0.1 + 0.75 * Double(j) / 11)) else { continue }
+                n += 1
+                if v > 0.96 { clipped += 1 }
+            }
+        }
+        return Lighting(sideRatio: min(ratio, 99), clipped: n > 0 ? clipped / n : 0)
     }
 
     // MARK: Maths

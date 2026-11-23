@@ -5,8 +5,11 @@ import Foundation
 /// second of a visible face that doesn't match is a "not recognized" verdict, and so is a face that stays refused.
 ///
 /// Showing it's live:
-/// - Automatic: the screen-light pulse runs (the service drives the brightness, then calls `finishPulse`). When it
-///   passes and the spoof model says live, that's the match, no action needed. Otherwise a random challenge.
+/// - Automatic: the screen-light pulse runs (the service drives the brightness, calls `pulseStarted` as the swell
+///   begins and `finishPulse` once it's back). It's judged as soon as the swell peaks: when it passes and the spoof
+///   model says live, that's the match, no action needed. Otherwise a random challenge. In harsh light (direct sun,
+///   which drowns out the screen) the pulse is skipped and the challenge asked at once, and so it is for the rest of
+///   the scan once a pulse got no response.
 /// - Random / Blink: the challenge. Once the face matches and it's shown, it has `challengeSeconds` to do it
 ///   (looking away to turn doesn't count as a miss).
 /// Runs on the camera queue; `finishPulse` may come from any thread.
@@ -18,6 +21,8 @@ final class ScanEngine: @unchecked Sendable {
         /// The face matches: run the brightness pulse, then call `finishPulse`.
         case pulse
         case pulseResult(FacePulse.Verdict)
+        /// Automatic went straight to a challenge without the pulse, and why.
+        case pulseSkipped(String)
         /// `live` is true when the face proved it's live in this scan (the sample is then safe to learn from).
         /// `typical` is the median score of the face's frames in this attempt, for the adaptive threshold.
         case match(score: Float, embedding: [Float], live: Bool, typical: Float, pulse: FacePulse.Reading?)
@@ -57,6 +62,16 @@ final class ScanEngine: @unchecked Sendable {
     private var fallback = false
     private var scores: [Float] = []
     private var lastMatch: (score: Float, embedding: [Float])?
+    /// The running pulse's swell, once the service started it, and what to judge it with.
+    private var pulseSchedule: FacePulse.Schedule?
+    private var pulseHeld = false
+    private var pulseLearned: [[Double]] = []
+    /// Recent frames lit harshly (direct sun).
+    private var harshHistory: [Bool] = []
+    /// A pulse got no response in this scan: later attempts go straight to the challenge. Kept across `resume()`.
+    private var skipPulse = false
+    /// Peak frames needed to judge the pulse early.
+    static let earlyPeakFrames = 4
 
     init(embedder: FaceEmbedder, antiSpoof: AntiSpoofModel?, enrolled: [[Float]], threshold: Float, liveness: LivenessMode,
          onEvent: @escaping @Sendable (Event) -> Void) {
@@ -83,6 +98,7 @@ final class ScanEngine: @unchecked Sendable {
         paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
         detector = ChallengeDetector(Self.pick(liveness)); promptedAt = nil
         spoof.reset(); pulse = .idle; fallback = false; scores = []; lastMatch = nil
+        pulseSchedule = nil; harshHistory = []
     }
     func pause() { lock.lock(); paused = true; lock.unlock() }
 
@@ -115,17 +131,33 @@ final class ScanEngine: @unchecked Sendable {
         let framed = framedHistory.filter { $0 }.count >= 4
         spoofFrame += 1
         if let antiSpoof, spoofFrame % 2 == 0, let live = antiSpoof.live(a.pixelBuffer, face: a.box) { spoof.add(live) }
-        let refused = framed || spoof.verdict == .spoof
+        if let l = FacePulse.lighting(a.pixelBuffer, points: a.points, face: a.box) {
+            harshHistory.append(l.harsh)
+            if harshHistory.count > 6 { harshHistory.removeFirst() }
+        }
+        let harsh = harshHistory.count >= 3 && harshHistory.filter { $0 }.count * 2 > harshHistory.count
+        // In harsh light the spoof model can't be trusted to refuse a real face; the challenge decides instead.
+        let refused = framed || (spoof.verdict == .spoof && !harsh)
 
         let score = FaceMatcher.score(e, enrolled: enrolled)
         best = max(best, score)
         scores.append(score)
         if score >= threshold { lastMatch = (score, e) }
+        if case .running = pulse, harsh, pulseSchedule == nil {
+            // The sun came out before the swell started: don't bother with it.
+            pulse = .done; fallback = true
+            onEvent(.pulseSkipped("harsh light"))
+        }
         if case .running(let since, var frames) = pulse {
             let m = FacePulse.measure(a.pixelBuffer, points: a.points, face: a.box)
             frames.append(FacePulse.Frame(time: now, face: m.face, background: m.background, matched: score >= threshold && !refused))
             pulse = .running(since: since, frames: frames)
             if now.timeIntervalSince(since) > Self.pulseSeconds { finishPulseLocked(nil, exposureHeld: false, learned: []); return }
+            // Judge as soon as the swell has peaked for a few frames, rather than waiting for it to come back.
+            if let schedule = pulseSchedule, frames.filter({ schedule.inPeak($0.time) }).count >= Self.earlyPeakFrames {
+                finishPulseLocked(schedule, exposureHeld: pulseHeld, learned: pulseLearned)
+                if paused { return }
+            }
         }
         let pulsing: Bool = { if case .running = pulse { return true }; return false }()
 
@@ -138,6 +170,12 @@ final class ScanEngine: @unchecked Sendable {
                 if !required || (liveness != .automatic || fallback) && detector.done {
                     finish(score: score, embedding: e, live: required, pulse: nil)
                     return
+                }
+                if liveness == .automatic && !fallback, case .idle = pulse, harsh || skipPulse {
+                    // Direct sun drowns out the screen's light: don't swell it, ask for the challenge now.
+                    fallback = true
+                    pulse = .done
+                    onEvent(.pulseSkipped(harsh ? "harsh light" : "no response earlier"))
                 }
                 if liveness == .automatic && !fallback {
                     if case .idle = pulse { pulse = .running(since: now, frames: []); onEvent(.pulse) }
@@ -159,7 +197,18 @@ final class ScanEngine: @unchecked Sendable {
         }
     }
 
-    /// The service ran the brightness pulse (nil when it couldn't). Judges it, then unlocks or asks for a challenge.
+    /// Still waiting for the pulse (the service checks before swelling the screen).
+    var isPulsing: Bool { lock.lock(); defer { lock.unlock() }; if case .running = pulse, !paused { return true }; return false }
+
+    /// The swell has started: from here the engine can judge it as soon as it peaks.
+    func pulseStarted(_ schedule: FacePulse.Schedule, exposureHeld: Bool, learned: [[Double]]) {
+        lock.lock(); defer { lock.unlock() }
+        guard case .running = pulse else { return }
+        pulseSchedule = schedule; pulseHeld = exposureHeld; pulseLearned = learned
+    }
+
+    /// The service ran the brightness pulse (nil when it couldn't). Judges it if that wasn't done at the peak, then
+    /// unlocks or asks for a challenge.
     func finishPulse(_ schedule: FacePulse.Schedule?, exposureHeld: Bool, learned: [[Double]]) {
         lock.lock(); defer { lock.unlock() }
         guard !paused else { return }
@@ -172,6 +221,7 @@ final class ScanEngine: @unchecked Sendable {
         let verdict = schedule.map { FacePulse.judge(frames, schedule: $0, exposureHeld: exposureHeld, learned: learned) }
             ?? .inconclusive("no pulse", nil)
         onEvent(.pulseResult(verdict))
+        if verdict.reason == "no response to the light" { skipPulse = true }
         if case .passed(let reading) = verdict, spoof.verdict == .live, faceLost == 0, let m = lastMatch {
             finish(score: m.score, embedding: m.embedding, live: true, pulse: reading)
             return
