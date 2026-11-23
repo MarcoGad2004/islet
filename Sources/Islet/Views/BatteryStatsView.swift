@@ -18,7 +18,7 @@ struct BatteryStatsView: View {
                 Text("\(s.percent)%").font(.system(size: 15, weight: .bold)).monospacedDigit()
                     .contentTransition(.numericText())
             }
-            .foregroundStyle(Color.isletText)
+            .foregroundStyle(IsletInk.primary)
             .padding(.bottom, 8)
 
             VStack(spacing: 7) {
@@ -33,12 +33,12 @@ struct BatteryStatsView: View {
                 if d.lowPower { row("Low Power Mode", "On") }
             }
             divider
-            Text("Last 12 hours").font(.system(size: 13)).foregroundStyle(Color.isletSecondary)
+            Text("Last 12 hours").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
             ChargeChart(samples: power.history.recent(hours: 12, current: s))
                 .frame(height: 120)
                 .padding(.top, 8)
             divider
-            Text("Power distribution").font(.system(size: 13)).foregroundStyle(Color.isletSecondary)
+            Text("Power distribution").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
             PowerFlow(state: s, details: d).padding(.top, 8)
             divider
             HStack {
@@ -47,7 +47,7 @@ struct BatteryStatsView: View {
                         Image(systemName: "switch.2").font(.system(size: 10, weight: .semibold))
                         Text("Controls").font(.system(size: 11, weight: .semibold))
                     }
-                    .foregroundStyle(Color.isletText)
+                    .foregroundStyle(IsletInk.primary)
                     .padding(.horizontal, 10).frame(height: 22)
                     .background(IsletCard(shape: Capsule()))
                     .contentShape(Capsule())
@@ -64,14 +64,14 @@ struct BatteryStatsView: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1).padding(.vertical, 12)
+        Rectangle().fill(IsletInk.rule).frame(height: 1).padding(.vertical, 12)
     }
 
     private func row(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label).foregroundStyle(Color.isletSecondary)
+            Text(label).foregroundStyle(IsletInk.secondary)
             Spacer(minLength: 12)
-            Text(value).foregroundStyle(Color.isletText).monospacedDigit().lineLimit(1)
+            Text(value).foregroundStyle(IsletInk.primary).monospacedDigit().lineLimit(1)
         }
         .font(.system(size: 13))
     }
@@ -136,19 +136,19 @@ private struct ChargeChart: View {
         .chartYScale(domain: 0...100)
         .chartYAxis {
             AxisMarks(position: .trailing, values: [0, 50, 100]) { v in
-                AxisGridLine().foregroundStyle(Color.white.opacity(0.12))
-                AxisValueLabel { Text("\(v.as(Int.self) ?? 0)%").font(.system(size: 10)).foregroundStyle(Color.isletSecondary) }
+                AxisGridLine().foregroundStyle(IsletInk.rule)
+                AxisValueLabel { Text("\(v.as(Int.self) ?? 0)%").font(.system(size: 10)).foregroundStyle(IsletInk.secondary) }
             }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .hour, count: 3)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(Color.white.opacity(0.12))
-                AxisValueLabel(format: .dateTime.hour()).font(.system(size: 10)).foregroundStyle(Color.isletSecondary)
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [3, 3])).foregroundStyle(IsletInk.rule)
+                AxisValueLabel(format: .dateTime.hour()).font(.system(size: 10)).foregroundStyle(IsletInk.secondary)
             }
         }
         .overlay {
             if samples.count < 2 {
-                Text("Dynamic Peninsula is still recording").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
+                Text("Dynamic Peninsula is still recording").font(.system(size: 11)).foregroundStyle(IsletInk.tertiary)
             }
         }
     }
@@ -224,8 +224,9 @@ struct PowerFlow: View {
     /// Space above the nodes for the charger-to-battery arc over the Mac.
     private static let arcRoom: CGFloat = 16
 
-    private func batteryTint(_ f: PowerFlows) -> Color {
-        f.batteryToMac > PowerFlows.still ? Self.batteryTint : f.chargerToBattery > PowerFlows.still ? Self.chargerTint : Color.isletSecondary
+    private func batteryTint(_ f: PowerFlows) -> AnyShapeStyle {
+        f.batteryToMac > PowerFlows.still ? AnyShapeStyle(Self.batteryTint)
+            : f.chargerToBattery > PowerFlows.still ? AnyShapeStyle(Self.chargerTint) : AnyShapeStyle(IsletInk.secondary)
     }
 
     var body: some View {
@@ -251,9 +252,9 @@ struct PowerFlow: View {
                     flow(toBattery, f.chargerToBattery, f.total, Self.chargerTint, phases[1])
                     flow(toMacFromBattery, f.batteryToMac, f.total, Self.batteryTint, phases[2])
 
-                    nodeView("powerplug.portrait.fill", tint: Self.chargerTint, active: f.chargerConnected)
+                    nodeView("powerplug.portrait.fill", tint: AnyShapeStyle(Self.chargerTint), active: f.chargerConnected)
                         .position(chargerAt)
-                    nodeView("laptopcomputer", tint: Color.isletText, active: true)
+                    nodeView("laptopcomputer", tint: AnyShapeStyle(IsletInk.primary), active: true)
                         .position(macAt)
                     nodeView(batterySymbol, tint: batteryTint(f), active: true)
                         .position(batteryAt)
@@ -292,21 +293,21 @@ struct PowerFlow: View {
         return parts.isEmpty ? "No power flowing" : parts.joined(separator: ", ")
     }
 
-    private func nodeView(_ symbol: String, tint: Color, active: Bool) -> some View {
+    private func nodeView(_ symbol: String, tint: AnyShapeStyle, active: Bool) -> some View {
         Image(systemName: symbol)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(active ? tint : Color.isletTertiary)
+            .foregroundStyle(active ? tint : AnyShapeStyle(IsletInk.tertiary))
             .frame(width: Self.node, height: Self.node)
             .background(IsletCard(shape: Circle()))
-            .overlay(Circle().stroke(active ? tint.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
+            .overlay(Circle().stroke(active ? AnyShapeStyle(tint.opacity(0.35)) : AnyShapeStyle(IsletInk.faint), lineWidth: 1))
             .opacity(active ? 1 : 0.55)
     }
 
     private func label(_ title: String, _ value: String, lit: Bool) -> some View {
         VStack(spacing: 0) {
-            Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(Color.isletTertiary)
+            Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(IsletInk.tertiary)
             Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(lit ? Color.isletText : Color.isletTertiary)
+                .foregroundStyle(lit ? IsletInk.primary : IsletInk.tertiary)
                 .contentTransition(.numericText())
         }
         .frame(width: 84)
@@ -314,7 +315,7 @@ struct PowerFlow: View {
     }
 
     private func rail(_ path: Path) -> some View {
-        path.stroke(Color.white.opacity(0.07), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        path.stroke(IsletInk.faint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
     }
 
     /// A glowing line with dashes drifting along it; thicker for a bigger share of the power. Lighting up, it runs out

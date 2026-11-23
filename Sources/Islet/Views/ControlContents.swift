@@ -8,7 +8,7 @@ struct SettingsLink: View {
     var pane: String
     var body: some View {
         Button { SystemSettings.open(pane) } label: {
-            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
+            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(IsletInk.primary)
                 .padding(.horizontal, 10).frame(height: 22)
                 .background(IsletCard(shape: Capsule()))
                 .contentShape(Capsule())

@@ -71,6 +71,7 @@ final class BatteryStatsPanel {
         })
         // Glass: the tiles and pills turn to glass too, and the text sits on the glass with a dark tint behind it.
         .environment(\.isletGlass, glass)
+        .environment(\.isletAdaptiveInk, glass)
         .background(glass ? Color.clear : Color.black.opacity(0.35))
         let host = FittingHostingView(rootView: AnyView(content))
         host.onSizeChange = { [weak self] in
@@ -85,9 +86,8 @@ final class BatteryStatsPanel {
             let view = NSGlassEffectView()
             view.cornerRadius = 24
             view.contentView = host
-            // Dark glass (as Control Center is in Dark Mode), so the white text and grey labels read over light
-            // wallpapers; still the system's material, so the Liquid Glass and Reduce Transparency settings apply.
-            view.appearance = NSAppearance(named: .darkAqua)
+            // The system's glass as it comes (clear, light or dark with the Mac's appearance), so the Liquid Glass and
+            // Reduce Transparency settings apply; the text takes the adaptive label colours to stay readable on it.
             // Clipped to the rounded shape, so nothing square can show round the glass.
             let clip = NSView()
             clip.wantsLayer = true

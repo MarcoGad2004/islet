@@ -130,3 +130,42 @@ private struct BehindWindowBlur: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
+
+extension EnvironmentValues {
+    /// Text and rules take the system's adaptive colours (dark on light glass, light on dark) instead of the island's
+    /// fixed white and greys: set on Liquid Glass that shows the desktop through it (the battery stats).
+    @Entry var isletAdaptiveInk = false
+}
+
+/// The island's text colours, which turn into the system's adaptive label colours under `isletAdaptiveInk`.
+struct IsletInk: ShapeStyle {
+    enum Level { case primary, secondary, tertiary, rule, faint }
+    var level: Level
+
+    static let primary = IsletInk(level: .primary)
+    static let secondary = IsletInk(level: .secondary)
+    static let tertiary = IsletInk(level: .tertiary)
+    /// Dividers and grid lines.
+    static let rule = IsletInk(level: .rule)
+    /// Rails under the power flow.
+    static let faint = IsletInk(level: .faint)
+
+    func resolve(in environment: EnvironmentValues) -> Color {
+        if environment.isletAdaptiveInk {
+            switch level {
+            case .primary: return Color(nsColor: .labelColor)
+            case .secondary: return Color(nsColor: .secondaryLabelColor)
+            case .tertiary: return Color(nsColor: .tertiaryLabelColor)
+            case .rule: return Color(nsColor: .separatorColor)
+            case .faint: return Color(nsColor: .quaternaryLabelColor)
+            }
+        }
+        switch level {
+        case .primary: return .isletText
+        case .secondary: return .isletSecondary
+        case .tertiary: return .isletTertiary
+        case .rule: return Color.white.opacity(0.12)
+        case .faint: return Color.white.opacity(0.07)
+        }
+    }
+}
