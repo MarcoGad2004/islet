@@ -28,11 +28,12 @@ enum MenuBarBattery {
     static let lowPercent = 10
 
     /// The icon after macOS's own: a pale outline with the charge as a solid fill, a bolt while charging, a plug when
-    /// plugged in and not charging. Red when low, yellow in Low Power Mode; otherwise a template image, so it follows
-    /// the menu bar's colours.
+    /// plugged in and not charging. The fill is green while the battery is actually charging (not merely plugged in),
+    /// red when low, yellow in Low Power Mode; otherwise a template image, so it follows the menu bar's colours. The
+    /// outline and the bolt keep the menu bar's colour.
     static func image(percent: Int, charging: Bool, onAC: Bool, lowPower: Bool) -> NSImage {
         let low = !onAC && percent <= lowPercent
-        let fillColor: NSColor? = low ? .systemRed : lowPower ? .systemYellow : nil
+        let fillColor: NSColor? = charging ? .systemGreen : low ? .systemRed : lowPower ? .systemYellow : nil
         let mark: String? = charging ? "bolt.fill" : onAC ? "powerplug.portrait.fill" : nil
         // The shared shape (`BatteryMetrics`), 13.5 pt tall.
         let h: CGFloat = 13.5

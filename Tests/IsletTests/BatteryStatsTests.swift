@@ -95,7 +95,9 @@ final class BatteryStatsTests: XCTestCase {
         XCTAssertTrue(MenuBarBattery.image(percent: 50, charging: false, onAC: false, lowPower: false).isTemplate)
         XCTAssertFalse(MenuBarBattery.image(percent: 5, charging: false, onAC: false, lowPower: false).isTemplate)
         XCTAssertFalse(MenuBarBattery.image(percent: 50, charging: false, onAC: false, lowPower: true).isTemplate)
-        XCTAssertTrue(MenuBarBattery.image(percent: 5, charging: true, onAC: true, lowPower: false).isTemplate)
+        // Green while charging; plugged in but not charging goes back to the menu bar's colour.
+        XCTAssertFalse(MenuBarBattery.image(percent: 5, charging: true, onAC: true, lowPower: false).isTemplate)
+        XCTAssertTrue(MenuBarBattery.image(percent: 80, charging: false, onAC: true, lowPower: false).isTemplate)
     }
 
     func testTemperatureReadsOrIsAbsent() {

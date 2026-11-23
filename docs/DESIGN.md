@@ -300,8 +300,9 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   (12 or 13 pt) and the charging animation (13 pt) differ only in height. The body is twice as long as it is tall,
   with the gap, nub, corners, inset and outline as fixed shares of that height.
 - The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), a pale outline (40%), the charge as a solid fill, a bolt while
-  charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Red
-  fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
+  charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Green
+  fill while the battery is actually charging (back to the menu bar's colour once it stops, even still plugged in; the outline and the
+  bolt stay the menu bar's colour), red fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.
 - Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.
 - The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt panel: with the glass look (macOS 26 and later) Liquid Glass like Control Center's (24 pt corners, the system's own glass as it comes (light or dark with the Mac's appearance, no tint of ours), so it follows System Settings' Liquid Glass and Reduce Transparency choices, with the text in the system's adaptive label colours (`IsletInk`) so it stays readable on it; clipped to its rounded shape with no window shadow, so nothing square shows round it; glass tiles and pills inside), otherwise dark glass
