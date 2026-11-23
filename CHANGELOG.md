@@ -5,16 +5,40 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.6 (unreleased)
 
-- Face Unlock has one Security choice instead of several modes and switches: **Faster**, **Standard** and **More secure**. Each tries the quietest check first: a model that tells a real face from a photo or screen, which on its own unlocks you straight away when it's sure. Only when it isn't does Standard briefly light the screen, and More secure does so more readily and asks for a random blink, smile or head turn as the last resort. Faster never lights the screen and asks for a blink instead. Your old choice carries over to the nearest level.
-- "Learn from successful unlocks" and "Raise the threshold as it learns my face" are now one switch, "Learn my face from unlocks". The spoof model and brightening the screen in a dark room are always on.
-- The Match threshold slider is gone: the Security level sets how closely your face has to match (Faster is the most forgiving, More secure the strictest), and once it has learned from 20 unlocks it fits itself just under your usual scores, as tightly as the level asks. Test recognition shows the threshold in use.
-- Test recognition says what the scan would do with the spoof model's current score ("Unsure: would glow").
-- Face Unlock's light check no longer depends on your wallpaper: instead of nudging the screen brightness (which barely lit a face in front of a dark wallpaper), the screen glows white for about two seconds and breathes between two levels in a random order, under the notch so the scan stays visible. Its strength follows the room's light from the Mac's light sensor: a soft glow in a dim room, using the XDR display's extra brightness in a bright one, and none in a room too bright for it to matter (it asks for a challenge instead).
-- Notifications grow downward to fit their text (up to 6 lines in the bar, 10 on the hover card) instead of cutting it to one line, so most can be read without hovering.
-- Replying to a message from the notch now clears the red badge in Messages: Messages flashes forward for a moment with the chat open so it marks it read (one-to-one chats; groups can't be opened that way).
-- The notch no longer has dark lines around it when the island is collapsed: the glass look's Liquid Glass layer drew its own edge and shadow outside the notch, so it now fades in only with the part of the island under the notch.
-- **Shazam in the notch.** Press the new Shazam button in the controls, or drag it in with two fingers sideways over the idle notch (it pulls against your fingers, the trackpad clicks once you've pulled far enough, and letting go too soon sends it back out), and it listens: the Shazam mark pulses with ripples while a little equaliser dances beside it. When it finds the song, the notch grows into a card, the mark flies into the cover's place and the title and artist slide in; click it to open the song in Apple Music, or copy the song and artist (or just one: hover the title or artist and click it). While it's listening, drag up or down with two fingers to stop it: it follows your fingers, and letting go too soon lets it carry on. It asks for the microphone the first time, and can be turned off in Settings under Features.
-- When AirPods (or another device) connect to the Mac, only the notch shows it: the macOS "Connected" card in the top-right corner is kept away when Notifications in the notch is on, and the notch no longer sometimes shows the connect twice.
+### Shazam in the notch
+
+- **Name the song playing around you.** Press the new Shazam button in the controls, next to the battery, or pull Shazam in with two fingers sideways over the notch while nothing is showing.
+- **Pulling it in feels physical.** The Shazam mark follows your fingers in from the side and pulls back against them, and a ring around it fills as you go. When you've pulled far enough, the ring closes and the trackpad clicks. Let go there and the mark lands with a small bounce and starts listening. Let go too soon and it springs back out, and nothing happens.
+- **While it listens,** the mark pulses with ripples running out of it and a small equaliser dances on the other side. To stop it, drag up or down with two fingers: it follows your fingers and stops once you've dragged far enough, or click it.
+- **When it finds the song,** the notch grows into a card. The mark flies into the cover's place, the cover lands on it, and the title and artist slide in.
+  - Click the card to open the song in Apple Music.
+  - Use the copy button for "Title – Artist", or hover the title or the artist and click to copy just that.
+- **Saved to your Shazam history.** Songs it finds are added to your Shazam library, so they also show up in Shazam on your iPhone.
+- **Microphone and network.** It asks for the microphone the first time and uses it only while listening. Only a short sound signature is sent to Shazam, never the recording. Because it listens through the microphone, it can't hear music playing through your headphones.
+- **Turning it off:** Settings > Features > Shazam.
+
+### Face Unlock
+
+- **One Security choice:** Faster, Standard or More secure, instead of several modes and switches. Each tries the quietest check first: a model that tells a real face from a photo or screen, which unlocks you straight away when it's sure.
+  - When it isn't sure, Standard briefly lights the screen.
+  - More secure lights the screen more readily, and as a last resort asks for a random blink, smile or head turn.
+  - Faster never lights the screen and asks for a blink instead.
+  - Your old choice carries over to the nearest level.
+- **The light check no longer depends on your wallpaper.** The screen glows white under the notch for about two seconds, so the scan stays visible. The glow's strength follows the room's light: soft in a dim room, using the XDR display's extra brightness in a bright one, and none when the room is too bright for it to matter.
+- **The Match threshold slider is gone.** The Security level sets how closely your face has to match. Once it has learned from 20 unlocks, it tightens to just under your usual scores.
+- **One learning switch.** "Learn from successful unlocks" and "Raise the threshold as it learns my face" are now one switch, "Learn my face from unlocks". The spoof model and lighting the screen in a dark room are always on.
+- **Test recognition** shows the threshold in use, and what the scan would do with the spoof model's current score ("Unsure: would glow").
+
+### Notifications and Messages
+
+- **Longer notifications.** They grow downward to fit their text, up to 6 lines in the bar and 10 on the hover card, so most can be read without hovering.
+- **Replies clear the badge.** Replying from the notch now clears the red badge in Messages. Messages flashes forward for a moment with the chat open so it marks it read. This works for one-to-one chats only; group chats can't be opened that way.
+- **AirPods connect once, in the notch.** When AirPods or another device connect, only the notch shows it: with Notifications in the notch on, the macOS "Connected" card in the top-right corner stays away. The notch also no longer sometimes shows the same connection twice.
+
+### Fixes
+
+- **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.
+- **Battery stats icon click.** Clicking the menu bar battery while its stats are open now closes them instead of opening them again. Clicking elsewhere to close them, then clicking the icon, no longer opens them straight back up.
 
 ## 1.5 (2026-11-23)
 
