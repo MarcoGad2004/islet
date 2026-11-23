@@ -78,8 +78,15 @@ struct GlassIsland: View {
             ], startPoint: .top, endPoint: .bottom)
             let centre = UnitPoint(x: 0.5, y: min(m.height / 2 / h, 1))
 
+            // Liquid Glass draws its own soft edge and shadow outside its shape, which showed as dark lines around the
+            // notch when the island was collapsed to it (the black hides the glass itself, not that shadow). Nothing
+            // of the glass shows without a body under the notch, so it fades in with the body and is gone at rest.
+            let glassShare = min(1, underNotch / 8)
+
             ZStack {
-                GlassBackdrop(shape: shape)
+                if glassShare > 0.01 {
+                    GlassBackdrop(shape: shape).opacity(glassShare)
+                }
                 shape.fill(black)
                 // The glow: a soft band of colour just inside the edge, like Siri's.
                 shape.stroke(AngularGradient(colors: glowColors, center: centre), lineWidth: tint == nil ? 8 : 10)
