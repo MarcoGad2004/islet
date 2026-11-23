@@ -541,3 +541,13 @@ bar window stays listed, so "menu bar showing" can't tell them apart either.
   `Using AC` one gives it to within a few minutes; Islet's own samples give it exactly when it was running. It matched
   the third-party app's 26 hr 43 min.
 - **Power in**: `PowerTelemetryData.SystemPowerIn` (mW) is what the charger delivers; 0 on battery.
+
+## Menu bar position (1.5, 2026-11-23)
+
+A new status item is inserted at the left end of the menu bar's items. With a full menu bar on a notched Mac that is
+behind the notch, so it's there but can't be seen (on macOS 27 the items are drawn by MenuBarAgent, so Islet's own
+window list doesn't show them either). macOS stores an item's place as `NSStatusItem Preferred Position <autosave
+name>` (points from the right edge) in the app's own defaults, and reads it when the item is made: Control Center's
+own were Clock 105, BentoBox 96, ScreenMirroring 171. Islet sets 230 for its item ("IsletMenuBarItem") when there's no
+value yet, then sets the autosave name. A ⌘-drag writes the key, so the owner's own placement wins after that.
+

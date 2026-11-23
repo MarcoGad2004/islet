@@ -346,8 +346,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Where the icon starts, in points from the menu bar's right edge: just left of Control Center and the clock.
+    private static let startPosition = 230
+
     private func buildMenuBarItem() {
+        // A new item goes in at the menu bar's left end, which on a full menu bar is behind the notch. macOS keeps each
+        // item's place (points from the right edge) under this key once it's been dragged; until then Islet asks for a
+        // spot near Control Center and the clock (RESEARCH.md "Menu bar position").
+        let name = "IsletMenuBarItem"
+        let position = "NSStatusItem Preferred Position \(name)"
+        if UserDefaults.standard.object(forKey: position) == nil { UserDefaults.standard.set(Self.startPosition, forKey: position) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = name
         item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Islet")
         let menu = NSMenu()
 
