@@ -17,7 +17,11 @@ final class PowerMonitor {
         var hasBattery = true
     }
 
-    private(set) var state = State()
+    private(set) var state = State() {
+        didSet { if state != oldValue { history.record(state) } }
+    }
+    /// The charge over the last day, for the battery stats.
+    let history = BatteryHistory()
 
     /// The battery page's numbers, read from the battery's registry entry while the page is open.
     struct Details: Equatable {
@@ -37,6 +41,10 @@ final class PowerMonitor {
         var lowPower = false
         /// The charge limit set in System Settings > Battery (macOS 26+), when it's below 100%.
         var chargeLimit: Int?
+        /// The battery's temperature in °C, from the SMC.
+        var temperature: Double?
+        /// What the charger is delivering right now, in watts.
+        var adapterInWatts: Double?
 
         /// Energy in the battery now, and when full, in watt-hours.
         var storedWh: Double? { zip(currentMAh, voltage).map { Double($0) * $1 / 1000 } }
@@ -56,10 +64,20 @@ final class PowerMonitor {
     @ObservationIgnored private var source: CFRunLoopSource?
     @ObservationIgnored private var started = false
     @ObservationIgnored private var delayed: Task<Void, Never>?
+    @ObservationIgnored private var ticker: Task<Void, Never>?
 
     func start() {
         state = Self.read()
+        history.record(state)
         started = true
+        // A sample every few minutes while nothing changes, so the chart's line keeps going.
+        ticker = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(BatteryHistory.interval))
+                guard let self else { return }
+                self.history.record(Self.read())
+            }
+        }
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         guard let src = IOPSNotificationCreateRunLoopSource({ ctx in
             guard let ctx else { return }
@@ -165,6 +183,7 @@ final class PowerMonitor {
         var d = Details()
         d.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
         d.chargeLimit = readChargeLimit()
+        d.temperature = BatteryTemperature.read()
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return d }
         defer { IOObjectRelease(service) }
@@ -186,6 +205,7 @@ final class PowerMonitor {
         if let v = num("Voltage"), let a = num("Amperage"), a != 0 { d.batteryWatts = Double(v) * Double(a) / 1_000_000 }
         let telemetry = p["PowerTelemetryData"] as? [String: Any] ?? [:]
         if let load = (telemetry["SystemLoad"] as? NSNumber)?.int64Value, load > 0 { d.systemWatts = Double(load) / 1000 }
+        if let input = (telemetry["SystemPowerIn"] as? NSNumber)?.int64Value, input > 0 { d.adapterInWatts = Double(input) / 1000 }
         else if let b = d.batteryWatts, b < 0 { d.systemWatts = -b }
         if (p["ExternalConnected"] as? Bool) == true, let adapter = p["AdapterDetails"] as? [String: Any] {
             d.adapterWatts = (adapter["Watts"] as? NSNumber)?.intValue

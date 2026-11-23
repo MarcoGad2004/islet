@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
+    private lazy var batteryStats = BatteryStatsPanel(power: power)
+    private var iconObservers: [NSKeyValueObservation] = []
     private var menuBarObserver: NSKeyValueObservation?
     private var notchlessObserver: NSKeyValueObservation?
     private var hasNotchObserver: NSKeyValueObservation?
@@ -377,16 +379,81 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(statusItemClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+        watchStatusIcon()
+    }
+
+    /// The pill, or the battery (DESIGN.md "Menu bar battery"), kept up to date with the charge.
+    private func updateStatusIcon() {
+        guard let item = statusItem, let button = item.button else { return }
+        let s = power.state
+        if MenuBarIconStyle.current == .battery, s.hasBattery {
+            button.image = MenuBarBattery.image(percent: s.percent, charging: s.charging, onAC: s.onAC,
+                                                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
+            button.title = MenuBarBattery.showsPercent ? "\(s.percent)%" : ""
+            button.imagePosition = MenuBarBattery.showsPercent ? .imageTrailing : .imageOnly
+            item.length = NSStatusItem.variableLength
+            button.toolTip = BatteryPage.status(s)
+        } else {
+            if batteryStats.isOpen { batteryStats.close() }
+            button.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Islet")
+            button.title = ""
+            button.imagePosition = .imageOnly
+            item.length = NSStatusItem.squareLength
+            button.toolTip = nil
+        }
+    }
+
+    private func watchStatusIcon() {
+        updateStatusIcon()
+        watchStatusIconAgain()
+        for path in [\UserDefaults.menuBarIconStyle, \UserDefaults.batteryIconPercent] as [KeyPath<UserDefaults, String?>] {
+            iconObservers.append(UserDefaults.standard.observe(path, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in
+                    self?.updateStatusIcon()
+                    self?.applyMenuBarVisibility()
+                    // Without a notch the island hangs under the icon, which just changed width.
+                    self?.notch.screenChanged()
+                }
+            })
+        }
+        NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateStatusIcon() }
+        }
+        batteryStats.openControls = { [weak self] in self?.openControlCenter() }
+    }
+
+    /// Observation fires once per registration, so each change registers again.
+    private func watchStatusIconAgain() {
+        withObservationTracking { _ = power.state } onChange: {
+            Task { @MainActor [weak self] in
+                self?.updateStatusIcon()
+                self?.watchStatusIconAgain()
+            }
+        }
+    }
+
+    /// The island's control center, opened from the battery icon.
+    private func openControlCenter() {
+        if notch.inMenuBar { notch.toggleFromMenuBar(); return }
+        if notch.store.expanded { notch.store.collapse() } else { notch.store.expand() }
     }
 
     @objc private func statusItemClicked() {
         let e = NSApp.currentEvent
         let wantsMenu = e?.type == .rightMouseUp || e?.modifierFlags.contains(.control) == true || e?.modifierFlags.contains(.option) == true
+        if !wantsMenu, MenuBarIconStyle.current == .battery, power.state.hasBattery, let button = statusItem?.button {
+            switch BatteryIconClick.current {
+            case .stats: batteryStats.toggle(under: button)
+            case .controls: openControlCenter()
+            }
+            return
+        }
         if notch.inMenuBar && !wantsMenu {
             notch.toggleFromMenuBar()
             return
         }
         guard let item = statusItem, let menu = statusMenu else { return }
+        batteryStats.close()
         item.menu = menu
         item.button?.performClick(nil) // shows the menu with the icon highlighted
         item.menu = nil
@@ -401,7 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// With no island, or one that only opens from the icon, the icon is the way to Settings, so it stays.
     private func applyMenuBarVisibility() {
         let wanted = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
-        let show = wanted || notch.store.geometry.map { $0.mode == .menuBar } ?? true
+        let show = wanted || notch.store.geometry.map { $0.mode == .menuBar } ?? true || MenuBarIconStyle.current == .battery
         guard show != menuBarShown else { return }
         menuBarShown = show
         statusItem?.isVisible = show
@@ -503,4 +570,7 @@ extension UserDefaults {
     @objc dynamic var notchlessStyle: String? { string(forKey: "notchlessStyle") }
     /// KVO key for the owner's "This Mac has a notch" choice.
     @objc dynamic var hasNotch: Bool { bool(forKey: "hasNotch") }
+    /// KVO keys for the menu bar icon's look (`MenuBarIconStyle`, `MenuBarBattery.percentKey`).
+    @objc dynamic var menuBarIconStyle: String? { string(forKey: "menuBarIconStyle") }
+    @objc dynamic var batteryIconPercent: String? { object(forKey: "batteryIconPercent").map { "\($0)" } }
 }

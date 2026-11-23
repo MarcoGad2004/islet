@@ -285,6 +285,30 @@ Motion (1.4, owner request 2026-11-21, mockup `docs/mockups/charging.html`), tim
 - Low battery starts full and rolls down to the charge, draining, in red, with no bolt.
 - With Reduce Motion it shows the end state at once.
 
+### Menu bar battery (1.5)
+
+Owner request, 2026-11-23. Islet's menu bar icon can be the pill (default) or a battery (Settings > General > Menu bar
+icon), so one icon can do the job of macOS's battery and Islet's. As a battery it always shows, whatever "Show menu bar
+icon" says, and works the same with a notch, the bezel island, the menu bar island, or none.
+
+- The icon follows macOS's: a 27 × 13 pt battery, a pale outline (40%), the charge as a solid fill, a bolt while
+  charging and a plug when plugged in and not charging (each with a gap cut round it so it reads over the fill). Red
+  fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
+  The percentage sits to its left unless "Show percentage" is off.
+- Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.
+- The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt dark glass
+  panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or the
+  status) and time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or
+  °C by region), battery health (System Settings' maximum capacity), the charge limit and Low Power Mode when they
+  apply; a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
+  the bottom; a rule; "Power distribution", pills from the source to where it goes (battery → Mac, or charger → Mac
+  and battery, in watts); a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
+  Numbers refresh every 3 s while open. A click elsewhere, Esc or the icon closes it.
+- In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
+  Controls pill.
+- Charge history: a sample on every change of charge or charger and every 5 minutes, a day kept in Application
+  Support; the time Islet wasn't running is filled from `pmset -g log` (RESEARCH.md "Battery stats").
+
 ### Volume and brightness
 
 - Shows on volume, mute and brightness keys. Hides 1.5 s after the last press.
@@ -567,7 +591,7 @@ style is one of:
   menu. No hover peek.
 - **Off**: no island. Face unlock and the modules keep running.
 
-With no island, or one that only opens from the icon, the menu bar icon always shows.
+With no island, or one that only opens from the icon, the menu bar icon always shows (as does the battery icon, 1.5).
 
 ## Glass (1.3)
 

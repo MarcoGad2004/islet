@@ -527,3 +527,17 @@ re-enables itself if macOS disables it. Not reproduced on the owner's Mac by han
 check (`DockOverview`) misfiring; on macOS 27 Mission Control adds a full-screen Dock window at layer 20 and the menu
 bar window stays listed, so "menu bar showing" can't tell them apart either.
 
+## Battery stats (1.5, 2026-11-23)
+
+- **Temperature**: macOS 27 no longer has `Temperature` in AppleSmartBattery's registry entry. The SMC still has it:
+  `TB0T`, `TB1T`, `TB2T` are `flt ` (°C) and readable by any process through AppleSMC's user client (selector 2,
+  the 80-byte `SMCKeyData_t`; Swift needs explicit padding after `keyInfo` to match C's offsets). They read 25.8 °C
+  here, the 78 °F a third-party battery app showed. `BatteryTemperature` averages the ones that answer.
+- **History**: there's no public battery history (System Settings' chart comes from powerlog, root only). `pmset -g
+  log` is readable by any user and notes `Using Batt (Charge:41%)` / `Using AC(Charge: 41)` at every sleep, wake and
+  assertion summary: about 3,600 lines over several days, ~4 s of CPU to read. Islet records its own samples and
+  reads the log only when its own have a gap (after a quit or on first run), off the main thread.
+- **Time since unplugged**: nothing in IOKit says when the charger came out. The first `Using Batt` line after the last
+  `Using AC` one gives it to within a few minutes; Islet's own samples give it exactly when it was running. It matched
+  the third-party app's 26 hr 43 min.
+- **Power in**: `PowerTelemetryData.SystemPowerIn` (mW) is what the charger delivers; 0 on battery.

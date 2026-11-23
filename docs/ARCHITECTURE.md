@@ -41,12 +41,17 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
 8. **Gestures**: two-finger swipes are `scrollWheel` events delivered to the panel while the pointer
    is over it; use precise deltas and the gesture phase, with a threshold (≈40 pt) per gesture.
 9. **Settings**: a small SwiftUI window: launch at login, permissions status, face unlock setup.
+10. **Menu bar battery** (1.5): `AppDelegate` draws the status item as the pill or as a battery
+    (`MenuBarBattery`), redrawn whenever `PowerMonitor.state` changes. Its click opens `BatteryStatsPanel` (a
+    borderless panel under the icon showing `BatteryStatsView`) or the island's control center. `PowerMonitor` owns a
+    `BatteryHistory` (a day of samples in Application Support, gaps filled from `pmset -g log`) and reads the battery
+    temperature from the SMC (`BatteryTemperature`) with the other details.
 
 ## Folder layout
 
 ```
 Sources/Islet/
-  App/          entry point, app delegate, menu bar item
+  App/          entry point, app delegate, menu bar item, battery stats panel
   Notch/        panel, geometry, layout check, island shape, state store
   Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/
   Views/        compact (wings/chin) and expanded views, face scan view
