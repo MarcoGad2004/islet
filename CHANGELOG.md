@@ -6,6 +6,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ## Next
 
 - Notifications grow downward to fit their text (up to 6 lines in the bar, 10 on the hover card) instead of cutting it to one line, so most can be read without hovering.
+- Replying to a message from the notch now clears the red badge in Messages: Messages flashes forward for a moment with the chat open so it marks it read (one-to-one chats; groups can't be opened that way).
 
 ## 1.5 (2026-11-23)
 

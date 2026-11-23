@@ -496,6 +496,12 @@ final class MessagesStore {
         pending.append(p)
         open?.messages.append(p)
         scheduleReload()
+        // Replying doesn't mark the chat read in Messages: do that if it still shows a badge.
+        let unreadInMessages = rows("""
+            select count(*) from message m join chat_message_join j on j.message_id = m.ROWID
+            where j.chat_id = ? and m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
+            """, [c.chatID]).first?[0] as? Int64 ?? 0
+        if unreadInMessages > 0 { Task { await TapbackSender.markRead(c) } }
     }
 
     // MARK: Reacting

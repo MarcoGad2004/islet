@@ -82,6 +82,23 @@ enum TapbackSender {
         return nil
     }
 
+    /// Shows a one-to-one conversation in Messages for a moment so Messages marks it read (its red badge clears):
+    /// replying through Apple Events sends but never marks read. Groups can't be opened by address, so they're left.
+    static func markRead(_ chat: MessagesStore.Conversation) async {
+        let handle = chat.guid.components(separatedBy: ";").last ?? ""
+        guard !chat.isGroup, !handle.isEmpty,
+              let url = URL(string: "sms:\(handle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? handle)") else { return }
+        let previous = NSWorkspace.shared.frontmostApplication
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
+        let wasHidden = running == nil || running!.isHidden || !hasWindow(running!)
+        NSWorkspace.shared.open(url)
+        // Give Messages time to come forward with the conversation open and mark it read.
+        try? await Task.sleep(for: .milliseconds(900))
+        if let previous, previous.bundleIdentifier != bundleID { previous.activate() }
+        if wasHidden { NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.hide() }
+        NSApp.windows.first { $0 is NotchPanel }?.makeKey()
+    }
+
     // MARK: Accessibility
 
     private static func attr(_ e: AXUIElement, _ a: String) -> AnyObject? {
