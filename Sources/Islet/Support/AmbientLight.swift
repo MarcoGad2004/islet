@@ -14,7 +14,9 @@ enum AmbientLight {
     private static let eventType: Int64 = 12 // kIOHIDEventTypeAmbientLightSensor
     private static let luxField: Int32 = 12 << 16
 
-    private static let reader: (service: AnyObject, copy: CopyEvent, get: GetFloat)? = {
+    /// The client is kept with the service: a service outlives nothing once its client is released, and reading it then
+    /// crashed inside IOKit (1.6 test build, Check Light).
+    private static let reader: (client: AnyObject, service: AnyObject, copy: CopyEvent, get: GetFloat)? = {
         guard let h = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
               let c = dlsym(h, "IOHIDEventSystemClientCreate"), let m = dlsym(h, "IOHIDEventSystemClientSetMatching"),
               let s = dlsym(h, "IOHIDEventSystemClientCopyServices"), let e = dlsym(h, "IOHIDServiceClientCopyEvent"),
@@ -23,7 +25,7 @@ enum AmbientLight {
         unsafeBitCast(m, to: SetMatching.self)(client, ["PrimaryUsagePage": 0xff00, "PrimaryUsage": 4] as CFDictionary)
         guard let services = unsafeBitCast(s, to: CopyServices.self)(client)?.takeRetainedValue() as? [AnyObject],
               let service = services.first else { return nil }
-        return (service, unsafeBitCast(e, to: CopyEvent.self), unsafeBitCast(f, to: GetFloat.self))
+        return (client, service, unsafeBitCast(e, to: CopyEvent.self), unsafeBitCast(f, to: GetFloat.self))
     }()
 
     /// The light falling on the screen's bezel now, in lux.
