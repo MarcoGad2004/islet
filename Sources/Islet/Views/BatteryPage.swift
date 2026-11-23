@@ -11,7 +11,7 @@ struct BatteryPage: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 14) {
                 BatteryGlyph(percent: s.percent, tint: Self.tint(s), bolt: s.charging || s.onAC, limit: d.chargeLimit)
-                    .frame(width: 46, height: 22)
+                    .frame(width: 49, height: 22) // the menu bar battery's proportions: a body twice as long as it is tall
                 VStack(alignment: .leading, spacing: 1) {
                     RollingNumber(value: Double(s.percent) / 100, suffix: "%", size: 28)
                         .foregroundStyle(Color.isletText)

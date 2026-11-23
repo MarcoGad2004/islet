@@ -532,7 +532,7 @@ bar window stays listed, so "menu bar showing" can't tell them apart either.
 - **Temperature**: macOS 27 no longer has `Temperature` in AppleSmartBattery's registry entry. The SMC still has it:
   `TB0T`, `TB1T`, `TB2T` are `flt ` (°C) and readable by any process through AppleSMC's user client (selector 2,
   the 80-byte `SMCKeyData_t`; Swift needs explicit padding after `keyInfo` to match C's offsets). They read 25.8 °C
-  here, the 78 °F a third-party battery app showed. `BatteryTemperature` averages the ones that answer.
+  here, the 78 °F a third-party battery app showed. `SMCSensors.temperature` averages the ones that answer.
 - **History**: there's no public battery history (System Settings' chart comes from powerlog, root only). `pmset -g
   log` is readable by any user and notes `Using Batt (Charge:41%)` / `Using AC(Charge: 41)` at every sleep, wake and
   assertion summary: about 3,600 lines over several days, ~4 s of CPU to read. Islet records its own samples and
@@ -541,6 +541,11 @@ bar window stays listed, so "menu bar showing" can't tell them apart either.
   `Using AC` one gives it to within a few minutes; Islet's own samples give it exactly when it was running. It matched
   the third-party app's 26 hr 43 min.
 - **Power in**: `PowerTelemetryData.SystemPowerIn` (mW) is what the charger delivers; 0 on battery.
+- **Live power**: the battery's registry entry (Amperage, PowerTelemetryData) only refreshes about every 30 s
+  (`UpdateTime` didn't move over five one-second reads), so its watts looked frozen next to another app's. The SMC's
+  are live: `PSTR` the whole system (9-14 W from second to second here), `PDTR` the charger's input (57.9 W), `SBAP`
+  the battery (-44 W while charging, so the SMC signs it the other way: into the battery is negative). They add up:
+  `PDTR` = `PSTR` - `SBAP`. Islet uses these and falls back to the registry when the SMC doesn't answer.
 
 ## Menu bar position (1.5, 2026-11-23)
 

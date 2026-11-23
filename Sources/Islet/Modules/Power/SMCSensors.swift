@@ -1,20 +1,44 @@
 import Foundation
 import IOKit
 
-/// The battery's temperature from the SMC. macOS no longer puts it in the battery's registry entry, but the SMC's
-/// battery sensors (`TB0T`, `TB1T`, `TB2T`, floats in °C) can be read by any app through AppleSMC's user client.
-enum BatteryTemperature {
-    /// The mean of the battery sensors that answer, in °C; nil when none do (a Mac without a battery).
-    static func read() -> Double? {
+/// Live readings from the SMC, through AppleSMC's user client (any app can read it). The battery's registry entry only
+/// refreshes about every 30 s; the SMC's power sensors change every second (RESEARCH.md "Battery stats").
+enum SMCSensors {
+    /// The battery's temperature in °C: the mean of its sensors (`TB0T`, `TB1T`, `TB2T`) that answer. macOS no longer
+    /// puts it in the battery's registry entry.
+    static func temperature() -> Double? {
+        session { conn in
+            let readings = ["TB0T", "TB1T", "TB2T"].compactMap { value(conn, key: $0) }.filter { $0 > 0 && $0 < 100 }
+            guard !readings.isEmpty else { return nil }
+            return readings.reduce(0, +) / Double(readings.count)
+        }
+    }
+
+    struct Power: Equatable {
+        /// What the whole Mac is drawing (`PSTR`).
+        var system: Double
+        /// What the charger is delivering (`PDTR`); 0 without one.
+        var chargerIn: Double?
+        /// Into the battery (+) or out of it (-) (`SBAP`, which the SMC signs the other way).
+        var battery: Double?
+    }
+
+    static func power() -> Power? {
+        session { conn in
+            guard let system = value(conn, key: "PSTR"), system >= 0 else { return nil }
+            return Power(system: system, chargerIn: value(conn, key: "PDTR").map { max(0, $0) },
+                         battery: value(conn, key: "SBAP").map { -$0 })
+        }
+    }
+
+    private static func session<T>(_ body: (io_connect_t) -> T?) -> T? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }
         var conn: io_connect_t = 0
         guard IOServiceOpen(service, mach_task_self_, 0, &conn) == KERN_SUCCESS else { return nil }
         defer { IOServiceClose(conn) }
-        let readings = ["TB0T", "TB1T", "TB2T"].compactMap { value(conn, key: $0) }.filter { $0 > 0 && $0 < 100 }
-        guard !readings.isEmpty else { return nil }
-        return readings.reduce(0, +) / Double(readings.count)
+        return body(conn)
     }
 
     /// The SMC's call layout (`SMCKeyData_t`, 80 bytes). The padding keeps Swift's field offsets the same as C's.

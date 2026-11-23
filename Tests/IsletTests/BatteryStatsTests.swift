@@ -93,6 +93,10 @@ final class BatteryStatsTests: XCTestCase {
 
     func testTemperatureReadsOrIsAbsent() {
         // On a MacBook the SMC answers with a room-ish temperature; elsewhere nothing.
-        if let t = BatteryTemperature.read() { XCTAssertTrue((5...70).contains(t), "\(t)") }
+        if let t = SMCSensors.temperature() { XCTAssertTrue((5...70).contains(t), "\(t)") }
+        // The power sensors add up: what comes in goes to the Mac and the battery.
+        if let p = SMCSensors.power(), let c = p.chargerIn, c > 1, let b = p.battery {
+            XCTAssertEqual(c, p.system + b, accuracy: max(3, c * 0.1))
+        }
     }
 }

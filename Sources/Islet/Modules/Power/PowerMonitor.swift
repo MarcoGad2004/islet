@@ -183,7 +183,7 @@ final class PowerMonitor {
         var d = Details()
         d.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
         d.chargeLimit = readChargeLimit()
-        d.temperature = BatteryTemperature.read()
+        d.temperature = SMCSensors.temperature()
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return d }
         defer { IOObjectRelease(service) }
@@ -207,6 +207,12 @@ final class PowerMonitor {
         if let load = (telemetry["SystemLoad"] as? NSNumber)?.int64Value, load > 0 { d.systemWatts = Double(load) / 1000 }
         if let input = (telemetry["SystemPowerIn"] as? NSNumber)?.int64Value, input > 0 { d.adapterInWatts = Double(input) / 1000 }
         else if let b = d.batteryWatts, b < 0 { d.systemWatts = -b }
+        // The registry's numbers are up to 30 s old; the SMC's are live.
+        if let live = SMCSensors.power() {
+            d.systemWatts = live.system
+            if let b = live.battery { d.batteryWatts = b }
+            if let c = live.chargerIn { d.adapterInWatts = c > 0.1 ? c : nil }
+        }
         if (p["ExternalConnected"] as? Bool) == true, let adapter = p["AdapterDetails"] as? [String: Any] {
             d.adapterWatts = (adapter["Watts"] as? NSNumber)?.intValue
             d.adapterName = (adapter["Name"] as? String)?.trimmingCharacters(in: .whitespaces)
