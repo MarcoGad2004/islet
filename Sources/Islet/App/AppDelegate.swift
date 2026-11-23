@@ -69,6 +69,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch UserDefaults.standard.string(forKey: "IsletDebugShape") {
         case "wings": notch.store.setBase(.wings)
         case "chin": notch.store.setBase(.chin)
+        // The unlock with the volume turned up during it, for the level row under it (repeats so it can be watched).
+        case "unlocklevel":
+            Task { @MainActor [weak self] in
+                for _ in 0..<6 {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    self?.notch.store.playUnlock()
+                    for v in stride(from: 0.3, through: 0.8, by: 0.1) {
+                        try? await Task.sleep(for: .seconds(0.25))
+                        self?.notch.store.showLevel(LevelState(kind: .volume, value: v))
+                    }
+                }
+            }
         case "scan": notch.store.setBase(.scan)
         case "expanded": notch.store.expand()
         case "setup":

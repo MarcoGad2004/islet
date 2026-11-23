@@ -124,6 +124,17 @@ struct IslandView: View {
                     .animation(.easeOut(duration: 0.2).delay(stacked ? 0.2 : 0), value: stacked)
                     .allowsHitTesting(false)
             }
+            .overlay(alignment: .top) {
+                // The level row grown under the unlock, the lock bar or the scan.
+                if let l = store.levelTray {
+                    LevelTray(level: l, width: min(m.width, (store.geometry?.width ?? 190) + IslandLayout.wingsExtra))
+                        .offset(y: (floating ? m.y : 0) + m.height - IslandLayout.levelTrayHeight)
+                        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.12)),
+                                                removal: .opacity.animation(.easeOut(duration: 0.12))))
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: store.levelTray == nil)
             .clipShape(shape)
             // Hidden media swiped back: the peek's colour gathers into the artwork.
             if let start = store.morphFromPeek, case .media? = content {
@@ -144,3 +155,24 @@ struct IslandView: View {
                alignment: .top)
     }
 }
+
+/// Volume or brightness under whatever is showing: the icon, the step bar and the number, as in the wide bar.
+private struct LevelTray: View {
+    let level: LevelState
+    let width: CGFloat
+
+    var body: some View {
+        let inset = IslandLayout.levelSideInset
+        HStack(spacing: 10) {
+            Image(systemName: level.symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: level.symbol).frame(width: 18)
+            StepBar(value: level.value, muted: level.muted, stepWidth: max(3, (width - 2 * inset - 18 - 30 - 20 - 15 * 3) / 16))
+                .animation(.levelGlide, value: level.value)
+            RollingNumber(value: level.value, off: level.muted).foregroundStyle(Color.isletText)
+                .frame(width: 30, alignment: .trailing)
+        }
+        .padding(.horizontal, inset)
+        .frame(width: width, height: IslandLayout.levelTrayHeight - 6)
+    }
+}
+

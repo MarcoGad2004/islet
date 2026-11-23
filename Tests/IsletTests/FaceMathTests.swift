@@ -66,6 +66,28 @@ final class IslandContentTests: XCTestCase {
         XCTAssertEqual(store.presentation, .lockWings) // the unlock animation uses the lock-screen bar
     }
 
+    /// Volume during the unlock: the unlock stays, and a level row grows under it instead of the change going unseen.
+    @MainActor func testLevelGrowsUnderTheUnlock() {
+        let store = IslandStore()
+        store.layoutCheck = { true }
+        store.setGeometry(NotchGeometry(screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982), width: 185, height: 32))
+        store.playUnlock()
+        XCTAssertNil(store.levelTray)
+        store.setGeometry(store.geometry)
+        let before = store.animator.metrics.height
+        store.showLevel(LevelState(kind: .volume, value: 0.6))
+        guard case .unlock = store.content else { return XCTFail("the unlock keeps showing") }
+        XCTAssertEqual(store.levelTray?.value, 0.6)
+        store.setGeometry(store.geometry)
+        XCTAssertEqual(store.animator.metrics.height, before + Double(IslandLayout.levelTrayHeight), accuracy: 0.5)
+        // On its own the level is the wide bar as usual, with no row under it.
+        let plain = IslandStore()
+        plain.layoutCheck = { true }
+        plain.setGeometry(store.geometry)
+        plain.showLevel(LevelState(kind: .volume, value: 0.6))
+        XCTAssertNil(plain.levelTray)
+    }
+
     @MainActor func testNoNotchHangsUnderTheMenuBarIcon() {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         // An icon near the right edge: the island moves in so the 500 pt panel stays on screen.

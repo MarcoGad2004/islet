@@ -180,6 +180,19 @@ final class IslandStore {
 
     private var compactLayout: Presentation { wingsFit ? .wings : .chin }
 
+    /// Volume or brightness changed while something that outranks it is showing (the unlock, the lock screen, the
+    /// face scan): instead of the change going unseen, the island grows a row under what's showing for the level
+    /// (DESIGN.md "Volume and brightness").
+    var levelTray: LevelState? {
+        guard let level, !expanded, !paused else { return nil }
+        if base == .enrol { return nil }
+        if base == .scan { return level }
+        switch content {
+        case .unlock?, .locked?: return level
+        default: return nil
+        }
+    }
+
     var presentation: Presentation {
         // Enrolment and the face scan can't be interrupted by hover or clicks.
         if let b = base, b == .enrol || b == .scan {
@@ -276,6 +289,13 @@ final class IslandStore {
             // Two or more: a little deeper, for the one tucked under it. The card makes room for the banner's buttons.
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
             if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
+        }
+        if levelTray != nil {
+            // At least the wide bar's width, so the level row has the room it has on its own.
+            let w = Double(g.width) + IslandLayout.wingsExtra
+            if m.sw >= m.bw { m.sw = max(m.sw, w); m.bw = m.sw } // the wide bar; the chin keeps its own width
+            m.bh += Double(IslandLayout.levelTrayHeight)
+            m.br = max(m.br, 18)
         }
         switch g.mode {
         case .notch: return m

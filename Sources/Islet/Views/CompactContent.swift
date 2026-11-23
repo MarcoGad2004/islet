@@ -326,13 +326,7 @@ struct CompactContentView: View {
         }
     }
 
-    private func levelIcon(_ l: LevelState) -> String {
-        switch l.kind {
-        case .brightness: "sun.max.fill"
-        case .keyboard: l.value == 0 ? "light.min" : "light.max"
-        case .volume: l.muted || l.value == 0 ? "speaker.slash.fill" : (l.value < 0.34 ? "speaker.wave.1.fill" : (l.value < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill"))
-        }
-    }
+    private func levelIcon(_ l: LevelState) -> String { l.symbol }
 }
 
 /// Icon that pops in from scale 0 with overshoot, 0.4 s.

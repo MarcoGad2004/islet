@@ -23,6 +23,8 @@ enum IslandLayout {
     /// Volume and brightness in the wide bar: icon left, number right, and the 16-step bar in a short body below.
     static let levelBodyHeight: CGFloat = 26
     static let levelSideInset: CGFloat = 20
+    /// The level row that grows under the unlock, the lock bar or the scan when volume or brightness changes then.
+    static let levelTrayHeight: CGFloat = 34
     /// The lock-screen bar with a short body below spelling out the Command+Shift hint.
     static let lockHintBodyHeight: CGFloat = 28
     /// A notification's card under the stem, and the taller one a swipe down opens.

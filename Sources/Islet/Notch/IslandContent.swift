@@ -63,6 +63,15 @@ struct LevelState: Equatable {
     var muted = false
     /// 0...16 filled steps of the bar.
     var steps: Int { Int((value * 16).rounded()) }
+
+    /// The symbol beside the bar.
+    var symbol: String {
+        switch kind {
+        case .brightness: "sun.max.fill"
+        case .keyboard: value == 0 ? "light.min" : "light.max"
+        case .volume: muted || value == 0 ? "speaker.slash.fill" : (value < 0.34 ? "speaker.wave.1.fill" : (value < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill"))
+        }
+    }
 }
 
 struct ChargeEvent: Equatable {

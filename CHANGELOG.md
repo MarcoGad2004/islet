@@ -19,6 +19,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Every battery in Islet (the menu bar, quick info, the battery page and the charging animation) now has the same shape: a body twice as long as it is tall, like the menu bar one.
 - The chart starts full: the hours before Islet was running come from macOS's power log. Islet keeps a day of charge history on the Mac (Application Support/Islet); nothing leaves it.
 
+### Volume and brightness
+
+- Turning the volume or brightness while the unlock animation is playing (or on the lock screen, or during the face scan) now shows it: the island grows a row underneath with the level, instead of the change going unseen until the animation finished.
+
 ### Fixes
 
 - Macs without a notch: the island now answers the pointer at the top of the screen while you're on the desktop. macOS doesn't send pointer moves to other apps while the desktop is in front, so Islet now also watches them another way.

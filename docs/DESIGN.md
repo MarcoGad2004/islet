@@ -335,6 +335,10 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   symbol transition. The Control Center sliders and their percentages do the same for key presses
   (a drag follows the pointer directly).
 - Clicking it opens the expanded panel's Display and Sound page, even while media plays.
+- Under something that outranks it (1.5, owner request 2026-11-23): during the unlock animation, on the lock screen or
+  during the face scan, a key press no longer goes unseen. The island grows a 34 pt row under what's showing, with
+  the icon, the step bar and the number, and draws it back up 1.5 s after the last press. Under the wide bar it's
+  the wide bar's width; under the chin, the chin's.
 
 ### Expanded panel
 
