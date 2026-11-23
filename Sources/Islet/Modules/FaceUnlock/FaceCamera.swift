@@ -78,6 +78,20 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if let pb = CMSampleBufferGetImageBuffer(sampleBuffer) { handler?(pb) }
+        guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        // When the frame was taken, on the wall clock: the light check compares it with when the screen changed, and a
+        // frame can be handled 100 ms or more after it was taken (face model, spoof model).
+        let age = CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) - CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        if age.isFinite, age >= 0, age < 1 {
+            CVBufferSetAttachment(pb, Self.capturedKey, NSNumber(value: Date().timeIntervalSinceReferenceDate - age), .shouldNotPropagate)
+        }
+        handler?(pb)
+    }
+
+    private static let capturedKey = "IsletCaptured" as CFString
+
+    /// When the camera took this frame; now if it wasn't stamped.
+    static func captured(_ pb: CVPixelBuffer) -> Date {
+        (CVBufferCopyAttachment(pb, capturedKey, nil) as? NSNumber).map { Date(timeIntervalSinceReferenceDate: $0.doubleValue) } ?? Date()
     }
 }

@@ -144,6 +144,8 @@ enum FacePulse {
         var background: [Double?]
         /// The face in this frame matched the enrolment.
         var matched: Bool
+        /// Mean brightness of the whole frame (gamma), for Check Light's record only.
+        var luma: Double? = nil
     }
 
     struct Reading: Sendable, Equatable {

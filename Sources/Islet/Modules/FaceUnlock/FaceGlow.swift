@@ -29,6 +29,8 @@ final class FaceGlow {
     private var warmTask: Task<Void, Never>?
     private var playing = false
     private var cancelled = false
+    /// The last glow played and when it started (Check Light's record).
+    private(set) var last: (glow: FacePulse.Glow, start: Date)?
 
     var isAvailable: Bool { device != nil && Self.builtInScreen != nil }
 
@@ -92,6 +94,7 @@ final class FaceGlow {
         Self.log.notice("glow share=\(share) low=\(glow.low) high=\(glow.high) steps=\(glow.steps.map { $0 ? "H" : "L" }.joined(), privacy: .public)")
 
         let start = Date()
+        last = (glow, start)
         let schedule = glow.schedule(start: start)
         onStart(schedule)
         while !cancelled {

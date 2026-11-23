@@ -156,11 +156,11 @@ final class ScanEngine: @unchecked Sendable {
         }
         if case .running(let since, var frames) = pulse {
             let m = FacePulse.measure(a.pixelBuffer, points: a.points, face: a.box)
-            frames.append(FacePulse.Frame(time: now, face: m.face, background: m.background, matched: score >= threshold && !refused))
+            frames.append(FacePulse.Frame(time: FaceCamera.captured(a.pixelBuffer), face: m.face, background: m.background, matched: score >= threshold && !refused))
             pulse = .running(since: since, frames: frames)
             if now.timeIntervalSince(since) > Self.pulseSeconds { finishPulseLocked(nil, exposureHeld: false, learned: []); return }
             // Judge as soon as the last window has passed, rather than waiting for the light to go back.
-            if let schedule = pulseSchedule, now >= schedule.ready,
+            if let schedule = pulseSchedule, let taken = frames.last?.time, taken >= schedule.ready,
                frames.filter({ schedule.inHigh($0.time) }).count >= Self.earlyFrames,
                frames.filter({ schedule.inLow($0.time) }).count >= Self.earlyFrames {
                 finishPulseLocked(schedule, exposureHeld: pulseHeld, learned: pulseLearned)

@@ -162,8 +162,8 @@ final class FaceUnlockCoordinator {
                     framed = a.framed
                     if recording {
                         let m = FacePulse.measure(pb, points: a.points, face: a.box)
-                        recorder.add(FacePulse.Frame(time: Date(), face: m.face, background: m.background,
-                                                     matched: (score ?? 0) >= threshold))
+                        recorder.add(FacePulse.Frame(time: FaceCamera.captured(pb), face: m.face, background: m.background,
+                                                     matched: (score ?? 0) >= threshold, luma: FrameLight.luma(pb)))
                     }
                 }
                 let lighting = a.flatMap { FacePulse.lighting(pb, points: $0.points, face: $0.box) }
@@ -216,6 +216,32 @@ final class FaceUnlockCoordinator {
         guard testingFace else { return }
         testPulse = schedule.map { FacePulse.judge(frames, schedule: $0, exposureHeld: held, learned: faces.pulseProfiles) }
             ?? .inconclusive("the screen's light can't be set", nil)
+        if let schedule { Self.record(frames, schedule: schedule, glow: glow.last, lux: lux, verdict: testPulse) }
+    }
+
+    /// Check Light's raw numbers, one row per frame, to see why it vouched or not:
+    /// ~/Library/Application Support/Islet/light-check.csv (the latest run; numbers only, no images).
+    private static func record(_ frames: [FacePulse.Frame], schedule: FacePulse.Schedule,
+                               glow: (glow: FacePulse.Glow, start: Date)?, lux: Double?, verdict: FacePulse.Verdict?) {
+        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Islet", isDirectory: true) else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let origin = glow?.start ?? schedule.low.first?.lowerBound ?? Date()
+        func n(_ v: Double?) -> String { v.map { String(format: "%.5f", $0) } ?? "" }
+        var lines = [
+            "# lux \(n(lux)) verdict \(verdict.map { "\($0)" } ?? "none")",
+            "# glow \(glow.map { "low \(n($0.glow.low)) high \(n($0.glow.high)) steps \($0.glow.steps.map { $0 ? "H" : "L" }.joined())" } ?? "none (swell)")",
+            "t,window,commanded,matched,luma," + FacePulse.Patch.allCases.map { "\($0)" }.joined(separator: ",") + ",bgMedian,bgReadable",
+        ]
+        for f in frames {
+            let t = f.time.timeIntervalSince(origin)
+            let window = schedule.inHigh(f.time) ? "H" : schedule.inLow(f.time) ? "L" : ""
+            let commanded = glow.map { $0.glow.at(t) }.map { $0.value * $0.alpha }
+            let bg = f.background.compactMap { $0 }
+            lines.append([n(t), window, n(commanded), f.matched ? "1" : "0", n(f.luma)].joined(separator: ",") + ","
+                         + f.face.map(n).joined(separator: ",") + ",\(n(FacePulse.median(bg))),\(bg.count)")
+        }
+        try? (lines.joined(separator: "\n") + "\n").write(to: dir.appendingPathComponent("light-check.csv"), atomically: true, encoding: .utf8)
     }
 
     private static func cameraMessage(_ error: Error) -> String {
