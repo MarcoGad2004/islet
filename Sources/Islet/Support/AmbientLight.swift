@@ -1,0 +1,35 @@
+import Foundation
+
+/// The built-in ambient light sensor, in lux. Private IOHIDEventSystem calls (the sensor is the Apple vendor page
+/// 0xff00, usage 4; event type 12): no entitlement needed (verified on macOS 27.2, 2026-11-23). Nil when there's no
+/// sensor or the calls are gone. Private API: personal use only, may break on a macOS update.
+@MainActor
+enum AmbientLight {
+    private typealias Create = @convention(c) (CFAllocator?) -> Unmanaged<AnyObject>?
+    private typealias SetMatching = @convention(c) (AnyObject, CFDictionary) -> Void
+    private typealias CopyServices = @convention(c) (AnyObject) -> Unmanaged<CFArray>?
+    private typealias CopyEvent = @convention(c) (AnyObject, Int64, Int32, Int64) -> Unmanaged<AnyObject>?
+    private typealias GetFloat = @convention(c) (AnyObject, Int32) -> Double
+
+    private static let eventType: Int64 = 12 // kIOHIDEventTypeAmbientLightSensor
+    private static let luxField: Int32 = 12 << 16
+
+    private static let reader: (service: AnyObject, copy: CopyEvent, get: GetFloat)? = {
+        guard let h = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
+              let c = dlsym(h, "IOHIDEventSystemClientCreate"), let m = dlsym(h, "IOHIDEventSystemClientSetMatching"),
+              let s = dlsym(h, "IOHIDEventSystemClientCopyServices"), let e = dlsym(h, "IOHIDServiceClientCopyEvent"),
+              let f = dlsym(h, "IOHIDEventGetFloatValue"),
+              let client = unsafeBitCast(c, to: Create.self)(kCFAllocatorDefault)?.takeRetainedValue() else { return nil }
+        unsafeBitCast(m, to: SetMatching.self)(client, ["PrimaryUsagePage": 0xff00, "PrimaryUsage": 4] as CFDictionary)
+        guard let services = unsafeBitCast(s, to: CopyServices.self)(client)?.takeRetainedValue() as? [AnyObject],
+              let service = services.first else { return nil }
+        return (service, unsafeBitCast(e, to: CopyEvent.self), unsafeBitCast(f, to: GetFloat.self))
+    }()
+
+    /// The light falling on the screen's bezel now, in lux.
+    static func lux() -> Double? {
+        guard let r = reader, let event = r.copy(r.service, eventType, 0, 0)?.takeRetainedValue() else { return nil }
+        let v = r.get(event, luxField)
+        return v.isFinite && v >= 0 ? v : nil
+    }
+}

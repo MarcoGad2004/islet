@@ -205,6 +205,7 @@ struct FaceUnlockSettings: View {
             }
             if let a = r.agreement { parts.append(String(format: "yours %.2f", a)) }
         }
+        if let lux = face.testLux { parts.append(String(format: "%.0f lux", lux)) }
         return Label(parts.joined(separator: " · "), systemImage: v.passed ? "checkmark.circle.fill" : "circle.dashed")
             .foregroundStyle(v.passed ? .green : .secondary).monospacedDigit()
     }

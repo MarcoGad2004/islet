@@ -190,15 +190,23 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at random each
   attempt, with 8 s to do it (Settings: Automatic, Random, Blink only, or Off).
 - **Light check** (Automatic, the default; owner request 2026-11-22): once the face matches, the label stays
-  "Checking" while the screen brightness swells once and comes back: up 0.3 (or down 0.3 if the screen is
-  already above 0.7) over 0.25 s, held 0.35 s, back over 0.3 s, after a random 0.35-0.6 s wait. One smooth
-  swell, never a flicker (the owner was worried about discomfort). If the light check and the spoof model both
+  "Checking" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
+  depended on the wallpaper being bright): after a random 0.3-0.45 s wait, a full-screen layer of white on the
+  built-in display fades in over 0.3 s, holds 0.28 s, then takes four steps between a lower and a higher level in a
+  random order (at least two up, one down; 0.15 s eased step, 0.28 s hold each), and fades out over 0.3 s: ~2.3 s
+  in all, never more than one change every 0.43 s, every edge eased, so it breathes rather than flashes (the owner was
+  worried about discomfort). It sits just under the island, over everything else including the lock screen and its
+  password field, so the island and its scan stay visible on top. Its strength follows the room (the ambient light
+  sensor): the higher level is 0.08 + lux / 2000 of the panel's peak (at most 0.65), the lower one at least SDR white
+  and 1.6× under the higher, using the XDR panel's extra brightness when it's needed; a dim room gets a gentle glow, a
+  bright one a strong one. Where the glow can't be drawn, the brightness swells once instead (up 0.3, or down if the
+  screen is above 0.7, over 0.25 s, held 0.35 s, back over 0.3 s). If the light check and the spoof model both
   vouch for the face, it's the match with nothing to do; otherwise the random challenge is asked, as Random.
   Optional (owner request 2026-11-23, off by default): Automatic's fallback is always "Blink to unlock".
-  It's judged as soon as the swell peaks (the screen still eases back afterwards). **Harsh light** (owner request
-  2026-11-23): when the camera sees direct sun on the face (one side ≥ 3× brighter than the other, or ≥ 6% of the
-  face blown out), there's no swell: the challenge is asked as soon as the face matches. The same for the rest of
-  the scan once a swell got no response.
+  It's judged as soon as its last step has held (the light still fades out afterwards). **Harsh light** (owner
+  request 2026-11-23): when the camera sees direct sun on the face (one side ≥ 3× brighter than the other, or ≥ 6% of
+  the face blown out), or the light sensor reads over 1500 lux, there's no glow: the challenge is asked as soon as the
+  face matches. The same for the rest of the scan once a glow got no response.
 - **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),

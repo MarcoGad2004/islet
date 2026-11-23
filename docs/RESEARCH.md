@@ -110,6 +110,21 @@ lock screen. Each question below can block it:
       `relative` = centre gain over side gain − 1 (exposure scales both, so it cancels; a print or screen ~0) must be
       ≥ 0.04. Learned profiles are now relative to the face's sides in both cases (stored under a new key; the few
       learned the old way are dropped). Note for zsh: `log` is a shell builtin, use `/usr/bin/log show`.
+    - *Glow (2026-11-23, owner: the swell only multiplies the wallpaper, so a dark one gives almost no light):* the
+      light now comes from `FaceGlow`, a full-screen EDR Metal layer (rgba16Float, extended linear Display P3, 16x16
+      drawable stretched) at the island's level − 1 in the same SkyLight space, so it's over the lock screen and
+      under the island. Findings on this Mac (macOS 27.2): **ambient light sensor** reads with no entitlement through
+      private IOHIDEventSystemClient calls (matching page 0xff00 usage 4, event type 12, float field 12 << 16; ~116
+      lux in the owner's room). **EDR**: `maximumPotentialExtendedDynamicRangeColorComponentValue` = 16 at the
+      owner's brightness; the current headroom climbs from 1.2 to ~5.5 over ~1.3 s once EDR content is shown, **even
+      at alpha 0**, and stays up ~10 s after, so the scan shows an invisible layer as it starts (`warm()`) and the
+      glow waits for the headroom (≤ 1.5 s) before starting. Physics: a 14" screen at 500 nits gives ~120 lux at
+      50 cm, so the step needed grows with the room's light: share of peak = 0.08 + lux / 2000 (≤ 0.65), skipped
+      over 1500 lux. The pattern is a random order of four low/high steps judged as the median of all high-window
+      frames over all low-window ones, so `judge` is unchanged apart from the windows. **Unverified:** that the
+      window shows over the lock screen (the island's own does, through the same space), that the headroom rises
+      while locked, and every threshold on real faces with the new light. Test recognition → Check Light runs the
+      real glow and shows the lux.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

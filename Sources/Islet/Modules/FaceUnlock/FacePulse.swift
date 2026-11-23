@@ -1,9 +1,11 @@
 import CoreVideo
 import Foundation
 
-/// The screen-light depth check. Once the face matches, the display brightness swells smoothly once (up when there's
-/// room, otherwise down) and comes back. The screen is the light nearest the face, so a real head changes in a
-/// pattern set by its shape:
+/// The screen-light depth check. Once the face matches, the screen lights the face in a pattern the scan knows and
+/// compares the frames at its lower and higher light. Normally that's the glow (`Glow`, drawn by `FaceGlow`): a
+/// full-screen layer of white that fades in, steps between two levels in a random order and fades out, its strength
+/// set by the room's light. Where it can't be drawn, the display brightness swells once instead (`Schedule.swell`).
+/// The screen is the light nearest the face, so a real head changes in a pattern set by its shape:
 /// - the face, ~50 cm away, changes far more than the background behind it (`contrast`);
 /// - the parts facing the screen (forehead, nose, chin) change more than the sides turned away from it (`shape`).
 /// A phone or tablet makes its own light, so it barely changes (low contrast). A printed photo is flat, so every part
@@ -29,13 +31,103 @@ enum FacePulse {
     /// Frames in the windows where the face still matched: no swapping faces mid-pulse.
     static let minMatched = 0.7
 
+    /// When the face was lit less and more, once the light had settled (display and camera lag included): frames in
+    /// `low` are compared with frames in `high`.
     struct Schedule: Sendable, Equatable {
-        /// When the ramp started.
-        var start: Date
-        var brighter: Bool
-        func inBaseline(_ t: Date) -> Bool { t >= start.addingTimeInterval(-0.3) && t <= start }
-        func inPeak(_ t: Date) -> Bool {
-            t >= start.addingTimeInterval(FacePulse.rise + 0.08) && t <= start.addingTimeInterval(FacePulse.rise + FacePulse.hold)
+        var low: [ClosedRange<Date>]
+        var high: [ClosedRange<Date>]
+        /// From here on it can be judged: the last window has ended.
+        var ready: Date
+        func inLow(_ t: Date) -> Bool { low.contains { $0.contains(t) } }
+        func inHigh(_ t: Date) -> Bool { high.contains { $0.contains(t) } }
+
+        /// The brightness swell starting at `start`: the moment before it against its peak. When it dims, the moment
+        /// before is the brighter one. Judged after a few peak frames rather than once it's back.
+        static func swell(start: Date, brighter: Bool) -> Schedule {
+            let before = start.addingTimeInterval(-0.3)...start
+            let peak = start.addingTimeInterval(FacePulse.rise + 0.08)...start.addingTimeInterval(FacePulse.rise + FacePulse.hold)
+            return Schedule(low: [brighter ? before : peak], high: [brighter ? peak : before],
+                            ready: start.addingTimeInterval(FacePulse.rise + 0.22))
+        }
+    }
+
+    // MARK: The glow
+
+    /// Fade in and out, each step between levels, and each level's hold. A step every 0.43 s at most: well under
+    /// three changes a second, and every edge eased, so it breathes rather than flashes.
+    static let glowFade = 0.3, glowStep = 0.15, glowHold = 0.28
+    /// Display and camera lag before a hold's frames count.
+    static let glowSettle = 0.08
+    /// Above this (lux at the bezel) the screen's light is lost in the room's: skip it and ask for a challenge.
+    static let glowMaxLux = 1500.0
+    /// The higher level over the lower: the change the camera reads.
+    static let glowRatio = 1.6
+
+    /// How strong the glow's higher level is, as a share of the panel's peak brightness, for the room's light. The face
+    /// has to change by a share of the light already on it, so a dim room needs little (where a bright glow would
+    /// glare most) and a bright one a lot; nil when it's too bright for the screen to tell. ~0.24 lux at 50 cm per
+    /// nit of a 14" screen: at 500 lux the step is ~340 nits, ~80 lux, ~16% of the room's.
+    static func glowShare(lux: Double?) -> Double? {
+        guard let lux else { return 0.3 } // no sensor: a middling room
+        guard lux <= glowMaxLux else { return nil }
+        return min(0.08 + lux / 2000, 0.65)
+    }
+
+    /// Four steps after the first hold at the lower level, in a random order: at least two up and one down, so a
+    /// replayed video can't know when to brighten.
+    static func glowSteps() -> [Bool] {
+        while true {
+            let s = (0..<4).map { _ in Bool.random() }
+            if s.filter({ $0 }).count >= 2, s.contains(false) { return s }
+        }
+    }
+
+    struct Glow: Sendable, Equatable {
+        /// Pixel values: 1 is SDR white; above it is the XDR panel's extra brightness.
+        var low: Double
+        var high: Double
+        /// After the first hold at `low`: true = up to `high`.
+        var steps: [Bool]
+
+        /// Levels for a share of the panel's peak. `potential` is the display's
+        /// `maximumPotentialExtendedDynamicRangeColorComponentValue` (its peak over SDR white at the current
+        /// brightness), `headroom` what it allows now. The lower level is at least SDR white so the screen never
+        /// darkens; the higher one stays within the headroom so the step isn't clipped away.
+        init(share: Double, potential: Double, headroom: Double, steps: [Bool] = FacePulse.glowSteps()) {
+            let top = max(headroom, 1)
+            high = min(max(share * max(potential, 1), FacePulse.glowRatio), top)
+            low = min(max(1, 0.35 * high), high / FacePulse.glowRatio)
+            self.steps = steps
+        }
+
+        private static var segment: Double { FacePulse.glowStep + FacePulse.glowHold }
+        private var stepsStart: Double { FacePulse.glowFade + FacePulse.glowHold }
+        /// Until it starts fading out.
+        var length: Double { stepsStart + Double(steps.count) * Self.segment }
+        var total: Double { length + FacePulse.glowFade }
+        private func level(_ up: Bool) -> Double { up ? high : low }
+
+        /// The pixel value and coverage `t` seconds after it started.
+        func at(_ t: Double) -> (value: Double, alpha: Double) {
+            func ease(_ x: Double) -> Double { let x = min(max(x, 0), 1); return x * x * (3 - 2 * x) }
+            if t < FacePulse.glowFade { return (low, ease(t / FacePulse.glowFade)) }
+            if t >= length { return (level(steps.last ?? false), 1 - ease((t - length) / FacePulse.glowFade)) }
+            let after = t - stepsStart
+            guard after >= 0 else { return (low, 1) }
+            let i = min(Int(after / Self.segment), steps.count - 1)
+            let from = i == 0 ? low : level(steps[i - 1]), to = level(steps[i])
+            return (from + (to - from) * ease((after - Double(i) * Self.segment) / FacePulse.glowStep), 1)
+        }
+
+        func schedule(start: Date) -> Schedule {
+            func at(_ t: Double) -> Date { start.addingTimeInterval(t) }
+            var low = [at(FacePulse.glowFade + FacePulse.glowSettle)...at(stepsStart)], high: [ClosedRange<Date>] = []
+            for (i, up) in steps.enumerated() {
+                let s = stepsStart + Double(i) * Self.segment
+                let window = at(s + FacePulse.glowStep + FacePulse.glowSettle)...at(s + Self.segment)
+                if up { high.append(window) } else { low.append(window) }
+            }
+            return Schedule(low: low, high: high, ready: at(length))
         }
     }
 
@@ -83,18 +175,18 @@ enum FacePulse {
         }
     }
 
-    /// Judges a pulse from the frames recorded around it. `exposureHeld` means the camera's exposure was locked (the
+    /// Judges a pulse from the frames recorded around it: each patch's gain is its typical level in the `high` windows
+    /// over the `low` ones. `exposureHeld` means the camera's exposure was locked (the
     /// MacBook camera doesn't allow it), so the raw change is real and the background isn't needed to correct it.
     ///
     /// With a readable background the face's change is measured against the room's (`contrast`, `shape`). Without
     /// one (blown-out lights or windows, a dark room) it falls back to the centre of the face against its sides
     /// (`relative`), which exposure changes don't affect and a flat print or a screen doesn't show.
     static func judge(_ frames: [Frame], schedule: Schedule, exposureHeld: Bool, learned: [[Double]]) -> Verdict {
-        let base = frames.filter { schedule.inBaseline($0.time) }, peak = frames.filter { schedule.inPeak($0.time) }
+        let base = frames.filter { schedule.inLow($0.time) }, peak = frames.filter { schedule.inHigh($0.time) }
         guard base.count >= 3, peak.count >= 3 else { return .inconclusive("too few frames", nil) }
         let windows = base + peak
         let matched = Double(windows.filter(\.matched).count) / Double(windows.count)
-        let sign = schedule.brighter ? 1.0 : -1.0
 
         // Each background spot's own change, then the typical one: spots that are blown out or covered are skipped.
         let spots = frames.map(\.background.count).max() ?? 0
@@ -117,11 +209,11 @@ enum FacePulse {
         let c = centre.compactMap { gain[$0.rawValue] }, s = sides.compactMap { gain[$0.rawValue] }
         guard c.count >= 2, !s.isEmpty else { return .inconclusive("face not fully in view", nil) }
         let gc = c.reduce(0, +) / Double(c.count), gs = s.reduce(0, +) / Double(s.count)
-        let relative = (gc / gs - 1) * sign
-        let profile = gain.allSatisfy { $0 != nil } && relative > 0.005 ? gain.map { ($0! / gs - 1) * sign / relative } : nil
+        let relative = gc / gs - 1
+        let profile = gain.allSatisfy { $0 != nil } && relative > 0.005 ? gain.map { ($0! / gs - 1) / relative } : nil
         var contrast: Double?, shape: Double?
         if let bgGain {
-            let cc = (gc / bgGain - 1) * sign, sc = (gs / bgGain - 1) * sign
+            let cc = gc / bgGain - 1, sc = gs / bgGain - 1
             contrast = cc
             shape = cc > 0.005 ? (cc - sc) / cc : 0
         }

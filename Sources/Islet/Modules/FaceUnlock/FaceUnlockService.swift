@@ -237,6 +237,8 @@ final class FaceUnlockService {
                 }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
+            // Only Automatic lights the face; the glow needs ~1.3 s to reach full strength, so start it now.
+            if faces.liveness == .automatic { FaceGlow.shared.warm() }
             Self.log.info("scan started simulated=\(simulated)")
             startNoFaceTimer()
             timeout = Task { [weak self] in
@@ -315,16 +317,28 @@ final class FaceUnlockService {
         }
     }
 
-    /// Automatic mode's depth check: hold the camera's exposure, wait a random moment, swell the brightness once and
-    /// back, then let the engine judge the frames.
+    /// Automatic mode's depth check: hold the camera's exposure, wait a random moment, light the face in a known
+    /// pattern (the glow, or one brightness swell where it can't be drawn), then let the engine judge the frames. A
+    /// room the light sensor says is too bright skips it for a challenge.
     private func runPulse() async {
         guard let engine, let camera else { return }
+        let lux = AmbientLight.lux()
+        guard let share = FacePulse.glowShare(lux: lux) else {
+            engine.skipPulse("bright room \(Int(lux ?? 0)) lux")
+            return
+        }
         let held = camera.holdExposure(true)
         try? await Task.sleep(for: .seconds(Double.random(in: FacePulse.lead)))
         // Gone, or already moved on to a challenge (the sun came out): leave the screen alone.
         guard self.engine === engine, engine.isPulsing else { camera.holdExposure(false); return }
         let learned = owner.faces.pulseProfiles
-        let schedule = await island.levels?.pulseForFaceScan { engine.pulseStarted($0, exposureHeld: held, learned: learned) }
+        let started: (FacePulse.Schedule) -> Void = { engine.pulseStarted($0, exposureHeld: held, learned: learned) }
+        Self.log.notice("pulse lux=\(lux ?? -1) share=\(share)")
+        let glow = FaceGlow.shared
+        var schedule = glow.isAvailable ? await glow.play(share: share, onStart: started) : nil
+        if schedule == nil, self.engine === engine, engine.isPulsing {
+            schedule = await island.levels?.pulseForFaceScan(onStart: started)
+        }
         try? await Task.sleep(for: .milliseconds(100))
         camera.holdExposure(false)
         engine.finishPulse(schedule, exposureHeld: held, learned: learned)
@@ -382,6 +396,7 @@ final class FaceUnlockService {
         noFaceTimer?.cancel(); noFaceTimer = nil
         camera?.stop(); camera = nil
         engine?.pause(); engine = nil
+        FaceGlow.shared.cool()
         if brightened { brightened = false; island.levels?.endFaceScanBoost() }
         darkSamples = 0
         let finished = model

@@ -39,6 +39,8 @@ final class FaceUnlockCoordinator {
     private(set) var testPulsing = false
     /// Test recognition: how the face is lit (harsh = direct sun, the challenge is asked at once).
     private(set) var testLighting: FacePulse.Lighting?
+    /// The light sensor's reading when Check Light last ran.
+    private(set) var testLux: Double?
     private(set) var modelAvailable = false
 
     private let island: IslandStore
@@ -185,25 +187,35 @@ final class FaceUnlockCoordinator {
         testingFace = false
         testScore = nil
         testSeen = []; testFramed = false; testLight = nil; testLive = nil; testPulse = nil; testPulsing = false
-        testLighting = nil
+        testLighting = nil; testLux = nil
         testRecorder = nil
     }
 
-    /// Test recognition: run the brightness pulse once and show what it measured.
+    /// Test recognition: run the light pulse once, as a scan would, and show what it measured.
     func runTestPulse() async {
         guard testingFace, !testPulsing, let camera, let recorder = testRecorder else { return }
         testPulsing = true; testPulse = nil
         defer { testPulsing = false }
+        let lux = AmbientLight.lux()
+        testLux = lux
+        guard let share = FacePulse.glowShare(lux: lux) else {
+            testPulse = .inconclusive(String(format: "too bright (%.0f lux), a scan asks for a challenge", lux ?? 0), nil)
+            return
+        }
+        let glow = FaceGlow.shared
+        glow.warm()
         let held = camera.holdExposure(true)
         recorder.begin()
         try? await Task.sleep(for: .seconds(Double.random(in: FacePulse.lead)))
-        let schedule = await island.levels?.pulseForFaceScan()
+        var schedule = glow.isAvailable ? await glow.play(share: share) : nil
+        if schedule == nil { schedule = await island.levels?.pulseForFaceScan() }
+        glow.cool()
         try? await Task.sleep(for: .milliseconds(100))
         let frames = recorder.end()
         camera.holdExposure(false)
         guard testingFace else { return }
         testPulse = schedule.map { FacePulse.judge(frames, schedule: $0, exposureHeld: held, learned: faces.pulseProfiles) }
-            ?? .inconclusive("brightness can't be set", nil)
+            ?? .inconclusive("the screen's light can't be set", nil)
     }
 
     private static func cameraMessage(_ error: Error) -> String {

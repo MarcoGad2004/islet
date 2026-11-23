@@ -5,6 +5,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## Next
 
+- Face Unlock's light check no longer depends on your wallpaper: instead of nudging the screen brightness (which barely lit a face in front of a dark wallpaper), the screen glows white for about two seconds and breathes between two levels in a random order, under the notch so the scan stays visible. Its strength follows the room's light from the Mac's light sensor: a soft glow in a dim room, using the XDR display's extra brightness in a bright one, and none in a room too bright for it to matter (it asks for a challenge instead).
 - Notifications grow downward to fit their text (up to 6 lines in the bar, 10 on the hover card) instead of cutting it to one line, so most can be read without hovering.
 - Replying to a message from the notch now clears the red badge in Messages: Messages flashes forward for a moment with the chat open so it marks it read (one-to-one chats; groups can't be opened that way).
 

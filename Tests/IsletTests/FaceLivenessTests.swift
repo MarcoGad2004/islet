@@ -5,7 +5,7 @@ import XCTest
 /// The screen-light pulse, the spoof model's crop and tracker, and the adaptive threshold.
 final class FaceLivenessTests: XCTestCase {
     private let start = Date(timeIntervalSinceReferenceDate: 1000)
-    private var schedule: FacePulse.Schedule { FacePulse.Schedule(start: start, brighter: true) }
+    private var schedule: FacePulse.Schedule { FacePulse.Schedule.swell(start: start, brighter: true) }
 
     /// Frames before and at the peak of a pulse. `gain` gives each patch's brightness multiplier at the peak.
     private func frames(base: [Double] = Array(repeating: 0.2, count: 7), gain: (FacePulse.Patch) -> Double,
@@ -116,9 +116,82 @@ final class FaceLivenessTests: XCTestCase {
     }
 
     func testDimmingPulseWorksToo() {
-        let s = FacePulse.Schedule(start: start, brighter: false)
+        let s = FacePulse.Schedule.swell(start: start, brighter: false)
         let v = FacePulse.judge(frames(gain: { 2 - self.realGain($0) }), schedule: s, exposureHeld: true, learned: [])
         XCTAssertTrue(v.passed, "\(v)")
+    }
+
+    // MARK: Glow
+
+    /// Frames over a whole glow: each patch at `base` while low and `base * gain` while high, one every 1/30 s.
+    private func glowFrames(_ glow: FacePulse.Glow, gain: (FacePulse.Patch) -> Double) -> [FacePulse.Frame] {
+        let s = glow.schedule(start: start)
+        return stride(from: 0, through: glow.total, by: 1.0 / 30).map { t in
+            let time = start.addingTimeInterval(t)
+            let up = s.inHigh(time)
+            return FacePulse.Frame(time: time, face: FacePulse.Patch.allCases.map { 0.2 * (up ? gain($0) : 1) },
+                                   background: [0.1, 0.2, nil].map { $0.map { $0 * (up ? 1.01 : 1) } }, matched: true)
+        }
+    }
+
+    func testGlowJudgedLikeTheSwell() {
+        let glow = FacePulse.Glow(share: 0.3, potential: 16, headroom: 5.5, steps: [true, false, true, true])
+        let s = glow.schedule(start: start)
+        XCTAssertEqual(s.high.count, 3)
+        XCTAssertEqual(s.low.count, 2) // the first hold and the step down
+        XCTAssertEqual(s.ready, start.addingTimeInterval(glow.length))
+        XCTAssertTrue(FacePulse.judge(glowFrames(glow, gain: realGain), schedule: s, exposureHeld: false, learned: []).passed)
+        XCTAssertEqual(FacePulse.judge(glowFrames(glow, gain: { _ in 1.2 }), schedule: s, exposureHeld: false, learned: []).reason, "flat")
+        XCTAssertEqual(FacePulse.judge(glowFrames(glow, gain: { _ in 1.01 }), schedule: s, exposureHeld: false, learned: []).reason,
+                       "no response to the light")
+    }
+
+    func testGlowLevels() {
+        // XDR at low brightness (SDR white ~100 nits, so the peak is 16x): a middling room asks for ~4.8x.
+        let mid = FacePulse.Glow(share: 0.3, potential: 16, headroom: 16)
+        XCTAssertEqual(mid.high, 4.8, accuracy: 0.001)
+        XCTAssertEqual(mid.low, 1.68, accuracy: 0.001)
+        // Only what the panel allows now, keeping the step.
+        let clipped = FacePulse.Glow(share: 0.3, potential: 16, headroom: 2)
+        XCTAssertEqual(clipped.high, 2)
+        XCTAssertGreaterThanOrEqual(clipped.high / clipped.low, FacePulse.glowRatio - 0.001)
+        // A dark room: SDR white stepping up 1.6x, no more.
+        let dark = FacePulse.Glow(share: FacePulse.glowShare(lux: 5)!, potential: 16, headroom: 16)
+        XCTAssertEqual(dark.low, 1)
+        XCTAssertEqual(dark.high, FacePulse.glowRatio, accuracy: 0.001)
+        // No EDR at all: it still steps, under SDR white.
+        let sdr = FacePulse.Glow(share: 0.3, potential: 1, headroom: 1)
+        XCTAssertEqual(sdr.high, 1)
+        XCTAssertLessThan(sdr.low, 1)
+    }
+
+    func testGlowShareFollowsTheRoom() {
+        let dim = FacePulse.glowShare(lux: 10)!, office = FacePulse.glowShare(lux: 500)!, window = FacePulse.glowShare(lux: 1200)!
+        XCTAssertLessThan(dim, office)
+        XCTAssertLessThan(office, window)
+        XCTAssertLessThanOrEqual(window, 0.65)
+        XCTAssertNil(FacePulse.glowShare(lux: 5000))
+        XCTAssertNotNil(FacePulse.glowShare(lux: nil))
+    }
+
+    func testGlowEasesAndNeverFlashesFast() {
+        let glow = FacePulse.Glow(share: 0.3, potential: 16, headroom: 16, steps: [true, false, true, false])
+        XCTAssertEqual(glow.at(0).alpha, 0)
+        XCTAssertEqual(glow.at(glow.total).alpha, 0, accuracy: 0.001)
+        // No jump between frames at 120 Hz larger than a small part of the step.
+        var last = glow.at(0)
+        for t in stride(from: 0.0, through: glow.total, by: 1.0 / 120) {
+            let now = glow.at(t)
+            XCTAssertLessThan(abs(now.value * now.alpha - last.value * last.alpha), (glow.high - glow.low) * 0.12, "t=\(t)")
+            last = now
+        }
+        // At most one change of level per step slot: under three a second.
+        XCTAssertLessThan(1 / (FacePulse.glowStep + FacePulse.glowHold), 3)
+        for _ in 0..<50 {
+            let s = FacePulse.glowSteps()
+            XCTAssertGreaterThanOrEqual(s.filter { $0 }.count, 2)
+            XCTAssertTrue(s.contains(false))
+        }
     }
 
     func testTooFewFrames() {

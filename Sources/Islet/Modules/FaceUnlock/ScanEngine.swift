@@ -5,11 +5,12 @@ import Foundation
 /// second of a visible face that doesn't match is a "not recognized" verdict, and so is a face that stays refused.
 ///
 /// Showing it's live:
-/// - Automatic: the screen-light pulse runs (the service drives the brightness, calls `pulseStarted` as the swell
-///   begins and `finishPulse` once it's back). It's judged as soon as the swell peaks: when it passes and the spoof
-///   model says live, that's the match, no action needed. Otherwise a random challenge. In harsh light (direct sun,
-///   which drowns out the screen) the pulse is skipped and the challenge asked at once, and so it is for the rest of
-///   the scan once a pulse got no response.
+/// - Automatic: the screen-light pulse runs (the service drives the glow or the brightness, calls `pulseStarted` as
+///   it begins and `finishPulse` once it's over). It's judged as soon as its last window has passed: when it passes
+///   and the spoof model says live, that's the match, no action needed. Otherwise a random challenge. In harsh light
+///   (direct sun, or a room the light sensor says is too bright: the service calls `skipPulse`), which drowns out the
+///   screen, the pulse is skipped and the challenge asked at once, and so it is for the rest of the scan once a pulse
+///   got no response.
 /// - Random / Blink: the challenge. Once the face matches and it's shown, it has `challengeSeconds` to do it
 ///   (looking away to turn doesn't count as a miss).
 /// Runs on the camera queue; `finishPulse` may come from any thread.
@@ -34,7 +35,7 @@ final class ScanEngine: @unchecked Sendable {
 
     static let challengeSeconds = 8.0
     /// The pulse should end within this; if the service never answers, fall back to a challenge.
-    static let pulseSeconds = 4.0
+    static let pulseSeconds = 5.0
 
     private enum PulseState { case idle, running(since: Date, frames: [FacePulse.Frame]), done }
 
@@ -64,7 +65,7 @@ final class ScanEngine: @unchecked Sendable {
     private var fallback = false
     private var scores: [Float] = []
     private var lastMatch: (score: Float, embedding: [Float])?
-    /// The running pulse's swell, once the service started it, and what to judge it with.
+    /// The running pulse's light pattern, once the service started it, and what to judge it with.
     private var pulseSchedule: FacePulse.Schedule?
     private var pulseHeld = false
     private var pulseLearned: [[Double]] = []
@@ -72,8 +73,8 @@ final class ScanEngine: @unchecked Sendable {
     private var harshHistory: [Bool] = []
     /// A pulse got no response in this scan: later attempts go straight to the challenge. Kept across `resume()`.
     private var skipPulse = false
-    /// Peak frames needed to judge the pulse early.
-    static let earlyPeakFrames = 4
+    /// Frames needed at each light level to judge the pulse before the service reports it over.
+    static let earlyFrames = 4
 
     init(embedder: FaceEmbedder, antiSpoof: AntiSpoofModel?, enrolled: [[Float]], threshold: Float, liveness: LivenessMode,
          blinkFallback: Bool = false,
@@ -149,7 +150,7 @@ final class ScanEngine: @unchecked Sendable {
         scores.append(score)
         if score >= threshold { lastMatch = (score, e) }
         if case .running = pulse, harsh, pulseSchedule == nil {
-            // The sun came out before the swell started: don't bother with it.
+            // The sun came out before the light started: don't bother with it.
             pulse = .done; fallback = true
             onEvent(.pulseSkipped("harsh light"))
         }
@@ -158,8 +159,10 @@ final class ScanEngine: @unchecked Sendable {
             frames.append(FacePulse.Frame(time: now, face: m.face, background: m.background, matched: score >= threshold && !refused))
             pulse = .running(since: since, frames: frames)
             if now.timeIntervalSince(since) > Self.pulseSeconds { finishPulseLocked(nil, exposureHeld: false, learned: []); return }
-            // Judge as soon as the swell has peaked for a few frames, rather than waiting for it to come back.
-            if let schedule = pulseSchedule, frames.filter({ schedule.inPeak($0.time) }).count >= Self.earlyPeakFrames {
+            // Judge as soon as the last window has passed, rather than waiting for the light to go back.
+            if let schedule = pulseSchedule, now >= schedule.ready,
+               frames.filter({ schedule.inHigh($0.time) }).count >= Self.earlyFrames,
+               frames.filter({ schedule.inLow($0.time) }).count >= Self.earlyFrames {
                 finishPulseLocked(schedule, exposureHeld: pulseHeld, learned: pulseLearned)
                 if paused { return }
             }
@@ -205,14 +208,24 @@ final class ScanEngine: @unchecked Sendable {
     /// Still waiting for the pulse (the service checks before swelling the screen).
     var isPulsing: Bool { lock.lock(); defer { lock.unlock() }; if case .running = pulse, !paused { return true }; return false }
 
-    /// The swell has started: from here the engine can judge it as soon as it peaks.
+    /// The light pattern has started: from here the engine can judge it as soon as its last window has passed.
     func pulseStarted(_ schedule: FacePulse.Schedule, exposureHeld: Bool, learned: [[Double]]) {
         lock.lock(); defer { lock.unlock() }
         guard case .running = pulse else { return }
         pulseSchedule = schedule; pulseHeld = exposureHeld; pulseLearned = learned
     }
 
-    /// The service ran the brightness pulse (nil when it couldn't). Judges it if that wasn't done at the peak, then
+    /// The room is too bright for the screen's light to tell anything: a challenge now, and for the rest of the scan.
+    func skipPulse(_ why: String) {
+        lock.lock(); defer { lock.unlock() }
+        guard case .running = pulse, !paused else { return }
+        pulse = .done; fallback = true; skipPulse = true
+        onEvent(.pulseSkipped(why))
+        promptedAt = Date()
+        prompt(detector.challenge)
+    }
+
+    /// The service ran the light pulse (nil when it couldn't). Judges it if that wasn't done at the peak, then
     /// unlocks or asks for a challenge.
     func finishPulse(_ schedule: FacePulse.Schedule?, exposureHeld: Bool, learned: [[Double]]) {
         lock.lock(); defer { lock.unlock() }
