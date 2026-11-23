@@ -544,8 +544,9 @@ bar window stays listed, so "menu bar showing" can't tell them apart either.
 - **Live power**: the battery's registry entry (Amperage, PowerTelemetryData) only refreshes about every 30 s
   (`UpdateTime` didn't move over five one-second reads), so its watts looked frozen next to another app's. The SMC's
   are live: `PSTR` the whole system (9-14 W from second to second here), `PDTR` the charger's input (57.9 W), `SBAP`
-  the battery (-44 W while charging, so the SMC signs it the other way: into the battery is negative). They add up:
-  `PDTR` = `PSTR` - `SBAP`. Islet uses these and falls back to the registry when the SMC doesn't answer.
+  the battery (-44 W while charging, so the SMC signs it the other way: into the battery is negative). At rest they add up
+  (`PDTR` = `PSTR` - `SBAP`), but `SBAP` isn't kept in step: under load it read 64 W against 58 W in. So the stats'
+  diagram takes the Mac's draw and the charger's input and works the battery's share out as the difference.
 
 ## Menu bar position (1.5, 2026-11-23)
 

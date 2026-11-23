@@ -176,20 +176,34 @@ struct PowerFlows: Equatable {
     var charger: Double?
 
     /// Under this many watts a flow counts as stopped.
-    static let still = 0.1
+    static let still = 0.3
 
+    /// The flows come from the Mac's draw and the charger's input (read together from the SMC); the battery's share
+    /// is what's left over, so the three always add up. They're rounded alike before the totals are made from them, so
+    /// the labels add up too.
     init(state: PowerMonitor.State, details d: PowerMonitor.Details) {
         chargerConnected = state.onAC
-        mac = d.systemWatts
-        let battery = d.batteryWatts ?? 0 // + into the battery, - out of it
+        let system = max(0, d.systemWatts ?? -(d.batteryWatts ?? 0))
         if state.onAC {
-            batteryToMac = max(0, -battery) // a charger too weak for the load: the battery helps
-            chargerToBattery = max(0, battery)
-            chargerToMac = max(0, (d.systemWatts ?? 0) - batteryToMac)
-            charger = d.adapterInWatts ?? (chargerToMac + chargerToBattery)
+            let input = d.adapterInWatts ?? (system + max(0, d.batteryWatts ?? 0))
+            if input >= system {
+                chargerToMac = system
+                chargerToBattery = input - system
+            } else {
+                // A charger too weak for the load: the battery makes up the rest.
+                chargerToMac = input
+                batteryToMac = system - input
+            }
         } else {
-            batteryToMac = d.batteryWatts.map { max(0, -$0) } ?? d.systemWatts ?? 0
+            batteryToMac = system
         }
+        let step = chargerToMac + chargerToBattery + batteryToMac >= 10 ? 1.0 : 0.1
+        func round(_ w: Double) -> Double { w < Self.still ? 0 : (w / step).rounded() * step }
+        chargerToMac = round(chargerToMac)
+        chargerToBattery = round(chargerToBattery)
+        batteryToMac = round(batteryToMac)
+        mac = d.systemWatts == nil && d.batteryWatts == nil ? nil : chargerToMac + batteryToMac
+        charger = state.onAC ? chargerToMac + chargerToBattery : nil
     }
 
     var total: Double { max(chargerToMac + chargerToBattery + batteryToMac, 1) }
@@ -249,6 +263,8 @@ struct PowerFlow: View {
             }
         }
         .frame(height: Self.arcRoom + Self.node + 36)
+        // Every change of state glides: lines run out or draw back, thicknesses and colours ease.
+        .animation(.spring(response: 0.7, dampingFraction: 0.9), value: f)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.summary(f))
     }
@@ -297,17 +313,19 @@ struct PowerFlow: View {
         path.stroke(Color.white.opacity(0.07), style: StrokeStyle(lineWidth: 2, lineCap: .round))
     }
 
-    /// A glowing line with dashes drifting along it; thicker for a bigger share of the power.
-    @ViewBuilder private func flow(_ path: Path, _ watts: Double, _ total: Double, _ tint: Color, _ phase: CGFloat) -> some View {
-        if watts > PowerFlows.still {
-            let width = 2 + 3 * CGFloat(min(1, watts / total))
-            ZStack {
-                path.stroke(tint.opacity(0.28), style: StrokeStyle(lineWidth: width, lineCap: .round))
-                path.stroke(tint, style: StrokeStyle(lineWidth: width, lineCap: .round, dash: [4, 9], dashPhase: -phase))
-                    .shadow(color: tint.opacity(0.6), radius: 3)
-            }
-            .transition(.opacity)
+    /// A glowing line with dashes drifting along it; thicker for a bigger share of the power. Lighting up, it runs out
+    /// from where the power comes from; going dark, it draws back and fades. Its thickness glides as the share changes.
+    private func flow(_ path: Path, _ watts: Double, _ total: Double, _ tint: Color, _ phase: CGFloat) -> some View {
+        let on = watts > PowerFlows.still
+        let width = 2 + 3 * CGFloat(min(1, watts / total))
+        return ZStack {
+            FlowStroke(path: path, width: width, reach: on ? 1 : 0, phase: 0, dashed: false)
+                .fill(tint.opacity(0.28))
+            FlowStroke(path: path, width: width, reach: on ? 1 : 0, phase: -phase, dashed: true)
+                .fill(tint)
+                .shadow(color: tint.opacity(0.6), radius: 3)
         }
+        .opacity(on ? 1 : 0)
     }
 
     /// From the charger up over the Mac and down into the battery.
@@ -326,3 +344,25 @@ struct PowerFlow: View {
         }
     }
 }
+
+/// A flow line as a filled outline, so its thickness and how far along the line it reaches animate (a stroke's width
+/// doesn't). The dashes' drift (`phase`) comes from the timeline, not the animation.
+private struct FlowStroke: Shape {
+    var path: Path
+    var width: CGFloat
+    var reach: CGFloat
+    var phase: CGFloat
+    var dashed: Bool
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(width, reach) }
+        set { width = newValue.first; reach = newValue.second }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard reach > 0.001 else { return Path() }
+        let style = StrokeStyle(lineWidth: width, lineCap: .round, dash: dashed ? [4, 9] : [], dashPhase: phase)
+        return path.trimmedPath(from: 0, to: min(1, reach)).strokedPath(style)
+    }
+}
+

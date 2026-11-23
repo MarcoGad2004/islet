@@ -94,9 +94,36 @@ final class BatteryStatsTests: XCTestCase {
     func testTemperatureReadsOrIsAbsent() {
         // On a MacBook the SMC answers with a room-ish temperature; elsewhere nothing.
         if let t = SMCSensors.temperature() { XCTAssertTrue((5...70).contains(t), "\(t)") }
-        // The power sensors add up: what comes in goes to the Mac and the battery.
-        if let p = SMCSensors.power(), let c = p.chargerIn, c > 1, let b = p.battery {
-            XCTAssertEqual(c, p.system + b, accuracy: max(3, c * 0.1))
+        // The Mac's draw is always there; the battery's own sensor isn't kept in step with it, which is why the
+        // diagram works the battery's share out from the other two.
+        if let p = SMCSensors.power() { XCTAssertGreaterThan(p.system, 0) }
+    }
+
+    /// The diagram's labels add up whichever way the power goes.
+    func testPowerFlowsAddUp() {
+        func details(_ system: Double, _ input: Double?, _ battery: Double?) -> PowerMonitor.Details {
+            var d = PowerMonitor.Details()
+            d.systemWatts = system; d.adapterInWatts = input; d.batteryWatts = battery
+            return d
         }
+        // Charging: 57.6 in, 10.6 to the Mac, 47 to the battery.
+        let charging = PowerFlows(state: state(33, ac: true, charging: true), details: details(10.6, 57.6, 47))
+        XCTAssertEqual(charging.charger, (charging.mac ?? 0) + charging.chargerToBattery)
+        XCTAssertEqual(charging.chargerToBattery, 47)
+        XCTAssertEqual(charging.batteryToMac, 0)
+        // A weak charger: the battery makes up the rest.
+        let weak = PowerFlows(state: state(70, ac: true), details: details(45, 30, -15))
+        XCTAssertEqual(weak.chargerToMac, 30)
+        XCTAssertEqual(weak.batteryToMac, 15)
+        XCTAssertEqual(weak.mac, 45)
+        // On battery, small numbers keep a decimal and still add up.
+        let battery = PowerFlows(state: state(30, ac: false), details: details(6.54, nil, -6.4))
+        XCTAssertEqual(battery.batteryToMac, 6.5, accuracy: 0.001)
+        XCTAssertEqual(battery.mac ?? 0, 6.5, accuracy: 0.001)
+        XCTAssertNil(battery.charger)
+        // Plugged in and resting: everything from the charger, nothing to the battery.
+        let resting = PowerFlows(state: state(85, ac: true), details: details(9.1, 9.2, 0))
+        XCTAssertEqual(resting.chargerToBattery, 0)
+        XCTAssertEqual(resting.batteryToMac, 0)
     }
 }

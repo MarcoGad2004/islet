@@ -307,7 +307,9 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   from the charger over the Mac into the battery. A line runs only while power moves along it (faint rails
   otherwise), thicker for a bigger share, with dashes drifting the way the power goes: green from the charger,
   yellow from the battery. So it shows battery only, charger only, charger charging the battery, and a charger too
-  weak for the load with the battery helping. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
+  weak for the load with the battery helping. Changes glide (spring, 0.7 s): a line lighting up runs out from its
+  source, one going dark draws back and fades, thickness and colours ease. The battery's share is the charger's input
+  minus the Mac's draw, rounded alike, so the labels always add up. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
   Numbers refresh every second while open, and at once when a charger goes in or out. A click elsewhere, Esc or the icon closes it.
 - In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
   Controls pill.
