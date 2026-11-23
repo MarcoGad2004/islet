@@ -125,29 +125,54 @@ struct FaceUnlockSettings: View {
                 }.disabled(face.isEnrolling)
             } label: {
                 SettingsLabel("Try your face, then someone else's",
-                              "Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. A photo of you should say Photo edge and tick nothing.")
+                              "Set the threshold between the two scores. Blink, smile and turn your head each way: each should tick. A photo of you should say Photo edge or Fake and tick nothing. Check light shows whether the screen-light check would vouch for what's in front of the camera.")
             }
             if face.testingFace { testResult }
-            LabeledContent("Match threshold") {
+            LabeledContent {
                 HStack {
                     Slider(value: Binding(get: { Double(face.faces.threshold) }, set: { face.faces.threshold = Float($0) }), in: 0.25...0.75)
                         .frame(maxWidth: 220)
                     Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 36, alignment: .trailing)
                 }
+            } label: {
+                SettingsLabel("Match threshold", thresholdText)
             }
         } header: { Text("Test recognition") }
+    }
+
+    private var thresholdText: String {
+        let faces = face.faces
+        guard faces.adaptiveThreshold else { return "" }
+        let n = faces.genuineScores.count
+        if n < AdaptiveThreshold.minimum { return "Learning your scores: \(n) of \(AdaptiveThreshold.minimum) unlocks" }
+        return String(format: "In use: %.2f, from your last %d unlocks. The slider is the floor.", faces.effectiveThreshold, n)
     }
 
     private var testResult: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let score = face.testScore {
-                let match = score >= face.faces.threshold && !face.testFramed
-                Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : match ? "Match" : "No match"),
+                let fake = face.testLive.map { $0 < SpoofTracker.spoofLevel } ?? false
+                let match = score >= face.faces.effectiveThreshold && !face.testFramed && !fake
+                Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : fake ? "Fake" : match ? "Match" : "No match"),
                       systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundStyle(match ? .green : .red).monospacedDigit()
             } else {
                 Text("No face in view").foregroundStyle(.secondary)
             }
+            HStack(spacing: 14) {
+                if let live = face.testLive {
+                    let label = live >= SpoofTracker.liveLevel ? "Real" : live < SpoofTracker.spoofLevel ? "Fake" : "Unsure"
+                    Label(String(format: "Spoof model: %@ %.2f", label, live), systemImage: "person.crop.square.badge.camera")
+                        .foregroundStyle(live >= SpoofTracker.liveLevel ? .green : live < SpoofTracker.spoofLevel ? .red : .secondary)
+                        .monospacedDigit()
+                } else if face.antiSpoof == nil {
+                    Text("Spoof model missing").foregroundStyle(.secondary)
+                }
+                Button(face.testPulsing ? "Checking…" : "Check Light") { Task { await face.runTestPulse() } }
+                    .disabled(face.testPulsing)
+                if let verdict = face.testPulse { pulseText(verdict) }
+            }
+            .font(.callout)
             HStack(spacing: 14) {
                 ForEach(LivenessChallenge.allCases, id: \.self) { c in
                     let seen = face.testSeen.contains(c)
@@ -161,6 +186,17 @@ struct FaceUnlockSettings: View {
             }
             .font(.callout)
         }
+    }
+
+    private func pulseText(_ v: FacePulse.Verdict) -> some View {
+        let r = v.reading
+        var parts = [v.passed ? "Vouches" : "Can't vouch: \(v.reason ?? "")"]
+        if let r {
+            parts.append(String(format: "depth %.2f, shape %.2f", r.contrast, r.shape))
+            if let a = r.agreement { parts.append(String(format: "yours %.2f", a)) }
+        }
+        return Label(parts.joined(separator: " · "), systemImage: v.passed ? "checkmark.circle.fill" : "circle.dashed")
+            .foregroundStyle(v.passed ? .green : .secondary).monospacedDigit()
     }
 
     private static func testLabel(_ c: LivenessChallenge) -> String {
@@ -178,25 +214,40 @@ struct FaceUnlockSettings: View {
         let faces = face.faces
         return Section {
             Picker("Prove it's live", selection: Binding(get: { faces.liveness }, set: { faces.liveness = $0 })) {
+                Text("Automatic: screen light, then a challenge if needed").tag(LivenessMode.automatic)
                 Text("Random: blink, smile or turn your head").tag(LivenessMode.random)
                 Text("Blink").tag(LivenessMode.blink)
                 Text("Off").tag(LivenessMode.off)
             }
             Toggle("Brighten the screen to light my face in the dark", isOn: Binding(get: { faces.brightenInDark }, set: { faces.brightenInDark = $0 }))
+            Toggle(isOn: Binding(get: { faces.spoofModel }, set: { faces.spoofModel = $0 })) {
+                SettingsLabel("Refuse faces that look like a photo or screen",
+                              face.antiSpoof == nil ? "The spoof model is missing from this build." : "A small model trained to tell a real face from a print or a screen. Runs on this Mac.")
+            }.disabled(face.antiSpoof == nil)
+            Toggle(isOn: Binding(get: { faces.adaptiveThreshold }, set: { faces.adaptiveThreshold = $0 })) {
+                SettingsLabel("Raise the threshold as it learns my face",
+                              "After \(AdaptiveThreshold.minimum) unlocks, sets the threshold just under your usual scores, up to \(String(format: "%.2f", AdaptiveThreshold.maxRaise)) above the slider. Only your own unlocks move it.")
+            }
             Toggle(isOn: Binding(get: { faces.learnFromUnlocks }, set: { faces.learnFromUnlocks = $0 })) {
                 SettingsLabel("Learn from successful unlocks",
                               "Adapts to new light, glasses or a haircut. Keeps only unlocks that passed the live check and matched your first scan well, so it doesn't drift.")
             }
             LabeledContent {
-                if !faces.learned.isEmpty { Button("Forget") { faces.forgetLearned() } }
+                if !faces.learned.isEmpty || !faces.pulseProfiles.isEmpty || !faces.genuineScores.isEmpty { Button("Forget") { faces.forgetLearned() } }
             } label: {
-                SettingsLabel("Learned looks", faces.learned.isEmpty ? "None yet" : "\(faces.learned.count) of \(FaceStore.maxLearned)")
+                SettingsLabel("Learned looks", learnedSummary)
             }
         } header: {
             Text("Protection and learning")
         } footer: {
-            SettingsCaption("A photo or phone held up to the camera is always refused. Random asks for a blink, a smile or a head turn after your face matches, so a video is unlikely to do the right thing in time.")
+            SettingsCaption("A photo or phone held up to the camera is always refused. Automatic swells the screen brightness once after your face matches: a real face lights up by its shape, a photo or screen doesn't. When that and the spoof model both agree, it unlocks with nothing to do; otherwise (a bright room, say) it asks for a blink, a smile or a head turn, like Random.")
         }
+    }
+
+    private var learnedSummary: String {
+        let f = face.faces
+        let looks = f.learned.isEmpty ? "None yet" : "\(f.learned.count) of \(FaceStore.maxLearned)"
+        return f.pulseProfiles.isEmpty ? looks : "\(looks) · light pattern from \(f.pulseProfiles.count) unlocks"
     }
 
     // MARK: Actions

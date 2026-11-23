@@ -7,8 +7,10 @@ struct FaceAnalysis: @unchecked Sendable {
     var proxyX: Double
     /// Nose height relative to the midpoint of eyes and mouth, in eye distances (positive = nose higher).
     var proxyY: Double
+    /// Vision's face box, normalized, bottom-left origin.
+    var box: CGRect
     /// Face box width as a fraction of the frame width.
-    var boxWidth: Double
+    var boxWidth: Double { Double(box.width) }
     /// Eyes, nose, mouth corners in image coordinates (bottom-left origin), ordered left to right.
     var points: [CGPoint]
     /// Eye height over eye width along the eye axis, both eyes averaged. Drops sharply during a blink.
@@ -71,7 +73,7 @@ struct FaceAnalyzer: Sendable {
 
         return FaceAnalysis(proxyX: Double((nose.x - eyeMid.x) / eyeDist),
                             proxyY: Double((nose.y - baseline) / eyeDist),
-                            boxWidth: Double(face.boundingBox.width),
+                            box: face.boundingBox,
                             points: [eL, eR, nose, m1, m2],
                             eyeOpenness: eyeOpenness,
                             mouthWidth: Double(hypot(m2.x - m1.x, m2.y - m1.y) / eyeDist),
@@ -133,6 +135,9 @@ enum LivenessChallenge: CaseIterable, Sendable {
 enum LivenessMode: String, CaseIterable, Sendable {
     /// Match only (a held-up photo or screen is still refused by the edge check).
     case off
+    /// No action needed when the screen-light check and the spoof model both vouch for the face; otherwise a random
+    /// challenge, as `random`.
+    case automatic
     /// Always a blink.
     case blink
     /// A blink, a smile or a head turn, picked at random each attempt.

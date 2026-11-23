@@ -41,7 +41,9 @@ Requires Xcode (full app, not just Command Line Tools).
 - [docs/RESEARCH.md](docs/RESEARCH.md): open technical questions to verify
 
 ## License
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The spoof model in `Models/AntiSpoof.mlpackage` is converted from Minivision's
+[Silent-Face-Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing) (Apache-2.0, see
+[Models/AntiSpoof-LICENSE.txt](Models/AntiSpoof-LICENSE.txt)).
 
 
 ## Install (DMG)

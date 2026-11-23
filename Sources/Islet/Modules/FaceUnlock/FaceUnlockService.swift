@@ -71,6 +71,11 @@ final class FaceUnlockService {
     private var unlockWaiter: CheckedContinuation<Bool, Never>?
     /// The live matching sample, learned once the Mac actually unlocks.
     private var pendingLearn: [Float]?
+    /// The match's typical score and pulse pattern, recorded once the Mac actually unlocks.
+    private var pendingScore: Float?
+    private var pendingPulse: [Double]?
+    /// The last weak miss: if the password unlocks the Mac soon after, it was you.
+    private var lastMiss: (score: Float, at: Date)?
     private var darkSamples = 0
     private var brightened = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -160,12 +165,20 @@ final class FaceUnlockService {
         needsKey = false
         syncLockScreen()
         unlockWaiter?.resume(returning: true); unlockWaiter = nil
-        if model?.matchedAt != nil, !simulated, let sample = pendingLearn {
+        if model?.matchedAt != nil, !simulated {
             // The password went in and the Mac opened: the live sample really was the owner.
-            let kept = owner.faces.learn(sample)
-            Self.log.info("learned=\(kept) looks=\(self.owner.faces.learned.count)")
+            if let sample = pendingLearn {
+                let kept = owner.faces.learn(sample)
+                Self.log.info("learned=\(kept) looks=\(self.owner.faces.learned.count)")
+            }
+            if let score = pendingScore { owner.faces.recordGenuine(score) }
+            if let profile = pendingPulse { owner.faces.learnPulse(profile) }
+        } else if model?.matchedAt == nil, let miss = lastMiss, Date().timeIntervalSince(miss.at) < 60 {
+            // Not recognized, then unlocked by hand within a minute: that face was most likely you.
+            owner.faces.recordGenuine(miss.score)
+            Self.log.info("miss then unlock: recorded \(miss.score)")
         }
-        pendingLearn = nil
+        pendingLearn = nil; pendingScore = nil; pendingPulse = nil; lastMiss = nil
         if let model, let matched = model.matchedAt {
             // Face unlock: the scan sequence is the unlock animation. Let it finish (1.8 s from the match).
             stop(collapseAfter: max(0, matched.addingTimeInterval(Self.sequenceLength).timeIntervalSinceNow))
@@ -207,12 +220,13 @@ final class FaceUnlockService {
             island.setBase(.scan)
 
             let faces = owner.faces
-            let engine = ScanEngine(embedder: embedder, enrolled: faces.allEmbeddings, threshold: faces.threshold,
+            let engine = ScanEngine(embedder: embedder, antiSpoof: faces.spoofModel ? owner.antiSpoof : nil,
+                                    enrolled: faces.allEmbeddings, threshold: faces.effectiveThreshold,
                                     liveness: faces.liveness) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine
-            pendingLearn = nil
+            pendingLearn = nil; pendingScore = nil; pendingPulse = nil
             darkSamples = 0
             let analyzer = owner.analyzer
             let camera = FaceCamera()
@@ -263,19 +277,27 @@ final class FaceUnlockService {
             model.challenge = c
         case .light(let luma):
             brightenIfDark(luma)
-        case .match(let score, let embedding, let live):
-            Self.log.info("match score=\(score) live=\(live)")
+        case .pulse:
+            Task { await runPulse() }
+        case .pulseResult(let verdict):
+            let r = verdict.reading
+            Self.log.info("pulse \(String(describing: verdict.passed)) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
+        case .match(let score, let embedding, let live, let typical, let pulse):
+            Self.log.info("match score=\(score) typical=\(typical) live=\(live) pulse=\(pulse != nil)")
             model.challenge = nil
             pendingLearn = live ? embedding : nil
+            pendingScore = live ? typical : nil
+            pendingPulse = pulse?.profile
             model.phase = .match
             model.matchedAt = Date()
             camera?.stop(); camera = nil
             // The dots become a check (0.5 s), then the check flies to the left wing as the padlock opens.
             Task { try? await Task.sleep(for: .milliseconds(650)); if self.model === model { model.flown = true; self.island.presentationChanged() } }
             Task { await completeMatch() }
-        case .noMatch(let score):
+        case .noMatch(let score, let refused):
             attempts += 1
-            Self.log.info("no match best=\(score) attempt=\(self.attempts)")
+            Self.log.info("no match best=\(score) refused=\(refused) attempt=\(self.attempts)")
+            if !refused, score > 0 { lastMiss = (score, Date()) }
             model.phase = .noMatch
             model.shakes += 1
             Task {
@@ -289,6 +311,19 @@ final class FaceUnlockService {
                 }
             }
         }
+    }
+
+    /// Automatic mode's depth check: hold the camera's exposure, wait a random moment, swell the brightness once and
+    /// back, then let the engine judge the frames.
+    private func runPulse() async {
+        guard let engine, let camera else { return }
+        let held = camera.holdExposure(true)
+        try? await Task.sleep(for: .seconds(Double.random(in: FacePulse.lead)))
+        guard self.engine === engine else { camera.holdExposure(false); return }
+        let schedule = await island.levels?.pulseForFaceScan()
+        try? await Task.sleep(for: .milliseconds(100))
+        camera.holdExposure(false)
+        engine.finishPulse(schedule, exposureHeld: held, learned: owner.faces.pulseProfiles)
     }
 
     /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.

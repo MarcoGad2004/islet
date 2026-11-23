@@ -51,6 +51,12 @@ enum FaceMatcher {
         return top.isEmpty ? 0 : top.reduce(0, +) / Float(top.count)
     }
 
+    static func median(_ v: [Float]) -> Float? {
+        guard !v.isEmpty else { return nil }
+        let s = v.sorted(), m = s.count / 2
+        return s.count % 2 == 0 ? (s[m - 1] + s[m]) / 2 : s[m]
+    }
+
     /// Mean similarity of each sample to the average face: a rough check that an enrolment is consistent.
     static func consistency(_ samples: [[Float]]) -> Float {
         guard let first = samples.first else { return 0 }

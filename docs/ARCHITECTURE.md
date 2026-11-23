@@ -29,7 +29,9 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
    - `Levels`: volume/mute/brightness keys, setting volume and brightness, output devices.
    - `Lock`: screen lock/unlock notifications (`com.apple.screenIsLocked` / `screenIsUnlocked` via
      `DistributedNotificationCenter`).
-   - `FaceUnlock`: camera capture, face match, Keychain password, typing it into the lock screen.
+   - `FaceUnlock`: camera capture (built-in camera only), face match, liveness (challenges, `FacePulse` light
+     check, `SpoofCheck` MiniFASNet model in `Models/AntiSpoof.mlpackage`), Keychain password, typing it into the lock
+     screen.
    - `Notifications`: `NotificationWatcher` observes Notification Center's banner windows (`AXObserver`), moves each one
      off screen, reads it and hands it to the store; the card's Show / Close press the banner's own actions.
    - `Search`: `SearchIndex` (apps from the app folders, Shortcuts through `/usr/bin/shortcuts`, System Settings

@@ -21,6 +21,8 @@ targets:
       - Sources/Islet
       - path: Models/FaceEmbedding.mlmodel   # fetched by scripts/fetch-model.sh, not in git
         optional: true
+      - path: Models/AntiSpoof.mlpackage   # MiniFASNet, built by scripts/convert-antispoof.py, in git
+        optional: true
     info:
       path: Sources/Islet/Info.plist
       properties:

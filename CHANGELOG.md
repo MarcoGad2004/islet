@@ -3,6 +3,17 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## Next
+
+### Face unlock
+
+- Face unlock now only uses the MacBook's own camera. An iPhone (Continuity Camera), a USB webcam or a virtual camera could be fed prepared video, so they're never used.
+- New "Automatic" liveness check, now the default: once your face matches, the screen brightness swells gently once and comes back. A real face lights up by its shape (the face more than the room behind it, the middle of your face more than its sides); a photo or a phone screen doesn't. When that and the new spoof model agree, it unlocks with nothing to do. Otherwise (a bright room, say) it asks for a blink, smile or head turn as before.
+- A spoof model (Minivision's MiniFASNet, runs on the Mac) refuses faces it's sure are a print or a screen, in every mode. Settings > Face Unlock can turn it off.
+- It learns how your own face responds to the light, and after 8 unlocks a different face shape isn't vouched for.
+- Optional: "Raise the threshold as it learns my face". After 20 unlocks the match threshold moves up to just under your usual scores (at most 0.15 above the slider). Only your own confirmed unlocks move it.
+- Test recognition shows the spoof model's verdict, and Check Light runs the brightness check and shows what it measured.
+
 ## 1.4 (2026-11-22)
 
 ### Notifications

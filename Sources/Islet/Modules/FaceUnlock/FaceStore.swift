@@ -43,6 +43,13 @@ final class FaceStore {
     private static let livenessKey = "faceUnlockLiveness"
     private static let learnKey = "faceUnlockLearn"
     private static let brightenKey = "faceUnlockBrighten"
+    private static let adaptiveKey = "faceUnlockAdaptiveThreshold"
+    private static let scoresKey = "faceUnlockGenuineScores"
+    private static let pulseKey = "faceUnlockPulseProfiles"
+    private static let spoofKey = "faceUnlockSpoofModel"
+    /// Unlock scores kept for the adaptive threshold, and learned pulse patterns.
+    static let maxScores = 60
+    static let maxPulseProfiles = 20
     /// Learned looks kept on top of the enrolment; the oldest is dropped past this.
     static let maxLearned = 24
 
@@ -52,9 +59,22 @@ final class FaceStore {
     /// enrolment itself, comfortably above the threshold, so the set can't drift towards someone else.
     private(set) var learned: [[Float]] = []
     private(set) var hasPassword = false
-    /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition".
+    /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition". With the adaptive
+    /// threshold on, this is the floor it never goes below.
     var threshold: Float {
         didSet { UserDefaults.standard.set(threshold, forKey: Self.thresholdKey) }
+    }
+    /// Raise the threshold towards your own usual scores as unlocks accumulate.
+    var adaptiveThreshold: Bool { didSet { UserDefaults.standard.set(adaptiveThreshold, forKey: Self.adaptiveKey) } }
+    /// Typical scores of your confirmed unlocks (and of misses you then unlocked with the password), newest last.
+    private(set) var genuineScores: [Float]
+    /// How your face responded to the brightness pulse on confirmed unlocks (FacePulse.Reading.profile).
+    private(set) var pulseProfiles: [[Double]]
+    /// Refuse faces the spoof model is sure are a print or a screen.
+    var spoofModel: Bool { didSet { UserDefaults.standard.set(spoofModel, forKey: Self.spoofKey) } }
+    /// The threshold a scan uses.
+    var effectiveThreshold: Float {
+        adaptiveThreshold ? AdaptiveThreshold.value(floor: threshold, scores: genuineScores) : threshold
     }
 
     /// What the face has to do before it unlocks, so a photo (or, with random challenges, a video) can't.
@@ -70,14 +90,18 @@ final class FaceStore {
     var allEmbeddings: [[Float]] { embeddings + learned }
 
     init() {
-        UserDefaults.standard.register(defaults: [Self.learnKey: true, Self.brightenKey: true])
+        UserDefaults.standard.register(defaults: [Self.learnKey: true, Self.brightenKey: true, Self.spoofKey: true])
         let t = UserDefaults.standard.float(forKey: Self.thresholdKey)
         threshold = t > 0 ? t : 0.45
         let d = UserDefaults.standard
         liveness = d.string(forKey: Self.livenessKey).flatMap(LivenessMode.init(rawValue:))
-            ?? (d.object(forKey: Self.requireBlinkKey) as? Bool == false ? .off : .random)
+            ?? (d.object(forKey: Self.requireBlinkKey) as? Bool == false ? .off : .automatic)
         learnFromUnlocks = UserDefaults.standard.bool(forKey: Self.learnKey)
         brightenInDark = UserDefaults.standard.bool(forKey: Self.brightenKey)
+        adaptiveThreshold = d.bool(forKey: Self.adaptiveKey)
+        spoofModel = d.bool(forKey: Self.spoofKey)
+        genuineScores = (d.array(forKey: Self.scoresKey) as? [NSNumber])?.map(\.floatValue) ?? []
+        pulseProfiles = (d.array(forKey: Self.pulseKey) as? [[NSNumber]])?.map { $0.map(\.doubleValue) } ?? []
         reload()
     }
 
@@ -110,7 +134,27 @@ final class FaceStore {
         return true
     }
 
-    func forgetLearned() { KeychainStore.delete(account: Self.learnedAccount); learned = [] }
+    /// Clears learned looks, and with them the scores and pulse patterns learned on top of the enrolment.
+    func forgetLearned() {
+        KeychainStore.delete(account: Self.learnedAccount); learned = []
+        genuineScores = []; UserDefaults.standard.removeObject(forKey: Self.scoresKey)
+        pulseProfiles = []; UserDefaults.standard.removeObject(forKey: Self.pulseKey)
+    }
+
+    /// A score that was really you: the typical score of a confirmed face unlock, or the best of a miss that you
+    /// unlocked with the password right after.
+    func recordGenuine(_ score: Float) {
+        guard score > 0 else { return }
+        genuineScores = Array((genuineScores + [score]).suffix(Self.maxScores))
+        UserDefaults.standard.set(genuineScores, forKey: Self.scoresKey)
+    }
+
+    /// How your face responded to a passing pulse on a confirmed unlock.
+    func learnPulse(_ profile: [Double]) {
+        guard learnFromUnlocks, profile.count == FacePulse.Patch.allCases.count else { return }
+        pulseProfiles = Array((pulseProfiles + [profile]).suffix(Self.maxPulseProfiles))
+        UserDefaults.standard.set(pulseProfiles, forKey: Self.pulseKey)
+    }
 
     func savePassword(_ password: String) -> Bool {
         let ok = KeychainStore.save(Data(password.utf8), account: Self.passwordAccount)
@@ -139,6 +183,27 @@ enum FaceLearning {
         guard FaceMatcher.score(sample, enrolled: enrolled) >= threshold + margin else { return false }
         let nearest = (enrolled + learned).map { FaceMatcher.cosine(sample, $0) }.max() ?? 0
         return nearest < redundant
+    }
+}
+
+/// The adaptive threshold. Pure, so it can be tested.
+///
+/// It sits just under where your own unlocks usually score (their 5th percentile, less a margin), so about 1 unlock in
+/// 20 would land in the margin rather than fail. It never goes below the threshold you set, nor more than `maxRaise`
+/// above it. Only your own confirmed unlocks raise it; a failed scan can't lower it, only a miss that you then
+/// unlocked with the password can (it's added as one of your scores).
+enum AdaptiveThreshold {
+    /// Scores needed before it moves at all.
+    static let minimum = 20
+    static let margin: Float = 0.05
+    static let maxRaise: Float = 0.15
+    static let ceiling: Float = 0.75
+
+    static func value(floor: Float, scores: [Float]) -> Float {
+        guard scores.count >= minimum else { return floor }
+        let s = scores.sorted()
+        let low = s[Int((Double(s.count - 1) * 0.05).rounded(.down))]
+        return max(floor, min(low - margin, floor + maxRaise, ceiling))
     }
 }
 

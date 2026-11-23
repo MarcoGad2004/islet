@@ -32,10 +32,18 @@ final class FaceUnlockCoordinator {
     private(set) var testFramed = false
     /// Test recognition: mean camera brightness, 0...1.
     private(set) var testLight: Double?
+    /// Test recognition: the spoof model's recent mean, 0 (fake) ... 1 (real).
+    private(set) var testLive: Float?
+    /// Test recognition: the last light check, and whether one is running.
+    private(set) var testPulse: FacePulse.Verdict?
+    private(set) var testPulsing = false
     private(set) var modelAvailable = false
 
     private let island: IslandStore
     let embedder = FaceEmbedder()
+    /// The spoof model; nil if it isn't in the bundle (face unlock still works, with the other checks).
+    let antiSpoof = AntiSpoofModel()
+    @ObservationIgnored private var testRecorder: PulseRecorder?
     private var camera: FaceCamera?
     private var timeout: Task<Void, Never>?
     let analyzer = FaceAnalyzer()
@@ -76,7 +84,7 @@ final class FaceUnlockCoordinator {
             }
         } catch {
             island.setBase(nil)
-            return "Couldn't start the camera."
+            return Self.cameraMessage(error)
         }
         self.camera = camera
         timeout = Task { [weak self] in
@@ -126,32 +134,44 @@ final class FaceUnlockCoordinator {
         guard await FaceCamera.requestAccess() else { return "Camera access is off." }
         stopCamera()
         testScore = nil
-        testSeen = []; testFramed = false; testLight = nil
+        testSeen = []; testFramed = false; testLight = nil; testLive = nil; testPulse = nil
         testingFace = true
         let enrolled = faces.allEmbeddings
+        let threshold = faces.effectiveThreshold
         let analyzer = self.analyzer
-        // Every other frame: often enough to catch a blink (~100-150 ms).
+        let antiSpoof = faces.spoofModel ? self.antiSpoof : nil
+        // Every other frame: often enough to catch a blink (~100-150 ms). Every frame while the light check records.
         let counter = FrameCounter(every: 2)
         let liveness = TestLiveness()
+        let spoof = TestSpoof()
+        let recorder = PulseRecorder()
+        testRecorder = recorder
         let camera = FaceCamera()
         do {
             try camera.start { [weak self] pb in
-                guard counter.shouldProcess() else { return }
+                let recording = recorder.isRecording
+                guard counter.shouldProcess() || recording else { return }
                 var score: Float?, framed = false
                 let a = analyzer.analyze(pb)
                 if let a, a.boxWidth > 0.14, let img = a.alignedImage(), let e = embedder.embed(img) {
                     score = FaceMatcher.score(e, enrolled: enrolled)
                     framed = a.framed
+                    if recording {
+                        let m = FacePulse.measure(pb, points: a.points, face: a.box)
+                        recorder.add(FacePulse.Frame(time: Date(), face: m.face, background: m.background,
+                                                     matched: (score ?? 0) >= threshold))
+                    }
                 }
+                let live = a.flatMap { a in antiSpoof?.live(pb, face: a.box) }.map { spoof.add($0) } ?? spoof.mean
                 let seen = liveness.add(a)
                 let light = FrameLight.luma(pb)
                 Task { @MainActor in
                     guard let self, self.testingFace else { return }
-                    self.testScore = score; self.testFramed = framed; self.testLight = light
+                    self.testScore = score; self.testFramed = framed; self.testLight = light; self.testLive = live
                     self.testSeen.formUnion(seen)
                 }
             }
-        } catch { testingFace = false; return "Couldn't start the camera." }
+        } catch { testingFace = false; return Self.cameraMessage(error) }
         self.camera = camera
         return nil
     }
@@ -160,7 +180,32 @@ final class FaceUnlockCoordinator {
         stopCamera()
         testingFace = false
         testScore = nil
-        testSeen = []; testFramed = false; testLight = nil
+        testSeen = []; testFramed = false; testLight = nil; testLive = nil; testPulse = nil; testPulsing = false
+        testRecorder = nil
+    }
+
+    /// Test recognition: run the brightness pulse once and show what it measured.
+    func runTestPulse() async {
+        guard testingFace, !testPulsing, let camera, let recorder = testRecorder else { return }
+        testPulsing = true; testPulse = nil
+        defer { testPulsing = false }
+        let held = camera.holdExposure(true)
+        recorder.begin()
+        try? await Task.sleep(for: .seconds(Double.random(in: FacePulse.lead)))
+        let schedule = await island.levels?.pulseForFaceScan()
+        try? await Task.sleep(for: .milliseconds(100))
+        let frames = recorder.end()
+        camera.holdExposure(false)
+        guard testingFace else { return }
+        testPulse = schedule.map { FacePulse.judge(frames, schedule: $0, exposureHeld: held, learned: faces.pulseProfiles) }
+            ?? .inconclusive("brightness can't be set", nil)
+    }
+
+    private static func cameraMessage(_ error: Error) -> String {
+        if case FaceCamera.CameraError.noCamera = error {
+            return "Face unlock only uses this Mac's built-in camera, and it isn't available (is the lid closed?)."
+        }
+        return "Couldn't start the camera."
     }
 
     private func stopCamera() { camera?.stop(); camera = nil }
@@ -177,6 +222,14 @@ final class TestLiveness: @unchecked Sendable {
         }
         return Set(detectors.filter(\.done).map(\.challenge))
     }
+}
+
+/// The spoof model's recent frames in Test recognition, shared with the camera queue.
+final class TestSpoof: @unchecked Sendable {
+    private var tracker = SpoofTracker()
+    private let lock = NSLock()
+    func add(_ v: Float) -> Float? { lock.lock(); defer { lock.unlock() }; tracker.add(v); return tracker.mean }
+    var mean: Float? { lock.lock(); defer { lock.unlock() }; return tracker.mean }
 }
 
 /// Lets every Nth camera frame through (cheap thread-safe counter).

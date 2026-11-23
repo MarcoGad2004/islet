@@ -184,7 +184,12 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
   "Checking" once a face is in view, and the liveness challenge once the face matches: by default one of
   "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at random each
-  attempt, with 8 s to do it (Settings: Random, Blink only, or Off).
+  attempt, with 8 s to do it (Settings: Automatic, Random, Blink only, or Off).
+- **Light check** (Automatic, the default; owner request 2026-11-22): once the face matches, the label stays
+  "Checking" while the screen brightness swells once and comes back: up 0.3 (or down 0.3 if the screen is
+  already above 0.7) over 0.25 s, held 0.35 s, back over 0.3 s, after a random 0.35-0.6 s wait. One smooth
+  swell, never a flicker (the owner was worried about discomfort). If the light check and the spoof model both
+  vouch for the face, it's the match with nothing to do; otherwise the random challenge is asked, as Random.
 - **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),
@@ -373,6 +378,11 @@ Convenience, explicitly weaker than Touch ID. Agreed by the owner.
 - Flow: screen locked → camera checks for a face → on a match, the app types the user's login
   password (stored in the Keychain) into the lock screen → unlock animation.
 - 3 attempts per lock, then stop.
+- Only the Mac's built-in camera is used (never Continuity Camera, USB or virtual cameras).
+- Spoof checks on every scan: a rectangle edge around the face, and a spoof model (MiniFASNet) that refuses
+  a face it's sure is a print or screen. Automatic adds the light check (Face scan, above).
+- Optional adaptive threshold: after 20 confirmed unlocks, the threshold rises to just under the owner's usual
+  scores, never below the slider and at most 0.15 above it.
 - Setup in Settings: confirm with Touch ID or the password, look at the camera to enrol, then enter
   the login password to store in the Keychain. Face data and the password never leave the Mac.
 - Feasibility is **unproven**: see `docs/RESEARCH.md`. Build the spike before any UI.

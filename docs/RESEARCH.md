@@ -70,6 +70,28 @@ lock screen. Each question below can block it:
     while one is up, non-matching frames don't count as misses (a turned face may not match); an 8 s limit ends
     the attempt instead, and the next attempt picks again. Thresholds unverified on real faces: Test recognition
     ticks each one.
+    **Next (2026-11-22, owner request: more security without asking the user to move):**
+    - *Camera pin:* `FaceCamera.builtIn()` takes only `.builtInWideAngleCamera`, not `isContinuityCamera`, made by
+      "Apple Inc.". The owner's Mac lists "MacBook Pro Camera" and "iPhone Duo Camera"; `default(for: .video)` could
+      have picked either, and a virtual camera could inject video.
+    - *Spoof model:* Minivision Silent-Face-Anti-Spoofing (Apache-2.0), MiniFASNetV2 at a 2.7x face crop plus
+      MiniFASNetV1SE at 4.0x, 80x80 BGR 0-255, mean softmax class 1 = real. Converted to one Core ML model by
+      `scripts/convert-antispoof.py` (3.5 MB, committed). Core ML output equals PyTorch to 4 decimals on the repo's
+      samples; through the Swift path (Vision box, our crop) the samples score fake 0.05 / 0.02, real 0.98. Its
+      training crops came from a RetinaFace box; ours from Vision's, which is close but not identical. Thresholds
+      (live ≥ 0.75, refuse < 0.25 over 6+ frames) are guesses. **Unverified on this Mac's camera**, especially in a
+      dim room, where such models tend to call real faces fake: Test recognition shows its score.
+    - *Light check (`FacePulse`):* the display brightness swells once by 0.3. Face patches (forehead, nose, chin,
+      cheeks, both sides) and the top frame corners are read in linear light; each patch's change is divided by the
+      background's, so auto-exposure cancels (exposure and white balance are also locked when the camera allows).
+      `contrast` = centre change (needs ≥ 0.05), `shape` = (centre − sides) / centre (needs ≥ 0.15; a flat print is
+      ~0), and once 8 passing unlocks are learned, the profile must correlate ≥ 0.7 with the learned mean (a face
+      turned slightly still correlates ~0.9 in the model). It only ever vouches or doesn't; it never refuses. **All
+      thresholds unverified on real faces; whether `pulseForFaceScan` works on the lock screen is unverified too**
+      (the dark-room boost suggests DisplayServices does). Test recognition → Check Light shows depth and shape.
+    - *Adaptive threshold:* scores are each confirmed unlock's median frame score (not the first matching frame,
+      which would only ever be above the threshold and ratchet it up), plus the best score of a miss followed by a
+      password unlock within 60 s. Threshold = 5th percentile − 0.05, clamped to [slider, slider + 0.15].
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
