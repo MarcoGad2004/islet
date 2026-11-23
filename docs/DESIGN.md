@@ -292,7 +292,7 @@ feature of its own (off by default; Features list and Settings > Battery > Menu 
 the link to hide macOS's), so one icon can do the job of macOS's battery and Islet's. As a battery it always shows, whatever "Show menu bar
 icon" says, and works the same with a notch, the bezel island, the menu bar island, or none.
 
-- The icon follows macOS's: a 29.5 × 13 pt battery (25.5 pt body), a pale outline (40%), the charge as a solid fill, a bolt while
+- The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), a pale outline (40%), the charge as a solid fill, a bolt while
   charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Red
   fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.
@@ -308,7 +308,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   otherwise), thicker for a bigger share, with dashes drifting the way the power goes: green from the charger,
   yellow from the battery. So it shows battery only, charger only, charger charging the battery, and a charger too
   weak for the load with the battery helping. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
-  Numbers refresh every 3 s while open. A click elsewhere, Esc or the icon closes it.
+  Numbers refresh every second while open, and at once when a charger goes in or out. A click elsewhere, Esc or the icon closes it.
 - In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
   Controls pill.
 - Charge history: a sample on every change of charge or charger and every 5 minutes, a day kept in Application
@@ -359,7 +359,7 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   on the adapter, `-b` on battery); the body is 308 pt with it. Changing it needs root; owner's decision
   (2026-11-20): the first change shows the macOS admin prompt and installs `/etc/sudoers.d/islet-powermode`, allowing
   only `pmset -b|-c powermode 0|1|2` for this account without a password; Settings > General has Remove…. The Low
-  Power badge is gone (the switch shows it). Numbers refresh every 3 s while it's open. Temperature isn't shown: the battery doesn't report it.
+  Power badge is gone (the switch shows it). Numbers refresh every second while it's open. Temperature isn't shown: the battery doesn't report it.
 - **Focus** is read-only: an icon next to the battery chip showing the active Focus (hidden when none). It reads Focus
   state from the Do Not Disturb database, so onboarding asks for Full Disk Access. No Focus tile, no setting from the notch.
 - **Update pill** (1.2.3): when an automatic check finds a new version, a blue "Update x.y.z" pill sits right of the

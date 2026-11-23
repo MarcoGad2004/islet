@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 /// The battery icon's stats (DESIGN.md "Menu bar battery"): the charge and what it's doing, the battery's condition,
-/// the charge over the last 12 hours and where the power is going. The numbers refresh every 3 s while it's open
+/// the charge over the last 12 hours and where the power is going. The numbers refresh every second while it's open
 /// (`PowerMonitor.watchDetails`).
 struct BatteryStatsView: View {
     let power: PowerMonitor

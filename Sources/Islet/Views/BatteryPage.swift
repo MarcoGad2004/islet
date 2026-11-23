@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The battery page, opened from the battery chip in the panel's header: the charge and what it's doing, then four
 /// glass tiles (maximum capacity, cycles, the charger or the power draw, time to full or left), and the capacity in
-/// mAh with a link to Battery settings. The numbers refresh every 3 s while it's open (`PowerMonitor.watchDetails`).
+/// mAh with a link to Battery settings. The numbers refresh every second while it's open (`PowerMonitor.watchDetails`).
 struct BatteryPage: View {
     let power: PowerMonitor
 

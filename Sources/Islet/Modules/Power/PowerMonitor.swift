@@ -107,7 +107,7 @@ final class PowerMonitor {
 
     func refresh() { state = Self.read() }
 
-    /// While the battery page is open, re-read everything every 3 s so the power draw stays live.
+    /// While the battery page or the stats are open, re-read everything every second so the power draw stays live.
     func watchDetails(_ on: Bool) {
         detailsTask?.cancel()
         detailsTask = nil
@@ -119,7 +119,7 @@ final class PowerMonitor {
         }
         detailsTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, let self else { return }
                 self.details = Self.readDetails()
                 self.state = Self.read()
@@ -218,6 +218,8 @@ final class PowerMonitor {
         let old = state
         let new = Self.read()
         state = new
+        // A charger in or out changes where the power goes at once, not on the next tick.
+        if detailsTask != nil { details = Self.readDetails() }
         guard started, new.hasBattery else { return }
 
         if new.onAC && !old.onAC {
@@ -264,11 +266,15 @@ final class PowerMonitor {
             s.charged = (d[kIOPSIsChargedKey] as? Bool ?? false) || (s.onAC && s.percent >= 100)
             if let t = d[kIOPSTimeToFullChargeKey] as? Int, t > 0 { s.minutesToFull = t }
             if let t = d[kIOPSTimeToEmptyKey] as? Int, t > 0 { s.minutesToEmpty = t }
-            // The driver knows about the charger before powerd's list does.
-            if let external = externalConnected(), external != s.onAC {
-                s.onAC = external
-                if !external { s.charging = false; s.minutesToFull = nil }
-                s.charged = s.onAC && (s.charged || s.percent >= 100)
+            // The driver knows about the charger, and whether it's charging, a second or two before powerd's list does.
+            if let flags = batteryFlags() {
+                if flags.external != s.onAC {
+                    s.onAC = flags.external
+                    if !flags.external { s.minutesToFull = nil }
+                }
+                s.charging = flags.external && flags.charging
+                s.charged = s.onAC && (s.charged || flags.full || s.percent >= 100)
+                if s.charging { s.charged = false }
             }
             return s
         }
@@ -277,13 +283,16 @@ final class PowerMonitor {
     }
 }
 
-/// The battery's own charger flag, straight from its registry entry.
-private func externalConnected() -> Bool? {
+/// The battery's own charger and charging flags, straight from its registry entry.
+private func batteryFlags() -> (external: Bool, charging: Bool, full: Bool)? {
     let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
     guard service != 0 else { return nil }
     defer { IOObjectRelease(service) }
-    return IORegistryEntryCreateCFProperty(service, "ExternalConnected" as CFString, kCFAllocatorDefault, 0)?
-        .takeRetainedValue() as? Bool
+    func flag(_ key: String) -> Bool? {
+        IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
+    }
+    guard let external = flag("ExternalConnected") else { return nil }
+    return (external, flag("IsCharging") ?? false, flag("FullyCharged") ?? false)
 }
 
 private func zip<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
