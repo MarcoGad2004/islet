@@ -49,9 +49,12 @@ final class IslandStore {
     private(set) var shazam: ShazamState?
     @ObservationIgnored private let shazamListener = ShazamListener()
     @ObservationIgnored private var shazamTask: Task<Void, Never>?
-    /// A sideways swipe that is for Shazam rather than skipping (whether it has fired: once, past `shazamSwipeDistance`).
-    @ObservationIgnored private var shazamSwipe: Bool?
-    static let shazamSwipeDistance: Double = 40
+    /// Two fingers dragging Shazam in from the side over the idle notch (DESIGN.md "Shazam", "Pulling it in").
+    private(set) var shazamPull: ShazamPull?
+    @ObservationIgnored private var pullSpring: ValueSpring?
+    /// Finger travel that pulls the mark half way, its commit point. Like the skip, the pull resists more the further
+    /// it goes: progress = 1 - 1 / (1 + travel / shazamPullDistance).
+    static let shazamPullDistance: Double = 85
     private(set) var progress: ConnectionProgress?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var progressAction: (() -> Void)?
@@ -650,8 +653,11 @@ final class IslandStore {
 
     /// The fingers started sideways over the island. Only playing media (showing, or hidden behind the peek) skips.
     func skipBegan() -> Bool {
-        shazamSwipe = nil
-        if shazamSwipeAllowed { shazamSwipe = false; return true }
+        if shazamPullAllowed {
+            pullSpring?.stop(); pullSpring = nil
+            shazamPull = ShazamPull()
+            return true
+        }
         guard !expanded, base == nil, !paused, let m = media, mediaMonitor != nil else { return false }
         let onMedia: Bool = if case .media? = content { true } else { false }
         guard onMedia || showsMediaPeek else { return false }
@@ -663,14 +669,7 @@ final class IslandStore {
 
     /// Finger travel since the swipe began, in points: negative is left (next), positive right (previous).
     func skipChanged(_ dx: Double) {
-        if let fired = shazamSwipe {
-            guard !fired, abs(dx) >= Self.shazamSwipeDistance else { return }
-            shazamSwipe = true
-            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
-            // Over Shazam listening, the swipe stops it; over its result, it listens again.
-            if shazam?.listening == true { endShazam() } else { startShazam() }
-            return
-        }
+        if shazamPull != nil { shazamPullChanged(dx); return }
         guard var s = skip, case .tracking = s.phase else { return }
         if dx < 0 { s.dir = 1 } else if dx > 0 { s.dir = -1 }
         let wasArmed = s.armed
@@ -684,7 +683,7 @@ final class IslandStore {
     /// The fingers lifted, moving at `velocity` (points per second, positive right). The spring starts from where
     /// they left it at their speed: past half way, or flung in, the neighbour lands and the song changes now.
     func skipEnded(velocity: Double) {
-        if shazamSwipe != nil { shazamSwipe = nil; return }
+        if shazamPull != nil { shazamPullEnded(velocity: velocity); return }
         guard var s = skip, case .tracking = s.phase else { return }
         guard s.dir != 0 else { skip = nil; refresh(); return }
         // Progress per second (+ is further in): the fingers' speed through the pull's resistance at this point.
@@ -740,21 +739,88 @@ final class IslandStore {
 
     // MARK: Shazam (DESIGN.md "Shazam")
 
-    /// A sideways swipe names the song playing nearby: over the idle notch (quick info, the peek), or over Shazam's
-    /// own result to listen again. Media takes the swipe for skipping first.
-    private var shazamSwipeAllowed: Bool {
+    /// Two fingers sideways over the idle notch (quick info, the peek) drag Shazam in. Media takes the swipe for
+    /// skipping first.
+    private var shazamPullAllowed: Bool {
         guard Feature.shazam.isOn, pointerInside, !expanded, base == nil, !paused, !lockScreen, skip == nil else { return false }
-        if case .shazam? = content { return true }
         return content == nil && !showsMediaPeek
     }
 
-    /// The button in the controls, or the swipe: the island listens, then shows the song.
-    func startShazam() {
+    /// The mark follows the fingers in from the side they started toward, against a rubber band. The trackpad ticks
+    /// lightly as it catches, clicks firmly crossing the commit point (it's in), and ticks lightly going back over it.
+    private func shazamPullChanged(_ dx: Double) {
+        guard var p = shazamPull, !p.releasing else { return }
+        if dx > 0 { p.dir = 1 } else if dx < 0 { p.dir = -1 }
+        let wasArmed = p.armed
+        p.progress = 1 - 1 / (1 + abs(dx) / Self.shazamPullDistance)
+        if !p.caught, p.progress > 0.1 {
+            p.caught = true
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        }
+        if p.armed != wasArmed {
+            NSHapticFeedbackManager.defaultPerformer.perform(p.armed ? .levelChange : .alignment, performanceTime: .now)
+        }
+        shazamPull = p
+        updatePullShape()
+    }
+
+    /// Let go past the commit point (and not flung back out): it listens. Short of it: the mark springs back out the
+    /// way it came, at the fingers' speed, with a little elastic snap, and nothing runs.
+    private func shazamPullEnded(velocity: Double) {
+        guard var p = shazamPull, !p.releasing else { return }
+        guard p.dir != 0 else { shazamPull = nil; updatePullShape(); refresh(); return }
+        // Progress per second (+ further in), through the band's resistance at this point.
+        let pv = (p.dir == 1 ? velocity : -velocity) * (1 - p.progress) * (1 - p.progress) / Self.shazamPullDistance
+        if p.armed && pv > -2 {
+            shazamPull = nil
+            animator.setExtra(.zero)
+            startShazam(fromRight: p.dir == -1, pulled: true)
+            return
+        }
+        p.releasing = true
+        shazamPull = p
+        pullSpring?.stop()
+        pullSpring = ValueSpring(from: p.progress, to: 0, velocity: pv, response: 0.34, damping: 0.66,
+                                 update: { [weak self] x in self?.shazamPull?.progress = max(x, 0); self?.updatePullShape() },
+                                 done: { [weak self] in
+                                     self?.pullSpring = nil
+                                     self?.shazamPull = nil
+                                     self?.updatePullShape()
+                                     self?.refresh()
+                                 })
+    }
+
+    /// The island makes room for the mark as it comes in: the closed notch grows its wings (or a chin when the menu bar
+    /// has no room); quick info, which already has them, stretches a little with the pull.
+    private func updatePullShape() {
+        guard let p = shazamPull else { animator.setExtra(.zero); return }
+        let r = p.reach, over = max(p.progress - 0.5, 0)
+        switch presentation {
+        case .quickBar, .quickChin:
+            let w = 10 * r + 24 * over
+            animator.setExtra(IslandMetrics(sw: w, sh: 0, bw: w, bh: 0, tr: 0, br: 0, ic: 0))
+        case .peek, .closed:
+            guard let g = geometry else { return }
+            if wingsFit {
+                let w = (IslandLayout.wingsExtra - IslandLayout.peekExtraWidth) * r + 24 * over
+                animator.setExtra(IslandMetrics(sw: w, sh: 0, bw: w, bh: 0, tr: 0, br: 0, ic: 0))
+            } else {
+                let grow = (IslandLayout.chinWidth - Double(g.width) - IslandLayout.peekExtraWidth) * r
+                animator.setExtra(IslandMetrics(sw: 0, sh: 0, bw: grow + 24 * over, bh: IslandLayout.chinHeight * r, tr: 0, br: 4 * r, ic: 0))
+            }
+        default:
+            animator.setExtra(.zero)
+        }
+    }
+
+    /// The button in the controls, or the pull: the island listens, then shows the song. Pulled in, the mark stays on
+    /// the side it came from.
+    func startShazam(fromRight: Bool = false, pulled: Bool = false) {
         guard !lockScreen, !paused else { return }
         if expanded { collapse() }
         recomputeLayout()
         shazamTask?.cancel()
-        shazam = ShazamState()
+        shazam = ShazamState(fromRight: fromRight, pulled: pulled)
         refresh()
         shazamListener.listen { [weak self] outcome in self?.shazamFinished(outcome) }
     }
@@ -802,7 +868,7 @@ final class IslandStore {
         case .match(let song):
             endShazam()
             if let url = song.url { NSWorkspace.shared.open(url) }
-        case .noMatch, .failed: startShazam()
+        case .noMatch, .failed: startShazam(fromRight: s.fromRight)
         case .micDenied:
             endShazam()
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {

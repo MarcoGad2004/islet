@@ -101,13 +101,17 @@ struct IslandView: View {
                     }
                 case .shazam:
                     if case .shazam(let s)? = content {
+                        // Pulled in, the mark is already where it listens: nothing fades in.
                         ShazamView(store: store, state: s)
                             .transition(.asymmetric(
-                                insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.08)),
+                                insertion: s.pulled ? .identity : .opacity.animation(.easeOut(duration: 0.22).delay(0.08)),
                                 removal: .opacity.combined(with: .scale(scale: 0.85)).animation(.easeOut(duration: 0.14))))
                     }
                 case .quickBar, .quickChin:
                     QuickInfoView(store: store, bar: pres == .quickBar)
+                        // Shazam being pulled in pushes quick info out of the way.
+                        .opacity(1 - (store.shazamPull?.reach ?? 0))
+                        .blur(radius: 3 * (store.shazamPull?.reach ?? 0))
                         .transition(.asymmetric(
                             insertion: .opacity.animation(.easeOut(duration: 0.2).delay(pres == .quickBar ? 0.06 : 0.12)),
                             removal: .opacity.animation(.easeOut(duration: 0.1))))
@@ -155,6 +159,14 @@ struct IslandView: View {
                 }
             }
             .animation(store.level != nil ? Self.glide : .easeOut(duration: 0.2), value: store.levelTray == nil)
+            .overlay(alignment: .top) {
+                // Shazam being dragged in from the side, ahead of the island it's making room in (clipped by it).
+                if let pull = store.shazamPull, let g = store.geometry {
+                    ShazamPullView(pull: pull, home: ShazamView.markHome(fromRight: pull.dir == -1, wings: store.wingsFit,
+                                                                         nw: g.width, nh: g.height))
+                        .offset(y: floating ? m.y : 0)
+                }
+            }
             .clipShape(shape)
             // Hidden media swiped back: the peek's colour gathers into the artwork.
             if let start = store.morphFromPeek, case .media? = content {

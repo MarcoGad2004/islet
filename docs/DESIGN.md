@@ -485,7 +485,7 @@ With the pointer over the island:
   panel, swipe up closes it.
 - **Two-finger swipe down**: brings hidden media back; with nothing hidden, opens the panel.
 - **Two-finger swipe left / right** over media: next / previous track (see Media, "Skip and previous"). Over the
-  idle notch (quick info or the peek), either way: Shazam (see "Shazam").
+  idle notch (quick info or the peek), either way: pulls Shazam in (see "Shazam").
 - When media is hidden, hovering the notch shows the media peek (see Media).
 - Media from the app in front stays out of the notch (you're already in the player) and comes back when you
   switch away. The panel's media page still has it.
@@ -840,18 +840,28 @@ docs/mockups/quick-info.html).
 Owner request, 2026-11-23: name the song playing nearby from the notch.
 
 - **Starting it**: a round Shazam button (the blue Shazam mark on a glass circle, 22 pt) in the controls' header,
-  right of the battery chip; it closes the panel and the notch listens. Or a two-finger swipe left or right over the
-  idle notch (quick info, the peek; not over media, where it skips), firing once past 40 pt of finger travel with a
-  light tap on the trackpad. Settings > Dynamic Peninsula > Features "Shazam" (on by default) removes both.
+  right of the battery chip; it closes the panel and the notch listens. Or pull it in with two fingers (below).
+  Settings > Dynamic Peninsula > Features "Shazam" (on by default) removes both.
+- **Pulling it in** (owner, 2026-11-23: "drag Shazam in with some resistance"): two fingers sideways over the idle
+  notch (quick info, the peek; not over media, where they skip). The mark follows the fingers in from the edge they
+  move away from (fingers right: from the left), against a rubber band like the skip (progress = 1 − 1 / (1 + travel
+  / 85 pt); the commit point is half way, 85 pt of travel). It grows from half size, sharpens and fills in blue as it
+  comes; a ring round it fills toward the commit point. The island makes room: the closed notch grows its wings (or a
+  chin), quick info stretches a little and fades and blurs out under it. At the commit point the ring closes, the mark
+  turns full blue and pops (spring 0.22, 0.55) and the trackpad clicks firmly; going back over it, a light tick. A
+  light tick also as the pull first catches. Past the point it keeps creeping in a little. Lifting past the point (and
+  not flung back out) listens, the mark staying where it is, in the wing it came from, with the equaliser in the other.
+  Lifting short of it: the mark springs back out the way it came at the fingers' speed (response 0.34, damping 0.66),
+  and nothing runs.
 - **Listening** (up to 15 s): the wide bar with a body, like volume (or the chin when the menu bar has no room). The
   Shazam mark (white S on blue, 22 pt) in the left wing beats softly while three blue rings ripple out of it; a
   five-bar equaliser (cyan to blue) dances in the right wing; "Listening…" in the body with a light sweeping across
-  it. A click, a swipe up or another sideways swipe stops it.
+  it. A click or a swipe up stops it.
 - **A song**: the island grows into a 360 × 76 card under the notch. The mark flies down into the artwork's place and
   grows into a 52 pt rounded square, the cover lands on it with a spring and a blue ring bursts out of it, then the
   title (14 semibold) and artist (12, `secondary`) slide in from the left. An open-in icon on the right. A firm tap on
   the trackpad when it's found. It stays 8 s (held while hovered, 3 s after the pointer leaves). A click opens it in
-  Apple Music (Shazam's page when Apple Music doesn't have it); a sideways swipe listens again; a swipe up puts it away.
+  Apple Music (Shazam's page when Apple Music doesn't have it); a swipe up puts it away.
   The song is also added to the Shazam library, as Control Center's Music Recognition does, so it's in Shazam's history
   on the iPhone.
 - **No match**: the mark turns grey and shakes its head, the bars lie down, "No match. Try closer to the sound" (3 s).

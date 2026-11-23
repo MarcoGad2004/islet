@@ -117,6 +117,10 @@ struct ShazamState: Equatable {
         case failed(String)
     }
     var phase = Phase.listening
+    /// Pulled in from the right: the mark sits in the right wing and the equaliser in the left.
+    var fromRight = false
+    /// Pulled in with two fingers: the mark is already in place, so the island doesn't fade it in.
+    var pulled = false
     /// When listening began, for the ripples' clock.
     var started = Date()
 
@@ -143,6 +147,22 @@ struct ShazamState: Equatable {
         case .micDenied, .failed: 4
         }
     }
+}
+
+/// Two fingers dragging Shazam in over the idle notch, before it listens (DESIGN.md "Shazam", "Pulling it in").
+struct ShazamPull: Equatable {
+    /// +1 fingers moving right (the mark comes in from the left), -1 left; 0 until they pick a side.
+    var dir = 0
+    /// 0 untouched, 0.5 the commit point (the mark home, the ring full), toward 1 the further past it.
+    var progress = 0.0
+    /// Let go short of the commit point: springing back out.
+    var releasing = false
+    /// The pull has caught (the first light tick has played).
+    var caught = false
+
+    var armed: Bool { progress >= 0.5 }
+    /// How far in the mark is, 0 to 1 at the commit point.
+    var reach: Double { min(max(progress / 0.5, 0), 1) }
 }
 
 /// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
