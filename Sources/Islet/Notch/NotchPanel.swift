@@ -28,6 +28,11 @@ final class IslandHostingView: NSHostingView<IslandView> {
     var onSideBegan: (() -> Bool)?
     var onSideChanged: ((CGFloat) -> Void)?
     var onSideEnded: ((CGFloat) -> Void)?
+    /// Up and down followed continuously instead of firing once (Shazam listening: drag to stop). Began (return false
+    /// for the usual swipe), finger travel so far (- up), lifted at a speed (pt/s).
+    var onVerticalBegan: (() -> Bool)?
+    var onVerticalChanged: ((CGFloat) -> Void)?
+    var onVerticalEnded: ((CGFloat) -> Void)?
     /// A list in the panel under this point (top-left window points), and whether it's at its top / bottom.
     var listAt: ((CGPoint) -> (atTop: Bool, atBottom: Bool)?)?
     /// The list under the fingers when this gesture began; nil when it began elsewhere.
@@ -37,7 +42,7 @@ final class IslandHostingView: NSHostingView<IslandView> {
     var swipeUpAllowedAt: ((CGPoint) -> Bool)?
     private var upAllowed = true
 
-    private enum Axis { case undecided, vertical, horizontal, ignored }
+    private enum Axis { case undecided, vertical, verticalTracked, horizontal, ignored }
     private var axis = Axis.undecided
     private var accX: CGFloat = 0
     private var accY: CGFloat = 0
@@ -72,7 +77,7 @@ final class IslandHostingView: NSHostingView<IslandView> {
                 if abs(accX) > abs(accY) {
                     axis = (onSideBegan?() ?? false) ? .horizontal : .ignored
                 } else {
-                    axis = .vertical
+                    axis = list == nil && (onVerticalBegan?() ?? false) ? .verticalTracked : .vertical
                 }
             }
             switch axis {
@@ -95,11 +100,16 @@ final class IslandHostingView: NSHostingView<IslandView> {
                 samples.append((event.timestamp, accX))
                 if samples.count > 12 { samples.removeFirst() }
                 onSideChanged?(accX)
+            case .verticalTracked:
+                samples.append((event.timestamp, accY))
+                if samples.count > 12 { samples.removeFirst() }
+                onVerticalChanged?(accY)
             default: break
             }
         }
         if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
             if axis == .horizontal { onSideEnded?(velocity(at: event.timestamp)) }
+            if axis == .verticalTracked { onVerticalEnded?(velocity(at: event.timestamp)) }
             reset()
         }
     }
@@ -147,6 +157,9 @@ final class NotchController {
         host.onSideBegan = { [weak self] in self?.store.skipBegan() ?? false }
         host.onSideChanged = { [weak self] dx in self?.store.skipChanged(Double(dx)) }
         host.onSideEnded = { [weak self] v in self?.store.skipEnded(velocity: Double(v)) }
+        host.onVerticalBegan = { [weak self] in self?.store.shazamDragBegan() ?? false }
+        host.onVerticalChanged = { [weak self] dy in self?.store.shazamDragChanged(Double(dy)) }
+        host.onVerticalEnded = { [weak self] v in self?.store.shazamDragEnded(velocity: Double(v)) }
 
         host.listAt = { [weak self] p in self?.store.scrollRegion(at: p).map { ($0.atTop, $0.atBottom) } }
         host.swipeUpAllowedAt = { [weak self] p in self?.store.swipeUpAllowed(at: p) ?? true }

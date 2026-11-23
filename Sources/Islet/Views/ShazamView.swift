@@ -13,6 +13,8 @@ struct ShazamView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var matchedAt: Date?
     @State private var shakes = 0
+    /// What was just copied ("title", "artist", "both"): its icon shows a check for a moment.
+    @State private var copied: String?
 
     static let blue = Color(hex: 0x0A84FF)
     static let canvas: CGFloat = 400
@@ -20,6 +22,13 @@ struct ShazamView: View {
     private static let art: CGFloat = 52
 
     private var song: ShazamSong? { state.song }
+    private var drag: ShazamDrag? { store.shazamDrag }
+    private var dragReach: CGFloat { CGFloat(drag?.reach ?? 0) }
+    private var dragOffset: CGFloat {
+        guard let d = drag, d.dir != 0 else { return 0 }
+        let over = CGFloat(max(d.progress - 0.5, 0))
+        return d.dir == 1 ? 10 * dragReach + 14 * over : -(6 * dragReach + 8 * over)
+    }
     private var wings: Bool { store.wingsFit && song == nil }
     private var failed: Bool {
         switch state.phase {
@@ -39,7 +48,7 @@ struct ShazamView: View {
                 if state.listening && !reduceMotion {
                     ForEach(0..<3, id: \.self) { i in
                         let p = (t / 1.6 + Double(i) / 3).truncatingRemainder(dividingBy: 1)
-                        Circle().stroke(Self.blue.opacity((1 - p) * 0.55), lineWidth: 1.5)
+                        Circle().stroke(Self.blue.opacity((1 - p) * 0.55 * (1 - Double(dragReach))), lineWidth: 1.5)
                             .frame(width: Self.glyph + p * 30, height: Self.glyph + p * 30)
                             .position(l.glyph)
                     }
@@ -63,22 +72,35 @@ struct ShazamView: View {
                             insertion: .scale(scale: 0.4).combined(with: .opacity)
                                 .animation(.spring(response: 0.42, dampingFraction: 0.62).delay(0.26)),
                             removal: .opacity.animation(.easeOut(duration: 0.12))))
+                    // Hovering the title or the artist shows a copy icon beside it; a click copies just that line.
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(song.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.isletText)
+                        CopyLine(text: song.title, size: 14, weight: .semibold, color: .isletText, id: "title", copied: $copied)
                         if !song.artist.isEmpty {
-                            Text(song.artist).font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
+                            CopyLine(text: song.artist, size: 12, weight: .regular, color: .isletSecondary, id: "artist", copied: $copied)
                         }
                     }
-                    .lineLimit(1)
                     .frame(width: l.textWidth, alignment: .leading)
                     .position(l.text)
                     .transition(.asymmetric(
                         insertion: .offset(x: -14).combined(with: .opacity)
                             .animation(.spring(response: 0.45, dampingFraction: 0.82).delay(0.32)),
                         removal: .opacity.animation(.easeOut(duration: 0.1))))
-                    Image(systemName: song.url == nil ? "shazam.logo" : "arrow.up.forward.app.fill")
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.isletTertiary)
-                        .position(l.bars)
+                    HStack(spacing: 6) {
+                        // Both, as "Title – Artist".
+                        cardButton(copied == "both" ? "checkmark" : "doc.on.doc", tint: copied == "both" ? .isletGreen : .isletText,
+                                   help: "Copy the song and artist") {
+                            Self.copy(song.artist.isEmpty ? song.title : "\(song.title) – \(song.artist)")
+                            copied = "both"
+                        }
+                        if let url = song.url {
+                            cardButton("arrow.up.forward", tint: .isletText, help: "Open in Apple Music") {
+                                store.endShazam()
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                    .frame(width: 58, alignment: .trailing)
+                    .position(l.bars)
                         .transition(.opacity.animation(.easeOut(duration: 0.25).delay(0.45)))
                 } else {
                     equaliser(t: t)
@@ -91,6 +113,10 @@ struct ShazamView: View {
                 }
             }
             .frame(width: Self.canvas, height: nh + CGFloat(IslandLayout.shazamCardHeight) + 8, alignment: .topLeading)
+            // Dragged up or down to stop: it follows the fingers a little, shrinking and fading as it goes.
+            .scaleEffect(1 - 0.14 * dragReach, anchor: .top)
+            .offset(y: dragOffset)
+            .opacity(1 - 0.45 * dragReach)
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.78), value: song)
         .animation(.spring(response: 0.5, dampingFraction: 0.78), value: wings)
@@ -100,6 +126,10 @@ struct ShazamView: View {
             if s != nil { Task { try? await Task.sleep(for: .seconds(1)); matchedAt = nil } }
         }
         .onChange(of: state.phase) { _, p in if p == .noMatch || failed { shakes += 1 } }
+        .onChange(of: copied) { _, c in
+            guard c != nil else { return }
+            Task { try? await Task.sleep(for: .seconds(1.4)); if copied == c { copied = nil } }
+        }
         .frame(width: Self.canvas)
     }
 
@@ -112,10 +142,29 @@ struct ShazamView: View {
         let beat = state.listening && !reduceMotion ? 1 + 0.07 * pow(sin(t * .pi * 2.2), 8) : 1
         let tint = song != nil || state.listening ? Self.blue : failed ? Color.isletRed : Color(hex: 0x636366)
         return Self.mark(size: size, tint: tint, square: song != nil)
+            .saturation(1 - 0.8 * Double(dragReach))
         .scaleEffect(beat)
         .modifier(Shake(shakes: CGFloat(shakes)))
         .animation(.easeInOut(duration: 0.45), value: shakes)
         .animation(.easeOut(duration: 0.25), value: tint)
+    }
+
+    /// A round glass button on the song's card.
+    private func cardButton(_ symbol: String, tint: Color, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .bold)).foregroundStyle(tint)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 26, height: 26).background(IsletCard(shape: Circle()))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    static func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
     }
 
     /// The Shazam mark. The symbol is a filled circle with the S cut out: over a white disc, in the tint, it reads as a
@@ -159,7 +208,7 @@ struct ShazamView: View {
                 let d = Double(i)
                 let wave = 0.5 + 0.5 * sin(t * (5.1 + d * 1.7) + d * 1.3)
                 let swell = 0.65 + 0.35 * sin(t * 1.4 + d * 0.9)
-                let h: CGFloat = state.listening && !reduceMotion ? 4 + 12 * wave * swell : 3
+                let h: CGFloat = state.listening && !reduceMotion ? 3 + (1 + 12 * wave * swell) * (1 - 0.85 * dragReach) : 3
                 Capsule()
                     .fill(state.listening ? AnyShapeStyle(LinearGradient(colors: [Color.isletCyan, Self.blue], startPoint: .top, endPoint: .bottom))
                                           : AnyShapeStyle(Color(hex: 0x48484A)))
@@ -172,7 +221,7 @@ struct ShazamView: View {
 
     /// "Listening…" with a light sweeping across it, or what went wrong.
     @ViewBuilder private func line(t: Double) -> some View {
-        let base = Text(state.text).font(.system(size: 12, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
+        let base = Text(drag?.armed == true ? "Let go to stop" : state.text).font(.system(size: 12, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
         if state.listening && !reduceMotion {
             let x = (t / 1.8).truncatingRemainder(dividingBy: 1) * 1.6 - 0.3
             base.foregroundStyle(Color.isletSecondary)
@@ -201,9 +250,9 @@ struct ShazamView: View {
             let left = cx - w / 2 + 14
             let y = nh + h / 2 - 2
             let textX = left + Self.art + 12
-            let textW = w - 14 - Self.art - 12 - 40
+            let textW = w - 14 - Self.art - 12 - 14 - 58 - 8
             return Layout(glyph: CGPoint(x: left + Self.art / 2, y: y), text: CGPoint(x: textX + textW / 2, y: y),
-                          bars: CGPoint(x: cx + w / 2 - 24, y: y), textWidth: textW)
+                          bars: CGPoint(x: cx + w / 2 - 14 - 29, y: y), textWidth: textW)
         }
         // The mark where it was pulled in; the equaliser mirrors it on the other side.
         let home = Self.markHome(fromRight: state.fromRight, wings: wings, nw: nw, nh: nh)
@@ -263,5 +312,39 @@ struct ShazamPullView: View {
         .position(x: x, y: home.y)
         .frame(width: ShazamView.canvas, height: home.y * 2 + 40, alignment: .topLeading)
         .allowsHitTesting(false)
+    }
+}
+
+/// The song's title or artist on its card: hovered, a copy icon shows beside it, and a click copies the line (the icon
+/// turns into a green check for a moment).
+private struct CopyLine: View {
+    let text: String
+    let size: CGFloat
+    let weight: Font.Weight
+    let color: Color
+    let id: String
+    @Binding var copied: String?
+    @State private var hover = false
+
+    var body: some View {
+        let done = copied == id
+        Button {
+            ShazamView.copy(text)
+            copied = id
+        } label: {
+            HStack(spacing: 5) {
+                Text(text).font(.system(size: size, weight: weight)).foregroundStyle(color).lineLimit(1)
+                Image(systemName: done ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: size - 3, weight: .semibold))
+                    .foregroundStyle(done ? Color.isletGreen : Color.isletTertiary)
+                    .contentTransition(.symbolEffect(.replace))
+                    .opacity(hover || done ? 1 : 0)
+                    .animation(.easeOut(duration: 0.15), value: hover)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .help("Copy")
     }
 }

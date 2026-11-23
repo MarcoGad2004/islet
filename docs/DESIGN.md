@@ -856,10 +856,21 @@ Owner request, 2026-11-23: name the song playing nearby from the notch.
 - **Listening** (up to 15 s): the wide bar with a body, like volume (or the chin when the menu bar has no room). The
   Shazam mark (white S on blue, 22 pt) in the left wing beats softly while three blue rings ripple out of it; a
   five-bar equaliser (cyan to blue) dances in the right wing; "Listening…" in the body with a light sweeping across
-  it. A click or a swipe up stops it.
+  it. A click stops it, or dragging it away (below).
+- **Stopping it** (owner, 2026-11-23): two fingers up or down over Shazam while it listens follow the fingers
+  instead of the usual one-shot swipe, against a band (progress = 1 − 1 / (1 + travel / 60 pt); commit point half
+  way). Up pushes it back into the notch: the island narrows (up to 46 pt) and its body draws up. Down stretches it
+  off the bottom like taffy: the body grows longer and narrower. Either way the content follows a little (up 6 pt,
+  down 10 pt), shrinks to 86% and fades to about half, the ripples fade, the equaliser flattens and the mark loses its
+  colour. At the commit point the text becomes "Let go to stop" and the trackpad clicks firmly (a light tick going
+  back over it, and as the drag first catches). Lifting past it stops listening and the island folds away; short of
+  it, it springs back (response 0.36, damping 0.62) and keeps listening. If Shazam answers mid-drag, the drag lets go.
 - **A song**: the island grows into a 360 × 76 card under the notch. The mark flies down into the artwork's place and
   grows into a 52 pt rounded square, the cover lands on it with a spring and a blue ring bursts out of it, then the
-  title (14 semibold) and artist (12, `secondary`) slide in from the left. An open-in icon on the right. A firm tap on
+  title (14 semibold) and artist (12, `secondary`) slide in from the left. On the right, two round glass buttons
+  (26 pt): copy ("Title – Artist" to the clipboard) and open in Apple Music. Hovering the title or the artist shows a
+  small copy icon beside it, and a click copies just that line. A copy turns its icon into a green check for 1.4 s,
+  with a light tap on the trackpad. A firm tap on
   the trackpad when it's found. It stays 8 s (held while hovered, 3 s after the pointer leaves). A click opens it in
   Apple Music (Shazam's page when Apple Music doesn't have it); a swipe up puts it away.
   The song is also added to the Shazam library, as Control Center's Music Recognition does, so it's in Shazam's history

@@ -55,6 +55,10 @@ final class IslandStore {
     /// Finger travel that pulls the mark half way, its commit point. Like the skip, the pull resists more the further
     /// it goes: progress = 1 - 1 / (1 + travel / shazamPullDistance).
     static let shazamPullDistance: Double = 85
+    /// Two fingers up or down over Shazam listening: stopping it follows them (DESIGN.md "Shazam", "Stopping it").
+    private(set) var shazamDrag: ShazamDrag?
+    @ObservationIgnored private var dragSpring: ValueSpring?
+    static let shazamDragDistance: Double = 60
     private(set) var progress: ConnectionProgress?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var progressAction: (() -> Void)?
@@ -813,6 +817,73 @@ final class IslandStore {
         }
     }
 
+    /// Up or down over Shazam while it listens: the drag follows the fingers instead of the usual one-shot swipe.
+    func shazamDragBegan() -> Bool {
+        guard case .shazam(let s)? = content, s.listening, !expanded, presentation == .shazam else { return false }
+        dragSpring?.stop(); dragSpring = nil
+        shazamDrag = ShazamDrag()
+        return true
+    }
+
+    /// Up pushes it back into the notch, down stretches it off the bottom, both against a band. Trackpad: a light tick
+    /// as it catches, a firm click at the commit point, a light tick going back over it.
+    func shazamDragChanged(_ dy: Double) {
+        guard var d = shazamDrag, !d.releasing else { return }
+        if dy < 0 { d.dir = -1 } else if dy > 0 { d.dir = 1 }
+        let wasArmed = d.armed
+        d.progress = 1 - 1 / (1 + abs(dy) / Self.shazamDragDistance)
+        if !d.caught, d.progress > 0.1 {
+            d.caught = true
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        }
+        if d.armed != wasArmed {
+            NSHapticFeedbackManager.defaultPerformer.perform(d.armed ? .levelChange : .alignment, performanceTime: .now)
+        }
+        shazamDrag = d
+        updateDragShape()
+    }
+
+    /// Past the point (and not flung back): it stops, the island folding away the way it was going. Short of it: it
+    /// springs back and keeps listening.
+    func shazamDragEnded(velocity: Double) {
+        guard var d = shazamDrag, !d.releasing else { return }
+        guard d.dir != 0 else { clearShazamDrag(); return }
+        let pv = (d.dir == 1 ? velocity : -velocity) * (1 - d.progress) * (1 - d.progress) / Self.shazamDragDistance
+        if d.armed && pv > -2 {
+            shazamDrag = nil
+            animator.setExtra(.zero)
+            endShazam()
+            return
+        }
+        d.releasing = true
+        shazamDrag = d
+        dragSpring?.stop()
+        dragSpring = ValueSpring(from: d.progress, to: 0, velocity: pv, response: 0.36, damping: 0.62,
+                                 update: { [weak self] x in self?.shazamDrag?.progress = max(x, 0); self?.updateDragShape() },
+                                 done: { [weak self] in self?.clearShazamDrag() })
+    }
+
+    private func clearShazamDrag() {
+        dragSpring?.stop(); dragSpring = nil
+        guard shazamDrag != nil else { return }
+        shazamDrag = nil
+        animator.setExtra(.zero)
+    }
+
+    /// Up, the island shrinks back toward the notch; down, its body stretches longer and narrower, like taffy.
+    private func updateDragShape() {
+        guard let d = shazamDrag, presentation == .shazam else { animator.setExtra(.zero); return }
+        let r = d.reach, over = max(d.progress - 0.5, 0)
+        if d.dir == -1 {
+            let narrow = 46 * r + 20 * over
+            let bodyLoss = (wingsFit ? 22 : 26) * r + 6 * over
+            animator.setExtra(IslandMetrics(sw: wingsFit ? -narrow : 0, sh: 0, bw: -narrow, bh: -bodyLoss, tr: 0, br: -6 * r, ic: 0))
+        } else {
+            let narrow = 26 * r + 14 * over
+            animator.setExtra(IslandMetrics(sw: wingsFit ? -narrow * 0.4 : 0, sh: 0, bw: -narrow, bh: 20 * r + 34 * over, tr: 0, br: 4 * r, ic: 0))
+        }
+    }
+
     /// The button in the controls, or the pull: the island listens, then shows the song. Pulled in, the mark stays on
     /// the side it came from.
     func startShazam(fromRight: Bool = false, pulled: Bool = false) {
@@ -827,6 +898,7 @@ final class IslandStore {
 
     private func shazamFinished(_ outcome: ShazamListener.Outcome) {
         guard shazam != nil else { return }
+        clearShazamDrag() // it answered mid-drag: nothing left to stop
         let phase: ShazamState.Phase = switch outcome {
         case .match(let song): .match(song)
         case .noMatch: .noMatch
@@ -854,6 +926,7 @@ final class IslandStore {
     func endShazam() {
         shazamListener.cancel()
         shazamTask?.cancel()
+        clearShazamDrag()
         guard shazam != nil else { return }
         shazam = nil
         refresh()

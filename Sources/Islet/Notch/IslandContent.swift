@@ -165,6 +165,19 @@ struct ShazamPull: Equatable {
     var reach: Double { min(max(progress / 0.5, 0), 1) }
 }
 
+/// Two fingers dragging up or down over Shazam while it listens, to stop it (DESIGN.md "Shazam", "Stopping it").
+struct ShazamDrag: Equatable {
+    /// -1 up (pushed back into the notch), +1 down (pulled off the bottom); 0 until the fingers pick a way.
+    var dir = 0
+    /// 0 untouched, 0.5 the commit point, toward 1 past it.
+    var progress = 0.0
+    var releasing = false
+    var caught = false
+
+    var armed: Bool { progress >= 0.5 }
+    var reach: Double { min(max(progress / 0.5, 0), 1) }
+}
+
 /// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
 struct ConnectionProgress: Equatable {
     enum State: Equatable {
