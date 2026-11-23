@@ -273,7 +273,7 @@ Short events; each shows, then hands back to what was showing.
 "Fully charged" also fires at the charge limit if one is set. Low battery only fires when not charging.
 
 Motion (1.4, owner request 2026-11-21, mockup `docs/mockups/charging.html`), timed from the event appearing:
-- The battery (27 × 13, the battery page's look) fades in empty. The percentage drifts up 5 pt into place, growing from
+- The battery (13 pt tall, the shared battery shape: see "Menu bar battery") fades in empty. The percentage drifts up 5 pt into place, growing from
   80% and sharpening out of a 2.5 pt blur (0.1 s, over 0.45 s).
 - From 0.15 s to 0.85 s the percentage rolls from 0 to the charge like an odometer (each digit a column that scrolls,
   fading at its top and bottom edges) and the fill grows with it. It eases in, then eases out as it lands.
@@ -292,6 +292,9 @@ feature of its own (off by default; Features list and Settings > Battery > Menu 
 the link to hide macOS's), so one icon can do the job of macOS's battery and Islet's. As a battery it always shows, whatever "Show menu bar
 icon" says, and works the same with a notch, the bezel island, the menu bar island, or none.
 
+- One battery shape everywhere (`BatteryMetrics`): the menu bar icon, the battery page (22 pt tall), quick info
+  (12 or 13 pt) and the charging animation (13 pt) differ only in height. The body is twice as long as it is tall,
+  with the gap, nub, corners, inset and outline as fixed shares of that height.
 - The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), a pale outline (40%), the charge as a solid fill, a bolt while
   charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Red
   fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.

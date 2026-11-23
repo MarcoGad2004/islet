@@ -45,7 +45,8 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
     (`MenuBarBattery`), redrawn whenever `PowerMonitor.state` changes. Its click opens `BatteryStatsPanel` (a
     borderless panel under the icon showing `BatteryStatsView`) or the island's control center. `PowerMonitor` owns a
     `BatteryHistory` (a day of samples in Application Support, gaps filled from `pmset -g log`) and reads the battery
-    temperature and the live power figures from the SMC (`SMCSensors`) with the other details.
+    temperature and the live power figures from the SMC (`SMCSensors`) with the other details. Every battery Islet
+    draws takes its proportions from `BatteryMetrics` (`BatteryBody` in SwiftUI, `MenuBarBattery` in AppKit).
 
 ## Folder layout
 

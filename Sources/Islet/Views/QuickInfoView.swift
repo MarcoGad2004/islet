@@ -78,7 +78,7 @@ struct QuickInfoView: View {
             // Plugged in (charging or holding at a limit) it's green, so the white bolt shows against the fill.
             let glyph = BatteryGlyph(percent: s.percent, tint: s.charging || s.onAC ? Color.isletGreen : low ? Color(hex: 0xFF453A) : Color.isletText,
                                      bolt: s.charging || s.onAC)
-                .frame(width: stacked ? 28 : 26, height: stacked ? 13 : 12)
+                .frame(width: BatteryMetrics.width(height: stacked ? 13 : 12), height: stacked ? 13 : 12)
                 .quickInfoPiece(.batteryIcon, ns)
             if stacked {
                 VStack(spacing: 2) { percent; glyph }

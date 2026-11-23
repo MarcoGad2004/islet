@@ -34,15 +34,19 @@ enum MenuBarBattery {
         let low = !onAC && percent <= lowPercent
         let fillColor: NSColor? = low ? .systemRed : lowPower ? .systemYellow : nil
         let mark: String? = charging ? "bolt.fill" : onAC ? "powerplug.portrait.fill" : nil
-        let size = NSSize(width: 31, height: 15)
+        // The shared shape (`BatteryMetrics`), 13.5 pt tall.
+        let h: CGFloat = 13.5
+        let size = NSSize(width: ceil(BatteryMetrics.width(height: h)) + 1, height: 15)
         let image = NSImage(size: size, flipped: false) { _ in
             let ink = fillColor == nil ? NSColor.black : NSColor.labelColor
-            let body = NSRect(x: 0.5, y: 0.75, width: 27, height: 13.5)
-            let inner = body.insetBy(dx: 2, dy: 2)
+            let line = BatteryMetrics.lineWidth(height: h)
+            let body = NSRect(x: line / 2, y: (15 - h) / 2 + line / 2, width: h * BatteryMetrics.bodyLength - line, height: h - line)
+            let inner = body.insetBy(dx: h * BatteryMetrics.inset - line / 2, dy: h * BatteryMetrics.inset - line / 2)
             let share = CGFloat(min(max(percent, 0), 100)) / 100
             let fill = NSRect(x: inner.minX, y: inner.minY, width: max(1.5, inner.width * share), height: inner.height)
             (fillColor ?? ink).setFill()
-            NSBezierPath(roundedRect: fill, xRadius: 1.8, yRadius: 1.8).fill()
+            let fillCorner = max(1, h * (BatteryMetrics.corner - BatteryMetrics.inset))
+            NSBezierPath(roundedRect: fill, xRadius: fillCorner, yRadius: fillCorner).fill()
 
             if let mark, let symbol = symbol(mark) {
                 let s = symbol.size
@@ -56,12 +60,15 @@ enum MenuBarBattery {
                 tinted(symbol, ink).draw(in: at)
             }
 
-            let outline = NSBezierPath(roundedRect: body, xRadius: 4, yRadius: 4)
-            outline.lineWidth = 1
-            ink.withAlphaComponent(0.4).setStroke()
+            let corner = h * BatteryMetrics.corner - line / 2
+            let outline = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
+            outline.lineWidth = line
+            ink.withAlphaComponent(BatteryMetrics.outlineOpacity).setStroke()
             outline.stroke()
-            let nub = NSBezierPath(roundedRect: NSRect(x: 28.4, y: 5.4, width: 2, height: 4.2), xRadius: 1, yRadius: 1)
-            ink.withAlphaComponent(0.4).setFill()
+            let nubW = h * BatteryMetrics.nubWidth, nubH = h * BatteryMetrics.nubHeight
+            let nubRect = NSRect(x: h * (BatteryMetrics.bodyLength + BatteryMetrics.gap), y: 7.5 - nubH / 2, width: nubW, height: nubH)
+            let nub = NSBezierPath(roundedRect: nubRect, xRadius: nubW / 2, yRadius: nubW / 2)
+            ink.withAlphaComponent(BatteryMetrics.outlineOpacity).setFill()
             nub.fill()
             return true
         }

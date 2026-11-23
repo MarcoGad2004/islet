@@ -11,7 +11,7 @@ struct BatteryPage: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 14) {
                 BatteryGlyph(percent: s.percent, tint: Self.tint(s), bolt: s.charging || s.onAC, limit: d.chargeLimit)
-                    .frame(width: 49, height: 22) // the menu bar battery's proportions: a body twice as long as it is tall
+                    .frame(width: BatteryMetrics.width(height: 22), height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     RollingNumber(value: Double(s.percent) / 100, suffix: "%", size: 28)
                         .foregroundStyle(Color.isletText)
@@ -211,7 +211,8 @@ private struct StatTile: View {
     }
 }
 
-/// A battery drawn to scale: outline, the charge as a fill, a nub, and a bolt while plugged in.
+/// A battery in the shared shape (`BatteryBody`), with a bolt while plugged in and a tick at the charge limit. Frame
+/// it `BatteryMetrics.width(height:)` by the height.
 struct BatteryGlyph: View {
     var percent: Int
     var tint: Color
@@ -221,18 +222,11 @@ struct BatteryGlyph: View {
 
     var body: some View {
         GeometryReader { geo in
-            let nub = geo.size.width * 0.07
-            let w = geo.size.width - nub - 1.5, h = geo.size.height
-            let inset: CGFloat = 2.5
-            HStack(spacing: 1.5) {
+            let h = geo.size.height
+            let inset = h * BatteryMetrics.inset
+            let w = h * BatteryMetrics.bodyLength
+            BatteryBody(level: Double(percent) / 100, tint: tint) {
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: h * 0.3, style: .continuous)
-                        .stroke(Color.isletText.opacity(0.45), lineWidth: 1.4)
-                    RoundedRectangle(cornerRadius: h * 0.3 - inset, style: .continuous)
-                        .fill(tint)
-                        .frame(width: max(2, (w - 2 * inset) * CGFloat(min(max(percent, 0), 100)) / 100))
-                        .padding(inset)
-                        .animation(.levelGlide, value: percent)
                     if let limit {
                         Rectangle().fill(Color.isletText.opacity(0.6)).frame(width: 1.2, height: h + 4)
                             .offset(x: inset + (w - 2 * inset) * CGFloat(limit) / 100 - 0.6)
@@ -244,9 +238,9 @@ struct BatteryGlyph: View {
                             .frame(width: w, height: h)
                     }
                 }
-                .frame(width: w, height: h)
-                RoundedRectangle(cornerRadius: 1.5).fill(Color.isletText.opacity(0.45)).frame(width: nub, height: h * 0.36)
+                .frame(width: w, height: h, alignment: .leading)
             }
+            .animation(.levelGlide, value: percent)
         }
     }
 }

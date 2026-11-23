@@ -80,30 +80,16 @@ struct ChargeBattery: View {
 
     var body: some View {
         ChargeClock(event: event) { tl in
-            let low = event.kind == .low
-            let bodyW: CGFloat = 24, h: CGFloat = 13, inset: CGFloat = 2.5
-            HStack(spacing: 1) {
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .strokeBorder(Color.isletText.opacity(0.45), lineWidth: 1.4)
-                    RoundedRectangle(cornerRadius: 1.6, style: .continuous)
-                        .fill(low ? Color.isletRed : Color.isletGreen)
-                        .frame(width: max(2, (bodyW - 2 * inset) * tl.value / 100), height: h - 2 * inset)
-                        .padding(.leading, inset)
+            let h: CGFloat = 13
+            BatteryBody(level: tl.value / 100, tint: event.kind == .low ? Color.isletRed : Color.isletGreen) {
+                if let b = tl.bolt {
+                    ChargeBolt().frame(width: 12, height: 17)
+                        .scaleEffect(b.scale)
+                        .rotationEffect(.degrees((1 - b.scale) * -12))
+                        .opacity(b.opacity)
                 }
-                .frame(width: bodyW, height: h)
-                .overlay {
-                    if let b = tl.bolt {
-                        ChargeBolt().frame(width: 12, height: 17)
-                            .scaleEffect(b.scale)
-                            .rotationEffect(.degrees((1 - b.scale) * -12))
-                            .opacity(b.opacity)
-                    }
-                }
-                RoundedRectangle(cornerRadius: 1, style: .continuous).fill(Color.isletText.opacity(0.45))
-                    .frame(width: 2, height: 5)
             }
-            .frame(width: 27, height: h)
+            .frame(width: BatteryMetrics.width(height: h), height: h)
             .scaleEffect(tl.bounce)
         }
     }
