@@ -30,7 +30,6 @@ struct BatteryStatsView: View {
                 row("Cycle Count", d.cycles.map { "\($0)" } ?? "–")
                 row("Temperature", d.temperature.map(Self.temperature) ?? "–")
                 row("Battery Health", health(d))
-                if let limit = d.chargeLimit { row("Charge Limit", "\(limit)%") }
                 if d.lowPower { row("Low Power Mode", "On") }
             }
             divider
@@ -89,13 +88,17 @@ struct BatteryStatsView: View {
             rows.append(("Status", "Fully Charged"))
         } else if let limit = d.chargeLimit, s.onAC, s.percent >= limit - 1 {
             rows.append(("Status", "Holding at \(limit)%"))
+        } else if s.charging, let limit = d.chargeLimit {
+            // To the limit, not to 100% (macOS's own estimate is to full).
+            rows.append(("Time to \(limit)%", BatteryPage.minutesToFull(d, target: limit).map(duration) ?? "Calculating…"))
         } else if s.charging {
-            rows.append(("Time to Full", s.minutesToFull.map(duration) ?? "Calculating…"))
+            rows.append(("Time to Full", (BatteryPage.minutesToFull(d, target: 100) ?? s.minutesToFull).map(duration) ?? "Calculating…"))
         } else if s.onAC {
             rows.append(("Status", "Not Charging"))
         } else {
             rows.append(("Time Left", s.minutesToEmpty.map(duration) ?? "Calculating…"))
         }
+        if let limit = d.chargeLimit { rows.append(("Charge Limit", "\(limit)%")) }
         if !s.onAC, let unplugged {
             rows.append(("Since Unplugged", duration(max(0, Int(now.timeIntervalSince(unplugged) / 60)))))
         }

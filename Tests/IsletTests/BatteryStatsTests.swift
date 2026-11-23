@@ -82,6 +82,13 @@ final class BatteryStatsTests: XCTestCase {
         XCTAssertTrue(rows[1].1.contains("26"))
         let charging = BatteryStatsView.chargeRows(state(40, ac: true, charging: true), PowerMonitor.Details(), unplugged: nil)
         XCTAssertEqual(charging.map(\.0), ["Time to Full"])
+        // With a charge limit: the time to the limit, and the limit right under it.
+        var limited = PowerMonitor.Details()
+        limited.chargeLimit = 85
+        limited.currentMAh = 3000; limited.fullMAh = 6000; limited.voltage = 12; limited.batteryWatts = 36
+        let toLimit = BatteryStatsView.chargeRows(state(50, ac: true, charging: true), limited, unplugged: nil)
+        XCTAssertEqual(toLimit.map(\.0), ["Time to 85%", "Charge Limit"])
+        XCTAssertEqual(toLimit[0].1, BatteryStatsView.duration(42)) // 36 Wh to 61.2 Wh at 36 W
     }
 
     func testIconIsTemplateUnlessColoured() {

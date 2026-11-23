@@ -305,10 +305,10 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   The percentage sits to its left unless "Show percentage" is off.
 - Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.
 - The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt dark glass
-  panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or the
-  status) and time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or
-  °C by region), battery health (System Settings' maximum capacity), the charge limit and Low Power Mode when they
-  apply; a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
+  panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or "Time to 85%"
+  with a charge limit, timed to the limit, or the status), the charge limit right under it when there is one, and
+  time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or °C by
+  region), battery health (System Settings' maximum capacity), and Low Power Mode when it's on; a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
   the bottom; a rule; "Power distribution", a flow diagram: Charger, Mac and Battery as round glass nodes in a row
   with their watts under them, a line from the charger into the Mac, one from the battery into the Mac, and an arc
   from the charger over the Mac into the battery. A line runs only while power moves along it (faint rails

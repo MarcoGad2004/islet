@@ -102,7 +102,7 @@ struct BatteryPage: View {
     }
 
     /// Energy still to go in, up to `target` percent, over what's flowing into the battery now.
-    private static func minutesToFull(_ d: PowerMonitor.Details, target: Int) -> Int? {
+    static func minutesToFull(_ d: PowerMonitor.Details, target: Int) -> Int? {
         guard let now = d.storedWh, let full = d.fullWh, let w = d.batteryWatts, w > 0.5 else { return nil }
         let goal = full * Double(target) / 100
         guard goal > now else { return nil }
