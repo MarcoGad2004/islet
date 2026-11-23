@@ -33,6 +33,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - **Longer notifications.** They grow downward to fit their text, up to 6 lines in the bar and 10 on the hover card, so most can be read without hovering.
 - **Replies clear the badge.** Replying from the notch now clears the red badge in Messages. Once you close the conversation, Messages flashes forward for a moment with the chat open so it marks it read (it no longer interrupts you after each reply). This works for one-to-one chats only; group chats can't be opened that way.
+- **Contact photos in Messages.** The inbox and a conversation's header show the person's photo from Contacts, where they have one. Group chats keep their initial.
 - **Smoother replies.** Sending no longer stalls the notch for a moment while Messages takes the message: it shows at once and goes out in the background.
 - **AirPods connect once, in the notch.** When AirPods or another device connect, only the notch shows it: with Notifications in the notch on, the macOS "Connected" card in the top-right corner stays away. The notch also no longer sometimes shows the same connection twice.
 

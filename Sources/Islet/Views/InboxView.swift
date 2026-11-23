@@ -58,8 +58,7 @@ struct InboxView: View {
         let new = c.unread > 0
         return Button { store.openChat(c.chatID, fromInbox: true) } label: {
             HStack(spacing: 10) {
-                Circle().fill(ConversationView.color(for: c.chatID)).frame(width: 34, height: 34)
-                    .overlay(Text(c.initial).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white))
+                ChatAvatar(photo: messages.photo(forChat: c.chatID), initial: c.initial, chatID: c.chatID, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(c.title).font(.system(size: 13, weight: new ? .bold : .semibold)).foregroundStyle(Color.isletText).lineLimit(1)

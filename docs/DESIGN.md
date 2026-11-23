@@ -588,7 +588,8 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - **Click or Reply**: opens the conversation in the panel instead of the Messages app (Settings > General "Open
   Messages conversations in the notch", on by default; off, it opens Messages). It's found in Messages' history by the
   notification's text; if it can't be, Messages opens as before.
-- **Conversation page** (500 x 300 under the stem): a header with a 32 pt round initial (a colour per conversation),
+- **Conversation page** (500 x 300 under the stem): a header with a 32 pt round picture: the person's Contacts photo in a one-to-one chat
+  (owner request, 2026-11-23), else an initial (a colour per conversation),
   the name (14 semibold; contact names from Contacts, else the number; a group's own name, else its people's names),
   "iMessage" / "Text Message" / "4 people · iMessage" (11, `tertiary`), an "Open in Messages ↗" pill and the collapse
   arrow. Then the latest 50 messages, newest at the bottom: theirs on `#2C2C2E`, yours blue `#0A84FF` (iMessage) or green
@@ -621,7 +622,8 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
   as reading what came before it there (the island can't mark messages read in Messages).
 - Click it for the inbox, in the panel at the conversation's height: "‹ MESSAGES", "n new" in blue and Open Messages,
   then chats with unread messages first (bold name, the preview in white, the time and a count in blue, a faint card
-  behind) and the other chats from the last 30 days (12 at most) under them.
+  behind) and the other chats from the last 30 days (12 at most) under them. Each row starts with the same picture as
+  the conversation's header (Contacts photo or initial), 34 pt.
 - A row opens its conversation, whose header gets a back button to the inbox. Reading a conversation in the island
   doesn't clear it: the island can only read Messages' history, so it stays unread until it's read in Messages or on
   another device.

@@ -36,8 +36,8 @@ struct ConversationView: View {
                 }
                 .buttonStyle(.plain).help("Inbox")
             }
-            Circle().fill(Self.color(for: conversation.chatID)).frame(width: 32, height: 32)
-                .overlay(Text(conversation.initial).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white))
+            ChatAvatar(photo: store.messages?.photo(forChat: conversation.chatID), initial: conversation.initial,
+                       chatID: conversation.chatID, size: 32)
             VStack(alignment: .leading, spacing: 1) {
                 Text(conversation.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
                 Text(conversation.subtitle).font(.system(size: 11)).foregroundStyle(Color.isletTertiary).lineLimit(1)
@@ -248,6 +248,27 @@ struct ConversationView: View {
     static func color(for id: Int64) -> Color {
         let colors: [UInt32] = [0x5E5CE6, 0xFF9F0A, 0x64D2FF, 0xBF5AF2, 0xFF375F, 0x30D158, 0x0A84FF]
         return Color(hex: colors[Int(abs(id) % Int64(colors.count))])
+    }
+}
+
+/// A chat's picture: the person's photo from Contacts, else their initial on the chat's colour.
+struct ChatAvatar: View {
+    let photo: NSImage?
+    let initial: String
+    let chatID: Int64
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let photo {
+                Image(nsImage: photo).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
+            } else {
+                ConversationView.color(for: chatID)
+                    .overlay(Text(initial).font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white))
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 }
 

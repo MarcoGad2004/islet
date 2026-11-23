@@ -461,6 +461,20 @@ final class MessagesStore {
 
     private func name(for handle: String) -> String { names?.name(for: handle) ?? Self.pretty(handle) }
 
+    @ObservationIgnored private var chatHandles: [Int64: [String]] = [:]
+
+    /// The contact photo for a one-to-one chat, when the person has one in Contacts. Groups have none (their initial shows).
+    func photo(forChat chatID: Int64) -> NSImage? {
+        let handles = chatHandles[chatID] ?? {
+            let h = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chatID])
+                .compactMap { $0[0] as? String }
+            chatHandles[chatID] = h
+            return h
+        }()
+        guard handles.count == 1 else { return nil }
+        return names?.photo(for: handles[0])
+    }
+
     /// Messages writes its write-ahead log as messages arrive: re-read the open conversation then.
     private func watch() {
         watcher?.cancel()
@@ -611,6 +625,11 @@ final class MessagesStore {
 final class ContactNames {
     private var byPhone: [String: String] = [:]
     private var byEmail: [String: String] = [:]
+    /// Contact photo thumbnails, by contact, and which contact each number or email belongs to.
+    private var photoData: [String: Data] = [:]
+    private var photoByPhone: [String: String] = [:]
+    private var photoByEmail: [String: String] = [:]
+    private var photos: [String: NSImage] = [:]
     private var loaded = false
 
     func load() {
@@ -629,16 +648,31 @@ final class ContactNames {
         }
         loaded = true
         let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactNicknameKey, CNContactOrganizationNameKey,
-                    CNContactPhoneNumbersKey, CNContactEmailAddressesKey] as [CNKeyDescriptor]
+                    CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactThumbnailImageDataKey] as [CNKeyDescriptor]
         var phones: [String: String] = [:], emails: [String: String] = [:]
+        var data: [String: Data] = [:], photoPhones: [String: String] = [:], photoEmails: [String: String] = [:]
         try? store.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
             let full = [c.givenName, c.familyName].filter { !$0.isEmpty }.joined(separator: " ")
             let name = !c.nickname.isEmpty ? c.nickname : !full.isEmpty ? full : c.organizationName
             guard !name.isEmpty else { return }
             for p in c.phoneNumbers { phones[String(p.value.stringValue.filter(\.isNumber).suffix(10))] = name }
             for e in c.emailAddresses { emails[(e.value as String).lowercased()] = name }
+            guard let thumb = c.thumbnailImageData else { return }
+            data[c.identifier] = thumb
+            for p in c.phoneNumbers { photoPhones[String(p.value.stringValue.filter(\.isNumber).suffix(10))] = c.identifier }
+            for e in c.emailAddresses { photoEmails[(e.value as String).lowercased()] = c.identifier }
         }
         byPhone = phones; byEmail = emails
+        photoData = data; photoByPhone = photoPhones; photoByEmail = photoEmails
+    }
+
+    func photo(for handle: String) -> NSImage? {
+        let id = handle.contains("@") ? photoByEmail[handle.lowercased()] : photoByPhone[String(handle.filter(\.isNumber).suffix(10))]
+        guard let id else { return nil }
+        if let i = photos[id] { return i }
+        guard let d = photoData[id], let i = NSImage(data: d) else { return nil }
+        photos[id] = i
+        return i
     }
 
     func name(for handle: String) -> String? {
