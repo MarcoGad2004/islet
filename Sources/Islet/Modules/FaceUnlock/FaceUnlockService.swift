@@ -220,9 +220,9 @@ final class FaceUnlockService {
             island.setBase(.scan)
 
             let faces = owner.faces
-            let engine = ScanEngine(embedder: embedder, antiSpoof: faces.spoofModel ? owner.antiSpoof : nil,
+            let engine = ScanEngine(embedder: embedder, antiSpoof: owner.antiSpoof,
                                     enrolled: faces.allEmbeddings, threshold: faces.effectiveThreshold,
-                                    liveness: faces.liveness, blinkFallback: faces.blinkFallback) { event in
+                                    security: faces.security) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine
@@ -237,8 +237,8 @@ final class FaceUnlockService {
                 }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
-            // Only Automatic lights the face; the glow needs ~1.3 s to reach full strength, so start it now.
-            if faces.liveness == .automatic { FaceGlow.shared.warm() }
+            // The glow may be needed, and it takes ~1.3 s to reach full strength: start it now, unseen.
+            if faces.security.usesGlow { FaceGlow.shared.warm() }
             Self.log.info("scan started simulated=\(simulated)")
             startNoFaceTimer()
             timeout = Task { [weak self] in
@@ -286,11 +286,12 @@ final class FaceUnlockService {
             Self.log.notice("pulse passed=\(verdict.passed) \(verdict.reason ?? "", privacy: .public) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) relative=\(r?.relative ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
         case .pulseSkipped(let why):
             Self.log.notice("pulse skipped: \(why, privacy: .public)")
-        case .match(let score, let embedding, let live, let typical, let pulse):
-            Self.log.notice("match score=\(score) typical=\(typical) live=\(live) pulse=\(pulse != nil)")
+        case .match(let score, let embedding, let via, let typical, let pulse):
+            Self.log.notice("match score=\(score) typical=\(typical) via=\(via, privacy: .public)")
             model.challenge = nil
-            pendingLearn = live ? embedding : nil
-            pendingScore = live ? typical : nil
+            // Every match showed it's live one way or another, so it's safe to learn from once the Mac opens.
+            pendingLearn = embedding
+            pendingScore = typical
             pendingPulse = pulse?.profile
             model.phase = .match
             model.matchedAt = Date()
@@ -346,7 +347,7 @@ final class FaceUnlockService {
 
     /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.
     private func brightenIfDark(_ luma: Double) {
-        guard owner.faces.brightenInDark, !brightened else { return }
+        guard !brightened else { return }
         darkSamples = luma < Self.darkLuma ? darkSamples + 1 : 0
         guard darkSamples >= 3 else { return }
         Self.log.info("dark room luma=\(luma), brightening")

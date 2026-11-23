@@ -65,23 +65,26 @@ final class AntiSpoofModel: @unchecked Sendable {
     }
 }
 
-/// The spoof model's view of one scan: the mean of its recent frames.
+/// The spoof model's view of one scan: its recent frames, judged against a security level.
 struct SpoofTracker {
     enum Verdict: Equatable { case unknown, live, unsure, spoof }
-    /// Mean at or above this vouches for the face (with the pulse, it lets Automatic skip the challenge).
-    static let liveLevel: Float = 0.75
-    /// Mean below this over enough frames refuses the face, like a photo edge.
-    static let spoofLevel: Float = 0.25
-    static let window = 12
+    /// The longest any level looks back.
+    static let window = 20
+    /// Frames below `refuseLevel` needed to refuse.
+    static let refuseFrames = 6
 
     private(set) var values: [Float] = []
     mutating func add(_ v: Float) { values.append(v); if values.count > Self.window { values.removeFirst() } }
     mutating func reset() { values = [] }
-    var mean: Float? { values.isEmpty ? nil : values.reduce(0, +) / Float(values.count) }
-    var verdict: Verdict {
-        guard let mean, values.count >= 4 else { return .unknown }
-        if mean >= Self.liveLevel { return .live }
-        if values.count >= 6, mean < Self.spoofLevel { return .spoof }
-        return .unsure
+    var mean: Float? { mean(last: values.count) }
+    /// Mean of the last `n` frames, nil until there are that many.
+    func mean(last n: Int) -> Float? {
+        guard n > 0, values.count >= n else { return nil }
+        return values.suffix(n).reduce(0, +) / Float(n)
+    }
+    func verdict(_ level: FaceSecurity) -> Verdict {
+        if let m = mean(last: level.spoofFrames), m >= level.liveLevel { return .live }
+        if let m = mean(last: Self.refuseFrames), m < level.refuseLevel { return .spoof }
+        return values.count >= level.spoofFrames ? .unsure : .unknown
     }
 }

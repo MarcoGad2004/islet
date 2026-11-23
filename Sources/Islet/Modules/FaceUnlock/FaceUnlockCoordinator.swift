@@ -143,7 +143,7 @@ final class FaceUnlockCoordinator {
         let enrolled = faces.allEmbeddings
         let threshold = faces.effectiveThreshold
         let analyzer = self.analyzer
-        let antiSpoof = faces.spoofModel ? self.antiSpoof : nil
+        let antiSpoof = self.antiSpoof
         // Every other frame: often enough to catch a blink (~100-150 ms). Every frame while the light check records.
         let counter = FrameCounter(every: 2)
         let liveness = TestLiveness()

@@ -131,17 +131,46 @@ enum LivenessChallenge: CaseIterable, Sendable {
     }
 }
 
-/// How face unlock checks the face is live (Settings > Face Unlock).
-enum LivenessMode: String, CaseIterable, Sendable {
-    /// Match only (a held-up photo or screen is still refused by the edge check).
-    case off
-    /// No action needed when the screen-light check and the spoof model both vouch for the face; otherwise a random
-    /// challenge, as `random`.
-    case automatic
-    /// Always a blink.
-    case blink
-    /// A blink, a smile or a head turn, picked at random each attempt.
-    case random
+/// How hard face unlock checks that the face is live (Settings > Face Unlock > Security; owner's design,
+/// 2026-11-23). Each level tries the quiet checks first and goes further only when it isn't sure:
+/// 1. the spoof model, over the last `spoofFrames` frames: at or above `liveLevel` it unlocks at once;
+/// 2. the glow (`usesGlow`): the screen lights the face and its shape has to answer, with the spoof model at least at
+///    `glowSpoofFloor`;
+/// 3. a challenge, the last resort: a blink, or with `randomChallenge` a blink, smile or head turn.
+/// Below `refuseLevel` the spoof model refuses the face outright, like a held-up photo's edge.
+enum FaceSecurity: String, CaseIterable, Sendable {
+    /// Trusts the spoof model sooner and never lights the screen: a good video on a phone could get through.
+    case faster
+    case standard
+    /// Lights the screen unless the spoof model is very sure, and asks for a random challenge last.
+    case secure
+
+    var liveLevel: Float {
+        switch self { case .faster: 0.75; case .standard: 0.90; case .secure: 0.97 }
+    }
+    /// Spoof model frames averaged for `liveLevel` (the camera runs at ~30 fps).
+    var spoofFrames: Int {
+        switch self { case .faster: 6; case .standard: 12; case .secure: 20 }
+    }
+    var refuseLevel: Float { self == .secure ? 0.35 : 0.25 }
+    var usesGlow: Bool { self != .faster }
+    /// After the glow vouches, the spoof model still has to lean this way.
+    var glowSpoofFloor: Float { self == .secure ? 0.75 : 0.5 }
+    var randomChallenge: Bool { self == .secure }
+
+    var title: String {
+        switch self { case .faster: "Faster"; case .standard: "Standard"; case .secure: "More secure" }
+    }
+    var summary: String {
+        switch self {
+        case .faster:
+            "Unlocks as soon as the spoof model is fairly sure your face is real, and asks for a blink when it isn't. The screen never lights up. A good video of you on a phone could get through."
+        case .standard:
+            "Unlocks at once when the spoof model is sure. When it isn't, the screen glows briefly to check your face's shape, and a blink is the last resort."
+        case .secure:
+            "Unlocks at once only when the spoof model is very sure. Otherwise the screen glows to check your face's shape, and a random blink, smile or head turn is the last resort. Slower, and the glow shows more often."
+        }
+    }
 }
 
 /// Watches the frames for one challenge. Each measure is compared with the face's own resting level in this scan,

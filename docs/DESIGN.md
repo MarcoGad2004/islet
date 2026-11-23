@@ -186,11 +186,25 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 - **Looking**: a face-shaped grid of dots (7 × 7 grid at 8 pt spacing, keeping the dots within a
   26 pt radius of the centre: about 33 dots, shown at ≈1.35×) inside a thin ring (`#2C2C2E`). A
   cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
-  "Checking" once a face is in view, and the liveness challenge once the face matches: by default one of
-  "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at random each
-  attempt, with 8 s to do it (Settings: Automatic, Random, Blink only, or Off).
-- **Light check** (Automatic, the default; owner request 2026-11-22): once the face matches, the label stays
-  "Checking" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
+  "Checking" once a face is in view, and the liveness challenge if one is needed (below): "Blink to unlock", or on
+  More secure one of "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at
+  random each attempt, with 8 s to do it.
+- **Security** (owner's design, 2026-11-23; replaces the Automatic / Random / Blink / Off modes, the spoof model
+  switch and "just ask me to blink"): one choice of three. Each tries the quietest check first and goes further only
+  when it isn't sure. The spoof model runs on every frame with a face from the start; once the face matches:
+
+  | | Faster | Standard (default) | More secure |
+  |---|---|---|---|
+  | Spoof model unlocks at once at | ≥ 0.75 | ≥ 0.90 | ≥ 0.97 |
+  | averaged over | 6 frames (~0.2 s) | 12 (~0.4 s) | 20 (~0.7 s) |
+  | When it isn't sure | blink | glow, then blink | glow, then a random challenge |
+  | Glow also needs the spoof model at | n/a | ≥ 0.5 | ≥ 0.75 |
+  | Refuses below (6 frames) | 0.25 | 0.25 | 0.35 |
+
+  There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
+  Off to Faster, the rest to Standard.
+- **Light check** (Standard and More secure, when the spoof model isn't sure; owner request 2026-11-22): the label
+  stays "Checking" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
   depended on the wallpaper being bright): after a random 0.3-0.45 s wait, a full-screen layer of white on the
   built-in display fades in over 0.3 s, holds 0.28 s, then takes four steps between a lower and a higher level in a
   random order (at least two up, one down; 0.15 s eased step, 0.28 s hold each), and fades out over 0.3 s: ~2.3 s
@@ -200,14 +214,13 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   sensor): the higher level is 0.08 + lux / 2000 of the panel's peak (at most 0.65), the lower one at least SDR white
   and 1.6× under the higher, using the XDR panel's extra brightness when it's needed; a dim room gets a gentle glow, a
   bright one a strong one. Where the glow can't be drawn, the brightness swells once instead (up 0.3, or down if the
-  screen is above 0.7, over 0.25 s, held 0.35 s, back over 0.3 s). If the light check and the spoof model both
-  vouch for the face, it's the match with nothing to do; otherwise the random challenge is asked, as Random.
-  Optional (owner request 2026-11-23, off by default): Automatic's fallback is always "Blink to unlock".
+  screen is above 0.7, over 0.25 s, held 0.35 s, back over 0.3 s). If the light check vouches and the spoof model
+  is at least at the level's floor, it's the match with nothing to do; otherwise the level's challenge is asked.
   It's judged as soon as its last step has held (the light still fades out afterwards). **Harsh light** (owner
   request 2026-11-23): when the camera sees direct sun on the face (one side ≥ 3× brighter than the other, or ≥ 6% of
   the face blown out), or the light sensor reads over 1500 lux, there's no glow: the challenge is asked as soon as the
   face matches. The same for the rest of the scan once a glow got no response.
-- **Dark room**: if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
+- **Dark room** (always on since 1.6): if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
 - **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),
   turning green; the ring turns green; label "Welcome back". After ≈0.9 s the shape pulls up and
@@ -437,8 +450,9 @@ Convenience, explicitly weaker than Touch ID. Agreed by the owner.
 - 3 attempts per lock, then stop.
 - Only the Mac's built-in camera is used (never Continuity Camera, USB or virtual cameras).
 - Spoof checks on every scan: a rectangle edge around the face, and a spoof model (MiniFASNet) that refuses
-  a face it's sure is a print or screen. Automatic adds the light check (Face scan, above).
-- Optional adaptive threshold: after 20 confirmed unlocks, the threshold rises to just under the owner's usual
+  a face it's sure is a print or screen, and the Security level's light check and challenge (Face scan, above).
+- "Learn my face from unlocks" (on by default; since 1.6 one switch for what were two): adds new looks, learns how
+  the face answers the glow, and after 20 confirmed unlocks raises the threshold to just under the owner's usual
   scores, never below the slider and at most 0.15 above it.
 - Setup in Settings: confirm with Touch ID or the password, look at the camera to enrol, then enter
   the login password to store in the Keychain. Face data and the password never leave the Mac.
@@ -779,7 +793,8 @@ docs/mockups/settings.html).
   under "Not a permission". Islet checks everything again whenever the window comes to the front, so allowing one in
   System Settings and coming back clears it.
 - **Face Unlock**: one status line (on, off, not set up, needs attention) with the explanation, then the face (Scan
-  Again…, "Enrolled · 7 of 24 looks learned") and password (Change…), Test recognition, Protection and learning, and
+  Again…, "Enrolled · 7 of 24 looks learned") and password (Change…), Test recognition, Security and learning (the Security choice with the chosen level's description, the learning
+  switch, learned looks), and
   Remove at the bottom.
 - **Search**: a switch for search itself, then "Shortcut" (the choice under "Search", "Opening"), then "Results": the
   Ask Siri switch (with "Needs Accessibility…" in orange when it's off) and the web search engine.

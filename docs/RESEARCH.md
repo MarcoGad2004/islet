@@ -125,6 +125,14 @@ lock screen. Each question below can block it:
       window shows over the lock screen (the island's own does, through the same space), that the headroom rises
       while locked, and every threshold on real faces with the new light. Test recognition → Check Light runs the
       real glow and shows the lux.
+    - *Security levels (2026-11-23, owner):* the spoof model now runs on every frame (was every other) and decides
+      first; the glow only runs when it's unsure (`FaceSecurity` holds every threshold). First Check Light on the
+      owner's face (before the capture-time fix) read "no response to the light, depth −0.05, shape 0.00" with the
+      spoof model at 1.00: frames had been stamped after analysis, 100 ms+ late against 0.2 s windows. They now carry
+      the camera's capture time (a `CVBuffer` attachment set in `captureOutput`), and Check Light writes
+      `~/Library/Application Support/Islet/light-check.csv` (per-frame window, commanded level, patches, background,
+      frame luma). **Thresholds still guesses:** a photo and a phone video of the owner need scoring in Test
+      recognition before Faster can be trusted.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

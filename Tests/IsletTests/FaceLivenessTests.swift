@@ -198,13 +198,32 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertEqual(FacePulse.judge([], schedule: schedule, exposureHeld: true, learned: []).reason, "too few frames")
     }
 
-    func testBlinkOnlyFallback() {
+    func testChallengeByLevel() {
         for _ in 0..<20 {
-            XCTAssertEqual(ScanEngine.pick(.automatic, blinkFallback: true), .blink)
-            XCTAssertEqual(ScanEngine.pick(.blink, blinkFallback: false), .blink)
+            XCTAssertEqual(ScanEngine.pick(.faster), .blink)
+            XCTAssertEqual(ScanEngine.pick(.standard), .blink)
         }
-        // Without it, Automatic's fallback varies like Random.
-        XCTAssertGreaterThan(Set((0..<60).map { _ in ScanEngine.pick(.automatic, blinkFallback: false) }).count, 1)
+        XCTAssertGreaterThan(Set((0..<60).map { _ in ScanEngine.pick(.secure) }).count, 1)
+    }
+
+    func testOldModesMoveToTheNearestLevel() {
+        XCTAssertEqual(FaceStore.migratedSecurity("automatic"), .standard)
+        XCTAssertEqual(FaceStore.migratedSecurity("blink"), .standard)
+        XCTAssertEqual(FaceStore.migratedSecurity("random"), .secure)
+        XCTAssertEqual(FaceStore.migratedSecurity("off"), .faster)
+        XCTAssertEqual(FaceStore.migratedSecurity(nil), .standard)
+    }
+
+    func testLevelsGetStricter() {
+        let levels = FaceSecurity.allCases
+        XCTAssertEqual(levels, [.faster, .standard, .secure])
+        for (a, b) in zip(levels, levels.dropFirst()) {
+            XCTAssertLessThan(a.liveLevel, b.liveLevel)
+            XCTAssertLessThan(a.spoofFrames, b.spoofFrames)
+            XCTAssertLessThanOrEqual(a.refuseLevel, b.refuseLevel)
+        }
+        XCTAssertFalse(FaceSecurity.faster.usesGlow)
+        XCTAssertTrue(FaceSecurity.standard.usesGlow && FaceSecurity.secure.usesGlow)
     }
 
     // MARK: Harsh light
@@ -264,15 +283,19 @@ final class FaceLivenessTests: XCTestCase {
 
     func testSpoofTrackerNeedsAFewFrames() {
         var t = SpoofTracker()
-        for _ in 0..<3 { t.add(0.05) }
-        XCTAssertEqual(t.verdict, .unknown)
+        for _ in 0..<5 { t.add(0.05) }
+        XCTAssertEqual(t.verdict(.standard), .unknown) // fake-looking, but not yet enough frames to refuse
         t.add(0.05)
-        XCTAssertEqual(t.verdict, .unsure) // fake-looking, but not yet enough frames to refuse
-        for _ in 0..<2 { t.add(0.05) }
-        XCTAssertEqual(t.verdict, .spoof)
+        XCTAssertEqual(t.verdict(.standard), .spoof)
         t.reset()
-        for _ in 0..<5 { t.add(0.95) }
-        XCTAssertEqual(t.verdict, .live)
+        for _ in 0..<6 { t.add(0.95) }
+        XCTAssertEqual(t.verdict(.faster), .live)
+        XCTAssertEqual(t.verdict(.standard), .unknown) // Standard looks at 12 frames
+        for _ in 0..<6 { t.add(0.95) }
+        XCTAssertEqual(t.verdict(.standard), .live)
+        XCTAssertEqual(t.verdict(.secure), .unknown)
+        for _ in 0..<8 { t.add(0.95) }
+        XCTAssertEqual(t.verdict(.secure), .unsure) // 0.95 isn't sure enough for More secure: the glow
     }
 
     /// The real model on Minivision's sample photos (set ISLET_FAS_SAMPLES to the repo's images/sample folder).

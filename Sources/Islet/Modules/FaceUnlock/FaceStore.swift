@@ -38,16 +38,12 @@ final class FaceStore {
     private static let learnedAccount = "face-learned"
     private static let passwordAccount = "login-password"
     private static let thresholdKey = "faceUnlockThreshold"
-    /// Before 1.2 liveness was a blink on/off switch; turning it off is carried over.
-    private static let requireBlinkKey = "faceUnlockRequireBlink"
+    /// Before 1.6 liveness was a mode (off, automatic, blink, random); it's carried over to the nearest level.
     private static let livenessKey = "faceUnlockLiveness"
+    private static let securityKey = "faceUnlockSecurity"
     private static let learnKey = "faceUnlockLearn"
-    private static let brightenKey = "faceUnlockBrighten"
-    private static let adaptiveKey = "faceUnlockAdaptiveThreshold"
     private static let scoresKey = "faceUnlockGenuineScores"
     private static let pulseKey = "faceUnlockPulseProfiles2" // v1 profiles were relative to the background
-    private static let spoofKey = "faceUnlockSpoofModel"
-    private static let blinkFallbackKey = "faceUnlockBlinkFallback"
     /// Unlock scores kept for the adaptive threshold, and learned pulse patterns.
     static let maxScores = 60
     static let maxPulseProfiles = 20
@@ -60,32 +56,25 @@ final class FaceStore {
     /// enrolment itself, comfortably above the threshold, so the set can't drift towards someone else.
     private(set) var learned: [[Float]] = []
     private(set) var hasPassword = false
-    /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition". With the adaptive
-    /// threshold on, this is the floor it never goes below.
+    /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition". Once it has learned
+    /// from enough unlocks, this is the floor the adaptive threshold never goes below.
     var threshold: Float {
         didSet { UserDefaults.standard.set(threshold, forKey: Self.thresholdKey) }
     }
-    /// Raise the threshold towards your own usual scores as unlocks accumulate.
-    var adaptiveThreshold: Bool { didSet { UserDefaults.standard.set(adaptiveThreshold, forKey: Self.adaptiveKey) } }
     /// Typical scores of your confirmed unlocks (and of misses you then unlocked with the password), newest last.
     private(set) var genuineScores: [Float]
     /// How your face responded to the brightness pulse on confirmed unlocks (FacePulse.Reading.profile).
     private(set) var pulseProfiles: [[Double]]
-    /// Refuse faces the spoof model is sure are a print or a screen.
-    var spoofModel: Bool { didSet { UserDefaults.standard.set(spoofModel, forKey: Self.spoofKey) } }
-    /// The threshold a scan uses.
+    /// The threshold a scan uses: raised towards your usual scores while learning is on.
     var effectiveThreshold: Float {
-        adaptiveThreshold ? AdaptiveThreshold.value(floor: threshold, scores: genuineScores) : threshold
+        learnFromUnlocks ? AdaptiveThreshold.value(floor: threshold, scores: genuineScores) : threshold
     }
 
-    /// What the face has to do before it unlocks, so a photo (or, with random challenges, a video) can't.
-    var liveness: LivenessMode { didSet { UserDefaults.standard.set(liveness.rawValue, forKey: Self.livenessKey) } }
-    /// Automatic: when the light check can't vouch, always ask for a blink rather than a random challenge.
-    var blinkFallback: Bool { didSet { UserDefaults.standard.set(blinkFallback, forKey: Self.blinkFallbackKey) } }
-    /// Add new looks from successful unlocks.
+    /// How hard it checks the face is live before unlocking.
+    var security: FaceSecurity { didSet { UserDefaults.standard.set(security.rawValue, forKey: Self.securityKey) } }
+    /// Learn from successful unlocks: new looks, your usual scores (which raise the threshold) and how your face
+    /// answers the glow.
     var learnFromUnlocks: Bool { didSet { UserDefaults.standard.set(learnFromUnlocks, forKey: Self.learnKey) } }
-    /// Raise the screen brightness while scanning in a dark room.
-    var brightenInDark: Bool { didSet { UserDefaults.standard.set(brightenInDark, forKey: Self.brightenKey) } }
 
     var isEnrolled: Bool { !embeddings.isEmpty }
     var isReady: Bool { isEnrolled && hasPassword }
@@ -93,20 +82,25 @@ final class FaceStore {
     var allEmbeddings: [[Float]] { embeddings + learned }
 
     init() {
-        UserDefaults.standard.register(defaults: [Self.learnKey: true, Self.brightenKey: true, Self.spoofKey: true])
+        UserDefaults.standard.register(defaults: [Self.learnKey: true])
         let t = UserDefaults.standard.float(forKey: Self.thresholdKey)
         threshold = t > 0 ? t : 0.45
         let d = UserDefaults.standard
-        liveness = d.string(forKey: Self.livenessKey).flatMap(LivenessMode.init(rawValue:))
-            ?? (d.object(forKey: Self.requireBlinkKey) as? Bool == false ? .off : .automatic)
-        learnFromUnlocks = UserDefaults.standard.bool(forKey: Self.learnKey)
-        brightenInDark = UserDefaults.standard.bool(forKey: Self.brightenKey)
-        adaptiveThreshold = d.bool(forKey: Self.adaptiveKey)
-        spoofModel = d.bool(forKey: Self.spoofKey)
-        blinkFallback = d.bool(forKey: Self.blinkFallbackKey)
+        security = d.string(forKey: Self.securityKey).flatMap(FaceSecurity.init(rawValue:))
+            ?? Self.migratedSecurity(d.string(forKey: Self.livenessKey))
+        learnFromUnlocks = d.bool(forKey: Self.learnKey)
         genuineScores = (d.array(forKey: Self.scoresKey) as? [NSNumber])?.map(\.floatValue) ?? []
         pulseProfiles = (d.array(forKey: Self.pulseKey) as? [[NSNumber]])?.map { $0.map(\.doubleValue) } ?? []
         reload()
+    }
+
+    /// The pre-1.6 mode's nearest level: random challenges were the strictest, off the most relaxed.
+    nonisolated static func migratedSecurity(_ liveness: String?) -> FaceSecurity {
+        switch liveness {
+        case "random": .secure
+        case "off": .faster
+        default: .standard
+        }
     }
 
     func reload() {
