@@ -34,7 +34,7 @@ struct InboxView: View {
             }
             .buttonStyle(.plain)
             if messages.unreadCount > 0 {
-                Text("\(messages.unreadCount) new").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: 0x0A84FF))
+                Text("\(messages.unreadCount) unread").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: 0x0A84FF))
                     .contentTransition(.numericText())
             }
             Spacer()

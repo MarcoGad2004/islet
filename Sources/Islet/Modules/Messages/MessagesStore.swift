@@ -1,3 +1,4 @@
+import OSLog
 import AppKit
 import Contacts
 import SQLite3
@@ -98,10 +99,33 @@ final class MessagesStore {
 
     /// Chats with something new first, then the other recent ones.
     private(set) var inbox: [ChatSummary] = []
-    /// Unread messages across all chats, as Messages counts them: the panel's messages pill shows when there are any.
+    /// Chats with unread messages, as Messages' badge counts them: the panel's messages pill shows when there are any.
     private(set) var unreadCount = 0
     @ObservationIgnored private var inboxWatcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var inboxTask: Task<Void, Never>?
+    @ObservationIgnored private var lastLoggedUnread = -1
+    @ObservationIgnored private var known: [Int64: Bool] = [:]
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "messages")
+    /// `chat.is_filtered` where Messages keeps it (its own known/unknown verdict), else nothing.
+    @ObservationIgnored private lazy var chatFilterColumn: String =
+        rows("pragma table_info(chat)").contains { ($0[1] as? String) == "is_filtered" } ? "c.is_filtered" : "null"
+
+    /// Someone in the chat is in Contacts, or you've written in it (a reply makes a sender known, as in Messages).
+    private func isKnown(_ chat: Int64) -> Bool {
+        if let k = known[chat] { return k }
+        let handles = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chat])
+            .compactMap { $0[0] as? String }
+        var k = handles.contains { names?.name(for: $0) != nil }
+        if !k {
+            k = !rows("""
+                select 1 from message m join chat_message_join j on j.message_id = m.ROWID
+                where j.chat_id = ? and m.is_from_me = 1 limit 1
+                """, [chat]).isEmpty
+        }
+        // Known stays known; unknown is asked again next time (you may reply or add them).
+        if k { known[chat] = true }
+        return k
+    }
     /// A reply that went out but hasn't shown up in the history yet: shown at once, "Sending…".
     private(set) var pending: [Message] = []
     /// The send itself failed (no permission, Messages refused).
@@ -221,15 +245,28 @@ final class MessagesStore {
         guard available else { inbox = []; unreadCount = 0; return }
         names = names ?? ContactNames()
         names?.load()
-        // Exactly what Messages has unread (reading on any device clears it, as it syncs), however old.
+        // What Messages counts on its badge: chats with unread incoming messages, however old (reading on any device
+        // clears them, as it syncs), from known senders only. A reply counts as reading what came before it (the island
+        // can send but can't mark messages read in Messages). Like "Filter Unknown Senders", a chat is known when someone in it
+        // is in Contacts or you've written in it; spam and deleted chats never count.
         var unread: [Int64: Int] = [:]
+        var all = 0
         for r in rows("""
-            select j.chat_id, count(*) from message m join chat_message_join j on j.message_id = m.ROWID
+            select j.chat_id, count(*), \(chatFilterColumn) from message m join chat_message_join j on j.message_id = m.ROWID
+            join chat c on c.ROWID = j.chat_id
             where m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
+              and m.date > coalesce((select max(r.date) from message r join chat_message_join rj on rj.message_id = r.ROWID
+                                     where rj.chat_id = j.chat_id and r.is_from_me = 1), 0)
             group by j.chat_id
             """) {
             guard let chat = r[0] as? Int64, let n = r[1] as? Int64, n > 0 else { continue }
+            all += Int(n)
+            guard isKnown(chat) else { continue }
             unread[chat] = Int(n)
+        }
+        if all != lastLoggedUnread {
+            lastLoggedUnread = all
+            Self.log.notice("unread: \(all) in all, \(unread.values.reduce(0, +)) from known senders in \(unread.count) chats")
         }
         let recent = rows("""
             select j.chat_id, max(m.date) from message m join chat_message_join j on j.message_id = m.ROWID
@@ -245,7 +282,8 @@ final class MessagesStore {
         }
         list.sort { ($0.unread > 0) != ($1.unread > 0) ? $0.unread > 0 : $0.date > $1.date }
         if list != inbox { inbox = list }
-        let total = unread.values.reduce(0, +)
+        // Messages' badge counts chats, not messages.
+        let total = unread.count
         if total != unreadCount { unreadCount = total }
     }
 

@@ -21,7 +21,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Messages
 
-- A messages pill shows next to the battery in the panel when you have unread messages, with the same count as Messages (it reads Messages' own history, so reading on your iPhone clears it too). Click it for an inbox: chats with new messages first, then your other recent ones. A conversation opened from it has a back button to the inbox.
+- A messages pill shows next to the battery in the panel when you have unread messages, with the same count as Messages' badge: chats with unread messages from known senders. It reads Messages' own history, so reading on your iPhone clears it too, and replying from the notch clears that chat.
+- With the panel open, swiping up closes it only from the notch itself, so scrolling the inbox or a conversation doesn't close the panel. Click it for an inbox: chats with new messages first, then your other recent ones. A conversation opened from it has a back button to the inbox.
 - Photos and stickers show in conversations instead of "Attachment", including stickers placed on a message. Click a photo to open it.
 - The Emoji & Symbols picker (⌃⌘Space or the smiley button) now opens in front of the panel instead of behind it.
 

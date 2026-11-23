@@ -1,3 +1,4 @@
+import OSLog
 import AppKit
 import SwiftUI
 
@@ -31,6 +32,10 @@ final class IslandHostingView: NSHostingView<IslandView> {
     var listAt: ((CGPoint) -> (atTop: Bool, atBottom: Bool)?)?
     /// The list under the fingers when this gesture began; nil when it began elsewhere.
     private var list: (atTop: Bool, atBottom: Bool)?
+    /// Whether a swipe up starting here may close: with the panel open only over the notch itself, where nothing is
+    /// ever drawn, so scrolling anything in the panel never closes it.
+    var swipeUpAllowedAt: ((CGPoint) -> Bool)?
+    private var upAllowed = true
 
     private enum Axis { case undecided, vertical, horizontal, ignored }
     private var axis = Axis.undecided
@@ -53,7 +58,9 @@ final class IslandHostingView: NSHostingView<IslandView> {
         if event.phase.contains(.began) {
             reset()
             let p = convert(event.locationInWindow, from: nil)
-            list = listAt?(CGPoint(x: p.x, y: isFlipped ? p.y : bounds.height - p.y))
+            let q = CGPoint(x: p.x, y: isFlipped ? p.y : bounds.height - p.y)
+            list = listAt?(q)
+            upAllowed = swipeUpAllowedAt?(q) ?? true
         }
         // Normalise to finger movement, regardless of the natural-scrolling setting: x + is right, y - is up.
         let inverted = event.isDirectionInvertedFromDevice
@@ -75,7 +82,9 @@ final class IslandHostingView: NSHostingView<IslandView> {
                     let swipe: Swipe = accY < 0 ? .up : .down
                     // Over a list, the fingers scroll it. Up still closes when the list can't go that way any more:
                     // with natural scrolling, fingers up move toward the bottom (the newest message).
-                    if let list {
+                    if swipe == .up && !upAllowed {
+                        // Over the open panel's content: the fingers are scrolling it.
+                    } else if let list {
                         let stuck = event.isDirectionInvertedFromDevice ? list.atBottom : list.atTop
                         if swipe == .up && stuck { onSwipe?(swipe) }
                     } else {
@@ -140,6 +149,7 @@ final class NotchController {
         host.onSideEnded = { [weak self] v in self?.store.skipEnded(velocity: Double(v)) }
 
         host.listAt = { [weak self] p in self?.store.scrollRegion(at: p).map { ($0.atTop, $0.atBottom) } }
+        host.swipeUpAllowedAt = { [weak self] p in self?.store.swipeUpAllowed(at: p) ?? true }
         let panel = NotchPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                backing: .buffered, defer: false)
         panel.onScroll = { [weak host] in host?.track($0) }
@@ -178,26 +188,33 @@ final class NotchController {
     static let islandLevel = NSWindow.Level(rawValue: Int(Int32.max - 2))
     private var paletteWatch: Task<Void, Never>?
 
-    /// Emoji & Symbols opens in its own process at a level under the island's, so it appeared behind the panel. While
-    /// it's on screen the panel steps down to just under it, then goes back up once it closes.
+    /// Emoji & Symbols opens in its own process, in the desktop's space, so it was drawn under the island (whose window
+    /// sits in the lock-screen space, above every other). While it's on screen the panel moves into the desktop's
+    /// space under it, then goes back once it closes.
     func yieldToCharacterPalette() {
         paletteWatch?.cancel()
         paletteWatch = Task { [weak self] in
+            var moved = false
             var seen = false
-            for _ in 0..<600 { // up to a minute between looks at it; it's usually closed well before
+            for _ in 0..<600 {
                 try? await Task.sleep(for: .milliseconds(seen ? 300 : 80))
                 guard let self, !Task.isCancelled, let panel = self.panel else { return }
                 if let layer = Self.characterPaletteLayer() {
+                    if !seen { Self.log.notice("emoji picker open at layer \(layer)") }
                     seen = true
-                    let under = NSWindow.Level(rawValue: layer - 1)
+                    if !moved { moved = SkyLightSpace.shared.detach(panel) }
+                    let under = NSWindow.Level(rawValue: min(layer - 1, Self.islandLevel.rawValue))
                     if panel.level != under { panel.level = under }
                 } else if seen {
                     break
                 }
             }
-            self?.panel?.level = Self.islandLevel
+            guard let self, let panel = self.panel else { return }
+            panel.level = Self.islandLevel
+            if moved { SkyLightSpace.shared.attach(panel) }
         }
     }
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "notch")
 
     /// The window layer of the open Emoji & Symbols picker, if it's on screen.
     private static func characterPaletteLayer() -> Int? {
@@ -207,9 +224,7 @@ final class NotchController {
             guard owner == "Emoji & Symbols" || owner.contains("CharacterPalette"),
                   let b = w[kCGWindowBounds as String] as? NSDictionary, let r = CGRect(dictionaryRepresentation: b),
                   r.height > 100, let layer = w[kCGWindowLayer as String] as? Int else { continue }
-            // Only step down to a level that still floats over apps' windows.
-            guard layer > NSWindow.Level.statusBar.rawValue else { return nil }
-            return min(layer, Int(Int32.max - 2))
+            return layer
         }
         return nil
     }

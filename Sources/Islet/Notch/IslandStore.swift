@@ -567,6 +567,18 @@ final class IslandStore {
         return false
     }
 
+    /// With the panel open, a swipe up closes it only from the notch itself (top-left window points), where nothing is
+    /// ever drawn; anywhere else in the panel the fingers scroll what's under them. Without a notch, from the panel's
+    /// top strip. Closed, the whole island takes it as before.
+    func swipeUpAllowed(at p: CGPoint) -> Bool {
+        guard expanded, let g = geometry else { return true }
+        let center = NotchGeometry.panelWidth / 2
+        if g.mode == .notch {
+            return abs(p.x - center) <= g.width / 2 + 6 && p.y <= g.height + 4
+        }
+        return p.y <= (g.floating ? g.floatTop : 0) + IslandLayout.floatingContentTop
+    }
+
     func swipeUp() {
         if skip != nil { return }
         if !notifications.isEmpty, !expanded { endAllNotifications(.closed); return }

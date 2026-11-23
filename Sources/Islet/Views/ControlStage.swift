@@ -204,7 +204,7 @@ struct ControlStage: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(n == 1 ? "1 new message" : "\(n) new messages")
+        .help(n == 1 ? "1 chat with unread messages" : "\(n) chats with unread messages")
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }
 

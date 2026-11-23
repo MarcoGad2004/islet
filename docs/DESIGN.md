@@ -582,10 +582,12 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 ### Messages inbox (1.5, owner request 2026-11-23)
 
 - A messages pill (blue message bubble and the count) sits beside the battery pill in the panel's header while there
-  are unread messages: exactly the ones Messages has unread (from its database, so reading on the iPhone clears them
-  too), however old (owner's choice, 2026-11-23).
+  are unread messages, counting what Messages' badge counts: chats (not messages) with unread incoming messages from
+  known senders (someone in the chat is in Contacts, or you've written in it), however old (owner's choice,
+  2026-11-23). It reads Messages' history, so reading on the iPhone clears it too. A reply sent from the island counts
+  as reading what came before it there (the island can't mark messages read in Messages).
 - Click it for the inbox, in the panel at the conversation's height: "‹ MESSAGES", "n new" in blue and Open Messages,
-  then chats with new messages first (bold name, the preview in white, the time and a count in blue, a faint card
+  then chats with unread messages first (bold name, the preview in white, the time and a count in blue, a faint card
   behind) and the other chats from the last 30 days (12 at most) under them.
 - A row opens its conversation, whose header gets a back button to the inbox. Reading a conversation in the island
   doesn't clear it: the island can only read Messages' history, so it stays unread until it's read in Messages or on
@@ -593,8 +595,10 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 - In a conversation, photos show as rounded thumbnails up to 200 pt (click opens them), stickers on their own up to
   96 pt with no bubble, and stickers placed on a message overlap its bottom corner at 40 pt, tilted a little. Other
   files are a chip saying what they are (Video, Audio message, the file's name).
-- Emoji & Symbols (⌃⌘Space or the smiley) opens under the island's level, so while it's on screen the panel steps
-  down to just under it and goes back up once it closes.
+- Emoji & Symbols (⌃⌘Space or the smiley) opens in the desktop's space, under the island's lock-screen space, so
+  while it's on screen the panel moves into the desktop's space just under it, and back once it closes.
+- With the panel open, a two-finger swipe up closes it only from the notch itself (where nothing is ever drawn);
+  anywhere else in the panel the fingers scroll what's under them. Without a notch, from the panel's top strip.
 
 ## Without a notch (1.2)
 

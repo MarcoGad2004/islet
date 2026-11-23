@@ -16,6 +16,12 @@ final class SkyLightSpace {
     private var connection: Int32 = 0
     private var space: Int32 = 0
     private var addWindows: AddWindows?
+    private typealias RemoveWindows = @convention(c) (Int32, CFArray, CFArray) -> Int32
+    private typealias ActiveSpace = @convention(c) (Int32) -> UInt64
+    private typealias AddToSpaces = @convention(c) (Int32, CFArray, CFArray) -> Void
+    private var removeWindows: RemoveWindows?
+    private var activeSpace: ActiveSpace?
+    private var addToSpaces: AddToSpaces?
     private(set) var isAvailable = false
 
     private init() {
@@ -28,6 +34,9 @@ final class SkyLightSpace {
         _ = unsafeBitCast(sl, to: SetLevel.self)(connection, space, 400)
         _ = unsafeBitCast(sh, to: Show.self)(connection, [space] as CFArray)
         addWindows = unsafeBitCast(aw, to: AddWindows.self)
+        if let r = dlsym(h, "SLSRemoveWindowsFromSpaces") { removeWindows = unsafeBitCast(r, to: RemoveWindows.self) }
+        if let a = dlsym(h, "SLSGetActiveSpace") { activeSpace = unsafeBitCast(a, to: ActiveSpace.self) }
+        if let a = dlsym(h, "SLSAddWindowsToSpaces") { addToSpaces = unsafeBitCast(a, to: AddToSpaces.self) }
         isAvailable = true
     }
 
@@ -35,5 +44,19 @@ final class SkyLightSpace {
     func attach(_ window: NSWindow) {
         guard isAvailable, window.windowNumber > 0 else { return }
         _ = addWindows?(connection, space, [window.windowNumber] as CFArray, 7)
+    }
+
+    /// Back into the desktop's own space for a while: everything in the lock-screen space is drawn over every other
+    /// window, whatever its level, so another app's window (Emoji & Symbols) can't come in front of it there.
+    /// False when it couldn't be done. `attach` puts it back.
+    @discardableResult
+    func detach(_ window: NSWindow) -> Bool {
+        guard isAvailable, window.windowNumber > 0, let removeWindows, let activeSpace, let addToSpaces else { return false }
+        let w = [window.windowNumber] as CFArray
+        let desktop = activeSpace(connection)
+        guard desktop != 0 else { return false }
+        addToSpaces(connection, w, [desktop] as CFArray)
+        _ = removeWindows(connection, w, [space] as CFArray)
+        return true
     }
 }
