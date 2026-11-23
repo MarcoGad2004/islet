@@ -198,7 +198,11 @@ struct FaceUnlockSettings: View {
         let r = v.reading
         var parts = [v.passed ? "Vouches" : "Can't vouch: \(v.reason ?? "")"]
         if let r {
-            parts.append(String(format: "depth %.2f, shape %.2f", r.contrast, r.shape))
+            if let c = r.contrast, let s = r.shape {
+                parts.append(String(format: "depth %.2f, shape %.2f", c, s))
+            } else {
+                parts.append(String(format: "no background · face shape %.2f", r.relative))
+            }
             if let a = r.agreement { parts.append(String(format: "yours %.2f", a)) }
         }
         return Label(parts.joined(separator: " · "), systemImage: v.passed ? "checkmark.circle.fill" : "circle.dashed")

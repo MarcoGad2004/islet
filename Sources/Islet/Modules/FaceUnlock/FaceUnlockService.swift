@@ -281,7 +281,7 @@ final class FaceUnlockService {
             Task { await runPulse() }
         case .pulseResult(let verdict):
             let r = verdict.reading
-            Self.log.notice("pulse \(String(describing: verdict.passed)) \(verdict.reason ?? "", privacy: .public) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
+            Self.log.notice("pulse passed=\(verdict.passed) \(verdict.reason ?? "", privacy: .public) contrast=\(r?.contrast ?? -1) shape=\(r?.shape ?? -1) relative=\(r?.relative ?? -1) agreement=\(r?.agreement ?? -1) matched=\(r?.matched ?? -1)")
         case .pulseSkipped(let why):
             Self.log.notice("pulse skipped: \(why, privacy: .public)")
         case .match(let score, let embedding, let live, let typical, let pulse):

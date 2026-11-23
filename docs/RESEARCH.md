@@ -102,6 +102,14 @@ lock screen. Each question below can block it:
       challenge decides. Thresholds unverified: Test recognition shows the side ratio and blown-out share. The pulse
       is also judged at its peak (4 peak frames) instead of after the fall, saving ~0.4 s, and the lead is 0.3-0.45 s.
       The unlock log lines (pulse, skipped, match, no match) are now `notice`, so `log show` keeps them.
+    - *No background (2026-11-23, owner: spoof model at 1.00 yet always asked to blink):* the log showed "pulse
+      passed=false no background". The two top-corner spots were unreadable (blown out or dark), and the MacBook Pro
+      camera **can't lock exposure or white balance** (`isExposureModeSupported(.locked)` and even
+      `.continuousAutoExposure` report false; mode 0), so there was no fallback. Now: 18 spots in a 6x3 grid over the
+      upper frame, minus the head and body, each compared with itself and the median ratio used; with none readable,
+      `relative` = centre gain over side gain − 1 (exposure scales both, so it cancels; a print or screen ~0) must be
+      ≥ 0.04. Learned profiles are now relative to the face's sides in both cases (stored under a new key; the few
+      learned the old way are dropped). Note for zsh: `log` is a shell builtin, use `/usr/bin/log show`.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

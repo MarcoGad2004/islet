@@ -45,7 +45,7 @@ final class FaceStore {
     private static let brightenKey = "faceUnlockBrighten"
     private static let adaptiveKey = "faceUnlockAdaptiveThreshold"
     private static let scoresKey = "faceUnlockGenuineScores"
-    private static let pulseKey = "faceUnlockPulseProfiles"
+    private static let pulseKey = "faceUnlockPulseProfiles2" // v1 profiles were relative to the background
     private static let spoofKey = "faceUnlockSpoofModel"
     private static let blinkFallbackKey = "faceUnlockBlinkFallback"
     /// Unlock scores kept for the adaptive threshold, and learned pulse patterns.

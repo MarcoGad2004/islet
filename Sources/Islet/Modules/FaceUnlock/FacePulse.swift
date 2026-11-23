@@ -20,6 +20,8 @@ enum FacePulse {
 
     static let minContrast = 0.05
     static let minShape = 0.15
+    /// Without a readable background: how much more the centre of the face must change than its sides.
+    static let minRelative = 0.04
     /// Correlation with the learned pattern needed once there's one.
     static let minAgreement = 0.7
     /// Learned patterns needed before they're checked.
@@ -46,16 +48,20 @@ enum FacePulse {
         var time: Date
         /// Linear brightness per `Patch`, nil where it was off the frame or clipped.
         var face: [Double?]
-        /// Linear brightness of the frame's top corners, away from the face.
-        var background: Double?
+        /// Linear brightness of spots around the head (`backgroundSpots`), nil where blown out, dark or covered.
+        var background: [Double?]
         /// The face in this frame matched the enrolment.
         var matched: Bool
     }
 
     struct Reading: Sendable, Equatable {
-        var contrast: Double
-        var shape: Double
-        /// Each patch's change relative to the centre's, for learning the owner's pattern. Nil if a patch was missing.
+        /// The face's change beyond the background's; nil when no background spot could be read.
+        var contrast: Double?
+        var shape: Double?
+        /// The centre of the face's change beyond its sides': needs no background and isn't affected by exposure.
+        var relative: Double
+        /// Each patch's change beyond the sides', over the centre's, for learning the owner's pattern. Nil if a patch
+        /// was missing.
         var profile: [Double]?
         /// Correlation with the learned pattern, when there's one.
         var agreement: Double?
@@ -77,39 +83,59 @@ enum FacePulse {
         }
     }
 
-    /// Judges a pulse from the frames recorded around it. `exposureHeld` means the camera's exposure was locked, so
-    /// without a background reading the raw change still counts.
+    /// Judges a pulse from the frames recorded around it. `exposureHeld` means the camera's exposure was locked (the
+    /// MacBook camera doesn't allow it), so the raw change is real and the background isn't needed to correct it.
+    ///
+    /// With a readable background the face's change is measured against the room's (`contrast`, `shape`). Without
+    /// one (blown-out lights or windows, a dark room) it falls back to the centre of the face against its sides
+    /// (`relative`), which exposure changes don't affect and a flat print or a screen doesn't show.
     static func judge(_ frames: [Frame], schedule: Schedule, exposureHeld: Bool, learned: [[Double]]) -> Verdict {
         let base = frames.filter { schedule.inBaseline($0.time) }, peak = frames.filter { schedule.inPeak($0.time) }
         guard base.count >= 3, peak.count >= 3 else { return .inconclusive("too few frames", nil) }
         let windows = base + peak
         let matched = Double(windows.filter(\.matched).count) / Double(windows.count)
-
-        let bgBase = median(base.compactMap(\.background)), bgPeak = median(peak.compactMap(\.background))
-        let bgGain: Double
-        if let b = bgBase, let p = bgPeak, b > 0 { bgGain = p / b } else if exposureHeld { bgGain = 1 } else {
-            return .inconclusive("no background", nil)
-        }
         let sign = schedule.brighter ? 1.0 : -1.0
-        // The change of each patch beyond the background's, positive in the pulse's direction.
-        let change: [Double?] = Patch.allCases.map { patch in
+
+        // Each background spot's own change, then the typical one: spots that are blown out or covered are skipped.
+        let spots = frames.map(\.background.count).max() ?? 0
+        let bgRatios: [Double] = (0..<spots).compactMap { i in
+            func level(_ fs: [Frame]) -> Double? {
+                let v = fs.compactMap { i < $0.background.count ? $0.background[i] : nil }
+                return v.count >= 2 ? median(v) : nil
+            }
+            guard let b = level(base), let p = level(peak), b > 0 else { return nil }
+            return p / b
+        }
+        let bgGain = median(bgRatios) ?? (exposureHeld ? 1 : nil)
+
+        // Each patch's raw gain over the swell.
+        let gain: [Double?] = Patch.allCases.map { patch in
             guard let b = median(base.compactMap { $0.face[patch.rawValue] }),
                   let p = median(peak.compactMap { $0.face[patch.rawValue] }), b > 0 else { return nil }
-            return (p / b / bgGain - 1) * sign
+            return p / b
         }
-        let c = centre.compactMap { change[$0.rawValue] }, s = sides.compactMap { change[$0.rawValue] }
+        let c = centre.compactMap { gain[$0.rawValue] }, s = sides.compactMap { gain[$0.rawValue] }
         guard c.count >= 2, !s.isEmpty else { return .inconclusive("face not fully in view", nil) }
-        let contrast = c.reduce(0, +) / Double(c.count)
-        let side = s.reduce(0, +) / Double(s.count)
-        let shape = contrast > 0.005 ? (contrast - side) / contrast : 0
-        let profile = change.allSatisfy { $0 != nil } && contrast > 0.005 ? change.map { $0! / contrast } : nil
+        let gc = c.reduce(0, +) / Double(c.count), gs = s.reduce(0, +) / Double(s.count)
+        let relative = (gc / gs - 1) * sign
+        let profile = gain.allSatisfy { $0 != nil } && relative > 0.005 ? gain.map { ($0! / gs - 1) * sign / relative } : nil
+        var contrast: Double?, shape: Double?
+        if let bgGain {
+            let cc = (gc / bgGain - 1) * sign, sc = (gs / bgGain - 1) * sign
+            contrast = cc
+            shape = cc > 0.005 ? (cc - sc) / cc : 0
+        }
         let learnedMean = learned.count >= profileMinimum ? meanProfile(learned) : nil
         let agreement = zip2(profile, learnedMean).map { correlation($0, $1) }
-        let reading = Reading(contrast: contrast, shape: shape, profile: profile, agreement: agreement, matched: matched)
+        let reading = Reading(contrast: contrast, shape: shape, relative: relative, profile: profile, agreement: agreement, matched: matched)
 
         if matched < minMatched { return .inconclusive("face changed", reading) }
-        if contrast < minContrast { return .inconclusive("no response to the light", reading) }
-        if shape < minShape { return .inconclusive("flat", reading) }
+        if let contrast, let shape {
+            if contrast < minContrast { return .inconclusive("no response to the light", reading) }
+            if shape < minShape { return .inconclusive("flat", reading) }
+        } else if relative < minRelative {
+            return .inconclusive("flat", reading)
+        }
         if learnedMean != nil {
             guard let agreement, agreement >= minAgreement else { return .inconclusive("not your usual shape", reading) }
         }
@@ -120,12 +146,11 @@ enum FacePulse {
 
     /// Reads the patches for one frame. `points` are FaceAnalysis.points: eyes (left, right), nose, mouth corners,
     /// in image coordinates with a bottom-left origin.
-    static func measure(_ pb: CVPixelBuffer, points: [CGPoint], face box: CGRect) -> (face: [Double?], background: Double?) {
-        guard points.count == 5, CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA else {
-            return (Array(repeating: nil, count: Patch.allCases.count), nil)
-        }
+    static func measure(_ pb: CVPixelBuffer, points: [CGPoint], face box: CGRect) -> (face: [Double?], background: [Double?]) {
+        let none: ([Double?], [Double?]) = (Array(repeating: nil, count: Patch.allCases.count), [])
+        guard points.count == 5, CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_32BGRA else { return none }
         CVPixelBufferLockBaseAddress(pb, .readOnly); defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
-        guard let base = CVPixelBufferGetBaseAddress(pb) else { return (Array(repeating: nil, count: Patch.allCases.count), nil) }
+        guard let base = CVPixelBufferGetBaseAddress(pb) else { return none }
         let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb), row = CVPixelBufferGetBytesPerRow(pb)
         let px = base.assumingMemoryBound(to: UInt8.self)
 
@@ -148,13 +173,19 @@ enum FacePulse {
         let (centres, ed) = patchCentres(points)
         let face = Patch.allCases.map { patch(centres[$0]!, radius: 0.1 * ed) }
 
-        // The top corners, unless the face reaches into them.
-        let r = Double(w) * 0.05
-        let corners = [CGPoint(x: Double(w) * 0.08, y: Double(h) * 0.92), CGPoint(x: Double(w) * 0.92, y: Double(h) * 0.92)]
-        let faceRect = CGRect(x: box.minX * Double(w), y: box.minY * Double(h), width: box.width * Double(w), height: box.height * Double(h))
-            .insetBy(dx: -r * 2, dy: -r * 2)
-        let bg = corners.filter { !faceRect.contains($0) }.compactMap { patch($0, radius: r) }
-        return (face, bg.isEmpty ? nil : bg.reduce(0, +) / Double(bg.count))
+        let r = Double(w) * 0.03
+        let bg = backgroundSpots(face: box).map { $0.flatMap { patch(CGPoint(x: $0.x * Double(w), y: $0.y * Double(h)), radius: r) } }
+        return (face, bg)
+    }
+
+    /// Spots in the room behind the head (normalized, bottom-left origin): a 6x3 grid over the upper frame, leaving out
+    /// the face and the body below it (nil). Always the same count and order, so frames can be compared spot by spot.
+    static func backgroundSpots(face box: CGRect) -> [CGPoint?] {
+        let xs = [0.06, 0.22, 0.38, 0.62, 0.78, 0.94], ys = [0.92, 0.75, 0.58]
+        let left = box.minX - box.width * 0.5, right = box.maxX + box.width * 0.5, top = box.maxY + box.height * 0.25
+        return ys.flatMap { y in
+            xs.map { x -> CGPoint? in x > left && x < right && y < top ? nil : CGPoint(x: x, y: y) }
+        }
     }
 
     /// Where each patch sits on the face, and the eye distance. `points` as in `measure`.

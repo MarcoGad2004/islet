@@ -12,9 +12,10 @@ final class FaceLivenessTests: XCTestCase {
                         background: Double = 1.0, matched: Bool = true) -> [FacePulse.Frame] {
         let baseTimes = stride(from: -0.28, through: 0, by: 0.033).map { start.addingTimeInterval($0) }
         let peakTimes = stride(from: FacePulse.rise + 0.1, through: FacePulse.rise + FacePulse.hold, by: 0.033).map { start.addingTimeInterval($0) }
-        let b = baseTimes.map { FacePulse.Frame(time: $0, face: base, background: 0.1, matched: matched) }
+        // Three readable background spots and one blown out (nil), as a real room might give.
+        let b = baseTimes.map { FacePulse.Frame(time: $0, face: base, background: [0.1, 0.2, nil, 0.05], matched: matched) }
         let p = peakTimes.map { t in
-            FacePulse.Frame(time: t, face: FacePulse.Patch.allCases.map { base[$0.rawValue] * gain($0) }, background: 0.1 * background, matched: matched)
+            FacePulse.Frame(time: t, face: FacePulse.Patch.allCases.map { base[$0.rawValue] * gain($0) }, background: [0.1 * background, 0.2 * background, nil, 0.05 * background], matched: matched)
         }
         return b + p
     }
@@ -32,6 +33,7 @@ final class FaceLivenessTests: XCTestCase {
         let v = FacePulse.judge(frames(gain: realGain), schedule: schedule, exposureHeld: true, learned: [])
         XCTAssertTrue(v.passed, "\(v)")
         XCTAssertEqual(v.reading?.contrast ?? 0, 0.2, accuracy: 0.01)
+        XCTAssertNotNil(v.reading?.shape)
         XCTAssertGreaterThan(v.reading?.shape ?? 0, FacePulse.minShape)
     }
 
@@ -52,9 +54,32 @@ final class FaceLivenessTests: XCTestCase {
         let v = FacePulse.judge(frames(gain: { self.realGain($0) * 0.8 }, background: 0.8), schedule: schedule,
                                 exposureHeld: false, learned: [])
         XCTAssertTrue(v.passed, "\(v)")
-        // Without a background or a held exposure there's nothing to compare with.
-        let none = frames(gain: realGain).map { f -> FacePulse.Frame in var f = f; f.background = nil; return f }
-        XCTAssertEqual(FacePulse.judge(none, schedule: schedule, exposureHeld: false, learned: []).reason, "no background")
+    }
+
+    /// The owner's room (2026-11-23): no background spot readable and an exposure the camera can't lock.
+    private func noBackground(_ f: [FacePulse.Frame]) -> [FacePulse.Frame] {
+        f.map { var f = $0; f.background = Array(repeating: nil, count: 18); return f }
+    }
+
+    func testWithoutBackgroundTheFaceShapeDecides() {
+        // A real face, even with auto-exposure pulling everything down 15%: the centre still changes more than the sides.
+        let real = FacePulse.judge(noBackground(frames(gain: { self.realGain($0) * 0.85 })), schedule: schedule, exposureHeld: false, learned: [])
+        XCTAssertTrue(real.passed, "\(real)")
+        XCTAssertNil(real.reading?.contrast)
+        // A print or a screen changes evenly: refused to vouch, whatever the exposure did.
+        XCTAssertEqual(FacePulse.judge(noBackground(frames(gain: { _ in 1.2 })), schedule: schedule, exposureHeld: false, learned: []).reason, "flat")
+        XCTAssertEqual(FacePulse.judge(noBackground(frames(gain: { _ in 0.9 })), schedule: schedule, exposureHeld: false, learned: []).reason, "flat")
+    }
+
+    func testBackgroundSpotsAvoidTheHead() {
+        let box = CGRect(x: 0.35, y: 0.3, width: 0.3, height: 0.45)
+        let spots = FacePulse.backgroundSpots(face: box)
+        XCTAssertEqual(spots.count, 18)
+        for case let p? in spots {
+            let overHead = p.x > box.minX - box.width * 0.5 && p.x < box.maxX + box.width * 0.5 && p.y < box.maxY + box.height * 0.25
+            XCTAssertFalse(overHead, "\(p)")
+        }
+        XCTAssertGreaterThan(spots.compactMap { $0 }.count, 6)
     }
 
     func testSwappedFaceIsNotVouchedFor() {

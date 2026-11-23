@@ -19,6 +19,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Test recognition shows the spoof model's verdict, and Check Light runs the brightness check and shows what it measured.
 - In direct sun, Automatic skips the brightness swell and asks for the blink (or smile, or turn) straight away: it spots sun on your face from one side being much brighter than the other, or blown-out skin. The spoof model doesn't refuse your face in that light either; the challenge decides. Test recognition shows when it sees harsh light.
 - Settings > Face Unlock > "When a challenge is needed, just ask me to blink" (under Automatic): the fallback is always a blink instead of a random blink, smile or head turn. Off by default.
+- The light check works in more rooms: it reads the room from spots all around your head instead of two corners, and when none is readable (bright lights or windows behind you) it compares the middle of your face with its sides instead of giving up. Before, a blown-out corner meant it always asked for a blink, even with the spoof model sure you were real.
 - The light check is quicker: it decides as soon as the swell peaks instead of waiting for the screen to come back, and once it gets no response in a scan, the next tries go straight to the challenge.
 
 ## 1.4 (2026-11-22)
