@@ -21,6 +21,9 @@ struct ExpandedView: View {
         if store.expandedPage == .messages, let c = store.messages?.open {
             ConversationView(store: store, conversation: c)
                 .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
+        } else if store.expandedPage == .inbox, let m = store.messages {
+            InboxView(store: store, messages: m)
+                .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)
         } else if store.expandedPage == .notifications {
             NotificationList(store: store)
                 .frame(width: CGFloat(IslandLayout.expandedWidth), height: store.expandedBodyHeight, alignment: .topLeading)

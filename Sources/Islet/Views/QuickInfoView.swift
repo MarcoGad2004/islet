@@ -164,6 +164,11 @@ extension EnvironmentValues {
 extension View {
     /// Its place is matched with the same piece in quick info or the panel, so it moves between them as they swap.
     /// Icons match their frame too, so a glyph grows into its tile's round button; text only moves.
+    /// The level's icon, bar and number, matched between the row under the unlock and the level on its own.
+    @ViewBuilder func levelPiece(_ id: String, _ ns: Namespace.ID?) -> some View {
+        if let ns { matchedGeometryEffect(id: "level." + id, in: ns, properties: .position, anchor: .center) } else { self }
+    }
+
     @ViewBuilder func quickInfoPiece(_ id: QuickInfoPieceID, _ ns: Namespace.ID?) -> some View {
         let frame = id == .wifiIcon || id == .bluetoothIcon
         if let ns { matchedGeometryEffect(id: id.rawValue, in: ns, properties: frame ? .frame : .position, anchor: .center) } else { self }

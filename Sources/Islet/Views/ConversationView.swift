@@ -29,6 +29,13 @@ struct ConversationView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
+            if store.conversationFromInbox {
+                Button { store.closeInbox() } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.isletText)
+                        .frame(width: 28, height: 28).background(Circle().fill(Color.isletRing))
+                }
+                .buttonStyle(.plain).help("Inbox")
+            }
             Circle().fill(Self.color(for: conversation.chatID)).frame(width: 32, height: 32)
                 .overlay(Text(conversation.initial).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white))
             VStack(alignment: .leading, spacing: 1) {
@@ -101,13 +108,11 @@ struct ConversationView: View {
     @ViewBuilder private func bubble(_ m: MessagesStore.Message) -> some View {
         let fill = m.mine ? tint : Color.isletRing
         if m.attachment {
-            HStack(spacing: 5) {
-                Image(systemName: "paperclip").font(.system(size: 11, weight: .semibold))
-                Text("Attachment").font(.system(size: 12, weight: .medium))
+            // Photos and stickers show as themselves; anything else (or a file Messages hasn't downloaded) is a chip.
+            let files = m.attachments.isEmpty ? [MessagesStore.Attachment(sticker: false)] : m.attachments
+            ForEach(Array(files.enumerated()), id: \.offset) { _, a in
+                AttachmentView(attachment: a, mine: m.mine, fill: fill)
             }
-            .foregroundStyle(m.mine ? .white : Color.isletSecondary)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill.opacity(m.mine ? 0.7 : 1)))
         }
         if !m.text.isEmpty {
             Text(m.text).font(.system(size: 13)).lineSpacing(2).foregroundStyle(m.mine ? .white : Color.isletText)
@@ -116,6 +121,18 @@ struct ConversationView: View {
                 .overlay(alignment: m.mine ? .topLeading : .topTrailing) {
                     if !m.reactions.isEmpty { reactions(m) }
                 }
+                .overlay(alignment: m.mine ? .bottomLeading : .bottomTrailing) {
+                    // Stickers placed on the message, overlapping its corner as in Messages.
+                    HStack(spacing: -10) {
+                        ForEach(Array(m.stickers.prefix(3).enumerated()), id: \.offset) { i, a in
+                            AttachmentImage(path: a.path, maxSize: 40)
+                                .rotationEffect(.degrees(i % 2 == 0 ? -8 : 7))
+                        }
+                    }
+                    .offset(x: m.mine ? -14 : 14, y: 14)
+                    .allowsHitTesting(false)
+                }
+                .padding(.bottom, m.stickers.isEmpty ? 0 : 14)
                 .padding(.top, m.reactions.isEmpty ? 0 : 12)
                 .frame(maxWidth: 300, alignment: m.mine ? .trailing : .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -191,7 +208,7 @@ struct ConversationView: View {
         focused = true
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
-            NSApp.orderFrontCharacterPalette(nil)
+            store.showCharacterPalette()
         }
     }
 
@@ -290,3 +307,96 @@ private struct ContentFrameKey: PreferenceKey {
     static let defaultValue = CGRect.zero
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }
+
+/// A file with a message: a sticker on its own (no bubble), a photo as a rounded thumbnail (click opens it), anything
+/// else as a chip saying what it is.
+private struct AttachmentView: View {
+    let attachment: MessagesStore.Attachment
+    let mine: Bool
+    let fill: Color
+
+    var body: some View {
+        if attachment.isImage, let path = attachment.path, FileManager.default.fileExists(atPath: path) {
+            if attachment.sticker {
+                AttachmentImage(path: path, maxSize: 96)
+            } else {
+                AttachmentImage(path: path, maxSize: 200, corner: 14)
+                    .onTapGesture { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
+                    .help("Open in Preview")
+            }
+        } else {
+            HStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+                Text(attachment.label).font(.system(size: 12, weight: .medium)).lineLimit(1)
+            }
+            .foregroundStyle(mine ? .white : Color.isletSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill.opacity(mine ? 0.7 : 1)))
+            .onTapGesture { if let p = attachment.path { NSWorkspace.shared.open(URL(fileURLWithPath: p)) } }
+        }
+    }
+
+    private var icon: String {
+        switch attachment.label {
+        case "Video": "video.fill"
+        case "Audio message": "waveform"
+        case "Sticker": "face.smiling"
+        case "Photo": "photo"
+        default: "paperclip"
+        }
+    }
+}
+
+/// An image from Messages' attachments, scaled down off the main thread and kept for the next look.
+struct AttachmentImage: View {
+    let path: String?
+    var maxSize: CGFloat
+    var corner: CGFloat = 0
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                let size = Self.fit(image.size, maxSize)
+                Image(nsImage: image).resizable().interpolation(.high)
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: max(corner, 8), style: .continuous).fill(Color.white.opacity(0.06))
+                    .frame(width: maxSize * 0.6, height: maxSize * 0.6)
+            }
+        }
+        .task(id: path) {
+            guard let path else { return }
+            if let cached = ThumbnailCache.shared.object(forKey: path as NSString) { image = cached; return }
+            let px = maxSize * 2
+            let loaded = await Task.detached(priority: .userInitiated) { () -> NSImage? in
+                let url = URL(fileURLWithPath: path) as CFURL
+                guard let src = CGImageSourceCreateWithURL(url, nil),
+                      let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceThumbnailMaxPixelSize: px,
+                      ] as CFDictionary) else { return nil }
+                return NSImage(cgImage: cg, size: NSSize(width: CGFloat(cg.width) / 2, height: CGFloat(cg.height) / 2))
+            }.value
+            if let loaded { ThumbnailCache.shared.setObject(loaded, forKey: path as NSString) }
+            image = loaded
+        }
+    }
+
+    private static func fit(_ s: NSSize, _ m: CGFloat) -> CGSize {
+        guard s.width > 0, s.height > 0 else { return CGSize(width: m, height: m) }
+        let k = min(1, m / max(s.width, s.height))
+        return CGSize(width: s.width * k, height: s.height * k)
+    }
+}
+
+private enum ThumbnailCache {
+    nonisolated(unsafe) static let shared: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 60
+        return c
+    }()
+}
+

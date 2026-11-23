@@ -19,9 +19,15 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Every battery in Islet (the menu bar, quick info, the battery page and the charging animation) now has the same shape: a body twice as long as it is tall, like the menu bar one.
 - The chart starts full: the hours before Islet was running come from macOS's power log. Islet keeps a day of charge history on the Mac (Application Support/Islet); nothing leaves it.
 
+### Messages
+
+- A messages pill shows next to the battery in the panel when you have new messages. Click it for an inbox: chats with new messages first, then your other recent ones. A conversation opened from it has a back button to the inbox.
+- Photos and stickers show in conversations instead of "Attachment", including stickers placed on a message. Click a photo to open it.
+- The Emoji & Symbols picker (⌃⌘Space or the smiley button) now opens in front of the panel instead of behind it.
+
 ### Volume and brightness
 
-- Turning the volume or brightness while the unlock animation is playing (or on the lock screen, or during the face scan) now shows it: the island grows a row underneath with the level, instead of the change going unseen until the animation finished.
+- Turning the volume or brightness while the unlock animation is playing (or on the lock screen, or during the face scan) now shows it: the island grows a row underneath with the level, instead of the change going unseen until the animation finished. When the unlock finishes first, the level's icon, bar and number glide up into the level's own place.
 
 ### Fixes
 

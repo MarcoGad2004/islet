@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Content of the wings (60 pt either side of the notch) and the chin (300 x 36 body under the stem).
 struct CompactContentView: View {
+    @Environment(\.quickInfoNamespace) private var ns
     let content: IslandContent
     let store: IslandStore
     let wings: Bool
@@ -76,6 +77,7 @@ struct CompactContentView: View {
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
                         StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16)
                             .animation(.levelGlide, value: l.value)
+                            .levelPiece("bar", ns)
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
                     }
                     if hintBody {
@@ -115,7 +117,7 @@ struct CompactContentView: View {
         case .level(let l):
             Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                 .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l))
-                .frame(width: 18).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
+                .frame(width: 18).levelPiece("icon", ns).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
         case .locked:
             if store.lockHint && !hintBody {
                 Text("⌘⇧").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletSecondary)
@@ -145,6 +147,7 @@ struct CompactContentView: View {
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level(let l):
             RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
+                .frame(width: 30, alignment: .trailing).levelPiece("number", ns)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .progress(let p) where p.fraction != nil:
             // An update: the bar below turns into the check, so the wing only spins while it works.
@@ -194,10 +197,11 @@ struct CompactContentView: View {
             HStack(spacing: 10) {
                 Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                     .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l)).frame(width: 18)
-                StepBar(value: l.value, muted: l.muted).animation(.levelGlide, value: l.value)
+                    .levelPiece("icon", ns)
+                StepBar(value: l.value, muted: l.muted).animation(.levelGlide, value: l.value).levelPiece("bar", ns)
                 Spacer(minLength: 2)
                 RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
-                    .frame(width: 30, alignment: .trailing)
+                    .frame(width: 30, alignment: .trailing).levelPiece("number", ns)
             }
         case .event(let e):
             HStack(spacing: 10) {

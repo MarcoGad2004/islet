@@ -151,7 +151,7 @@ final class IslandStore {
         if expandedPage == .notifications {
             return NotificationList.height(rows: notifications.count, open: notifications.first { $0.id == openNotificationID })
         }
-        if expandedPage == .messages { return IslandLayout.messagesBodyHeight }
+        if expandedPage == .messages || expandedPage == .inbox { return IslandLayout.messagesBodyHeight }
         if expandedPage == .search { return search.bodyHeight }
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
         switch controlDetail {
@@ -183,6 +183,11 @@ final class IslandStore {
     /// Volume or brightness changed while something that outranks it is showing (the unlock, the lock screen, the
     /// face scan): instead of the change going unseen, the island grows a row under what's showing for the level
     /// (DESIGN.md "Volume and brightness").
+    /// The level just left the row under the unlock (or the lock bar, or the scan) for a place of its own: its icon,
+    /// bar and number glide across instead of fading out and back in.
+    private(set) var levelLeftTray = false
+    @ObservationIgnored private var hadTray = false
+
     var levelTray: LevelState? {
         guard let level, !expanded, !paused else { return nil }
         if base == .enrol { return nil }
@@ -330,6 +335,11 @@ final class IslandStore {
 
     private func refresh() {
         updateQuickInfo()
+        let tray = levelTray != nil
+        if level == nil { if levelLeftTray { levelLeftTray = false } }
+        else if hadTray && !tray { levelLeftTray = true }
+        else if tray, levelLeftTray { levelLeftTray = false }
+        hadTray = tray
         // Search's height follows the results without a bounce, and mid-opening only its target moves.
         if let m = targetMetrics() { animator.go(to: m, smoothHeight: expanded && expandedPage == .search) }
         animator.setSwell(hoverSwell)
@@ -445,7 +455,7 @@ final class IslandStore {
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
         if value { flushPanel = geometry?.mode == .notch && panelLayoutCheck?() == true }
-        if !value { notificationReturnPage = nil; openNotificationID = nil; expandedFromQuickInfo = false; quickInfo = false }
+        if !value { notificationReturnPage = nil; openNotificationID = nil; expandedFromQuickInfo = false; quickInfo = false; conversationFromInbox = false }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -496,12 +506,21 @@ final class IslandStore {
         }
     }
 
+    /// The panel steps down under Emoji & Symbols while it's open (the island sits above nearly everything, the picker
+    /// included). Set by the notch controller.
+    @ObservationIgnored var onCharacterPalette: (() -> Void)?
+
+    func showCharacterPalette() {
+        NSApp.orderFrontCharacterPalette(nil)
+        onCharacterPalette?()
+    }
+
     /// A key pressed while the panel has the keyboard. True when it was used here and goes no further.
     func handleKey(_ key: KeyPress) -> Bool {
         guard expanded, !locked else { return false }
         // ⌃⌘Space: Emoji & Symbols, as in any app (Islet has no Edit menu to give it the shortcut).
         if key.control, key.command, key.code == KeyPress.space, expandedPage == .messages || expandedPage == .search {
-            NSApp.orderFrontCharacterPalette(nil)
+            showCharacterPalette()
             return true
         }
         if expandedPage == .search { return searchKey(key) }
@@ -790,12 +809,36 @@ final class IslandStore {
         return true
     }
 
+    /// The open conversation came from the inbox: its header has a back button to it.
+    private(set) var conversationFromInbox = false
+
+    /// The messages pill: the inbox, unread chats first (DESIGN.md "Messages inbox").
+    func openInbox() {
+        guard let m = messages, m.available else { return }
+        if expandedPage == .messages { m.close(); messageDraft = "" }
+        m.refreshInbox()
+        conversationFromInbox = false
+        controlDetail = nil
+        expandedPage = .inbox
+        if !expanded { setExpanded(true) } else { refresh() }
+    }
+
+    /// From a conversation back to the inbox, or from the inbox back to the controls.
+    func closeInbox() {
+        guard expanded else { return }
+        if expandedPage == .messages, conversationFromInbox { openInbox(); return }
+        expandedPage = mediaPlaying ? .media : .displaySound
+        refresh()
+    }
+
     /// Opens a conversation on the panel by its chat.
     @discardableResult
-    func openChat(_ chat: Int64) -> Bool {
+    func openChat(_ chat: Int64, fromInbox: Bool = false) -> Bool {
         guard let m = messages else { return false }
         m.openChat(chat)
         guard m.open != nil else { return false }
+        conversationFromInbox = fromInbox
+        m.markSeen(chat)
         if expandedPage == .search { search.end() } // from search's Message: the conversation takes its place
         expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
         controlDetail = nil

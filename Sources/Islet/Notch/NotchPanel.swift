@@ -148,7 +148,7 @@ final class NotchController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         // Far above everything, and allowed on the login/lock screen (see SkyLightSpace).
-        panel.level = NSWindow.Level(rawValue: Int(Int32.max - 2))
+        panel.level = Self.islandLevel
         panel.canBecomeVisibleWithoutLogin = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
@@ -157,6 +157,7 @@ final class NotchController {
         panel.onCancel = { [weak self] in self?.store.dismiss() }
         self.panel = panel
 
+        store.onCharacterPalette = { [weak self] in self?.yieldToCharacterPalette() }
         store.onExpandedChange = { [weak self] expanded in
             guard let panel = self?.panel else { return }
             panel.allowsKey = expanded
@@ -171,6 +172,46 @@ final class NotchController {
 
         installMonitors()
         screenChanged()
+    }
+
+    /// The island's own level: above nearly everything, so it shows over full-screen apps and the lock screen.
+    static let islandLevel = NSWindow.Level(rawValue: Int(Int32.max - 2))
+    private var paletteWatch: Task<Void, Never>?
+
+    /// Emoji & Symbols opens in its own process at a level under the island's, so it appeared behind the panel. While
+    /// it's on screen the panel steps down to just under it, then goes back up once it closes.
+    func yieldToCharacterPalette() {
+        paletteWatch?.cancel()
+        paletteWatch = Task { [weak self] in
+            var seen = false
+            for _ in 0..<600 { // up to a minute between looks at it; it's usually closed well before
+                try? await Task.sleep(for: .milliseconds(seen ? 300 : 80))
+                guard let self, !Task.isCancelled, let panel = self.panel else { return }
+                if let layer = Self.characterPaletteLayer() {
+                    seen = true
+                    let under = NSWindow.Level(rawValue: layer - 1)
+                    if panel.level != under { panel.level = under }
+                } else if seen {
+                    break
+                }
+            }
+            self?.panel?.level = Self.islandLevel
+        }
+    }
+
+    /// The window layer of the open Emoji & Symbols picker, if it's on screen.
+    private static func characterPaletteLayer() -> Int? {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        for w in list {
+            let owner = w[kCGWindowOwnerName as String] as? String ?? ""
+            guard owner == "Emoji & Symbols" || owner.contains("CharacterPalette"),
+                  let b = w[kCGWindowBounds as String] as? NSDictionary, let r = CGRect(dictionaryRepresentation: b),
+                  r.height > 100, let layer = w[kCGWindowLayer as String] as? Int else { continue }
+            // Only step down to a level that still floats over apps' windows.
+            guard layer > NSWindow.Level.statusBar.rawValue else { return nil }
+            return min(layer, Int(Int32.max - 2))
+        }
+        return nil
     }
 
     func setPaused(_ paused: Bool) {

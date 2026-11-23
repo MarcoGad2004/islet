@@ -323,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Notifications (DESIGN.md "Notifications").
         notifications.canTake = { [weak store] in store?.canTakeNotification($0) == true }
         store.messages = messages
+        if Feature.messages.isOn { messages.startInbox() }
         notifications.onNotification = { [weak store] in store?.showNotification($0) }
         store.notificationShow = { [weak self] in self?.notifications.show($0) }
         store.notificationClose = { [weak self] in self?.notifications.close($0) }

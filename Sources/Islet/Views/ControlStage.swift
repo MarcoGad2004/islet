@@ -109,6 +109,7 @@ struct ControlStage: View {
                         .opacity(rest)
                 }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
+                if Feature.messages.isOn, let m = store.messages, m.unreadCount > 0 { messagesChip(m.unreadCount).opacity(rest) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag).opacity(rest) }
                 if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f).opacity(rest) }
             }
@@ -188,6 +189,23 @@ struct ControlStage: View {
         }
         .buttonStyle(.plain)
         .help(s.charged ? "Fully charged" : s.charging ? "Charging" : s.onAC ? "Plugged in" : "On battery")
+    }
+
+    /// New messages: click for the inbox.
+    private func messagesChip(_ n: Int) -> some View {
+        Button { store.openInbox() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "message.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(hex: 0x0A84FF))
+                Text("\(n)").font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                    .contentTransition(.numericText())
+            }
+            .padding(.horizontal, 8).frame(height: 22)
+            .background(IsletCard(shape: Capsule()))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(n == 1 ? "1 new message" : "\(n) new messages")
+        .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }
 
     private func focusIcon(_ f: FocusMode) -> some View {
