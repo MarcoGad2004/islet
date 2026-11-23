@@ -128,6 +128,9 @@ final class MessagesStore {
     }
     /// A reply that went out but hasn't shown up in the history yet: shown at once, "Sending…".
     private(set) var pending: [Message] = []
+    @ObservationIgnored private var sendCount: Int64 = 0
+    /// One-to-one chats replied to that Messages still shows unread: marked read when the conversation closes.
+    @ObservationIgnored private var toMarkRead: [Conversation] = []
     /// The send itself failed (no permission, Messages refused).
     private(set) var sendError: String?
     /// A tapback is on its way (Messages is in front for a moment).
@@ -323,6 +326,16 @@ final class MessagesStore {
     }
 
     func close() {
+        // Chats replied to while they still showed a badge in Messages: mark them read now the conversation is
+        // done, after the panel has finished closing, so Messages coming forward doesn't interrupt anything.
+        if !toMarkRead.isEmpty {
+            let chats = toMarkRead
+            toMarkRead = []
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                for chat in chats { await TapbackSender.markRead(chat) }
+            }
+        }
         watcher?.cancel(); watcher = nil
         reloadTask?.cancel()
         open = nil
@@ -477,31 +490,52 @@ final class MessagesStore {
 
     // MARK: Sending
 
-    /// Asks Messages to send `text` to the open conversation. Shows it at once as "Sending…".
-    func send(_ text: String) {
+    /// Asks Messages to send `text` to the open conversation. Shows it at once as "Sending…"; the Apple Event goes
+    /// out on its own queue so the main thread (and the panel's animations) never wait for Messages to answer.
+    /// `failed` gets the text back when Messages refuses it.
+    func send(_ text: String, failed: @escaping @MainActor (String) -> Void = { _ in }) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let c = open else { return }
         sendError = nil
         let escaped = text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let guid = c.guid.replacingOccurrences(of: "\"", with: "")
-        var error: NSDictionary?
-        let ok = NSAppleScript(source: "tell application \"Messages\" to send \"\(escaped)\" to chat id \"\(guid)\"")?
-            .executeAndReturnError(&error) != nil
-        if !ok {
-            let n = error?[NSAppleScript.errorNumber] as? Int ?? 0
-            sendError = n == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
-            return
-        }
-        let p = Message(id: -Int64(pending.count + 1), text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending)
+        let source = "tell application \"Messages\" to send \"\(escaped)\" to chat id \"\(guid)\""
+        sendCount += 1
+        let p = Message(id: -sendCount, text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending)
         pending.append(p)
         open?.messages.append(p)
-        scheduleReload()
-        // Replying doesn't mark the chat read in Messages: do that if it still shows a badge.
+        // Replying doesn't mark the chat read in Messages. Doing that brings Messages forward, so it waits until the
+        // conversation closes (see `close()`) instead of interrupting it.
         let unreadInMessages = rows("""
             select count(*) from message m join chat_message_join j on j.message_id = m.ROWID
             where j.chat_id = ? and m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
             """, [c.chatID]).first?[0] as? Int64 ?? 0
-        if unreadInMessages > 0 { Task { await TapbackSender.markRead(c) } }
+        Task {
+            let error = await Self.runAppleScript(source)
+            if let error {
+                pending.removeAll { $0.id == p.id }
+                if open?.chatID == c.chatID {
+                    open?.messages.removeAll { $0.id == p.id }
+                    sendError = error == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
+                }
+                failed(text)
+                return
+            }
+            if unreadInMessages > 0, !toMarkRead.contains(where: { $0.chatID == c.chatID }) { toMarkRead.append(c) }
+            scheduleReload()
+        }
+    }
+
+    /// Runs Apple Events one at a time, in order, off the main thread. Nil when it worked, else the error number.
+    nonisolated private static let appleEvents = DispatchQueue(label: "com.marcogad.islet.messages.send")
+    nonisolated private static func runAppleScript(_ source: String) async -> Int? {
+        await withCheckedContinuation { done in
+            appleEvents.async {
+                var error: NSDictionary?
+                let ok = NSAppleScript(source: source)?.executeAndReturnError(&error) != nil
+                done.resume(returning: ok ? nil : (error?[NSAppleScript.errorNumber] as? Int ?? 0))
+            }
+        }
     }
 
     // MARK: Reacting

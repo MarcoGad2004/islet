@@ -1118,8 +1118,11 @@ final class IslandStore {
 
     func sendMessage() {
         guard !messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        messages?.send(messageDraft)
-        if messages?.sendError == nil { messageDraft = "" }
+        messages?.send(messageDraft) { [weak self] text in
+            // Messages refused it: give the text back to fix and resend, unless something new was typed.
+            if let self, self.messageDraft.isEmpty { self.messageDraft = text }
+        }
+        messageDraft = ""
     }
 
     func setBase(_ p: Presentation?) {
