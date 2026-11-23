@@ -85,7 +85,24 @@ final class BatteryStatsPanel {
             let view = NSGlassEffectView()
             view.cornerRadius = 24
             view.contentView = host
-            panel.contentView = view
+            // Dark glass (as Control Center is in Dark Mode), so the white text and grey labels read over light
+            // wallpapers; still the system's material, so the Liquid Glass and Reduce Transparency settings apply.
+            view.appearance = NSAppearance(named: .darkAqua)
+            // Clipped to the rounded shape, so nothing square can show round the glass.
+            let clip = NSView()
+            clip.wantsLayer = true
+            clip.layer?.cornerRadius = 24
+            clip.layer?.cornerCurve = .continuous
+            clip.layer?.masksToBounds = true
+            view.translatesAutoresizingMaskIntoConstraints = false
+            clip.addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: clip.trailingAnchor),
+                view.topAnchor.constraint(equalTo: clip.topAnchor),
+                view.bottomAnchor.constraint(equalTo: clip.bottomAnchor),
+            ])
+            panel.contentView = clip
             // The window's own shadow is drawn for its square frame, which showed as a dark box around the glass.
             panel.hasShadow = false
         } else {
