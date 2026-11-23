@@ -674,7 +674,8 @@ Owner approved, 2026-11-21 (a search that comes out of the notch, in place of Sp
 - **Not in search (for now)**: clipboard history (it would mean Islet watching everything you copy), web results and
   answers (no network), mail and messages.
 
-Decided (owner, 2026-11-21): ⌘Space is the default (Spotlight's own shortcut is moved); the "Search the web" row
+Decided (owner, 2026-11-21): ⌘Space is the default (Spotlight's own shortcut is moved). **Changed (owner, 2026-11-23): ⌥Space
+is the default, so Islet doesn't fight Spotlight; ⌘Space is a choice in Settings > Search.**; the "Search the web" row
 stays; typing in the open panel starts a search.
 
 ## Settings (1.4)

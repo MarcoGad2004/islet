@@ -8,7 +8,7 @@ enum SearchShortcutChoice: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static var current: SearchShortcutChoice {
-        UserDefaults.standard.string(forKey: key).flatMap(SearchShortcutChoice.init(rawValue:)) ?? .commandSpace
+        UserDefaults.standard.string(forKey: key).flatMap(SearchShortcutChoice.init(rawValue:)) ?? .optionSpace
     }
 
     var title: String {

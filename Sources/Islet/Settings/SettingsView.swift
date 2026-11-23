@@ -25,7 +25,7 @@ struct SettingsView: View {
     @AppStorage(NotificationWatcher.enabledKey) private var notificationsInNotch = true
     @AppStorage(NotificationWatcher.hideTextKey) private var notificationsHideText = false
     @AppStorage(MessagesStore.enabledKey) private var messagesInNotch = true
-    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
+    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.optionSpace.rawValue
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
     @AppStorage(Feature.levelsKey) private var levelsInNotch = true

@@ -74,7 +74,7 @@ enum Feature: String, CaseIterable, Identifiable {
             let now = SearchShortcutChoice.current
             if on, now == .off {
                 let last = d.string(forKey: Self.lastSearchShortcutKey).flatMap(SearchShortcutChoice.init(rawValue:))
-                d.set((last ?? .commandSpace).rawValue, forKey: SearchShortcutChoice.key)
+                d.set((last ?? .optionSpace).rawValue, forKey: SearchShortcutChoice.key)
             } else if !on, now != .off {
                 d.set(now.rawValue, forKey: Self.lastSearchShortcutKey)
                 d.set(SearchShortcutChoice.off.rawValue, forKey: SearchShortcutChoice.key)

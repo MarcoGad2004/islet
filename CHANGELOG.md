@@ -7,6 +7,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Fixes
 
+- Macs without a notch: the island now answers the pointer at the top of the screen while you're on the desktop. macOS doesn't send pointer moves to other apps while the desktop is in front, so Islet now also watches them another way.
+- Search opens with ⌥Space by default, so it doesn't take ⌘Space from Spotlight. You can still give it ⌘Space in Settings > Search.
 - Contacts permission: pressing Allow now asks for access. Before, the app was missing the Contacts entitlement its signing needs, so macOS refused silently and System Settings showed an empty Contacts list.
 
 ### Face unlock

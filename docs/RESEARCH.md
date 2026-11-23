@@ -516,3 +516,14 @@ a small Accessibility tool from the shell; nothing was sent.
 60. **Emoji while typing:** Islet is an agent app with no Edit menu, so ⌃⌘Space (Emoji & Symbols) did nothing in the
     reply field; Islet now opens the picker itself (`NSApp.orderFrontCharacterPalette`). Typing a word first and then
     ⌃⌘Space searches the picker for it, as in other apps.
+
+## Pointer on the desktop (1.4.1, 2026-11-23)
+
+Owner report: on a Mac without a notch the island didn't answer the pointer at the top of the screen while on the
+desktop. Islet tracked the pointer with a global `mouseMoved` monitor, and macOS only delivers moves to global monitors
+while the frontmost app asks for them, which the desktop (Finder with no window) doesn't. Now a listen-only
+`CGEventTap` (session, tail, mouse moved and dragged) feeds the same check; it never holds or changes events, and
+re-enables itself if macOS disables it. Not reproduced on the owner's Mac by hand yet. Ruled out: the Mission Control
+check (`DockOverview`) misfiring; on macOS 27 Mission Control adds a full-screen Dock window at layer 20 and the menu
+bar window stays listed, so "menu bar showing" can't tell them apart either.
+

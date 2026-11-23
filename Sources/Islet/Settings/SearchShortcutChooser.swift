@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Which shortcut opens search (DESIGN.md "Search", "Opening"): ⌘Space for Islet (Spotlight moves), or ⌘Space stays
-/// Spotlight's and Islet takes another. Below it, what's true right now, ticking itself off once Spotlight has moved.
+/// Which shortcut opens search (DESIGN.md "Search", "Opening"): ⌘Space stays Spotlight's and Islet takes another
+/// (the default, ⌥Space), or ⌘Space for Islet (Spotlight moves). Below it, what's true right now, ticking itself off once Spotlight has moved.
 /// Used by Settings > Search and by setup. Put it in a Form section.
 struct SearchShortcutChooser: View {
     @Binding var shortcut: String
@@ -14,10 +14,11 @@ struct SearchShortcutChooser: View {
     var body: some View {
         Group {
             Picker(selection: mode) {
+                // Spotlight keeps ⌘Space by default (owner, 2026-11-23); taking it over is opt-in.
+                SettingsLabel("Keep ⌘Space for Spotlight", "Nothing changes in System Settings. Islet uses another shortcut, ⌥Space unless you pick one.")
+                    .tag(false)
                 SettingsLabel("Use ⌘Space for Islet", "Islet's search takes Spotlight's place. Spotlight, and Siri in it, move to another shortcut.")
                     .tag(true)
-                SettingsLabel("Keep ⌘Space for Spotlight", "Nothing changes in System Settings. Islet uses another shortcut.")
-                    .tag(false)
             } label: { EmptyView() }
             .pickerStyle(.radioGroup)
             if !mode.wrappedValue {

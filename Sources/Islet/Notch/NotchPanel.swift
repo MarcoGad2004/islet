@@ -111,6 +111,9 @@ final class NotchController {
     let store = IslandStore()
     private var panel: NotchPanel?
     private var monitors: [Any] = []
+    /// Sees every pointer move, whichever app is in front (see `installMonitors`).
+    private var pointerTap: CFMachPort?
+    private var lastPointer: NSPoint?
     private var screenObserver: NSObjectProtocol?
     /// Without a notch: where the island hangs, from Islet's menu bar icon (its centre x, the menu bar's bottom
     /// and its screen). nil when the icon isn't on screen.
@@ -221,10 +224,13 @@ final class NotchController {
         let moveMask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
         let clickMask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
 
-        // Global monitors see events going to other apps (the panel ignores the mouse outside the island).
+        // Global monitors see events going to other apps (the panel ignores the mouse outside the island). macOS only
+        // sends pointer moves to them while the app in front asks for moves, which the desktop (Finder with no window)
+        // doesn't: so a listen-only event tap watches them too. It never holds or changes an event.
         if let m = NSEvent.addGlobalMonitorForEvents(matching: moveMask, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.pointerChanged() }
         }) { monitors.append(m) }
+        installPointerTap()
         if let m = NSEvent.addGlobalMonitorForEvents(matching: clickMask, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.clickedElsewhere() }
         }) { monitors.append(m) }
@@ -241,7 +247,31 @@ final class NotchController {
         }) { monitors.append(m) }
     }
 
+    private func installPointerTap() {
+        let mask = CGEventMask(1 << CGEventType.mouseMoved.rawValue) | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+        let callback: CGEventTapCallBack = { _, type, event, info in
+            if let info, type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                let me = Unmanaged<NotchController>.fromOpaque(info).takeUnretainedValue()
+                MainActor.assumeIsolated { if let t = me.pointerTap { CGEvent.tapEnable(tap: t, enable: true) } }
+            } else if let info {
+                let me = Unmanaged<NotchController>.fromOpaque(info).takeUnretainedValue()
+                MainActor.assumeIsolated { me.pointerChanged() }
+            }
+            return Unmanaged.passUnretained(event)
+        }
+        guard let t = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly,
+                                        eventsOfInterest: mask, callback: callback,
+                                        userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return }
+        pointerTap = t
+        CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, t, 0), .commonModes)
+        CGEvent.tapEnable(tap: t, enable: true)
+    }
+
     private func pointerChanged() {
+        // The tap and the monitors both report most moves: one look per position is enough.
+        let at = NSEvent.mouseLocation
+        if at == lastPointer { return }
+        lastPointer = at
         var inside = store.isOverIsland(globalPoint: NSEvent.mouseLocation)
         // Mission Control's Spaces bar runs along the top: the island doesn't answer the pointer there, so the peek
         // (and, without a notch, the chevron) stays away and clicks reach the bar (DESIGN.md "Behaviour").
@@ -302,7 +332,8 @@ struct KeyPress {
 
 /// Whether Mission Control (or another of the Dock's full-screen views, like the app grid) is open. macOS posts no
 /// event Islet can hear for it (the Dock's Expose notifications stay silent on macOS 26), but while it's open the Dock
-/// owns a window covering the whole screen. Only asked while the pointer is over the island, and at most 4 times a second.
+/// owns a window covering the whole screen (layer 20, the menu bar stays listed: checked on macOS 27, 2026-11-23).
+/// Only asked while the pointer is over the island, and at most 4 times a second.
 @MainActor
 enum DockOverview {
     private static var checkedAt = Date.distantPast

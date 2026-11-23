@@ -34,7 +34,7 @@ struct OnboardingView: View {
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
-    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.commandSpace.rawValue
+    @AppStorage(SearchShortcutChoice.key) private var searchShortcut = SearchShortcutChoice.optionSpace.rawValue
     /// What's ticked on the choose step. Face Unlock is turned on only once it's set up, so it's kept here till then.
     @State private var picked: Set<Feature> = Set(Feature.allCases.filter { $0 != .faceUnlock && $0.isOn })
     @State private var wantsFace = UserDefaults.standard.bool(forKey: "faceUnlockEnabled")
