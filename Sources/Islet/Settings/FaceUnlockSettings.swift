@@ -129,23 +129,20 @@ struct FaceUnlockSettings: View {
             }
             if face.testingFace { testResult }
             LabeledContent {
-                HStack {
-                    Slider(value: Binding(get: { Double(face.faces.threshold) }, set: { face.faces.threshold = Float($0) }), in: 0.25...0.75)
-                        .frame(maxWidth: 220)
-                    Text(String(format: "%.2f", face.faces.threshold)).monospacedDigit().frame(width: 36, alignment: .trailing)
-                }
+                Text(String(format: "%.2f", face.faces.effectiveThreshold)).monospacedDigit()
             } label: {
                 SettingsLabel("Match threshold", thresholdText)
             }
         } header: { Text("Test recognition") }
     }
 
+    /// How the threshold in use was set: the security level, then your own scores.
     private var thresholdText: String {
-        let faces = face.faces
-        guard faces.learnFromUnlocks else { return "" }
+        let faces = face.faces, level = faces.security.title
+        guard faces.learnFromUnlocks else { return "Set by \(level). Turn on learning to fit it to your face." }
         let n = faces.genuineScores.count
-        if n < AdaptiveThreshold.minimum { return "Learning your scores: \(n) of \(AdaptiveThreshold.minimum) unlocks" }
-        return String(format: "In use: %.2f, from your last %d unlocks. The slider is the floor.", faces.effectiveThreshold, n)
+        if n < AdaptiveThreshold.minimum { return "Set by \(level) · learning your scores: \(n) of \(AdaptiveThreshold.minimum) unlocks" }
+        return "Set by \(level), just under your usual scores from your last \(n) unlocks"
     }
 
     private var testResult: some View {
@@ -236,7 +233,7 @@ struct FaceUnlockSettings: View {
             }
             Toggle(isOn: Binding(get: { faces.learnFromUnlocks }, set: { faces.learnFromUnlocks = $0 })) {
                 SettingsLabel("Learn my face from unlocks",
-                              "Adapts to new light, glasses or a haircut, and after \(AdaptiveThreshold.minimum) unlocks sets the match threshold just under your usual scores (up to \(String(format: "%.2f", AdaptiveThreshold.maxRaise)) above the slider). Keeps only unlocks that matched your first scan well, so it doesn't drift.")
+                              "Adapts to new light, glasses or a haircut, and after \(AdaptiveThreshold.minimum) unlocks fits the match threshold to your usual scores, as tightly as the security level asks. Keeps only unlocks that matched your first scan well, so it doesn't drift.")
             }
             LabeledContent {
                 if !faces.learned.isEmpty || !faces.pulseProfiles.isEmpty || !faces.genuineScores.isEmpty { Button("Forget") { faces.forgetLearned() } }

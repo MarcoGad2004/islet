@@ -327,6 +327,20 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertEqual(t, 0.55 + 0.005, accuracy: 0.006) // 5th percentile (~0.61) less 0.05
     }
 
+    func testThresholdFollowsTheLevel() {
+        // Before 20 unlocks: the level's own starting point.
+        XCTAssertEqual(AdaptiveThreshold.value(.faster, scores: []), 0.45)
+        XCTAssertEqual(AdaptiveThreshold.value(.standard, scores: []), 0.50)
+        XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: []), 0.55)
+        // Unlocks scoring ~0.75: each level sits under them by its own margin, stricter levels closer.
+        let mine = Array(repeating: Float(0.75), count: 30)
+        XCTAssertEqual(AdaptiveThreshold.value(.faster, scores: mine), 0.60, accuracy: 0.001) // capped: 0.45 + 0.15
+        XCTAssertEqual(AdaptiveThreshold.value(.standard, scores: mine), 0.70, accuracy: 0.001)
+        XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: mine), 0.73, accuracy: 0.001)
+        // Low scores never pull it under the level's floor.
+        XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: Array(repeating: 0.5, count: 30)), 0.55)
+    }
+
     func testAdaptiveThresholdIsBounded() {
         // Very high scores: capped at floor + maxRaise.
         XCTAssertEqual(AdaptiveThreshold.value(floor: 0.45, scores: Array(repeating: 0.95, count: 30)), 0.60, accuracy: 0.001)

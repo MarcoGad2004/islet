@@ -200,9 +200,13 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   | When it isn't sure | blink | glow, then blink | glow, then a random challenge |
   | Glow also needs the spoof model at | n/a | ≥ 0.5 | ≥ 0.75 |
   | Refuses below (6 frames) | 0.25 | 0.25 | 0.35 |
+  | Match threshold until 20 unlocks are learned, and its floor after | 0.45 | 0.50 | 0.55 |
+  | Once learned: under your usual scores (5th percentile) by | 0.08 | 0.05 | 0.02 |
+  | Most the threshold can rise above its floor | 0.15 | 0.20 | 0.25 |
 
   There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
-  Off to Faster, the rest to Standard.
+  Off to Faster, the rest to Standard. The match threshold is set by the level too, not by hand (owner, 2026-11-23:
+  the slider is gone); Test recognition shows the one in use and how it was set.
 - **Light check** (Standard and More secure, when the spoof model isn't sure; owner request 2026-11-22): the label
   stays "Checking" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
   depended on the wallpaper being bright): after a random 0.3-0.45 s wait, a full-screen layer of white on the
@@ -452,8 +456,8 @@ Convenience, explicitly weaker than Touch ID. Agreed by the owner.
 - Spoof checks on every scan: a rectangle edge around the face, and a spoof model (MiniFASNet) that refuses
   a face it's sure is a print or screen, and the Security level's light check and challenge (Face scan, above).
 - "Learn my face from unlocks" (on by default; since 1.6 one switch for what were two): adds new looks, learns how
-  the face answers the glow, and after 20 confirmed unlocks raises the threshold to just under the owner's usual
-  scores, never below the slider and at most 0.15 above it.
+  the face answers the glow, and after 20 confirmed unlocks fits the threshold to just under the owner's usual
+  scores, as the Security level sets (table above). With it off, the threshold is the level's starting point.
 - Setup in Settings: confirm with Touch ID or the password, look at the camera to enrol, then enter
   the login password to store in the Keychain. Face data and the password never leave the Mac.
 - Feasibility is **unproven**: see `docs/RESEARCH.md`. Build the spike before any UI.

@@ -56,18 +56,17 @@ final class FaceStore {
     /// enrolment itself, comfortably above the threshold, so the set can't drift towards someone else.
     private(set) var learned: [[Float]] = []
     private(set) var hasPassword = false
-    /// Cosine-similarity score a probe needs to count as a match. Tune with "Test recognition". Once it has learned
-    /// from enough unlocks, this is the floor the adaptive threshold never goes below.
-    var threshold: Float {
-        didSet { UserDefaults.standard.set(threshold, forKey: Self.thresholdKey) }
-    }
+    /// The security level's starting threshold: what a scan uses until it has learned your scores, the floor after,
+    /// and the bar a new look has to clear against the enrolment. Set by the level, not by hand (owner, 2026-11-23;
+    /// it was a slider).
+    var threshold: Float { security.matchFloor }
     /// Typical scores of your confirmed unlocks (and of misses you then unlocked with the password), newest last.
     private(set) var genuineScores: [Float]
     /// How your face responded to the brightness pulse on confirmed unlocks (FacePulse.Reading.profile).
     private(set) var pulseProfiles: [[Double]]
     /// The threshold a scan uses: raised towards your usual scores while learning is on.
     var effectiveThreshold: Float {
-        learnFromUnlocks ? AdaptiveThreshold.value(floor: threshold, scores: genuineScores) : threshold
+        learnFromUnlocks ? AdaptiveThreshold.value(security, scores: genuineScores) : threshold
     }
 
     /// How hard it checks the face is live before unlocking.
@@ -83,9 +82,8 @@ final class FaceStore {
 
     init() {
         UserDefaults.standard.register(defaults: [Self.learnKey: true])
-        let t = UserDefaults.standard.float(forKey: Self.thresholdKey)
-        threshold = t > 0 ? t : 0.45
         let d = UserDefaults.standard
+        d.removeObject(forKey: Self.thresholdKey) // the old slider's value
         security = d.string(forKey: Self.securityKey).flatMap(FaceSecurity.init(rawValue:))
             ?? Self.migratedSecurity(d.string(forKey: Self.livenessKey))
         learnFromUnlocks = d.bool(forKey: Self.learnKey)
@@ -187,8 +185,8 @@ enum FaceLearning {
 /// The adaptive threshold. Pure, so it can be tested.
 ///
 /// It sits just under where your own unlocks usually score (their 5th percentile, less a margin), so about 1 unlock in
-/// 20 would land in the margin rather than fail. It never goes below the threshold you set, nor more than `maxRaise`
-/// above it. Only your own confirmed unlocks raise it; a failed scan can't lower it, only a miss that you then
+/// 20 would land in the margin rather than fail. It never goes below the level's floor, nor more than `maxRaise`
+/// above it; the margin and the raise come from the security level. Only your own confirmed unlocks raise it; a failed scan can't lower it, only a miss that you then
 /// unlocked with the password can (it's added as one of your scores).
 enum AdaptiveThreshold {
     /// Scores needed before it moves at all.
@@ -197,11 +195,15 @@ enum AdaptiveThreshold {
     static let maxRaise: Float = 0.15
     static let ceiling: Float = 0.75
 
-    static func value(floor: Float, scores: [Float]) -> Float {
+    static func value(floor: Float, scores: [Float], margin: Float = margin, maxRaise: Float = maxRaise) -> Float {
         guard scores.count >= minimum else { return floor }
         let s = scores.sorted()
         let low = s[Int((Double(s.count - 1) * 0.05).rounded(.down))]
         return max(floor, min(low - margin, floor + maxRaise, ceiling))
+    }
+
+    static func value(_ level: FaceSecurity, scores: [Float]) -> Float {
+        value(floor: level.matchFloor, scores: scores, margin: level.matchMargin, maxRaise: level.matchMaxRaise)
     }
 }
 

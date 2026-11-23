@@ -91,7 +91,7 @@ lock screen. Each question below can block it:
       (the dark-room boost suggests DisplayServices does). Test recognition → Check Light shows depth and shape.
     - *Adaptive threshold:* scores are each confirmed unlock's median frame score (not the first matching frame,
       which would only ever be above the threshold and ratchet it up), plus the best score of a miss followed by a
-      password unlock within 60 s. Threshold = 5th percentile − 0.05, clamped to [slider, slider + 0.15].
+      password unlock within 60 s. Threshold = 5th percentile − 0.05, clamped to [slider, slider + 0.15] (since 1.6 there is no slider: the Security level sets the floor, margin and raise).
     - *Direct sun (2026-11-23, owner report: in direct sunlight it struggled to tell a real face from a photo):* the
       screen's light (~100-200 lux at the face) is lost in sunlight (10,000+ lux), so the pulse can't respond, and
       harsh light is where texture models misjudge real faces. macOS doesn't expose the camera's exposure time or ISO
