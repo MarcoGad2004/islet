@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Publishes a new Islet version: scripts/release.sh 1.1
-# Sets the version in project.yml, builds dist/Islet.dmg, commits, tags and creates a GitHub release with the DMG.
+# Publishes a new Dynamic Peninsula (formerly Islet) version: scripts/release.sh 1.1
+# Sets the version in project.yml, builds "dist/Dynamic Peninsula.dmg" and dist/Islet.dmg (for pre-1.5 copies), commits, tags and creates a GitHub release with the DMG.
 # Installed copies find it with Settings > Updates > Check for updates. Outward-facing: run it only when you mean it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,5 +15,5 @@ git push origin main "v$V"
 NOTES=$(mktemp)
 awk -v v="$V" '$0 ~ "^## "v" " {on=1; next} /^## / {on=0} on' CHANGELOG.md > "$NOTES"
 [ -s "$NOTES" ] || { echo "No CHANGELOG.md section for $V"; exit 1; }
-gh release create "v$V" dist/Islet.dmg --title "Islet $V" --notes-file "$NOTES"
+gh release create "v$V" "dist/Dynamic Peninsula.dmg" dist/Islet.dmg --title "Dynamic Peninsula $V" --notes-file "$NOTES"
 echo "Released v$V"

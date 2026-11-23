@@ -93,7 +93,7 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Islet " + versionLabel.components(separatedBy: " (").first!).fontWeight(.semibold)
+                Text("Dynamic Peninsula " + versionLabel.components(separatedBy: " (").first!).fontWeight(.semibold)
                 HStack(spacing: 5) {
                     Circle().fill(issues.isEmpty ? Color.green : .orange).frame(width: 7, height: 7)
                     Text(Self.summary(issues.count)).font(.caption).foregroundStyle(.secondary)
@@ -153,7 +153,7 @@ struct SettingsView: View {
             } header: {
                 Text("Features")
             } footer: {
-                SettingsCaption("Turn off what you don't use, and Islet stops asking for what only it needs. The island itself, with now playing, charging and the controls, is always on.")
+                SettingsCaption("Turn off what you don't use, and Dynamic Peninsula stops asking for what only it needs. The island itself, with now playing, charging and the controls, is always on.")
             }
         }
         .formStyle(.grouped)
@@ -161,9 +161,9 @@ struct SettingsView: View {
 
     private var allSetDetail: String {
         let p = checks.permissions
-        var parts = [p.allSatisfy(\.allowed) ? "All \(p.count) permissions are allowed" : "Everything Islet uses is allowed"]
+        var parts = [p.allSatisfy(\.allowed) ? "All \(p.count) permissions are allowed" : "Everything Dynamic Peninsula uses is allowed"]
         if face.faces.isReady, face.unlock.enabled { parts.append("Face Unlock is on") }
-        if updater.state == .upToDate { parts.append("Islet is up to date") }
+        if updater.state == .upToDate { parts.append("Dynamic Peninsula is up to date") }
         return parts.count == 1 ? parts[0] + "." : parts.dropLast().joined(separator: ", ") + " and " + parts.last! + "."
     }
 
@@ -220,10 +220,10 @@ struct SettingsView: View {
     private var general: some View {
         Form {
             Section {
-                Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+                Toggle("Open Dynamic Peninsula at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
                 if let loginError { Text(loginError).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
                 Toggle(isOn: $showMenuBarIcon) {
-                    SettingsLabel("Show menu bar icon", "Settings is also behind the gear in the open panel. Without a notch the icon always shows. With Battery in the menu bar on, the battery is Islet's icon and always shows.")
+                    SettingsLabel("Show menu bar icon", "Settings is also behind the gear in the open panel. Without a notch the icon always shows. With Battery in the menu bar on, the battery is Dynamic Peninsula's icon and always shows.")
                 }
             }
             Section {
@@ -232,7 +232,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsLabel("Run setup again", "Walks through the permissions and Face Unlock again.")
                 }
-                LabeledContent("Quit Islet") { Button("Quit") { NSApp.terminate(nil) } }
+                LabeledContent("Quit Dynamic Peninsula") { Button("Quit") { NSApp.terminate(nil) } }
             }
         }
         .formStyle(.grouped)
@@ -245,7 +245,7 @@ struct SettingsView: View {
                     Text("Has a notch").tag(true)
                     Text("No notch").tag(false)
                 } label: {
-                    SettingsLabel("This Mac", hasNotch ? "With the lid closed on an external display, Islet uses the no-notch style." : "There's no notch to live in, so Islet uses the style below.")
+                    SettingsLabel("This Mac", hasNotch ? "With the lid closed on an external display, Dynamic Peninsula uses the no-notch style." : "There's no notch to live in, so Dynamic Peninsula uses the style below.")
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
@@ -314,7 +314,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle(isOn: $askSiri) {
-                        SettingsLabel("Ask Siri", "Type “siri” and your question, or just a question. Return opens Spotlight with it asked, and Siri answers there. When Islet finds nothing, Ask Siri comes first too.")
+                        SettingsLabel("Ask Siri", "Type “siri” and your question, or just a question. Return opens Spotlight with it asked, and Siri answers there. When Dynamic Peninsula finds nothing, Ask Siri comes first too.")
                     }
                     if askSiri, !face.unlock.accessibilityTrusted {
                         Label("Needs Accessibility, to type your question into Spotlight.", systemImage: "exclamationmark.triangle.fill")
@@ -340,7 +340,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle(isOn: featureBinding(.menuBarBattery)) {
-                    SettingsLabel("Show the battery in the menu bar", "Islet's menu bar icon becomes a battery, so it can stand in for the macOS one. Right-click it for Islet's menu.")
+                    SettingsLabel("Show the battery in the menu bar", "Dynamic Peninsula's menu bar icon becomes a battery, so it can stand in for the macOS one. Right-click it for Dynamic Peninsula's menu.")
                 }
                 if menuBarIconStyle == MenuBarIconStyle.battery.rawValue {
                     Picker(selection: $batteryIconClick) {
@@ -365,7 +365,7 @@ struct SettingsView: View {
                         SettingsLabel("Switch without a password", "The battery page can switch Low Power, Automatic and High Power without asking.")
                     }
                 } else {
-                    SettingsLabel("Asks for your password", "The first time you switch Energy Mode on the battery page, Islet asks for your password once and can then switch it without asking.")
+                    SettingsLabel("Asks for your password", "The first time you switch Energy Mode on the battery page, Dynamic Peninsula asks for your password once and can then switch it without asking.")
                 }
             } header: { Text("Energy Mode") }
         }
@@ -381,7 +381,7 @@ struct SettingsView: View {
             if mine.isEmpty {
                 Section {
                     SettingsHero(symbol: "checkmark", color: .green, title: "Your features have what they need",
-                                 detail: "Islet only asks for what the features you have on use. It checks again whenever this window comes to the front.")
+                                 detail: "Dynamic Peninsula only asks for what the features you have on use. It checks again whenever this window comes to the front.")
                 }
             }
             SettingsIssuesSection(issues: mine)
@@ -417,7 +417,7 @@ struct SettingsView: View {
                 LabeledContent {
                     Text(media.available ? "Working" : "Unavailable").foregroundStyle(.secondary)
                 } label: {
-                    SettingsLabel("Now playing", "Reads what's playing through a helper built into Islet.")
+                    SettingsLabel("Now playing", "Reads what's playing through a helper built into Dynamic Peninsula.")
                 }
             } header: { Text("Not a permission") }
         }
@@ -454,12 +454,12 @@ struct SettingsView: View {
 
     private var updateTitle: String {
         switch updater.state {
-        case .available(let tag): "Islet \(Updater.plain(tag)) is available"
-        case .upToDate: "Islet is up to date"
+        case .available(let tag): "Dynamic Peninsula \(Updater.plain(tag)) is available"
+        case .upToDate: "Dynamic Peninsula is up to date"
         case .checking: "Checking…"
         case .downloading: "Updating; follow along in the notch"
         case .failed: "Couldn't check for updates"
-        case .idle: "Islet \(updater.currentVersion)"
+        case .idle: "Dynamic Peninsula \(updater.currentVersion)"
         }
     }
 

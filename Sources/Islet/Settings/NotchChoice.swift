@@ -14,8 +14,8 @@ struct NotchChoice: View {
             }
             .pickerStyle(.segmented)
             Text(hasNotch
-                 ? "The island lives in the notch. With the lid closed on an external display, Islet uses the no-notch style below."
-                 : "There's no notch to live in, so Islet uses the style below.")
+                 ? "The island lives in the notch. With the lid closed on an external display, Dynamic Peninsula uses the no-notch style below."
+                 : "There's no notch to live in, so Dynamic Peninsula uses the style below.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Picker("Without a notch", selection: $style) {
                 Text("Bubble from the top edge").tag(NotchlessStyle.bezel.rawValue)
@@ -29,7 +29,7 @@ struct NotchChoice: View {
     static func caption(_ style: String) -> String {
         switch NotchlessStyle(rawValue: style) ?? .bezel {
         case .bezel: "Notices bubble out of the top edge under the camera and float just below the menu bar. Hover the middle of the menu bar and swipe down with two fingers to open the panel. Music doesn't stay on screen while it plays."
-        case .menuBar: "The island drops down from Islet's menu bar icon: click it to open the panel, right-click for the menu."
+        case .menuBar: "The island drops down from Dynamic Peninsula's menu bar icon: click it to open the panel, right-click for the menu."
         case .off: "No island. Face unlock and the rest keep working; Settings is in the menu bar icon."
         }
     }

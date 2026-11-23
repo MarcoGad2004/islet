@@ -219,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             Task { @MainActor in
                 let show = { (s: ConnectionProgress.State, f: Double) in
-                    Updater.showInIsland?(ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: "arrow.down.circle.fill",
+                    Updater.showInIsland?(ConnectionProgress(name: "Dynamic Peninsula", hotspot: false, state: s, icon: "arrow.down.circle.fill",
                                                              tint: Color(hex: 0x0A84FF), fraction: f), nil)
                 }
                 try? await Task.sleep(for: .seconds(1.5))
@@ -229,8 +229,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 show(.working("Verifying the update…"), 0.78); try? await Task.sleep(for: .seconds(1.2))
                 show(.working("Installing 1.2.2…"), 0.88); try? await Task.sleep(for: .seconds(1))
-                show(.working("Restarting Islet…"), Updater.restartFraction); try? await Task.sleep(for: .seconds(1.5))
-                Updater.showInIsland?(ConnectionProgress(name: "Islet", hotspot: false, state: .done, icon: "sparkles", tint: .isletGreen,
+                show(.working("Restarting Dynamic Peninsula…"), Updater.restartFraction); try? await Task.sleep(for: .seconds(1.5))
+                Updater.showInIsland?(ConnectionProgress(name: "Dynamic Peninsula", hotspot: false, state: .done, icon: "sparkles", tint: .isletGreen,
                                                          doneText: "Updated to 1.2.2", actionLabel: "What's new", hold: 8, fraction: 1), nil)
             }
         case "scanlive": faceUnlock.unlock.simulate()
@@ -358,11 +358,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if UserDefaults.standard.object(forKey: position) == nil { UserDefaults.standard.set(Self.startPosition, forKey: position) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.autosaveName = name
-        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Islet")
+        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Dynamic Peninsula")
         let menu = NSMenu()
 
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
-        let pause = menu.addItem(withTitle: "Pause Islet", action: #selector(togglePause), keyEquivalent: "")
+        let pause = menu.addItem(withTitle: "Pause Dynamic Peninsula", action: #selector(togglePause), keyEquivalent: "")
         pause.target = self
         pauseItem = pause
 
@@ -383,7 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Islet", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Dynamic Peninsula", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         // The menu opens from the click handler: in menu bar mode a plain click opens the island instead.
         statusMenu = menu
         item.button?.target = self
@@ -406,7 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.toolTip = BatteryPage.status(s)
         } else {
             if batteryStats.isOpen { batteryStats.close() }
-            button.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Islet")
+            button.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Dynamic Peninsula")
             button.title = ""
             button.imagePosition = .imageOnly
             item.length = NSStatusItem.squareLength
@@ -499,7 +499,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePause() {
         paused.toggle()
-        pauseItem?.title = paused ? "Resume Islet" : "Pause Islet"
+        pauseItem?.title = paused ? "Resume Dynamic Peninsula" : "Pause Dynamic Peninsula"
         notch.setPaused(paused)
     }
 

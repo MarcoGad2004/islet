@@ -26,15 +26,16 @@ targets:
     info:
       path: Sources/Islet/Info.plist
       properties:
-        CFBundleName: Islet
+        CFBundleName: Dynamic Peninsula
+        CFBundleDisplayName: Dynamic Peninsula
         CFBundleShortVersionString: "1.4"
         CFBundleVersion: "144"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
-        NSLocationWhenInUseUsageDescription: "Islet reads nearby Wi-Fi network names for the Wi-Fi control."
-        NSBluetoothAlwaysUsageDescription: "Islet lists and connects your Bluetooth devices from the notch."
-        NSAppleEventsUsageDescription: "Islet toggles Dark Mode through System Events."
-        NSContactsUsageDescription: "Islet shows the names of the people messaging you."
-        NSCameraUsageDescription: "Islet uses the camera to recognise you for face unlock."
+        NSLocationWhenInUseUsageDescription: "Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control."
+        NSBluetoothAlwaysUsageDescription: "Dynamic Peninsula lists and connects your Bluetooth devices from the notch."
+        NSAppleEventsUsageDescription: "Dynamic Peninsula toggles Dark Mode through System Events."
+        NSContactsUsageDescription: "Dynamic Peninsula shows the names of the people messaging you."
+        NSCameraUsageDescription: "Dynamic Peninsula uses the camera to recognise you for face unlock."
         NSHumanReadableCopyright: "Copyright © 2026 Marcorios Gad"
     postBuildScripts:
       - name: Build media adapter
@@ -58,7 +59,9 @@ targets:
         com.apple.security.automation.apple-events: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet   # never changes: permissions, the Keychain and settings hang on it
+        PRODUCT_NAME: Dynamic Peninsula   # the app's name since 1.5 (name only; the code and repo are still Islet)
+        PRODUCT_MODULE_NAME: Islet
   IsletTests:
     type: bundle.unit-test
     platform: macOS
@@ -67,5 +70,23 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Dynamic Peninsula.app/Contents/MacOS/Dynamic Peninsula"
+        BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
       - target: Islet
+schemes:
+  # Written out since the 1.5 rename: Xcode's automatic scheme stopped picking up the tests once the product was no
+  # longer called Islet.
+  Islet:
+    build:
+      targets:
+        Islet: all
+        IsletTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - IsletTests
+    archive:
+      config: Release

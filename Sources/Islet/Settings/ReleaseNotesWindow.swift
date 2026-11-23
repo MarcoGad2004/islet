@@ -20,7 +20,7 @@ enum ReleaseNotesWindow {
             w.center()
             window = w
         }
-        window?.title = "What's new in Islet \(version)"
+        window?.title = "What's new in Dynamic Peninsula \(version)"
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -35,7 +35,7 @@ private struct ReleaseNotesView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Islet \(version)").font(.title.weight(.semibold))
+                    Text("Dynamic Peninsula \(version)").font(.title.weight(.semibold))
                     if blocks.isEmpty {
                         Text("No release notes for this version.").foregroundStyle(.secondary)
                     }

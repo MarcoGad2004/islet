@@ -22,7 +22,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            w.title = "Welcome to Islet"
+            w.title = "Welcome to Dynamic Peninsula"
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.contentView = NSHostingView(rootView: OnboardingView(face: face, levels: levels, media: media, focus: focus, wifi: wifi) { [weak self] in

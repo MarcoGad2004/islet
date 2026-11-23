@@ -6,6 +6,10 @@ design session on 2026-11-18 using an interactive mockup canvas:
 the "v1 prototype" artboard to see the motion). The canvas is a web approximation: where it and
 this file disagree, this file wins.
 
+
+**Name (1.5, owner's decision 2026-11-23):** the app is called Dynamic Peninsula: everything the user reads says that.
+"Islet" stays as the code's and the repo's name, and the bundle ID, so permissions and settings carry over.
+
 ## Scope
 
 v1 has five features:

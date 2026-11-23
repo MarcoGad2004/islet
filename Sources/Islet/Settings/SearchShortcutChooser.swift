@@ -15,14 +15,14 @@ struct SearchShortcutChooser: View {
         Group {
             Picker(selection: mode) {
                 // Spotlight keeps ⌘Space by default (owner, 2026-11-23); taking it over is opt-in.
-                SettingsLabel("Keep ⌘Space for Spotlight", "Nothing changes in System Settings. Islet uses another shortcut, ⌥Space unless you pick one.")
+                SettingsLabel("Keep ⌘Space for Spotlight", "Nothing changes in System Settings. Dynamic Peninsula uses another shortcut, ⌥Space unless you pick one.")
                     .tag(false)
-                SettingsLabel("Use ⌘Space for Islet", "Islet's search takes Spotlight's place. Spotlight, and Siri in it, move to another shortcut.")
+                SettingsLabel("Use ⌘Space for Dynamic Peninsula", "Dynamic Peninsula's search takes Spotlight's place. Spotlight, and Siri in it, move to another shortcut.")
                     .tag(true)
             } label: { EmptyView() }
             .pickerStyle(.radioGroup)
             if !mode.wrappedValue {
-                Picker("Islet's shortcut", selection: $shortcut) {
+                Picker("Dynamic Peninsula's shortcut", selection: $shortcut) {
                     ForEach(Self.others) { Text($0.title).tag($0.rawValue) }
                 }
             }
@@ -78,7 +78,7 @@ struct SearchShortcutChooser: View {
             }
         } else {
             let place = spotlightKey.map { "Spotlight and Siri are on \($0)." } ?? "Spotlight's shortcut is off."
-            Label("\(mine) opens Islet. " + place, systemImage: "checkmark.circle.fill")
+            Label("\(mine) opens Dynamic Peninsula. " + place, systemImage: "checkmark.circle.fill")
                 .symbolRenderingMode(.multicolor).foregroundStyle(.secondary)
         }
     }

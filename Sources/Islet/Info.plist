@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Dynamic Peninsula</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -11,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Islet</string>
+	<string>Dynamic Peninsula</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,16 +23,16 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Islet toggles Dark Mode through System Events.</string>
+	<string>Dynamic Peninsula toggles Dark Mode through System Events.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Islet lists and connects your Bluetooth devices from the notch.</string>
+	<string>Dynamic Peninsula lists and connects your Bluetooth devices from the notch.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Islet uses the camera to recognise you for face unlock.</string>
+	<string>Dynamic Peninsula uses the camera to recognise you for face unlock.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>Islet shows the names of the people messaging you.</string>
+	<string>Dynamic Peninsula shows the names of the people messaging you.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Marcorios Gad</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Islet reads nearby Wi-Fi network names for the Wi-Fi control.</string>
+	<string>Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control.</string>
 </dict>
 </plist>

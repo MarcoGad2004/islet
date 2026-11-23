@@ -10,7 +10,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .status: "Islet"
+        case .status: "Dynamic Peninsula"
         case .general: "General"
         case .notch: "Notch"
         case .notifications: "Notifications"
@@ -136,7 +136,7 @@ struct SettingsChecks {
             if spotlightConflict { return ("Spotlight still uses \(SearchShortcutChoice.current.title)", false) }
             return ("Ready on \(SearchShortcutChoice.current.title)", true)
         }
-        if f == .levels, !levels.tapActive { return ("Restart Islet to start", false) }
+        if f == .levels, !levels.tapActive { return ("Restart Dynamic Peninsula to start", false) }
         return ("Ready", true)
     }
 
@@ -152,35 +152,35 @@ struct SettingsChecks {
             if p.usedBy.contains(.faceUnlock) { pages.append(.faceUnlock) }
             let names = p.usedBy.map(\.title)
             let detail = Self.list(names) + (names.count > 1 ? " don't" : " doesn't") + " work without it. Turn "
-                + (names.count > 1 ? "them" : "it") + " off on the Islet page if you don't use " + (names.count > 1 ? "them." : "it.")
+                + (names.count > 1 ? "them" : "it") + " off on the Dynamic Peninsula page if you don't use " + (names.count > 1 ? "them." : "it.")
             list.append(SettingsIssue(id: "perm-" + p.name, pages: pages, title: "\(p.name) is off", detail: detail,
                                       actionTitle: "Allow…", action: p.allow))
         }
         if face.unlock.accessibilityTrusted, Feature.levels.isOn, !levels.tapActive {
-            list.append(SettingsIssue(id: "keys", pages: [.permissions], title: "Volume and brightness keys aren't reaching Islet",
-                                      detail: "Accessibility is on, but macOS hasn't handed the keys over yet. Restarting Islet fixes it.",
-                                      actionTitle: "Restart Islet", action: { SettingsChecks.relaunch() }))
+            list.append(SettingsIssue(id: "keys", pages: [.permissions], title: "Volume and brightness keys aren't reaching Dynamic Peninsula",
+                                      detail: "Accessibility is on, but macOS hasn't handed the keys over yet. Restarting Dynamic Peninsula fixes it.",
+                                      actionTitle: "Restart Dynamic Peninsula", action: { SettingsChecks.relaunch() }))
         }
         if !media.available {
             list.append(SettingsIssue(id: "media", pages: [.permissions], title: "Now playing isn't available",
-                                      detail: "Islet's helper for reading what's playing couldn't start on this Mac, so music doesn't show in the notch."))
+                                      detail: "Dynamic Peninsula's helper for reading what's playing couldn't start on this Mac, so music doesn't show in the notch."))
         }
         if spotlightConflict {
             list.append(SettingsIssue(id: "spotlight", pages: [.search], title: "Spotlight still uses \(SearchShortcutChoice.current.title)",
-                                      detail: "Spotlight takes the keyboard first, so search doesn't open. Move Spotlight to another shortcut, or keep it there and give Islet another one on the Search page.",
+                                      detail: "Spotlight takes the keyboard first, so search doesn't open. Move Spotlight to another shortcut, or keep it there and give Dynamic Peninsula another one on the Search page.",
                                       actionTitle: "Keyboard Shortcuts…", action: { NSWorkspace.shared.open(SearchShortcut.keyboardShortcutsURL) }))
         }
         if face.unlock.enabled || face.faces.isEnrolled, !face.modelAvailable {
             list.append(SettingsIssue(id: "model", pages: [.faceUnlock], title: "The face model is missing",
-                                      detail: "Face Unlock can't recognise anyone without it. Build Islet again after running scripts/fetch-model.sh."))
+                                      detail: "Face Unlock can't recognise anyone without it. Build Dynamic Peninsula again after running scripts/fetch-model.sh."))
         }
         if face.unlock.passwordRejected {
             list.append(SettingsIssue(id: "password", pages: [.faceUnlock], title: "Face Unlock is paused",
                                       detail: "The stored password wasn't accepted. Change the password on the Face Unlock page to resume."))
         }
         if case .available(let tag) = Updater.shared.state {
-            list.append(SettingsIssue(id: "update", pages: [.updates], title: "Islet \(Updater.plain(tag)) is ready",
-                                      detail: "Islet restarts when it's installed.", actionTitle: "Install and Restart", prominent: true,
+            list.append(SettingsIssue(id: "update", pages: [.updates], title: "Dynamic Peninsula \(Updater.plain(tag)) is ready",
+                                      detail: "Dynamic Peninsula restarts when it's installed.", actionTitle: "Install and Restart", prominent: true,
                                       action: { Updater.shared.install(tag) }))
         }
         return list

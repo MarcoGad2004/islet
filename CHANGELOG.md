@@ -5,6 +5,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.5 (unreleased)
 
+### Islet is now Dynamic Peninsula
+
+- It's not quite an island: it's joined to the top of the screen. The app, its menus, Settings and the release are now called Dynamic Peninsula. It's the same app underneath, so your permissions, Face Unlock, settings and updates carry on as they were.
+- Updating from 1.4 installs it as Islet.app; the update after that renames it to Dynamic Peninsula.app.
+
 ### Menu bar battery
 
 - Islet's menu bar icon can be a battery instead of the pill: turn on "Battery in the menu bar" in Settings > Battery (or in the features list), so it can stand in for the macOS battery icon and not take up a second spot. It draws like macOS's: the charge as a fill, a bolt while charging, a plug when plugged in and not charging, red at 10% and yellow in Low Power Mode, with the percentage beside it (can be turned off). Settings has a shortcut to Control Center settings, where you hide the macOS one.

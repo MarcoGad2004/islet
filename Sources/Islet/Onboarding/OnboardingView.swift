@@ -79,8 +79,8 @@ struct OnboardingView: View {
         VStack(spacing: 18) {
             Spacer()
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 128, height: 128)
-            Text("Welcome to Islet").font(.largeTitle.weight(.semibold))
-            Text("Islet turns your MacBook's notch into a live island. Pick what you want it to do, and it only asks for what that needs.")
+            Text("Welcome to Dynamic Peninsula").font(.largeTitle.weight(.semibold))
+            Text("Dynamic Peninsula turns your MacBook's notch into a live island. Pick what you want it to do, and it only asks for what that needs.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Setup takes about a minute.").foregroundStyle(.secondary)
             Spacer()
@@ -89,7 +89,7 @@ struct OnboardingView: View {
 
     private var display: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Your Mac", "Islet lives in the notch. On a Mac without one it can bubble out of the top edge instead.")
+            header("Your Mac", "Dynamic Peninsula lives in the notch. On a Mac without one it can bubble out of the top edge instead.")
             card { NotchChoice() }
             Spacer(minLength: 0)
         }
@@ -97,7 +97,7 @@ struct OnboardingView: View {
 
     private var choose: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("What should Islet do?", "Pick what you want. You can change it any time in Settings, and Islet only asks for what the ticked ones need.")
+            header("What should Dynamic Peninsula do?", "Pick what you want. You can change it any time in Settings, and Dynamic Peninsula only asks for what the ticked ones need.")
             card {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "checkmark.square.fill").font(.title3).foregroundStyle(.secondary)
@@ -190,10 +190,10 @@ struct OnboardingView: View {
                 }
             }
             if missing.contains("Accessibility") {
-                Text("After you switch Islet on in System Settings, come back here. This page updates by itself.")
+                Text("After you switch Dynamic Peninsula on in System Settings, come back here. This page updates by itself.")
                     .font(.caption).foregroundStyle(.secondary)
             } else if isPicked(.levels), !levels.tapActive, accessibility {
-                Text("Volume and brightness keys start working after Islet restarts.").font(.caption).foregroundStyle(.secondary)
+                Text("Volume and brightness keys start working after Dynamic Peninsula restarts.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -244,8 +244,8 @@ struct OnboardingView: View {
 
     private func permissionHow(_ name: String) -> String {
         switch name {
-        case "Accessibility": "Opens System Settings: switch Islet on, then come back."
-        case "Full Disk Access": "Opens System Settings: switch Islet on. Islet only reads Focus and Messages, never changes them. Restart Islet after."
+        case "Accessibility": "Opens System Settings: switch Dynamic Peninsula on, then come back."
+        case "Full Disk Access": "Opens System Settings: switch Dynamic Peninsula on. Dynamic Peninsula only reads Focus and Messages, never changes them. Restart Dynamic Peninsula after."
         case "Contacts": "macOS asks right here."
         case "Control Messages": "Messages opens in the background and macOS asks."
         case "Location": "macOS asks right here. Your location is never used."
@@ -266,7 +266,7 @@ struct OnboardingView: View {
 
     private var searchStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("How should search open?", "Spotlight, and Siri inside it, use ⌘Space. Islet can take it over, or leave it and use another shortcut.")
+            header("How should search open?", "Spotlight, and Siri inside it, use ⌘Space. Dynamic Peninsula can take it over, or leave it and use another shortcut.")
             Form {
                 Section { SearchShortcutChooser(shortcut: $searchShortcut) }
             }
@@ -274,7 +274,7 @@ struct OnboardingView: View {
             .scrollDisabled(true)
             .frame(height: 190)
             .padding(.horizontal, -20)
-            Text("To ask Siri, type “siri” and your question in Islet's search, or just a question. Return opens Spotlight with it asked.")
+            Text("To ask Siri, type “siri” and your question in Dynamic Peninsula's search, or just a question. Return opens Spotlight with it asked.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -286,7 +286,7 @@ struct OnboardingView: View {
             switch faceStep {
             case .intro:
                 card {
-                    bullet("lock.open.fill", "After a face match, Islet types your login password into the lock screen for you.")
+                    bullet("lock.open.fill", "After a face match, Dynamic Peninsula types your login password into the lock screen for you.")
                     bullet("key.fill", "Your password is checked, then stored only in this Mac's Keychain.")
                     bullet("exclamationmark.shield.fill", "Convenient, but weaker than Touch ID. A good enough likeness could fool it.")
                 }
@@ -348,11 +348,11 @@ struct OnboardingView: View {
                 if on.isEmpty { Text("Just the island: now playing, charging and the controls.").foregroundStyle(.secondary) }
             }
             card {
-                Toggle("Open Islet when I log in", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+                Toggle("Open Dynamic Peninsula when I log in", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
                 Divider()
                 Toggle("Show a menu bar icon", isOn: $showMenuBarIcon)
             }
-            Text("Hover the notch and it bubbles out; click it for the panel, and the gear there for Settings. Anything still missing waits on Settings' Islet page.")
+            Text("Hover the notch and it bubbles out; click it for the panel, and the gear there for Settings. Anything still missing waits on Settings' Dynamic Peninsula page.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }

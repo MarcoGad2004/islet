@@ -151,7 +151,7 @@ struct ControlStage: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help("Islet \(version) is available. Click to update and restart.")
+        .help("Dynamic Peninsula \(version) is available. Click to update and restart.")
         .transition(.scale(scale: 0.6).combined(with: .opacity))
     }
 

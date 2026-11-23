@@ -23,7 +23,7 @@ enum TapbackSender {
     /// `occurrence` counts newer messages with the same text from the same side, to pick the right one of several.
     static func react(_ tapback: Tapback?, to message: MessagesStore.Message, in chat: MessagesStore.Conversation,
                       occurrence: Int) async -> String? {
-        guard AXIsProcessTrusted() else { return "Allow Islet in Accessibility to react" }
+        guard AXIsProcessTrusted() else { return "Allow Dynamic Peninsula in Accessibility to react" }
         let previous = NSWorkspace.shared.frontmostApplication
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         let wasHidden = running == nil || running!.isHidden || !hasWindow(running!)

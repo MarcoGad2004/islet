@@ -1,6 +1,9 @@
 # Notes for Claude: Islet
 
-Islet turns the MacBook Pro notch into a dynamic island. It is a personal app (not for the App
+Islet turns the MacBook Pro notch into a dynamic island. Since 1.5 the app is called **Dynamic Peninsula** (owner's
+decision, 2026-11-23, name only): the product, its visible text and the release DMG use that name, while the bundle ID
+(`com.marcogad.islet`), the Swift module, the targets, the repo and the code keep "Islet". Releases carry both
+`Dynamic Peninsula.dmg` and `Islet.dmg` (for pre-1.5 copies, whose updater only knows that name). It is a personal app (not for the App
 Store). The general workflow rules in the owner's global CLAUDE.md apply (work on `main`, commit
 only your files, build before committing).
 

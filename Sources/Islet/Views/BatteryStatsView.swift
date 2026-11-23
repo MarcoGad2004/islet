@@ -54,7 +54,7 @@ struct BatteryStatsView: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .help("Open Islet's control center")
+                .help("Open Dynamic Peninsula's control center")
                 Spacer()
                 SettingsLink(title: "Battery Settings…", pane: SystemSettings.battery)
             }
@@ -145,7 +145,7 @@ private struct ChargeChart: View {
         }
         .overlay {
             if samples.count < 2 {
-                Text("Islet is still recording").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
+                Text("Dynamic Peninsula is still recording").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
             }
         }
     }

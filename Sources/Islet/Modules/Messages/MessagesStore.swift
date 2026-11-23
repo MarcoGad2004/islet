@@ -271,7 +271,7 @@ final class MessagesStore {
             .executeAndReturnError(&error) != nil
         if !ok {
             let n = error?[NSAppleScript.errorNumber] as? Int ?? 0
-            sendError = n == -1743 ? "Allow Islet to control Messages in System Settings" : "Messages couldn't send it"
+            sendError = n == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
             return
         }
         let p = Message(id: -Int64(pending.count + 1), text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending)

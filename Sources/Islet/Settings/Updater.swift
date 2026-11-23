@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Updates Islet from the newest GitHub release of this repo. Only runs when the user clicks "Check for updates".
 /// The repo is public, so it reads GitHub's public releases API directly: no account, no token, no GitHub CLI.
-/// The release carries `Islet.dmg`; the new app replaces this one after Islet quits, and only when it is signed by
+/// The release carries `Dynamic Peninsula.dmg` (and `Islet.dmg` for copies from before the 1.5 rename); the new app replaces this one after Islet quits, and only when it is signed by
 /// the same developer as the running copy.
 ///
 /// The island follows along: each step shows as it happens, the island draws back in before Islet quits, and the new
@@ -118,10 +118,10 @@ final class Updater {
 
     func install(_ tag: String) {
         guard installable else {
-            state = .failed("Move Islet to the Applications folder to update it in place.")
+            state = .failed("Move Dynamic Peninsula to the Applications folder to update it in place.")
             return
         }
-        guard let dmg = dmgURL else { state = .failed("The release has no Islet.dmg."); return }
+        guard let dmg = dmgURL else { state = .failed("The release has no download for this Mac."); return }
         let version = Self.plain(tag)
         state = .downloading(tag)
         Task {
@@ -154,14 +154,18 @@ final class Updater {
     /// copy quit, so the island carries straight on into "Updated to …". If the new copy never checks in, the old app
     /// goes back and stays running.
     private func handOff(to staged: URL, version: String) async throws {
-        let dest = URL(fileURLWithPath: Bundle.main.bundlePath)
+        let current = URL(fileURLWithPath: Bundle.main.bundlePath)
+        // Since 1.5 the app is "Dynamic Peninsula.app"; an Islet.app is renamed as it's replaced (unless something
+        // else already has that name there).
+        let named = current.deletingLastPathComponent().appendingPathComponent(Self.appFile)
+        let dest = current == named || FileManager.default.fileExists(atPath: named.path) ? current : named
         // Two copies are briefly up at once: stop the ones that must not run twice (key tap, media helper).
         Self.pauseForHandoff?()
         let backup: URL
-        do { backup = try await Self.swapIn(staged, at: dest) }
+        do { backup = try await Self.swapIn(staged, replacing: current, at: dest) }
         catch { Self.resumeAfterHandoff?(); throw error }
         Self.pending = Pending(from: currentVersion, to: version, notes: notes)
-        island(.working("Restarting Islet…"), Self.restartFraction)
+        island(.working("Restarting Dynamic Peninsula…"), Self.restartFraction)
         try? await Task.sleep(for: .seconds(0.5))
 
         let (ready, newCopy) = await Self.launchAndWait(dest)
@@ -174,10 +178,10 @@ final class Updater {
         newCopy?.forceTerminate()
         try? await Task.sleep(for: .seconds(0.3))
         try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.moveItem(at: backup, to: dest)
+        try? FileManager.default.moveItem(at: backup, to: current)
         Self.pending = nil
         Self.resumeAfterHandoff?()
-        throw UpdateError(message: "The new version didn't start, so Islet put the old one back.")
+        throw UpdateError(message: "The new version didn't start, so Dynamic Peninsula put the old one back.")
     }
 
     /// The download is most of the bar; verifying, installing and restarting fill the rest.
@@ -193,7 +197,7 @@ final class Updater {
     private static func progress(_ s: ConnectionProgress.State, fraction: Double, done: String? = nil, action: String? = nil,
                                  hold: Double? = nil) -> ConnectionProgress {
         let finished = s == .done
-        return ConnectionProgress(name: "Islet", hotspot: false, state: s, icon: finished ? "sparkles" : "arrow.down.circle.fill",
+        return ConnectionProgress(name: "Dynamic Peninsula", hotspot: false, state: s, icon: finished ? "sparkles" : "arrow.down.circle.fill",
                            tint: finished ? Color.isletGreen : Color(hex: 0x0A84FF),
                            doneText: done, actionLabel: action, hold: hold, fraction: fraction)
     }
@@ -230,7 +234,7 @@ final class Updater {
             if handoff {
                 // Draw the same shape the old copy is showing, unseen, until it has fully settled; then show it in one
                 // step on top of the old one (identical, so nothing changes on screen) and let the old one go.
-                showInIsland?(progress(.working("Restarting Islet…"), fraction: restartFraction), nil)
+                showInIsland?(progress(.working("Restarting Dynamic Peninsula…"), fraction: restartFraction), nil)
                 try? await Task.sleep(for: .seconds(1.2))
                 revealIsland?()
                 DistributedNotificationCenter.default().postNotificationName(handoffReady, object: nil, deliverImmediately: true)
@@ -306,14 +310,16 @@ final class Updater {
         default: throw UpdateError(message: "Couldn't reach GitHub (HTTP \(status)).")
         }
         let r = try JSONDecoder().decode(Release.self, from: data)
-        return (r.tag_name, r.assets.first { $0.name == "Islet.dmg" }?.browser_download_url, r.body ?? "")
+        // Releases since 1.5 carry "Dynamic Peninsula.dmg", and "Islet.dmg" for copies from before the rename.
+        let asset = r.assets.first { $0.name == dmgFile } ?? r.assets.first { $0.name == legacyDmgFile }
+        return (r.tag_name, asset?.browser_download_url, r.body ?? "")
     }
 
     /// Downloads into a fresh folder, reporting 0...1 as it goes.
     nonisolated private static func download(_ url: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("islet-update-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        let dest = work.appendingPathComponent("Islet.dmg")
+        let dest = work.appendingPathComponent(dmgFile)
         return try await withCheckedThrowingContinuation { cont in
             let box = ObservationBox()
             let task = URLSession.shared.downloadTask(with: url) { tmp, response, error in
@@ -338,8 +344,10 @@ final class Updater {
         let mount = work.appendingPathComponent("mnt")
         let attach = await run("/usr/bin/hdiutil", ["attach", dmg.path, "-nobrowse", "-readonly", "-mountpoint", mount.path])
         guard attach.status == 0 else { throw UpdateError(message: "Couldn't open the download.") }
-        let staged = work.appendingPathComponent("Islet.app")
-        let copy = await run("/usr/bin/ditto", [mount.appendingPathComponent("Islet.app").path, staged.path])
+        let staged = work.appendingPathComponent(appFile)
+        let inside = [appFile, legacyAppFile].map { mount.appendingPathComponent($0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) } ?? mount.appendingPathComponent(appFile)
+        let copy = await run("/usr/bin/ditto", [inside.path, staged.path])
         _ = await run("/usr/bin/hdiutil", ["detach", mount.path, "-force"])
         guard copy.status == 0 else { throw UpdateError(message: "Couldn't unpack the update.") }
 
@@ -357,15 +365,15 @@ final class Updater {
 
     /// Puts the new app where this one is. This copy's bundle is renamed aside, not deleted, so it keeps running
     /// from it and can be put back if the new one never starts.
-    nonisolated private static func swapIn(_ staged: URL, at dest: URL) async throws -> URL {
+    nonisolated private static func swapIn(_ staged: URL, replacing current: URL, at dest: URL) async throws -> URL {
         let fm = FileManager.default
-        let backup = dest.deletingLastPathComponent().appendingPathComponent(".Islet-old-\(UUID().uuidString.prefix(8)).app")
-        do { try fm.moveItem(at: dest, to: backup) }
-        catch { throw UpdateError(message: "Couldn't replace Islet in \(dest.deletingLastPathComponent().path).") }
+        let backup = current.deletingLastPathComponent().appendingPathComponent(".Islet-old-\(UUID().uuidString.prefix(8)).app")
+        do { try fm.moveItem(at: current, to: backup) }
+        catch { throw UpdateError(message: "Couldn't replace Dynamic Peninsula in \(dest.deletingLastPathComponent().path).") }
         let copy = await run("/usr/bin/ditto", [staged.path, dest.path])
         guard copy.status == 0 else {
             try? fm.removeItem(at: dest)
-            try? fm.moveItem(at: backup, to: dest)
+            try? fm.moveItem(at: backup, to: current)
             throw UpdateError(message: "Couldn't install the update.")
         }
         return backup
@@ -395,6 +403,12 @@ final class Updater {
             }
         }
     }
+
+    /// The app's file and download names since the 1.5 rename, and the ones before it.
+    nonisolated static let appFile = "Dynamic Peninsula.app"
+    nonisolated static let legacyAppFile = "Islet.app"
+    nonisolated static let dmgFile = "Dynamic Peninsula.dmg"
+    nonisolated static let legacyDmgFile = "Islet.dmg"
 
     /// "v1.2.2" → "1.2.2".
     nonisolated static func plain(_ tag: String) -> String { tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV")) }

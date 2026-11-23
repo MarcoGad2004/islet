@@ -1,6 +1,6 @@
-# Islet
+# Dynamic Peninsula (Islet)
 
-A personal macOS app that turns the MacBook Pro notch into a dynamic, interactive "island" (notifications, now playing, search, quick controls). Built for my own use as a replacement for an unmaintained notch app.
+A personal macOS app that turns the MacBook Pro notch into a dynamic, interactive "island" (notifications, now playing, search, quick controls). Built for my own use as a replacement for an unmaintained notch app. Called Dynamic Peninsula since 1.5 (it's joined to the top of the screen, so not quite an island); the code and the repo are still Islet.
 
 > Status: **v1 design locked ([docs/DESIGN.md](docs/DESIGN.md)). No app code yet.**
 

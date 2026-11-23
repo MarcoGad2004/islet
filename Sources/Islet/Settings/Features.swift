@@ -26,7 +26,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .messages: "Click a message to read the conversation and reply from the notch."
         case .focus: "Shows which Focus is on when it changes."
         case .search: "Apps, files, people, Shortcuts and settings from the notch, and questions handed to Siri."
-        case .menuBarBattery: "Islet's menu bar icon becomes a battery, so it can replace the macOS one. Click it for battery stats."
+        case .menuBarBattery: "Dynamic Peninsula's menu bar icon becomes a battery, so it can replace the macOS one. Click it for battery stats."
         case .faceUnlock: "Unlocks the lock screen when it sees you. Weaker than Touch ID."
         }
     }
