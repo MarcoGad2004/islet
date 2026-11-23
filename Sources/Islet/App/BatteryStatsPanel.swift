@@ -11,6 +11,7 @@ final class BatteryStatsPanel {
     private var monitors: [Any] = []
     /// The icon's window: a click on the icon toggles, so the outside-click watcher leaves it alone.
     private weak var anchor: NSWindow?
+    private var closedByOutsideClick: Date?
     var openControls: (() -> Void)?
 
     var isOpen: Bool { panel?.isVisible == true }
@@ -25,7 +26,11 @@ final class BatteryStatsPanel {
     init(power: PowerMonitor) { self.power = power }
 
     func toggle(under button: NSStatusBarButton) {
-        if isOpen { close() } else { show(under: button) }
+        if isOpen { close(); return }
+        // The press on the icon can already have closed the panel as an outside click; this click's action must not
+        // open it again.
+        if let t = closedByOutsideClick, Date().timeIntervalSince(t) < 0.4 { closedByOutsideClick = nil; return }
+        show(under: button)
     }
 
     func show(under button: NSStatusBarButton) {
@@ -155,6 +160,7 @@ final class BatteryStatsPanel {
         if let m = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.overIcon else { return }
+                self.closedByOutsideClick = Date()
                 self.close()
             }
         }) { monitors.append(m) }
@@ -162,6 +168,7 @@ final class BatteryStatsPanel {
         if let m = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, event.window !== self.panel, event.window !== self.anchor, !self.overIcon else { return }
+                self.closedByOutsideClick = Date()
                 self.close()
             }
             return event
