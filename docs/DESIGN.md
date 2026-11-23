@@ -851,6 +851,9 @@ Owner request, 2026-11-23: name the song playing nearby from the notch.
   turns full blue and pops (spring 0.22, 0.55) and the trackpad clicks firmly; going back over it, a light tick. A
   light tick also as the pull first catches. Past the point it keeps creeping in a little. Lifting past the point (and
   not flung back out) listens, the mark staying where it is, in the wing it came from, with the equaliser in the other.
+  It lands with a small bounce (owner, 2026-11-23: "not too dramatic"): from the 108% it popped to at the commit
+  point it dips to 90%, rebounds to 103.5% and settles at 100%, on springs, in about 0.4 s, with a light tap on the
+  trackpad at the same moment (felt only while a finger is still on it). Not with Reduce Motion.
   Lifting short of it: the mark springs back out the way it came at the fingers' speed (response 0.34, damping 0.66),
   and nothing runs.
 - **Listening** (up to 15 s): the wide bar with a body, like volume (or the chin when the menu bar has no room). The

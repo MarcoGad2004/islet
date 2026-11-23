@@ -13,6 +13,8 @@ struct ShazamView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var matchedAt: Date?
     @State private var shakes = 0
+    /// Counts the landings after a pull, to play the bounce.
+    @State private var landings = 0
     /// What was just copied ("title", "artist", "both"): its icon shows a check for a moment.
     @State private var copied: String?
 
@@ -63,6 +65,14 @@ struct ShazamView: View {
                 }
 
                 glyph(t: t)
+                    // Pulled in and let go: it lands. From the size it popped to at the commit point it dips just
+                    // under, rebounds a touch and settles, in about a third of a second, with the trackpad's tap.
+                    .keyframeAnimator(initialValue: 1.0, trigger: landings) { mark, s in mark.scaleEffect(s) } keyframes: { _ in
+                        MoveKeyframe(1.08)
+                        SpringKeyframe(0.9, duration: 0.11, spring: .init(response: 0.16, dampingRatio: 0.9))
+                        SpringKeyframe(1.035, duration: 0.13, spring: .init(response: 0.2, dampingRatio: 0.8))
+                        SpringKeyframe(1.0, duration: 0.16, spring: .init(response: 0.24, dampingRatio: 1))
+                    }
                     .position(l.glyph)
 
                 if let song {
@@ -126,6 +136,7 @@ struct ShazamView: View {
             if s != nil { Task { try? await Task.sleep(for: .seconds(1)); matchedAt = nil } }
         }
         .onChange(of: state.phase) { _, p in if p == .noMatch || failed { shakes += 1 } }
+        .onAppear { if state.pulled && !reduceMotion { landings += 1 } }
         .onChange(of: copied) { _, c in
             guard c != nil else { return }
             Task { try? await Task.sleep(for: .seconds(1.4)); if copied == c { copied = nil } }

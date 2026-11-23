@@ -778,6 +778,8 @@ final class IslandStore {
         if p.armed && pv > -2 {
             shazamPull = nil
             animator.setExtra(.zero)
+            // The landing: a tap with the mark's bounce (felt while a finger is still on the trackpad).
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
             startShazam(fromRight: p.dir == -1, pulled: true)
             return
         }
