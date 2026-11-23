@@ -3,7 +3,7 @@ import Foundation
 /// What Islet does that you can turn off (DESIGN.md "Features"). The island itself (now playing, charging, the controls)
 /// is always on. A feature that's off is never asked permissions for, and nothing it needs shows as a problem.
 enum Feature: String, CaseIterable, Identifiable {
-    case levels, notifications, messages, focus, search, faceUnlock
+    case levels, notifications, messages, focus, search, menuBarBattery, faceUnlock
 
     var id: String { rawValue }
 
@@ -14,6 +14,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .messages: "Messages"
         case .focus: "Focus"
         case .search: "Search"
+        case .menuBarBattery: "Battery in the menu bar"
         case .faceUnlock: "Face Unlock"
         }
     }
@@ -25,6 +26,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .messages: "Click a message to read the conversation and reply from the notch."
         case .focus: "Shows which Focus is on when it changes."
         case .search: "Apps, files, people, Shortcuts and settings from the notch, and questions handed to Siri."
+        case .menuBarBattery: "Islet's menu bar icon becomes a battery, so it can replace the macOS one. Click it for battery stats."
         case .faceUnlock: "Unlocks the lock screen when it sees you. Weaker than Touch ID."
         }
     }
@@ -35,7 +37,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .levels, .notifications: ["Accessibility"]
         case .messages: ["Full Disk Access", "Contacts", "Control Messages"]
         case .focus: ["Full Disk Access"]
-        case .search: []
+        case .search, .menuBarBattery: []
         case .faceUnlock: ["Camera", "Accessibility"]
         }
     }
@@ -57,6 +59,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .messages: return Feature.notifications.isOn && (d.object(forKey: MessagesStore.enabledKey) as? Bool ?? true)
         case .focus: return d.object(forKey: Self.focusKey) as? Bool ?? true
         case .search: return SearchShortcutChoice.current != .off
+        case .menuBarBattery: return MenuBarIconStyle.current == .battery
         case .faceUnlock: return d.bool(forKey: "faceUnlockEnabled")
         }
     }
@@ -80,6 +83,7 @@ enum Feature: String, CaseIterable, Identifiable {
                 d.set(SearchShortcutChoice.off.rawValue, forKey: SearchShortcutChoice.key)
             }
             SearchShortcut.shared.apply()
+        case .menuBarBattery: d.set((on ? MenuBarIconStyle.battery : .pill).rawValue, forKey: MenuBarIconStyle.key)
         case .faceUnlock: break
         }
     }

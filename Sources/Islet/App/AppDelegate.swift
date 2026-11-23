@@ -25,7 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notchlessObserver: NSKeyValueObservation?
     private var hasNotchObserver: NSKeyValueObservation?
     private var statusMenu: NSMenu?
-    private var menuBarShown = true
+    /// nil until first applied: macOS remembers a hidden status item across launches, so it's always set once.
+    private var menuBarShown: Bool?
     private var pauseItem: NSMenuItem?
     private var paused = false
     private var signalSources: [DispatchSourceSignal] = []

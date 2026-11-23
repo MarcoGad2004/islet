@@ -203,6 +203,8 @@ struct SettingsView: View {
         case .messages: $messagesInNotch
         case .focus: $focusInNotch
         case .faceUnlock: Binding(get: { face.unlock.enabled }, set: { face.unlock.enabled = $0 })
+        case .menuBarBattery: Binding(get: { menuBarIconStyle == MenuBarIconStyle.battery.rawValue },
+                                      set: { menuBarIconStyle = ($0 ? MenuBarIconStyle.battery : .pill).rawValue })
         case .search: Binding(get: { searchShortcut != SearchShortcutChoice.off.rawValue }, set: { on in
             Feature.search.set(on)
             searchShortcut = SearchShortcutChoice.current.rawValue
@@ -221,30 +223,7 @@ struct SettingsView: View {
                 Toggle("Open Islet at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
                 if let loginError { Text(loginError).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
                 Toggle(isOn: $showMenuBarIcon) {
-                    SettingsLabel("Show menu bar icon", "Settings is also behind the gear in the open panel. Without a notch, or as a battery, the icon always shows.")
-                }
-            }
-            Section {
-                Picker(selection: $menuBarIconStyle) {
-                    Text("Pill").tag(MenuBarIconStyle.pill.rawValue)
-                    Text("Battery").tag(MenuBarIconStyle.battery.rawValue)
-                } label: {
-                    SettingsLabel("Menu bar icon", "As a battery, Islet's icon can stand in for the macOS one. Right-click it for Islet's menu.")
-                }
-                .pickerStyle(.segmented)
-                if menuBarIconStyle == MenuBarIconStyle.battery.rawValue {
-                    Picker(selection: $batteryIconClick) {
-                        Text("Battery stats").tag(BatteryIconClick.stats.rawValue)
-                        Text("Control center").tag(BatteryIconClick.controls.rawValue)
-                    } label: {
-                        SettingsLabel("Clicking the battery opens", "Battery stats: health, temperature, the last 12 hours and where the power goes. Control center: the panel you get from the notch.")
-                    }
-                    Toggle("Show percentage", isOn: $batteryIconPercent)
-                    LabeledContent {
-                        Button("Control Center Settings…") { SystemSettings.open(SystemSettings.controlCenter) }
-                    } label: {
-                        SettingsLabel("Hide the macOS battery", "In Control Center settings, set Battery to Don't Show in Menu Bar.")
-                    }
+                    SettingsLabel("Show menu bar icon", "Settings is also behind the gear in the open panel. Without a notch the icon always shows. With Battery in the menu bar on, the battery is Islet's icon and always shows.")
                 }
             }
             Section {
@@ -359,6 +338,25 @@ struct SettingsView: View {
 
     private var battery: some View {
         Form {
+            Section {
+                Toggle(isOn: featureBinding(.menuBarBattery)) {
+                    SettingsLabel("Show the battery in the menu bar", "Islet's menu bar icon becomes a battery, so it can stand in for the macOS one. Right-click it for Islet's menu.")
+                }
+                if menuBarIconStyle == MenuBarIconStyle.battery.rawValue {
+                    Picker(selection: $batteryIconClick) {
+                        Text("Battery stats").tag(BatteryIconClick.stats.rawValue)
+                        Text("Control center").tag(BatteryIconClick.controls.rawValue)
+                    } label: {
+                        SettingsLabel("Clicking it opens", "Battery stats: health, temperature, the last 12 hours and where the power is flowing. Control center: the panel you get from the notch.")
+                    }
+                    Toggle("Show percentage", isOn: $batteryIconPercent)
+                    LabeledContent {
+                        Button("Control Center Settings…") { SystemSettings.open(SystemSettings.controlCenter) }
+                    } label: {
+                        SettingsLabel("Hide the macOS battery", "In Control Center settings, set Battery to Don't Show in Menu Bar.")
+                    }
+                }
+            } header: { Text("Menu Bar") }
             Section {
                 if powerMode.permissionInstalled {
                     LabeledContent {

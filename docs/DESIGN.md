@@ -287,11 +287,12 @@ Motion (1.4, owner request 2026-11-21, mockup `docs/mockups/charging.html`), tim
 
 ### Menu bar battery (1.5)
 
-Owner request, 2026-11-23. Islet's menu bar icon can be the pill (default) or a battery (Settings > General > Menu bar
-icon), so one icon can do the job of macOS's battery and Islet's. As a battery it always shows, whatever "Show menu bar
+Owner request, 2026-11-23. Islet's menu bar icon can be the pill (default) or a battery: "Battery in the menu bar", a
+feature of its own (off by default; Features list and Settings > Battery > Menu Bar, with its click, percentage and
+the link to hide macOS's), so one icon can do the job of macOS's battery and Islet's. As a battery it always shows, whatever "Show menu bar
 icon" says, and works the same with a notch, the bezel island, the menu bar island, or none.
 
-- The icon follows macOS's: a 27 × 13 pt battery, a pale outline (40%), the charge as a solid fill, a bolt while
+- The icon follows macOS's: a 33 × 13 pt battery (29 pt body, a little longer than macOS's own), a pale outline (40%), the charge as a solid fill, a bolt while
   charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Red
   fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.

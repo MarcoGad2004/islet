@@ -7,7 +7,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Menu bar battery
 
-- Islet's menu bar icon can be a battery instead of the pill (Settings > General > Menu bar icon), so it can stand in for the macOS battery icon and not take up a second spot. It draws like macOS's: the charge as a fill, a bolt while charging, a plug when plugged in and not charging, red at 10% and yellow in Low Power Mode, with the percentage beside it (can be turned off). Settings has a shortcut to Control Center settings, where you hide the macOS one.
+- Islet's menu bar icon can be a battery instead of the pill: turn on "Battery in the menu bar" in Settings > Battery (or in the features list), so it can stand in for the macOS battery icon and not take up a second spot. It draws like macOS's: the charge as a fill, a bolt while charging, a plug when plugged in and not charging, red at 10% and yellow in Low Power Mode, with the percentage beside it (can be turned off). Settings has a shortcut to Control Center settings, where you hide the macOS one.
 - Click it for battery stats: time left or to full, time since unplugged, power source, cycle count, temperature, battery health, a chart of the last 12 hours, and a live diagram of where the power is flowing: from the battery, the charger or both into the Mac, and from the charger into the battery while it charges. Or set the click to open the control center, as from the notch. Right-click still gives Islet's menu.
 - The chart starts full: the hours before Islet was running come from macOS's power log. Islet keeps a day of charge history on the Mac (Application Support/Islet); nothing leaves it.
 
