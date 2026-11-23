@@ -5,6 +5,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.4.1 (unreleased)
 
+### Fixes
+
+- Contacts permission: pressing Allow now asks for access. Before, the app was missing the Contacts entitlement its signing needs, so macOS refused silently and System Settings showed an empty Contacts list.
+
 ### Face unlock
 
 - Face unlock now only uses the MacBook's own camera. An iPhone (Continuity Camera), a USB webcam or a virtual camera could be fed prepared video, so they're never used.

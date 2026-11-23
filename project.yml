@@ -54,6 +54,7 @@ targets:
         com.apple.security.device.camera: true
         com.apple.security.device.bluetooth: true
         com.apple.security.personal-information.location: true
+        com.apple.security.personal-information.addressbook: true   # Contacts: without it the hardened runtime denies silently
         com.apple.security.automation.apple-events: true
     settings:
       base:
