@@ -34,10 +34,10 @@ enum MenuBarBattery {
         let low = !onAC && percent <= lowPercent
         let fillColor: NSColor? = low ? .systemRed : lowPower ? .systemYellow : nil
         let mark: String? = charging ? "bolt.fill" : onAC ? "powerplug.portrait.fill" : nil
-        let size = NSSize(width: 33, height: 13)
+        let size = NSSize(width: 29.5, height: 13)
         let image = NSImage(size: size, flipped: false) { _ in
             let ink = fillColor == nil ? NSColor.black : NSColor.labelColor
-            let body = NSRect(x: 0.5, y: 0.75, width: 29, height: 11.5)
+            let body = NSRect(x: 0.5, y: 0.75, width: 25.5, height: 11.5)
             let inner = body.insetBy(dx: 2, dy: 2)
             let share = CGFloat(min(max(percent, 0), 100)) / 100
             let fill = NSRect(x: inner.minX, y: inner.minY, width: max(1.5, inner.width * share), height: inner.height)
@@ -60,7 +60,7 @@ enum MenuBarBattery {
             outline.lineWidth = 1
             ink.withAlphaComponent(0.4).setStroke()
             outline.stroke()
-            let nub = NSBezierPath(roundedRect: NSRect(x: 30.4, y: 4.6, width: 1.8, height: 3.8), xRadius: 0.9, yRadius: 0.9)
+            let nub = NSBezierPath(roundedRect: NSRect(x: 26.9, y: 4.6, width: 1.8, height: 3.8), xRadius: 0.9, yRadius: 0.9)
             ink.withAlphaComponent(0.4).setFill()
             nub.fill()
             return true
