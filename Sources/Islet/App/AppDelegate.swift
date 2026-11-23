@@ -261,6 +261,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Wires each module to the island store. A failing module must not take down the others.
     func applicationWillTerminate(_ notification: Notification) { media.stop() }
 
+    /// System Settings' "Quit & Reopen" (after a permission is turned on) doesn't always bring the app back, so the
+    /// app sees to it itself.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if Relauncher.quitIsFromSystemSettings() { Relauncher.reopenAfterExit() }
+        return .terminateNow
+    }
+
     private func startModules() {
         // Quit cleanly on SIGTERM/SIGINT too, so the media helper process never outlives the app.
         for sig in [SIGTERM, SIGINT] {

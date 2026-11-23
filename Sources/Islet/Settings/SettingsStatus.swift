@@ -195,12 +195,6 @@ struct SettingsChecks {
         #endif
     }
 
-    /// Opens a fresh copy of Islet once this one has quit.
-    static func relaunch() {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
-        try? p.run()
-        NSApp.terminate(nil)
-    }
+    /// Opens a fresh copy once this one has quit.
+    static func relaunch() { Relauncher.restart() }
 }

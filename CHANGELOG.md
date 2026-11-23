@@ -3,43 +3,37 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.5 (unreleased)
+## 1.5 (2026-11-23)
 
 ### Islet is now Dynamic Peninsula
 
 - It's not quite an island: it's joined to the top of the screen. The app, its menus, Settings and the release are now called Dynamic Peninsula. It's the same app underneath, so your permissions, Face Unlock, settings and updates carry on as they were.
-- A new icon to match: a black peninsula joined to the top edge of the screen, with a beach, shallows and surf, in a turquoise sea.
+- A new icon to match: a black peninsula as wide as the real notch, joined to the top edge of the screen, with a beach, shallows and surf, in a turquoise sea.
 - Updating from 1.4 installs it as Islet.app; the update after that renames it to Dynamic Peninsula.app.
 
 ### Menu bar battery
 
-- Islet's menu bar icon can be a battery instead of the pill: turn on "Battery in the menu bar" in Settings > Battery (or in the features list), so it can stand in for the macOS battery icon and not take up a second spot. It draws like macOS's: the charge as a fill, a bolt while charging, a plug when plugged in and not charging, green while it's actually charging (so you can tell when a plugged-in Mac isn't), red at 10% and yellow in Low Power Mode, with the percentage beside it (can be turned off). Settings has a shortcut to Control Center settings, where you hide the macOS one.
-- With the glass look on (macOS 26 and later), the battery stats are Liquid Glass, like Control Center, with glass tiles and pills.
+- The menu bar icon can be a battery instead of the pill, so it can stand in for the macOS battery icon and not take up a second spot. Turn on "Battery in the menu bar" in Settings > Battery (or in the features list); Settings has a shortcut to Control Center settings, where you hide the macOS one.
+- It draws like macOS's: the charge as a fill, a bolt while charging, a plug when plugged in and not charging, red at 10% and yellow in Low Power Mode, with the percentage beside it (can be turned off). The fill turns green while the battery is actually charging, so you can tell at a glance when a plugged-in Mac isn't.
+- Click it for battery stats: time left or to full, time since unplugged, power source, cycle count, temperature, battery health, a chart of the last 12 hours, and a live diagram of where the power is flowing: from the battery, the charger or both into the Mac, and from the charger into the battery while it charges. The lines thicken and flow faster with more power. Or set the click to open the control center, as from the notch. Right-click still gives the app's menu.
 - With a charge limit set, the stats say "Time to 85%" (timed to the limit, not to full) with the limit right under it.
-- Click it for battery stats: time left or to full, time since unplugged, power source, cycle count, temperature, battery health, a chart of the last 12 hours, and a live diagram of where the power is flowing: from the battery, the charger or both into the Mac, and from the charger into the battery while it charges. Or set the click to open the control center, as from the notch. Right-click still gives Islet's menu.
-- "Charging" no longer lags behind the charger: when more power comes in than the Mac is using, the rest is going into the battery, so it shows as charging even before the battery's own flag catches up (which could take a while and showed "Not Charging" with 50 W going in).
-- Charging shows the moment the battery says so: Islet reads the battery's own charging flag instead of waiting a second or two for macOS's power list. The stats and the battery page update every second from the Mac's live power sensors (the battery's own figures only change every 30 seconds or so), and at once when a charger goes in or out.
-- Every battery in Islet (the menu bar, quick info, the battery page and the charging animation) now has the same shape: a body twice as long as it is tall, like the menu bar one.
-- The chart starts full: the hours before Islet was running come from macOS's power log. Islet keeps a day of charge history on the Mac (Application Support/Islet); nothing leaves it.
+- With the glass look on (macOS 26 and later), the stats are Liquid Glass like Control Center's, following System Settings' Liquid Glass and Reduce Transparency choices, with text that stays readable on light or dark glass.
+- The chart starts full: the hours before the app was running come from macOS's power log. A day of charge history is kept on the Mac (Application Support/Islet); nothing leaves it.
+- Live figures: the stats and the battery page update every second from the Mac's own power sensors (the battery's figures only change every 30 seconds or so), and the charger, Mac and battery numbers always add up.
+- Charging shows at once: when a charger goes in or out, and when more power comes in than the Mac is using, it shows as charging even before the battery's own flag catches up (which could take a while and showed "Not Charging" with 50 W going in).
+- Every battery in the app (the menu bar, quick info, the battery page and the charging animation) now has the same shape: a body twice as long as it is tall.
 
 ### Messages
 
 - A messages pill shows next to the battery in the panel when you have unread messages, with the same count as Messages' badge: chats with unread messages from known senders. It reads Messages' own history, so reading on your iPhone clears it too, and replying from the notch clears that chat.
-- With the panel open, swiping up closes it only from the notch itself, so scrolling the inbox or a conversation doesn't close the panel. Click it for an inbox: chats with new messages first, then your other recent ones. A conversation opened from it has a back button to the inbox.
+- Click it for an inbox: chats with new messages first, then your other recent ones. A conversation opened from it has a back button to the inbox.
 - Photos and stickers show in conversations instead of "Attachment", including stickers placed on a message. Click a photo to open it.
 - The Emoji & Symbols picker (⌃⌘Space or the smiley button) now opens in front of the panel instead of behind it.
+- With the panel open, swiping up closes it only from the notch itself, so scrolling the inbox or a conversation doesn't close the panel.
 
 ### Volume and brightness
 
 - Turning the volume or brightness while the unlock animation is playing (or on the lock screen, or during the face scan) now shows it: the island grows a row underneath with the level, instead of the change going unseen until the animation finished. When the unlock finishes first, the level's icon, bar and number glide up into the level's own place.
-
-### Fixes
-
-- The app no longer freezes at launch while macOS's Bluetooth permission prompt is waiting for an answer: it asks in the background and starts Bluetooth once you've answered.
-
-- Macs without a notch: the island now answers the pointer at the top of the screen while you're on the desktop. macOS doesn't send pointer moves to other apps while the desktop is in front, so Islet now also watches them another way.
-- Search opens with ⌥Space by default, so it doesn't take ⌘Space from Spotlight. You can still give it ⌘Space in Settings > Search.
-- Contacts permission: pressing Allow now asks for access. Before, the app was missing the Contacts entitlement its signing needs, so macOS refused silently and System Settings showed an empty Contacts list.
 
 ### Face unlock
 
@@ -53,6 +47,15 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - Settings > Face Unlock > "When a challenge is needed, just ask me to blink" (under Automatic): the fallback is always a blink instead of a random blink, smile or head turn. Off by default.
 - The light check works in more rooms: it reads the room from spots all around your head instead of two corners, and when none is readable (bright lights or windows behind you) it compares the middle of your face with its sides instead of giving up. Before, a blown-out corner meant it always asked for a blink, even with the spoof model sure you were real.
 - The light check is quicker: it decides as soon as the swell peaks instead of waiting for the screen to come back, and once it gets no response in a scan, the next tries go straight to the challenge.
+
+### Fixes
+
+- The app no longer freezes at launch while macOS's Bluetooth permission prompt is waiting for an answer: it asks in the background and starts Bluetooth once you've answered.
+- Macs without a notch: the island now answers the pointer at the top of the screen while you're on the desktop. macOS doesn't send pointer moves to other apps while the desktop is in front, so the app now also watches them another way.
+- Search opens with ⌥Space by default, so it doesn't take ⌘Space from Spotlight. You can still give it ⌘Space in Settings > Search.
+- Contacts permission: pressing Allow now asks for access. Before, the app was missing the Contacts entitlement its signing needs, so macOS refused silently and System Settings showed an empty Contacts list.
+- Settings' sidebar shows the version on its own line under the name.
+- After turning on a permission like Full Disk Access, System Settings' "Quit & Reopen" now brings the app back. It used to quit and stay closed.
 
 ## 1.4 (2026-11-22)
 
