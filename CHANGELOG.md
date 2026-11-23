@@ -3,7 +3,7 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## Next
+## 1.4.1 (unreleased)
 
 ### Face unlock
 
