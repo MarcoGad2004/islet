@@ -129,7 +129,10 @@ private struct MacStatsOverview: View {
                             .padding(.top, 6)
                     }
                     Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), number: s.systemWatts, level: .normal, action: nil) {
-                        Caption(s.energy.map { "CPU \(MacStatsFormat.number($0.cpu)) · GPU \(MacStatsFormat.number($0.gpu)) W" } ?? " ")
+                        // Two lines always: on one, "CPU 26.3 · GPU 0.7 W" wrapped to a second line whenever the numbers were
+                        // wide enough, and the tile (and the panel) bounced between two heights.
+                        Caption(s.energy.map { "CPU \(MacStatsFormat.number($0.cpu)) W" } ?? " ")
+                        Caption(s.energy.map { "GPU \(MacStatsFormat.number($0.gpu)) W" } ?? " ")
                         let power = stats.buckets.filter { $0.watts != nil }
                         let watts = power.compactMap(\.watts)
                         Sparkline(values: watts, newest: power.last?.date, top: max(watts.max() ?? 1, 1) * 1.15, colour: nil)
