@@ -15,7 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
     private let notifications = NotificationWatcher()
-    private let routingBanners = RoutingBannerWatcher()
     private let messages = MessagesStore()
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
@@ -162,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "bannerspike": let s = BannerSpike(); bannerSpike = s; Task { await s.run() }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
-        case "focuson", "wificonnect", "btconnect", "eventchin":
+        case "focuson", "wificonnect", "eventchin":
             let wide = UserDefaults.standard.string(forKey: "IsletDebugShape") != "eventchin"
             notch.store.layoutCheck = { wide }
             notch.store.eventLayoutCheck = { wide }
@@ -171,7 +170,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch UserDefaults.standard.string(forKey: "IsletDebugShape") {
             case "focuson": e = IslandEvent(kind: .focusOn, icon: "moon.fill", title: "Do Not Disturb", detail: "On")
             case "wificonnect": e = IslandEvent(kind: .wifi, icon: "wifi", title: "NLDeco_MLO", detail: "Connected")
-            case "btconnect": e = IslandEvent(kind: .bluetooth, icon: "airpodspro", title: "Marco’s AirPods Pro", detail: "Connected")
             default: e = IslandEvent(kind: .wifi, icon: "wifi", title: "NLDeco_MLO", detail: "Connected")
             }
             notch.store.showEvent(e)
@@ -330,14 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.updater = Updater.shared
         Updater.shared.startAutomaticChecks()
         wifi.start()
-        // One "Connected" per connect: IOBluetooth and the AirPods card can both report it, with different names.
-        var lastConnected = Date.distantPast
-        let showConnected = { [weak store] (name: String, icon: String) in
-            guard Date().timeIntervalSince(lastConnected) > 6 else { return }
-            lastConnected = Date()
-            store?.showEvent(IslandEvent(kind: .bluetooth, icon: icon, title: name, detail: "Connected"))
-        }
-        bluetooth.onConnected = { name, icon in showConnected(name, icon) }
+        // Devices connecting are left to macOS, which shows its own card for them (owner, 2026-11-24).
         bluetooth.start()
         display.refresh()
         airdrop.refresh()
@@ -353,13 +344,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
         store.notificationAction = { [weak self] in self?.notifications.perform($0, action: $1) }
         notifications.start()
-        // The AirPods "Connected" card: the notch shows the connect too (with Notifications in the notch on).
-        routingBanners.enabled = { Feature.notifications.isOn }
-        routingBanners.onConnected = { [weak store] name in
-            guard let store, store.canShowEvent else { return }
-            showConnected(name, BluetoothController.icon(name: name, major: 0))
-        }
-        routingBanners.start()
 
         power.onEvent = { [weak store] in store?.showCharge($0) }
         power.onEventUpdate = { [weak store] in store?.updateCharge($0) }
@@ -385,7 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { store?.recomputeLayout() }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry(); self?.routingBanners.retry() }
+            MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry() }
         }
     }
 

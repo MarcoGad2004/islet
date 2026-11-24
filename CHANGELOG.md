@@ -38,7 +38,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Longer notifications.** They grow downward to fit their text, up to 6 lines in the bar and 10 on the hover card, so most can be read without hovering.
 - **Messages in the notch is now a window onto Messages.** Conversations show read only, smoothly and live as messages arrive; one big Reply in Messages button opens the conversation there to answer. Replying, tapbacks and the emoji picker in the notch are gone, so Messages no longer has to come forward and nothing stutters. The back button always goes to the conversation list, and a notification's Reply button is now View. Dynamic Peninsula no longer asks to control Messages.
 - **Contact photos in Messages.** The inbox and a conversation's header show the person's photo from Contacts, where they have one. Group chats keep their initial.
-- **AirPods connections in the notch.** With Notifications in the notch on, the notch also shows AirPods switching back to the Mac from your iPhone, and no longer sometimes shows the same connection twice. The macOS "Connected" card in the top-right corner still shows: macOS doesn't let it be moved away.
+- **Connecting AirPods is left to macOS.** The notch no longer shows its own "Connected" when AirPods or another Bluetooth device connect: macOS already shows its card in the top-right corner, and it can't be moved away, so the notch only repeated it. Wi-Fi and Focus still show in the notch, and connecting a device from the panel works as before.
 
 ### The panel
 
@@ -53,7 +53,6 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Conversations open without a hitch.** A conversation is read in the background before the panel switches to it, so the island keeps moving smoothly, even while the inbox is refreshing.
 - **An unusual message can't crash it.** Message text is read by Dynamic Peninsula itself instead of by an old system decoder that crashed on anything it couldn't read.
 - **No more log file.** The AirPods diagnostics file the test builds kept in Library/Logs is gone, and removed if it's there.
-- **Smoother when AirPods connect.** The test builds kept trying to move the macOS card away 60 times a second while the notch animated the connection; that's gone.
 - **Battery stats icon click.** Clicking the menu bar battery while its stats are open now closes them instead of opening them again. Clicking elsewhere to close them, then clicking the icon, no longer opens them straight back up.
 
 ## 1.5 (2026-11-23)

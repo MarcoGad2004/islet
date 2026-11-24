@@ -135,7 +135,7 @@ findings stay in RESEARCH.md (Q47-Q56).
       condensed sliders; tap vs drag; expand and back
 - [ ] Display detail (brightness, Dark Mode, Night Shift, True Tone) and Sound detail (volume, output devices)
 - [ ] Wi-Fi, Bluetooth, AirDrop, Mirroring tiles and their detail views, each with a Settings-pane fallback
-- [ ] Event animations like charging: Focus on/off, Wi-Fi connected, Bluetooth device connected (RESEARCH.md Q22-Q23)
+- [ ] Event animations like charging: Focus on/off, Wi-Fi connected (RESEARCH.md Q22-Q23; Bluetooth connected was dropped in 1.6, macOS shows its own)
 - [ ] Permissions in onboarding and Settings (Location, Bluetooth, Automation, Full Disk Access for reading Focus); how to hide the
       system Control Center icon
 - [ ] Ship as v1.1 (`scripts/release.sh 1.1`)

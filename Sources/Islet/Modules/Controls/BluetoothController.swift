@@ -9,10 +9,9 @@ struct BTDevice: Identifiable, Equatable {
     var icon: String
 }
 
-/// Bluetooth: power (private IOBluetooth call), paired devices, connect/disconnect, and connect events.
-/// The connect notification also fires for devices already connected at launch, for unnamed neighbours, for attempts
-/// that drop, and several times per device, so an event needs: a name, still connected 1.5 s later, and a device not
-/// already known to be connected. (The callbacks arrive off the main thread.)
+/// Bluetooth: power (private IOBluetooth call), paired devices, and connect/disconnect. Connect and disconnect
+/// notifications keep the device list current; a device connecting shows no event in the notch, as macOS shows its own
+/// card (owner, 2026-11-24). (The callbacks arrive off the main thread.)
 @MainActor @Observable
 final class BluetoothController: NSObject {
     private(set) var powerOn = false
@@ -20,8 +19,6 @@ final class BluetoothController: NSObject {
     private(set) var busy: Set<String> = []
     var error: String?
 
-    @ObservationIgnored var onConnected: ((String, String) -> Void)?   // (name, icon)
-    @ObservationIgnored private var connectedNow: Set<String> = []
     @ObservationIgnored private var note: IOBluetoothUserNotification?
     @ObservationIgnored private var disconnectNotes: [String: IOBluetoothUserNotification] = [:]
 
@@ -54,7 +51,6 @@ final class BluetoothController: NSObject {
             return
         }
         refresh()
-        connectedNow = Set(devices.filter(\.connected).map(\.id))
         note = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connectCallback(_:device:)))
     }
 
@@ -107,23 +103,15 @@ final class BluetoothController: NSObject {
     }
 
     @objc nonisolated private func connectCallback(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        guard let address = device.addressString else { return }
-        let name = device.name ?? "", major = device.deviceClassMajor
-        Task { @MainActor in await self.connected(address: address, name: name, major: major) }
+        // The connection settles a moment after the notification (and it fires several times per device).
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            self.refresh()
+        }
     }
 
     @objc nonisolated private func disconnectCallback(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        guard let address = device.addressString else { return }
-        Task { @MainActor in self.connectedNow.remove(address); self.refresh() }
-    }
-
-    private func connected(address: String, name: String, major: UInt32) async {
-        guard !name.isEmpty, Self.isAccessory(name: name, major: major), !connectedNow.contains(address) else { return }
-        try? await Task.sleep(for: .seconds(1.5))
-        guard !connectedNow.contains(address), IOBluetoothDevice(addressString: address)?.isConnected() == true else { return }
-        connectedNow.insert(address)
-        refresh()
-        onConnected?(name, Self.icon(name: name, major: major))
+        Task { @MainActor in self.refresh() }
     }
 
     /// Devices one connects to a Mac on purpose: headphones, speakers, mice, keyboards, controllers. Phones, tablets,

@@ -436,16 +436,14 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
     tap to switch.
 - **Event animations** use the charger treatment (wings when the menu bar has room, otherwise the chin; icon pops in,
   text, 2.5 s, hands back to media): Focus turned on or off (icon and mode name), Wi-Fi connected (name of the
-  network), Bluetooth device connected (device name, battery if known). Joining a Personal Hotspot instead uses the
+  network). Joining a Personal Hotspot instead uses the
   volume treatment: the wide bar (hotspot icon left, cellular bars right, both green) with the phone's name in the
   short body under it, or the chin when the menu bar has no room. A join started in the panel that is still going
   when the panel closes shows the same way, live: the network's icon pulsing on the left, a spinner on the right,
   the step in the body; then a check and "Connected to …" (2.5 s) or a cross and the error in red (4 s). The system's own banners for these are
-  not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings. The AirPods
-  "Connected" card stays too: hiding it was tried (owner, 2026-11-23) but macOS puts it back every frame (2026-11-24). It
-  is read instead: with Notifications in the notch on, its connect shows as the Bluetooth event (the only sign when
-  AirPods switch back from an iPhone), once even when IOBluetooth reports it too. Other cards ("Moved to iPhone") are
-  ignored.
+  not hidden by the app (see RESEARCH.md Q22); the owner can turn them off in System Settings. A Bluetooth
+  device connecting (AirPods and the like) shows no event: macOS shows its own "Connected" card, which can't be hidden
+  (it's put back every frame when moved), so the notch only repeated it (owner, 2026-11-24; it was an event until 1.6).
 - **Glide between pages:** the expanded panel is one stage. Every element (the two sliders, the tiles and their detail
   cards, the media artwork and title) is always present and has a rectangle for each page, so changing page moves it there
   with a spring (response 0.46, damping 0.72, the same family as the notch bubble); inner content cross-fades. The mini

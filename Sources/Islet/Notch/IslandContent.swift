@@ -94,7 +94,7 @@ struct ChargeEvent: Equatable {
 /// Focus on/off, Wi-Fi connected, Bluetooth device connected: shown like a charging event. A Personal Hotspot
 /// connection uses the wide bar with a body under it, like volume, so the phone's name has room.
 struct IslandEvent: Equatable {
-    enum Kind { case focusOn, focusOff, wifi, hotspot, bluetooth }
+    enum Kind { case focusOn, focusOff, wifi, hotspot }
     var kind: Kind
     var icon: String
     /// The name: the Focus, the network or the device.

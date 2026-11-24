@@ -276,7 +276,6 @@ struct CompactContentView: View {
         case .focusOff: .isletSecondary
         case .wifi: .isletCyan
         case .hotspot: .isletGreen
-        case .bluetooth: Color(hex: 0x0A84FF)
         }
     }
 
