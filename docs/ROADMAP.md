@@ -112,7 +112,12 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       per-app GPU time, IOReport watts and memory pressure all read without rights. No frame rate: dropped
 - [ ] Still to try: sleep and restart with the fans held; whether the SMC overrides a low target when hot; which
       temperature keys make "CPU" and "GPU" (compare with iStat Menus); top apps by CPU and memory
-- [ ] Readers: one `MacStats` model sampling every 2 s (only what's on), with 10 minutes of history
+- [x] Readers (`Modules/MacStats`): `CPUReader`, `MemorySample`, `GPUReader`, `EnergyReader` (IOReport),
+      `ThermalReader` (SMC temperatures and fans), `ProcessReader` (`ps`, footprint where readable), sampled off the main
+      thread by `MacStatsSampler`; `MacStats.shared` keeps 10 minutes of history and `LevelHold` the 5 s warning
+      hold. Checked on this Mac (about 40 ms a reading, 95 ms with the app lists); nothing starts it yet
+- [ ] App lists: group helper processes under their app (Claude Helper, Claude Helper (Renderer) → Claude), as
+      iStat Menus does
 - [ ] Menu bar item: meters and readouts, colours, warnings held ~5 s, the turning fan, light and dark menu bars
 - [ ] Panel: title, tiles, temperatures, fans, footer; the CPU, Memory and GPU pages
 - [ ] Fans page and fan control: the helper's install and removal, Automatic / Manual / Full Speed, handing back

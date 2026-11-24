@@ -48,13 +48,21 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
     temperature and the live power figures from the SMC (`SMCSensors`) with the other details. Every battery Islet
     draws takes its proportions from `BatteryMetrics` (`BatteryBody` in SwiftUI, `MenuBarBattery` in AppKit).
 
+11. **Mac Stats** (1.7): `Modules/MacStats`. `MacStats.shared` (`@Observable`) reads every 2 s while started, through
+    `MacStatsSampler` (an actor owning the readers, which keep their last reading to work out rates): CPU ticks per
+    core (`host_processor_info`), memory (`host_statistics64`, pressure from `kern.memorystatus_vm_pressure_level`), the
+    GPU (`IOAccelerator` statistics, per-app GPU time from its user clients), CPU/GPU/Neural Engine watts (IOReport
+    "Energy Model", linked with `-lIOReport`), temperatures and fans from the SMC (`SMCSensors.allKeys`, listed once),
+    and the busiest apps (`ps`) only while a page shows them. It keeps 10 minutes of `MacStatsPoint`s for the graphs.
+    Fan control will go through a root helper (RESEARCH.md "Mac Stats").
+
 ## Folder layout
 
 ```
 Sources/Islet/
   App/          entry point, app delegate, menu bar item, battery stats panel
   Notch/        panel, geometry, layout check, island shape, state store
-  Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/, Shazam/
+  Modules/      Media/, Power/, Levels/, Lock/, FaceUnlock/, Shazam/, MacStats/
   Views/        compact (wings/chin) and expanded views, face scan view
   Settings/
   Support/      design tokens, helpers

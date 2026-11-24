@@ -1,7 +1,8 @@
 import Foundation
 import IOKit
 
-/// Live readings from the SMC, through AppleSMC's user client (any app can read it). The battery's registry entry only
+/// Live readings from the SMC, through AppleSMC's user client (any app can read it; writing needs root, RESEARCH.md
+/// "Mac Stats"). The battery's registry entry only
 /// refreshes about every 30 s; the SMC's power sensors change every second (RESEARCH.md "Battery stats").
 enum SMCSensors {
     /// The battery's temperature in °C: the mean of its sensors (`TB0T`, `TB1T`, `TB2T`) that answer. macOS no longer
@@ -31,6 +32,23 @@ enum SMCSensors {
         }
     }
 
+    /// Every key's name, by index (`#KEY` holds the count; about 3,400 on an M4 Pro). Slow-ish: read once and keep.
+    static func allKeys() -> [String] {
+        session { conn -> [String]? in
+            guard let count = value(conn, key: "#KEY"), count > 0, count < 20_000 else { return nil }
+            return (0..<UInt32(count)).compactMap { key(conn, at: $0) }
+        } ?? []
+    }
+
+    /// The keys that answer with a number (`flt`, `sp78`, `ui8`, `ui16`, `ui32`), read in one session.
+    static func values(_ keys: [String]) -> [String: Double] {
+        session { conn -> [String: Double]? in
+            var out: [String: Double] = [:]
+            for k in keys { if let v = value(conn, key: k) { out[k] = v } }
+            return out
+        } ?? [:]
+    }
+
     private static func session<T>(_ body: (io_connect_t) -> T?) -> T? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
         guard service != 0 else { return nil }
@@ -58,6 +76,15 @@ enum SMCSensors {
 
     private static let readKeyInfo: UInt8 = 9
     private static let readBytes: UInt8 = 5
+    private static let readKeyAtIndex: UInt8 = 8
+
+    private static func key(_ conn: io_connect_t, at index: UInt32) -> String? {
+        var c = Call()
+        c.command = readKeyAtIndex
+        c.data32 = index
+        guard let r = call(conn, c), r.result == 0, r.key != 0 else { return nil }
+        return String(bytes: withUnsafeBytes(of: r.key.bigEndian) { Array($0) }, encoding: .ascii)
+    }
 
     private static func value(_ conn: io_connect_t, key: String) -> Double? {
         let code = key.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
@@ -77,6 +104,9 @@ enum SMCSensors {
         case fourCC("sp78") where bytes.count == 2:
             // Signed fixed point, 8 fraction bits, big-endian.
             return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256
+        case fourCC("ui8 "), fourCC("ui16"), fourCC("ui32"):
+            // Unsigned, big-endian.
+            return Double(bytes.reduce(UInt64(0)) { $0 << 8 | UInt64($1) })
         default:
             return nil
         }

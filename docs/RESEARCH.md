@@ -750,3 +750,7 @@ The probe tools were throwaway command-line programs, not kept in the repo.
   also `TB*` battery, `TaL*`/`TaR*` airflow left/right, `TPD*`/`TRD*`/`TUD*`, `Ts**`. Which ones make the panel's "CPU"
   and "GPU" (average and hottest) is still to settle against iStat Menus' figures, which this Mac has.
 - **Fans**: also `F<n>St` (3 at rest), `F<n>Dc`, `FOff` = 1. `F<n>Ac` is the speed to show.
+- **Processes**: a normal app's `proc_pid_rusage` and `proc_pidinfo` read 871 of 1,187 processes here, not root's
+  (WindowServer, launchd); `/bin/ps -axo pid=,%cpu=,rss=,comm=` lists them all. So `ProcessReader` takes the list and
+  CPU from `ps` (its %cpu is a recent average, as Activity Monitor's) and the memory footprint from `proc_pid_rusage`
+  where it can, else `ps`'s resident size. Run only while a page shows the lists.
