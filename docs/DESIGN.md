@@ -980,7 +980,8 @@ the panel keeps its width.
 - **Memory**: "28.2 of 48 GB"; 10 minutes of memory pressure in cyan, with the warning and critical bands marked and a
   line saying pressure, not fullness, sets the colour; the breakdown bar and rows (Apps, Kept for macOS, Compressed,
   Free, Swap used); the five apps using the most; Activity Monitor….
-- **GPU**: % on the right; 10 minutes of use in purple; Neural Engine, Memory in use, Frame rate, Power, Temperature;
+- **GPU**: % on the right; 10 minutes of use in purple; Neural Engine, Memory in use, Power, Temperature (no frame
+  rate: nothing readable gives it, RESEARCH.md);
   the apps using the GPU right now (no rows of 0%); Activity Monitor….
 - **Fans**: the CPU temperature on the right; each fan's speed with a bar up to its maximum; "Control": Automatic /
   Manual / Full Speed, styled like the Energy Mode switch.

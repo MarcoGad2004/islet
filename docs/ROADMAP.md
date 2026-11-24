@@ -107,9 +107,11 @@ the unlock animation still ships.
 Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU8DeGm4nyXuQ3ixB>.
 - [x] Mockups and design (owner, 2026-11-24): meters with a colour per part, readouts left of them in one item, a panel
       with CPU, GPU, Memory and Fans pages, Settings > Mac Stats
-- [ ] Spike first (RESEARCH.md "Mac Stats"): fan control through a privileged helper on this M4 Pro, and handing the
-      fans back on quit, sleep and a crash; then CPU per core type, GPU, IOReport watts, memory pressure, top apps.
-      Record what works; drop what can't be read (frame rate, per-app GPU)
+- [x] Spike (RESEARCH.md "Mac Stats", 2026-11-24): fan control works as root (unlock, wait ~6 s, manual, target) and
+      hands back cleanly; a crash leaves the fans held, so the helper must hand back itself. CPU per core type, GPU and
+      per-app GPU time, IOReport watts and memory pressure all read without rights. No frame rate: dropped
+- [ ] Still to try: sleep and restart with the fans held; whether the SMC overrides a low target when hot; which
+      temperature keys make "CPU" and "GPU" (compare with iStat Menus); top apps by CPU and memory
 - [ ] Readers: one `MacStats` model sampling every 2 s (only what's on), with 10 minutes of history
 - [ ] Menu bar item: meters and readouts, colours, warnings held ~5 s, the turning fan, light and dark menu bars
 - [ ] Panel: title, tiles, temperatures, fans, footer; the CPU, Memory and GPU pages

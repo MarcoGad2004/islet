@@ -711,3 +711,42 @@ Still to check before building (the spike in ROADMAP 1.7):
   icons from `NSRunningApplication` where there is one.
 - **Cost**: all of this every 2 s while the panel is open, and only what the menu bar shows otherwise. Measure Islet's
   own CPU use with everything on.
+
+### Spike results (2026-11-24, M4 Pro, macOS 27.2)
+
+The probe tools were throwaway command-line programs, not kept in the repo.
+
+**Fan control works, with root.**
+- As a normal user every SMC write is refused with `kIOReturnNotPrivileged` (0xE00002C1), even writing a key's
+  current value. With root:
+  1. `F0Md` = 1 straight away is refused with SMC result 130.
+  2. `Ftst` = 1 is accepted. On its own it sets both fans to mode 0, target = their minimum (2317), and they start.
+  3. `F<n>Md` = 1 is refused for about 6 s after that, then accepted (the test retried every 0.5 s; the 12th try
+     took). Build the helper to retry for up to ~10 s.
+  4. `F<n>Tg` (`flt`, little-endian) is then followed: 0 → 3,500 rpm in about 3 s, held within ±25 rpm.
+- **Handing back**: `F<n>Tg` = 0 and `Ftst` = 0. `F<n>Md` = 3 can't be written (result 130), and doesn't need to be:
+  about 3 s after `Ftst` = 0 the SMC sets the mode back to 3 itself and the fans spin down and stop.
+- **A crash leaves the fans held.** The test exited with the fans at 3,000 rpm and nothing reset them for the ~50 s
+  until a manual reset. So the helper (a root `SMAppService.daemon`) must hand back by itself: when the app's XPC
+  connection drops, when it hasn't heard from the app for a few seconds (a heartbeat while not Automatic), at its own
+  start (so launchd relaunching a crashed helper fixes it), and on sleep and shutdown. Still untested: whether sleep or
+  a restart clears `Ftst` on its own, and whether the SMC overrides the target when the Mac gets hot (the Fans page
+  promises that; if not, the helper does it, from the CPU temperature).
+
+**Everything else is readable without rights:**
+- **Cores**: `hw.perflevel0` = 8 Performance, `hw.perflevel1` = 4 Efficiency. In `host_processor_info` the 4
+  efficiency cores come first (0-3, read 76/74/72/68% at idle), then the 8 performance cores.
+- **GPU**: `IOAccelerator` `PerformanceStatistics`: "Device Utilization %", "Renderer/Tiler Utilization %",
+  "In use system memory" (974 MB). Per app: each `AGXDeviceUserClient` has `IOUserClientCreator` ("pid 616,
+  WindowServer") and `AppUsage` with `accumulatedGPUTime` (ns): difference it between samples. No frame rate anywhere
+  found: drop that row from the GPU page.
+- **Watts**: IOReport group "Energy Model" works without root (link `-lIOReport`, declare the functions with
+  `@_silgen_name`). Over 3 s: "CPU Energy" 1.35 W (mJ; also `EACC_CPU` efficiency, `PACC0_CPU`/`PACC1_CPU`
+  performance clusters), "GPU Energy" 0.10 W (nJ), "ANE" 0 (mJ). CPU energy only updates about once a second (a 1 s
+  delta read 0), so use a 2 s or longer window.
+- **Memory**: `kern.memorystatus_vm_pressure_level` = 1 (normal); `vm.swapusage` used 695.75 MB.
+- **Temperatures**: `#KEY` = 3374 keys; enumerate by index (command 8) and keep `T*` `flt` keys. CPU: about 50
+  `Tp**` (38-75 °C at once: some are hot spots) and `Te0*`/`Tex*` (efficiency); GPU: about 20 `Tg**` (37-45 °C);
+  also `TB*` battery, `TaL*`/`TaR*` airflow left/right, `TPD*`/`TRD*`/`TUD*`, `Ts**`. Which ones make the panel's "CPU"
+  and "GPU" (average and hottest) is still to settle against iStat Menus' figures, which this Mac has.
+- **Fans**: also `F<n>St` (3 at rest), `F<n>Dc`, `FOff` = 1. `F<n>Ac` is the speed to show.
