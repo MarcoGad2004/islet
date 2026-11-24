@@ -12,6 +12,8 @@ struct ProcessGroup: Identifiable, Equatable {
     var value: Double
     /// Every process in the row, for the hover.
     var members: [String]
+    /// Their process IDs, to quit them.
+    var pids: [pid_t] = []
 }
 
 enum ProcessNames {
@@ -81,6 +83,7 @@ enum ProcessNames {
             }
             var row = rows[key] ?? ProcessGroup(id: key, name: name, detail: nil, appPath: app, value: 0, members: [])
             row.value += use.value
+            row.pids.append(use.pid)
             if !row.members.contains(use.name) { row.members.append(use.name) }
             if detail != nil { row.detail = row.members.joined(separator: ", ") }
             rows[key] = row

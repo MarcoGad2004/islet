@@ -31,6 +31,8 @@ struct MacStatsView: View {
         .frame(width: 300, alignment: .topLeading)
         .clipped()
         .animation(.spring(response: 0.35, dampingFraction: 0.88), value: state.page)
+        // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
+        .animation(MacStatsMotion.reading, value: stats.snapshot.date)
         .onChange(of: state.page, initial: true) { _, page in
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
         }
@@ -169,6 +171,7 @@ private struct CoreTypeRow: View {
             MeterBar(fraction: value ?? 0, colour: colour)
             Text(MacStatsFormat.percent(value)).font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(IsletInk.primary).frame(width: 30, alignment: .trailing)
+                .contentTransition(.numericText())
         }
     }
 }
@@ -218,7 +221,7 @@ private struct MacStatsCPUPage: View {
 
             Rule()
             StatsSectionLabel("Using the most")
-            ProcessList(groups: ProcessNames.group(s.topCPU), empty: "Reading…", format: MacStatsFormat.share)
+            ProcessList(groups: ProcessNames.group(s.topCPU), empty: "Reading…", format: MacStatsFormat.share, stoppable: true)
             Caption("100% is one core: a busy app can pass it.").padding(.top, 8)
             Rule()
             Footer()
@@ -243,6 +246,7 @@ private struct CoreGroup: View {
             HStack(spacing: 3) {
                 Text(name).foregroundStyle(colour)
                 Text(MacStatsFormat.percent(total)).foregroundStyle(IsletInk.primary).monospacedDigit()
+                    .contentTransition(.numericText())
             }
             .font(.system(size: 11))
         }
@@ -269,7 +273,7 @@ private struct MacStatsMemoryPage: View {
                     .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .labelColor))
             }
             Chart {
-                ForEach(Array(stats.history.enumerated()), id: \.offset) { _, p in
+                ForEach(stats.history, id: \.date) { p in
                     BarMark(x: .value("Time", p.date), y: .value("Used", p.memoryFraction), width: .fixed(1.2))
                         .foregroundStyle(MacStatsColour.level(StatLevel(p.memoryPressure)) ?? MacStatsColour.memory)
                 }
@@ -277,6 +281,7 @@ private struct MacStatsMemoryPage: View {
             .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
             .percentAxes()
             .frame(height: 64)
+            .drawsIn()
             .padding(.top, 8)
             Caption("Full is fine: macOS keeps spare memory busy. The colour is pressure, how hard it's working to find room.")
                 .padding(.top, 8)
@@ -296,7 +301,8 @@ private struct MacStatsMemoryPage: View {
 
             Rule()
             StatsSectionLabel("Using the most")
-            ProcessList(groups: ProcessNames.group(s.topMemory), empty: "Reading…", format: MacStatsFormat.megabytesOrGigabytes)
+            ProcessList(groups: ProcessNames.group(s.topMemory), empty: "Reading…", format: MacStatsFormat.megabytesOrGigabytes,
+                        stoppable: true)
             Rule()
             Footer()
         }
@@ -307,10 +313,11 @@ private struct MacStatsMemoryPage: View {
 private struct MemoryBar: View {
     let memory: MemorySample
     let height: CGFloat
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
-            let total = max(Double(memory.total), 1), w = geo.size.width
+            let total = max(Double(memory.total), 1), w = geo.size.width * (shown ? 1 : 0)
             HStack(spacing: 1.5) {
                 Rectangle().fill(MacStatsColour.memory).frame(width: w * Double(memory.app) / total)
                 Rectangle().fill(MacStatsColour.memory.opacity(0.6)).frame(width: w * Double(memory.wired) / total)
@@ -321,6 +328,7 @@ private struct MemoryBar: View {
         .frame(height: height)
         .background(IsletInk.faint)
         .clipShape(Capsule())
+        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
@@ -555,13 +563,16 @@ private struct PageHeader<Trailing: View>: View {
 
 /// Load over the last 10 minutes, stacked when there's more than one series.
 private struct LoadChart: View {
-    struct Point { var date: Date; var series: String; var value: Double }
+    struct Point: Identifiable {
+        var date: Date; var series: String; var value: Double
+        var id: String { "\(series)\(date.timeIntervalSinceReferenceDate)" }
+    }
     let points: [Point]
     let colours: [String: Color]
 
     var body: some View {
         Chart {
-            ForEach(Array(points.enumerated()), id: \.offset) { _, p in
+            ForEach(points) { p in
                 AreaMark(x: .value("Time", p.date), y: .value("Load", p.value), stacking: .standard)
                     .foregroundStyle(by: .value("Series", p.series))
                     .interpolationMethod(.monotone)
@@ -572,6 +583,7 @@ private struct LoadChart: View {
         .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
         .percentAxes()
         .frame(height: 84)
+        .drawsIn()
         .overlay {
             if points.count < 2 {
                 Text("Starting…").font(.system(size: 11)).foregroundStyle(IsletInk.tertiary)
@@ -599,11 +611,19 @@ private struct Sparkline: View {
     let top: Double
     /// nil: the label colour.
     let colour: Color?
+    /// What's drawn: set together with `shift`, so a new reading never shows a frame out of place.
+    @State private var drawn: [Double] = []
+    /// 1 when a reading has just come in, sitting one step off the right edge; it eases to 0 to slide it in.
+    @State private var shift: CGFloat = 0
+
+    /// The newest readings across the width; fewer leave the left empty.
+    private static let slots = 120
 
     var body: some View {
         let ink = colour ?? Color(nsColor: .labelColor)
         GeometryReader { geo in
-            let pts = points(in: geo.size)
+            let step = geo.size.width / CGFloat(Self.slots - 1)
+            let pts = points(in: geo.size, step: step)
             if pts.count > 1 {
                 ZStack {
                     Path { p in
@@ -615,19 +635,32 @@ private struct Sparkline: View {
                     Path { p in p.addLines(pts) }
                         .stroke(ink, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                 }
+                .offset(x: shift * step)
             }
         }
+        .clipped()
+        .drawsIn()
         .frame(height: 26)
         .padding(.top, 6)
+        .onAppear { drawn = values }
+        .onChange(of: values) { _, now in
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                drawn = now
+                shift = 1
+            }
+            withAnimation(.easeOut(duration: 0.6)) { shift = 0 }
+        }
     }
 
-    /// The last 10 minutes across the width, newest at the right.
-    private func points(in size: CGSize) -> [CGPoint] {
-        let recent = values.suffix(120)
+    /// Newest at the right edge, one slot apart.
+    private func points(in size: CGSize, step: CGFloat) -> [CGPoint] {
+        let recent = Array(drawn.suffix(Self.slots))
         guard recent.count > 1, top > 0 else { return [] }
-        let step = size.width / CGFloat(recent.count - 1)
         return recent.enumerated().map { i, v in
-            CGPoint(x: CGFloat(i) * step, y: size.height - CGFloat(min(max(v / top, 0), 1)) * (size.height - 1.5) - 0.75)
+            CGPoint(x: size.width - CGFloat(recent.count - 1 - i) * step,
+                    y: size.height - CGFloat(min(max(v / top, 0), 1)) * (size.height - 1.5) - 0.75)
         }
     }
 }
@@ -635,32 +668,36 @@ private struct Sparkline: View {
 private struct MeterBar: View {
     let fraction: Double
     let colour: Color
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
             Capsule().fill(IsletInk.faint)
                 .overlay(alignment: .leading) {
-                    Capsule().fill(colour).frame(width: geo.size.width * min(max(fraction, 0), 1))
+                    Capsule().fill(colour).frame(width: geo.size.width * min(max(fraction, 0), 1) * (shown ? 1 : 0))
                 }
         }
         .frame(height: 5)
-        .animation(.easeOut(duration: 0.4), value: fraction)
+        .animation(MacStatsMotion.reading, value: fraction)
+        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
 private struct VBar: View {
     let fraction: Double
     let colour: Color
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
             RoundedRectangle(cornerRadius: 3, style: .continuous).fill(IsletInk.faint)
                 .overlay(alignment: .bottom) {
-                    Rectangle().fill(colour).frame(height: geo.size.height * min(max(fraction, 0), 1))
+                    Rectangle().fill(colour).frame(height: geo.size.height * min(max(fraction, 0), 1) * (shown ? 1 : 0))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         }
-        .animation(.easeOut(duration: 0.4), value: fraction)
+        .animation(MacStatsMotion.reading, value: fraction)
+        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
@@ -668,6 +705,8 @@ private struct ProcessList: View {
     let groups: [ProcessGroup]
     let empty: String
     let format: (Double) -> String
+    /// Hovering a row offers to quit it (the CPU and Memory pages).
+    var stoppable = false
 
     var body: some View {
         if groups.isEmpty {
@@ -675,22 +714,73 @@ private struct ProcessList: View {
         } else {
             VStack(spacing: 7) {
                 ForEach(groups) { g in
-                    HStack(spacing: 8) {
-                        icon(g).frame(width: 18, height: 18)
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(g.name).font(.system(size: 13)).foregroundStyle(IsletInk.primary).lineLimit(1)
-                            if let detail = g.detail {
-                                Text(detail).font(.system(size: 10)).foregroundStyle(IsletInk.tertiary).lineLimit(1)
-                            }
-                        }
-                        Spacer(minLength: 8)
-                        Text(format(g.value)).font(.system(size: 13)).monospacedDigit().foregroundStyle(IsletInk.primary)
-                    }
-                    .help(g.members.count > 1 ? g.members.joined(separator: ", ") : g.detail ?? g.members.first ?? g.name)
+                    ProcessRow(group: g, value: format(g.value), stoppable: stoppable && ProcessStopper.canStop(g))
+                        .transition(.opacity)
                 }
             }
         }
     }
+}
+
+private struct ProcessRow: View {
+    let group: ProcessGroup
+    let value: String
+    let stoppable: Bool
+    private let stopper = ProcessStopper.shared
+    @State private var hovering = false
+
+    var body: some View {
+        let g = group
+        let state = stopper.state(g)
+        HStack(spacing: 8) {
+            ProcessIcon(group: g).frame(width: 18, height: 18)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(g.name).font(.system(size: 13)).foregroundStyle(IsletInk.primary).lineLimit(1)
+                if let detail = g.detail {
+                    Text(detail).font(.system(size: 10)).foregroundStyle(IsletInk.tertiary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            switch state {
+            case .quitting:
+                Text("Quitting…").font(.system(size: 12)).foregroundStyle(IsletInk.tertiary)
+                    .transition(.opacity)
+            case .stubborn:
+                Button { stopper.forceQuit(g) } label: {
+                    Text("Force Quit").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 9).frame(height: 20)
+                        .background(Capsule().fill(Color.isletRed))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("\(g.name) didn't quit. Force Quit loses anything unsaved.")
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            case nil:
+                if stoppable && hovering {
+                    Button { stopper.quit(g) } label: {
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 14))
+                            .foregroundStyle(IsletInk.secondary)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Quit \(g.name)")
+                    .accessibilityLabel("Quit \(g.name)")
+                    .transition(.opacity.combined(with: .scale(scale: 0.6)))
+                }
+                Text(value).font(.system(size: 13)).monospacedDigit().foregroundStyle(IsletInk.primary)
+                    .contentTransition(.numericText())
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { over in withAnimation(.easeOut(duration: 0.15)) { hovering = over } }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state)
+        .help(g.members.count > 1 ? g.members.joined(separator: ", ") : g.detail ?? g.members.first ?? g.name)
+    }
+}
+
+private struct ProcessIcon: View {
+    let group: ProcessGroup
+    var body: some View { icon(group) }
 
     @ViewBuilder private func icon(_ g: ProcessGroup) -> some View {
         if let app = g.appPath {
@@ -753,6 +843,7 @@ private struct Caption: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text).font(.system(size: 11)).foregroundStyle(IsletInk.tertiary).fixedSize(horizontal: false, vertical: true)
+            .contentTransition(.numericText())
     }
 }
 
@@ -772,6 +863,7 @@ private struct StatRow: View {
             Spacer(minLength: 12)
             Text(value).monospacedDigit().lineLimit(1)
                 .foregroundStyle(colour.map { AnyShapeStyle($0) } ?? AnyShapeStyle(IsletInk.primary))
+                .contentTransition(.numericText())
         }
         .font(.system(size: 13))
     }
@@ -793,6 +885,7 @@ private struct KeyRow: View {
             Text(label).foregroundStyle(IsletInk.secondary)
             Spacer(minLength: 12)
             Text(value).monospacedDigit().foregroundStyle(IsletInk.primary)
+                .contentTransition(.numericText())
         }
         .font(.system(size: 13))
     }
@@ -808,6 +901,31 @@ private struct Legend: View {
         }
         .padding(.leading, 6)
     }
+}
+
+// MARK: - Motion
+
+/// The panel's motion (DESIGN.md "Mac Stats (1.7)", Motion): the battery stats' spring for each reading, and a slower
+/// one for things drawing in when the panel or a page opens.
+enum MacStatsMotion {
+    static let reading = Animation.spring(response: 0.7, dampingFraction: 0.9)
+    static let entrance = Animation.spring(response: 0.9, dampingFraction: 0.92).delay(0.05)
+}
+
+private struct DrawsIn: ViewModifier {
+    @State private var shown = false
+    func body(content: Content) -> some View {
+        content
+            .mask(alignment: .leading) {
+                GeometryReader { geo in Rectangle().frame(width: geo.size.width * (shown ? 1 : 0)) }
+            }
+            .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
+    }
+}
+
+private extension View {
+    /// Reveals a graph from the left when it appears, as if drawn.
+    func drawsIn() -> some View { modifier(DrawsIn()) }
 }
 
 // MARK: - Colours and wording

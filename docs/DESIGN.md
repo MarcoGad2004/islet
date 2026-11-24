@@ -1020,6 +1020,25 @@ The "Using the most" lists name things the way a person would, while still being
   (WindowServer), "Sound" (coreaudiod), "Screenshot" (screencapture). One that isn't in the list keeps its own name.
 - Hovering a grouped row shows what's in it.
 
+### Quitting from the lists (owner, 2026-11-24)
+
+- On the CPU and Memory pages, hovering a row shows a small ⓧ before its value. A click quits it the way the Dock's Quit
+  does, so an app can still ask about unsaved work; anything that isn't an app gets SIGTERM. The value reads
+  "Quitting…" meanwhile.
+- If it's still running 4 seconds later, the row offers a red Force Quit, which says it loses anything unsaved.
+- No ⓧ for macOS's own processes, anything of root or another user, apps in /System, or Dynamic Peninsula itself. The
+  GPU page has none.
+
+### Motion (owner, 2026-11-24)
+
+Like the battery stats' power flow, everything in the panel moves rather than jumps:
+
+- Each reading glides in on the same spring: numbers roll to their new value, bars and the memory breakdown ease to it,
+  and the charts slide along as time passes.
+- The tile sparklines keep one slot per reading, the newest at the right edge, and slide left a step as each one
+  arrives; with fewer than 120 readings the left stays empty.
+- When the panel or a page opens, the bars grow from empty and the graphs draw in from the left.
+
 ### Settings > Mac Stats
 
 A page between Battery and Face Unlock, in the usual grouped form:
