@@ -112,15 +112,33 @@ final class MacStats {
         history = []
     }
 
-    private func read() async {
-        let s = await sampler.sample(processes: wantsProcesses)
+    private func read(processes: Bool? = nil) async {
+        let processes = processes ?? wantsProcesses
+        var s = await sampler.sample(processes: processes)
         guard task != nil else { return }
+        if processes {
+            // Names and icons are looked up once and kept: done here, a page's first showing doesn't stall on them.
+            _ = ProcessNames.group(s.topCPU)
+            _ = ProcessNames.group(s.topMemory)
+            _ = ProcessNames.group(s.topGPU)
+        } else {
+            // The lists from the last reading that had them, so a page shows them at once and updates them after.
+            s.topCPU = snapshot.topCPU
+            s.topMemory = snapshot.topMemory
+            s.topGPU = snapshot.topGPU
+        }
         snapshot = s
         if let point = MacStatsPoint(s) {
             history.append(point)
             let cutoff = s.date.addingTimeInterval(-Self.historySpan)
             if let first = history.firstIndex(where: { $0.date >= cutoff }), first > 0 { history.removeFirst(first) }
         }
+    }
+
+    /// One reading with the app lists as the panel opens, so they're there before a page is opened.
+    func prefetchProcesses() {
+        guard task != nil else { return }
+        Task { [weak self] in await self?.read(processes: true) }
     }
 
     /// Fills the app lists straight away when a page opens, instead of waiting for the next reading.

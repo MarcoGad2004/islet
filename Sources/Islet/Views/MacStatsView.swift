@@ -49,6 +49,28 @@ struct MacStatsView: View {
     private func back() { state.page = .overview }
 }
 
+extension MacStatsView {
+    @MainActor private static var warmed = false
+
+    /// Renders each page once off screen: the first showing of a page with a chart otherwise stalls a moment loading
+    /// Charts, which showed as a flicker on the first page opened.
+    @MainActor static func warmUp() {
+        guard !warmed else { return }
+        warmed = true
+        let stats = MacStats.shared
+        let pages: [AnyView] = [
+            AnyView(MacStatsOverview(stats: stats, open: { _ in })),
+            AnyView(MacStatsCPUPage(stats: stats, back: {})),
+            AnyView(MacStatsMemoryPage(stats: stats, back: {})),
+            AnyView(MacStatsGPUPage(stats: stats, back: {})),
+            AnyView(MacStatsFansPage(stats: stats, back: {})),
+        ]
+        for page in pages {
+            _ = ImageRenderer(content: page.padding(16).frame(width: 300)).nsImage
+        }
+    }
+}
+
 // MARK: - Overview
 
 private struct MacStatsOverview: View {

@@ -268,7 +268,10 @@ final class MacStatsStatusItem {
     private lazy var panel: MenuBarPanel = {
         let panel = MenuBarPanel { [panelState] _ in AnyView(MacStatsView(stats: .shared, state: panelState)) }
         // Each opening starts on the overview.
-        panel.willShow = { [weak self] in self?.panelState.page = .overview }
+        panel.willShow = { [weak self] in
+            self?.panelState.page = .overview
+            MacStats.shared.prefetchProcesses()
+        }
         panel.didClose = { MacStats.shared.wantsProcesses = false }
         return panel
     }()
@@ -305,7 +308,12 @@ final class MacStatsStatusItem {
         let stats = MacStats.shared
         stats.interval = .seconds(MacStatsSettings.intervalSeconds)
         if wanted {
-            if item == nil { build() }
+            if item == nil {
+                build()
+                // Draw the pages once off screen while nothing's open, so the first one opened doesn't stall loading
+                // Charts and fonts.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { MacStatsView.warmUp() }
+            }
             if !stats.running {
                 stats.start()
                 watch()
