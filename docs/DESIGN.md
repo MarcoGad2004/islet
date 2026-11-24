@@ -693,6 +693,8 @@ style is one of:
     from the edge to the float height in one smooth motion (0.27 s, no bounce) with a chevron at its tip, and stays
     joined to the edge. A two-finger swipe down (or a click) lets it go: it springs down a touch as a 32 pt drop
     (0.18 s) and bubbles out into the panel.
+  - Only the orb takes the pointer (a 44 pt box at the centre): the rest of the strip shows it but stays clickable for the
+    app underneath, so a full-screen browser's tab close buttons work there. Click or swipe on the orb to open.
   - While Mission Control (or another of the Dock's full-screen views) is open, the strip doesn't answer the pointer:
     no drop or chevron, and clicks reach Mission Control's Spaces bar and windows (owner, 2026-11-21). The same goes
     for the notch's hover peek.

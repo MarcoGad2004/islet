@@ -428,6 +428,23 @@ final class IslandStore {
         return rect.contains(p)
     }
 
+    /// Whether the panel should take the mouse at this point. Same as `isOverIsland`, except that without a notch the
+    /// hover strip (260 pt wide, the menu bar's height) only *shows* the orb: only the orb itself takes the pointer,
+    /// so the rest of the strip stays clickable for the app underneath (a Chrome tab's close button in full screen).
+    /// The orb's box is fixed, not the animated shape, so a scroll or click on it works as it reaches down.
+    func isInteractive(globalPoint: CGPoint) -> Bool {
+        guard let g = geometry, !paused else { return false }
+        guard g.floating, !expanded else { return isOverIsland(globalPoint: globalPoint) }
+        let p = g.panelPoint(fromGlobal: globalPoint)
+        let m = animator.metrics
+        let slop = 2.0
+        let w = NotchGeometry.panelWidth
+        let card = CGRect(x: w / 2 - m.width / 2 - slop, y: m.y - slop, width: m.width + 2 * slop, height: m.height + 2 * slop)
+        if m.y > -1 && card.contains(p) { return true }
+        let orb = CGRect(x: w / 2 - 22, y: 0, width: 44, height: Double(g.floatTop) + 34)
+        return orb.contains(p)
+    }
+
     func pointerMoved(inside: Bool) {
         guard inside != pointerInside else { return }
         pointerInside = inside

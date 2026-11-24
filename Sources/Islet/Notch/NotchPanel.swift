@@ -345,7 +345,7 @@ final class NotchController {
         // Mission Control's Spaces bar runs along the top: the island doesn't answer the pointer there, so the peek
         // (and, without a notch, the chevron) stays away and clicks reach the bar (DESIGN.md "Behaviour").
         if inside, !store.expanded, DockOverview.isOpen() { inside = false }
-        panel?.ignoresMouseEvents = !inside
+        panel?.ignoresMouseEvents = !(inside && store.isInteractive(globalPoint: at))
         store.pointerMoved(inside: inside)
     }
 
