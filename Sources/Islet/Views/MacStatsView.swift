@@ -14,38 +14,39 @@ final class MacStatsPanelState {
 struct MacStatsView: View {
     let stats: MacStats
     let state: MacStatsPanelState
+    /// The page on screen. A new one waits until the old has faded out, so only one is ever laid out and the panel
+    /// changes size once, while nothing shows.
+    @State private var shown: MacStatsPage?
+    @State private var opacity = 1.0
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            switch state.page {
-            case .overview:
-                MacStatsOverview(stats: stats, open: { state.page = $0 })
-                    .transition(Self.pageTransition)
-            case .cpu: page { MacStatsCPUPage(stats: stats, back: back) }
-            case .memory: page { MacStatsMemoryPage(stats: stats, back: back) }
-            case .gpu: page { MacStatsGPUPage(stats: stats, back: back) }
-            case .fans: page { MacStatsFansPage(stats: stats, back: back) }
+        VStack(alignment: .leading, spacing: 0) {
+            switch shown ?? state.page {
+            case .overview: MacStatsOverview(stats: stats, open: { state.page = $0 })
+            case .cpu: MacStatsCPUPage(stats: stats, back: back)
+            case .memory: MacStatsMemoryPage(stats: stats, back: back)
+            case .gpu: MacStatsGPUPage(stats: stats, back: back)
+            case .fans: MacStatsFansPage(stats: stats, back: back)
             }
         }
+        .opacity(opacity)
         .padding(16)
         .frame(width: 300, alignment: .topLeading)
-        .animation(.easeOut(duration: 0.22), value: state.page)
         // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
         .animation(MacStatsMotion.reading, value: stats.snapshot.date)
         .onChange(of: state.page, initial: true) { _, page in
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
         }
+        .onChange(of: state.page) { _, _ in
+            // A plain fade (DESIGN.md "Mac Stats (1.7)", Motion): out, swap, in.
+            withAnimation(.easeIn(duration: 0.12)) { opacity = 0 } completion: {
+                shown = state.page
+                withAnimation(.easeOut(duration: 0.2)) { opacity = 1 }
+            }
+        }
     }
 
     private func back() { state.page = .overview }
-
-    /// Pages don't slide: the old one goes at once (so the panel changes size once) and the new one fades in, while its
-    /// own bars grow and graphs draw in (DESIGN.md "Mac Stats (1.7)", Motion).
-    private static let pageTransition = AnyTransition.asymmetric(insertion: .opacity, removal: .identity)
-
-    private func page(@ViewBuilder _ content: () -> some View) -> some View {
-        content().transition(Self.pageTransition)
-    }
 }
 
 // MARK: - Overview
@@ -284,8 +285,7 @@ private struct MacStatsMemoryPage: View {
             .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
             .percentAxes()
             .frame(height: 64)
-            .drawsIn()
-            .padding(.top, 8)
+                .padding(.top, 8)
             Caption("Full is fine: macOS keeps spare memory busy. The colour is pressure, how hard it's working to find room.")
                 .padding(.top, 8)
 
@@ -316,11 +316,10 @@ private struct MacStatsMemoryPage: View {
 private struct MemoryBar: View {
     let memory: MemorySample
     let height: CGFloat
-    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
-            let total = max(Double(memory.total), 1), w = geo.size.width * (shown ? 1 : 0)
+            let total = max(Double(memory.total), 1), w = geo.size.width
             HStack(spacing: 1.5) {
                 Rectangle().fill(MacStatsColour.memory).frame(width: w * Double(memory.app) / total)
                 Rectangle().fill(MacStatsColour.memory.opacity(0.6)).frame(width: w * Double(memory.wired) / total)
@@ -331,7 +330,6 @@ private struct MemoryBar: View {
         .frame(height: height)
         .background(IsletInk.faint)
         .clipShape(Capsule())
-        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
@@ -586,7 +584,6 @@ private struct LoadChart: View {
         .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
         .percentAxes()
         .frame(height: 84)
-        .drawsIn()
         .overlay {
             if points.count < 2 {
                 Text("Starting…").font(.system(size: 11)).foregroundStyle(IsletInk.tertiary)
@@ -642,7 +639,6 @@ private struct Sparkline: View {
             }
         }
         .clipped()
-        .drawsIn()
         .frame(height: 26)
         .padding(.top, 6)
         .onAppear { drawn = values }
@@ -671,36 +667,32 @@ private struct Sparkline: View {
 private struct MeterBar: View {
     let fraction: Double
     let colour: Color
-    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
             Capsule().fill(IsletInk.faint)
                 .overlay(alignment: .leading) {
-                    Capsule().fill(colour).frame(width: geo.size.width * min(max(fraction, 0), 1) * (shown ? 1 : 0))
+                    Capsule().fill(colour).frame(width: geo.size.width * min(max(fraction, 0), 1))
                 }
         }
         .frame(height: 5)
         .animation(MacStatsMotion.reading, value: fraction)
-        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
 private struct VBar: View {
     let fraction: Double
     let colour: Color
-    @State private var shown = false
 
     var body: some View {
         GeometryReader { geo in
             RoundedRectangle(cornerRadius: 3, style: .continuous).fill(IsletInk.faint)
                 .overlay(alignment: .bottom) {
-                    Rectangle().fill(colour).frame(height: geo.size.height * min(max(fraction, 0), 1) * (shown ? 1 : 0))
+                    Rectangle().fill(colour).frame(height: geo.size.height * min(max(fraction, 0), 1))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         }
         .animation(MacStatsMotion.reading, value: fraction)
-        .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
     }
 }
 
@@ -908,27 +900,9 @@ private struct Legend: View {
 
 // MARK: - Motion
 
-/// The panel's motion (DESIGN.md "Mac Stats (1.7)", Motion): the battery stats' spring for each reading, and a slower
-/// one for things drawing in when the panel or a page opens.
+/// The panel's motion (DESIGN.md "Mac Stats (1.7)", Motion): the battery stats' spring for each reading.
 enum MacStatsMotion {
     static let reading = Animation.spring(response: 0.7, dampingFraction: 0.9)
-    static let entrance = Animation.spring(response: 0.9, dampingFraction: 0.92).delay(0.05)
-}
-
-private struct DrawsIn: ViewModifier {
-    @State private var shown = false
-    func body(content: Content) -> some View {
-        content
-            .mask(alignment: .leading) {
-                GeometryReader { geo in Rectangle().frame(width: geo.size.width * (shown ? 1 : 0)) }
-            }
-            .onAppear { withAnimation(MacStatsMotion.entrance) { shown = true } }
-    }
-}
-
-private extension View {
-    /// Reveals a graph from the left when it appears, as if drawn.
-    func drawsIn() -> some View { modifier(DrawsIn()) }
 }
 
 // MARK: - Colours and wording

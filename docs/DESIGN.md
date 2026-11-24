@@ -978,7 +978,7 @@ while open (Settings: "Update every").
 - Fans: the mode as a pill ("Automatic ›", opens the Fans page), then each fan, "Off" or its rpm.
 - Footer: "Updated every 2 s" and an "Activity Monitor…" pill.
 
-Pages fade in in place of the overview (see Motion), with a round back button and the part's name;
+Pages fade in place of the overview (see Motion), with a round back button and the part's name;
 the panel keeps its width.
 
 - **CPU**: total % on the right; 10 minutes of load stacked by core type (efficiency green under performance blue,
@@ -1037,9 +1037,10 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
   and the charts slide along as time passes.
 - The tile sparklines keep one slot per reading, the newest at the right edge, and slide left a step as each one
   arrives; with fewer than 120 readings the left stays empty.
-- When the panel or a page opens, the bars grow from empty and the graphs draw in from the left.
-- Going between the overview and a page nothing slides: the old page goes at once and the new one fades in while its
-  own bars grow and graphs draw in (owner, 2026-11-24: simpler than pages moving together).
+- Going between the overview and a page is a plain fade: the old page fades out (0.12 s), the new one fades in (0.2 s).
+  Nothing slides or grows in (owner, 2026-11-24: simpler is better here).
+- The panel eases to the new page's size (0.25 s), its top edge staying put, the content kept to the top. The battery
+  stats panel does the same when its content changes size.
 
 ### Settings > Mac Stats
 

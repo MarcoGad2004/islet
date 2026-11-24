@@ -111,8 +111,11 @@ final class MenuBarPanel {
         let host = FittingHostingView(rootView: AnyView(EmptyView()))
         host.onSizeChange = { [weak self] in
             guard let self, let w = self.anchor, self.isOpen else { return }
-            self.fit(below: w)
+            self.fit(below: w, animated: true)
         }
+        // The window decides the size while it eases to a new one; the content keeps to the top meanwhile.
+        host.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        host.setContentHuggingPriority(.defaultLow, for: .vertical)
 
         if glass, #available(macOS 26, *) {
             // Liquid Glass, as in Control Center: the desktop shows through blurred and refracted at the edges.
@@ -170,11 +173,14 @@ final class MenuBarPanel {
         .environment(\.isletGlass, glass)
         .environment(\.isletAdaptiveInk, glass)
         .background(glass ? Color.clear : Color.black.opacity(0.35))
+        // Kept to the top while the panel eases to a new size, so nothing moves but the bottom edge.
+        .frame(maxHeight: .infinity, alignment: .top)
         return AnyView(content)
     }
 
     /// Under the icon with a small gap, its left edge at the icon's, kept on screen.
-    private func fit(below window: NSWindow) {
+    /// `animated`: the panel eases to its new size (a page with more or less in it), its top edge staying put.
+    private func fit(below window: NSWindow, animated: Bool = false) {
         guard let panel, let host, let screen = window.screen ?? NSScreen.main else { return }
         let size = host.fittingSize
         let visible = screen.visibleFrame
@@ -182,7 +188,17 @@ final class MenuBarPanel {
         x = min(x, visible.maxX - size.width - 8)
         x = max(x, visible.minX + 8)
         let top = window.frame.minY - 5
-        panel.setFrame(NSRect(x: x, y: top - size.height, width: size.width, height: size.height), display: true)
+        let frame = NSRect(x: x, y: top - size.height, width: size.width, height: size.height)
+        guard frame != panel.frame else { return }
+        if animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            panel.setFrame(frame, display: true)
+        }
     }
 
     /// The pointer is on the icon. The status item can be delivered the press from a window other than `anchor`, so
