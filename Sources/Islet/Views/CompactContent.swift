@@ -81,8 +81,8 @@ struct CompactContentView: View {
                     if levelBody, case .level(let l) = content {
                         // 16 steps spanning the bar with the same side inset as the icon and number above.
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
-                        StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16)
-                            .animation(.levelGlide, value: l.value)
+                        StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16, extra: l.extra)
+                            .animation(.levelGlide, value: l.value).animation(.levelGlide, value: l.extra)
                             .levelPiece("bar", ns)
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
                     }
@@ -154,7 +154,7 @@ struct CompactContentView: View {
         case .unlock(let start): PadlockView(start: appears(start)).offset(x: IslandLayout.lockInset)
         case .locked: PadlockView(start: nil).offset(x: IslandLayout.lockInset)
         case .level(let l):
-            RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
+            RollingNumber(value: l.shown, off: l.muted).foregroundStyle(Color.isletText)
                 .frame(width: 30, alignment: .trailing).levelPiece("number", ns)
                 .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, IslandLayout.levelSideInset)
         case .progress(let p) where p.fraction != nil:
@@ -207,9 +207,9 @@ struct CompactContentView: View {
                 Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                     .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l)).frame(width: 18)
                     .levelPiece("icon", ns)
-                StepBar(value: l.value, muted: l.muted).animation(.levelGlide, value: l.value).levelPiece("bar", ns)
+                StepBar(value: l.value, muted: l.muted, extra: l.extra).animation(.levelGlide, value: l.value).animation(.levelGlide, value: l.extra).levelPiece("bar", ns)
                 Spacer(minLength: 2)
-                RollingNumber(value: l.value, off: l.muted).foregroundStyle(Color.isletText)
+                RollingNumber(value: l.shown, off: l.muted).foregroundStyle(Color.isletText)
                     .frame(width: 30, alignment: .trailing).levelPiece("number", ns)
             }
         case .event(let e):

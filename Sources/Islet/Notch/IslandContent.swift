@@ -64,6 +64,11 @@ struct LevelState: Equatable {
     /// 0...1
     var value: Double
     var muted = false
+    /// Extended brightness (XDR): how far past 100 it is, 0...0.6. It's drawn over the bar from the left in its own
+    /// colour, and the number counts on past 100.
+    var extra = 0.0
+    /// The number shown: 0...1, or past 1 with extended brightness.
+    var shown: Double { value + extra }
     /// 0...16 filled steps of the bar.
     var steps: Int { Int((value * 16).rounded()) }
 

@@ -215,10 +215,10 @@ private struct LevelTray: View {
             Image(systemName: level.symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
                 .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: level.symbol).frame(width: 18)
                 .levelPiece("icon", ns)
-            StepBar(value: level.value, muted: level.muted, stepWidth: max(3, (width - 2 * inset - 18 - 30 - 20 - 15 * 3) / 16))
-                .animation(.levelGlide, value: level.value)
+            StepBar(value: level.value, muted: level.muted, stepWidth: max(3, (width - 2 * inset - 18 - 30 - 20 - 15 * 3) / 16), extra: level.extra)
+                .animation(.levelGlide, value: level.value).animation(.levelGlide, value: level.extra)
                 .levelPiece("bar", ns)
-            RollingNumber(value: level.value, off: level.muted).foregroundStyle(Color.isletText)
+            RollingNumber(value: level.shown, off: level.muted).foregroundStyle(Color.isletText)
                 .frame(width: 30, alignment: .trailing)
                 .levelPiece("number", ns)
         }

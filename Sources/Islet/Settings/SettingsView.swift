@@ -32,6 +32,7 @@ struct SettingsView: View {
     @AppStorage(WebSearchEngine.key) private var webEngine = WebSearchEngine.google.rawValue
     @AppStorage(Updater.autoCheckKey) private var autoCheckUpdates = true
     @AppStorage(Feature.levelsKey) private var levelsInNotch = true
+    @AppStorage(ExtendedBrightness.enabledKey) private var extendedBrightness = true
     @AppStorage(Feature.focusKey) private var focusInNotch = true
     @AppStorage(Feature.shazamKey) private var shazamInNotch = true
     @AppStorage(SiriQuestion.enabledKey) private var askSiri = true
@@ -261,6 +262,15 @@ struct SettingsView: View {
                 }
                 Toggle(isOn: $quickInfo) {
                     SettingsLabel("Quick info on hover", "Move the pointer over the notch while nothing is showing to see the time, the battery, and your Wi-Fi network and Bluetooth device.")
+                }
+            }
+            if levelsInNotch, ExtendedBrightness.isSupported {
+                Section {
+                    Toggle(isOn: $extendedBrightness) {
+                        SettingsLabel("Extended brightness", "At 100, hold the brightness-up key for a second to go past it, up to 160, using the XDR display's extra brightness. A red bar shows how far; brightness-down takes it off first. It turns off when the screen sleeps or locks, below 20% battery, or when the Mac runs hot. It uses more battery.")
+                    }
+                } header: {
+                    Text("Brightness")
                 }
             }
             Section {

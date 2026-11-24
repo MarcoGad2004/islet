@@ -5,6 +5,11 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.7 (unreleased)
 
+### Extended brightness
+
+- **Brighter than 100 on an XDR MacBook Pro.** At 100, hold the brightness-up key for a second and the whole screen goes past it, up to 160, using the display's HDR headroom. A red bar fills over the white one from the left to show how far, and the number counts on past 100. Brightness-down takes the extra off first, then the white bar as usual.
+- It turns itself off when the screen sleeps or locks, the lid closes, below 20% battery, or when the Mac runs hot, and never stays on after a restart. Settings > Notch > Extended brightness turns it off.
+
 ### Mac Stats
 
 - **Your Mac's vitals in the menu bar.** Turn on Settings > Mac Stats (or Mac Stats in the features list) for one compact menu bar item beside the battery: the CPU temperature over what the whole Mac is drawing, the fan speed, then bars for the CPU (one bar, its halves the efficiency cores in green and the performance cores in blue), the GPU (purple) and memory (cyan).

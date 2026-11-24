@@ -12,6 +12,8 @@ final class LevelsController {
     private(set) var muted = false
     private(set) var brightness = 0.5
     private(set) var brightnessAvailable = false
+    /// How far past 100 extended brightness is (0 when off, up to `ExtendedBrightness.maxExtra`).
+    private(set) var brightnessExtra = 0.0
     private(set) var keyboard = 0.5
     private(set) var keyboardAvailable = false
     private(set) var outputName = ""
@@ -26,12 +28,22 @@ final class LevelsController {
     /// Brightness to return to after a face scan raised it; nil when nothing is raised.
     @ObservationIgnored private var boostRestore: Double?
     @ObservationIgnored private var rampTask: Task<Void, Never>?
+    @ObservationIgnored let extended = ExtendedBrightness()
+    /// Brightness-up held at 100: turns extended brightness on after a second unless the key comes up first.
+    @ObservationIgnored private var holdTask: Task<Void, Never>?
+    /// The press that turned extended brightness on: its repeats are ignored until the key comes up.
+    @ObservationIgnored private var swallowRepeats = false
 
     // MARK: Setup
 
     func start() {
         refresh()
         installTap()
+        // Turned off by sleep, lock, low battery or heat: back to 100 on the island too.
+        extended.onEnded = { [weak self] in
+            guard let self else { return }
+            brightnessExtra = 0
+        }
     }
 
     /// Retry installing the tap (e.g. after Accessibility was granted).
@@ -88,6 +100,7 @@ final class LevelsController {
         let key = (ns.data1 & 0xFFFF0000) >> 16
         let flags = ns.data1 & 0x0000FFFF
         let isDown = ((flags & 0xFF00) >> 8) == 0xA
+        let isRepeat = flags & 0x1 != 0
         // Option + Shift: quarter steps (64 instead of 16), like the system's fine adjustment.
         let fine = ns.modifierFlags.contains(.option) && ns.modifierFlags.contains(.shift)
         // NX_KEYTYPE: 0 sound up, 1 sound down, 7 mute, 2 brightness up, 3 brightness down,
@@ -99,7 +112,7 @@ final class LevelsController {
             return true
         case 2, 3:
             guard displayServices.available else { return false }
-            if isDown { brightnessKey(up: key == 2, fine: fine) }
+            if isDown { brightnessKey(up: key == 2, fine: fine, isRepeat: isRepeat) } else { brightnessKeyUp() }
             return true
         case 21, 22, 23:
             guard backlight.get() != nil else { return false }
@@ -126,15 +139,43 @@ final class LevelsController {
         onChange?(LevelState(kind: .volume, value: v, muted: m || v == 0 && key == 7))
     }
 
-    private func brightnessKey(up: Bool, fine: Bool) {
+    private func brightnessKey(up: Bool, fine: Bool, isRepeat: Bool) {
         // The owner took over: stop any face-scan ramp and keep whatever they choose.
         rampTask?.cancel(); boostRestore = nil
         let n = fine ? 64.0 : 16.0
+        if isRepeat && swallowRepeats { return }
+
+        // Extended brightness (XDR): the extra goes first, in the same steps as the bar; at 0 it's off and 100 stays.
+        if extended.isOn {
+            let e = brightnessExtra
+            let next = up ? min(ExtendedBrightness.maxExtra, ((e * n + 1e-6).rounded(.down) + 1) / n)
+                          : ((e * n - 1e-6).rounded(.up) - 1) / n
+            brightnessExtra = extended.set(next)
+            onChange?(LevelState(kind: .brightness, value: 1, extra: brightnessExtra))
+            return
+        }
+
         let step = ((displayServices.get(displayID).map(Double.init) ?? brightness) * n).rounded()
+        // At 100, holding brightness-up for a second unlocks extended brightness.
+        if up, step >= n, holdTask == nil, extended.mayStart {
+            holdTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                holdTask = nil
+                swallowRepeats = true
+                brightnessExtra = extended.set(1 / 16)
+                onChange?(LevelState(kind: .brightness, value: 1, extra: brightnessExtra))
+            }
+        }
         let b = (up ? min(n, step + 1) : max(0, step - 1)) / n
         displayServices.set(displayID, Float(b))
         brightness = b
         onChange?(LevelState(kind: .brightness, value: b))
+    }
+
+    private func brightnessKeyUp() {
+        holdTask?.cancel(); holdTask = nil
+        swallowRepeats = false
     }
 
     /// Remembered by the toggle key so a second press brings the backlight back where it was.
@@ -170,6 +211,8 @@ final class LevelsController {
 
     func setBrightness(_ b: Double) {
         rampTask?.cancel(); boostRestore = nil
+        // The slider covers 0...100: moving it leaves extended brightness.
+        if extended.isOn { extended.stop(); brightnessExtra = 0 }
         displayServices.set(displayID, Float(b)); brightness = b
     }
 

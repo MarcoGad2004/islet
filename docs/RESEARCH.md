@@ -36,6 +36,19 @@ what you find under each item.
 9. Setting volume: CoreAudio on the default output device. Setting built-in display brightness has
    no public API (DisplayServices is private): confirm what works.
 
+### Extended brightness (1.7, 2026-11-24)
+
+`ExtendedBrightness` uses BrightIntosh's gamma technique: a 1 x 1 pt window (shielding level + 1, top-left corner)
+shows an rgba16Float EDR pixel at 1.7 in extended linear sRGB, so the display enters EDR mode, then
+`CGSetDisplayTransferByTable` writes the captured table times the factor (1 + extra, ≤ 1.6), eased over 0.25 s.
+`CGDisplayRestoreColorSyncSettings` undoes it; macOS also restores the table when the app exits. On this Mac
+(Mac16,8, macOS 27.2) headroom read 4.0 at full brightness within ~1.1 s of the pixel showing (potential 16), and
+`CGSetDisplayTransferByTable` accepts the scaled table, but **`CGGetDisplayTransferByTable` reads entries back
+clamped at 1.0**, so the once-a-second integrity check compares an entry at a quarter of the ramp, which stays under 1.0
+scaled. `didChangeScreenParameters` also fires on EDR headroom changes, so only a lost built-in display ends it there.
+**Unverified:** that the desktop actually gets brighter (screenshots don't show the table; check by eye), and that
+Night Shift and True Tone come back cleanly after the restore.
+
 ## Face unlock (spike in M2)
 
 The owner accepts that this is weaker than Touch ID and is for convenience only. The plan is:

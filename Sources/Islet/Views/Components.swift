@@ -107,10 +107,13 @@ struct StepBar: View, Animatable {
     var value: Double
     var muted: Bool
     var stepWidth: CGFloat = 9
+    /// Extended brightness past 100 (0...0.6): a second fill in red over the white one, from the left edge, on the
+    /// same scale (0.6 fills to the 60 mark).
+    var extra = 0.0
 
-    nonisolated var animatableData: Double {
-        get { value }
-        set { value = newValue }
+    nonisolated var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(value, extra) }
+        set { value = newValue.first; extra = newValue.second }
     }
 
     var body: some View {
@@ -120,6 +123,7 @@ struct StepBar: View, Animatable {
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 1.5).fill(muted ? Color.isletRing : Color(hex: 0x3A3A3C))
                     Rectangle().fill(muted ? Color(hex: 0x636366) : Color.isletText).frame(width: stepWidth * f)
+                    Rectangle().fill(Color.isletRed).frame(width: stepWidth * min(max(extra * 16 - Double(i), 0), 1))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 1.5))
                 .frame(width: stepWidth, height: 6)

@@ -183,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             notch.store.showLevel(LevelState(kind: .brightness, value: 21.0 / 32))
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
+        case "xdr": notch.store.showLevel(LevelState(kind: .brightness, value: 1, extra: 0.375))
         case "unlock": notch.store.playUnlock()
         case "notification", "notifications", "notificationpill":
             let store = notch.store

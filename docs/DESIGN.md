@@ -379,6 +379,14 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   symbol transition. The Control Center sliders and their percentages do the same for key presses
   (a drag follows the pointer directly).
 - Clicking it opens the expanded panel's Display and Sound page, even while media plays.
+- **Extended brightness** (1.7, owner request 2026-11-24; built-in XDR panels only): at 100, holding brightness-up for
+  1 s goes past it. The number counts on past 100 (up to 160), and a second fill in red (`isletRed`) runs over the
+  white steps from the left edge on the same scale, so 160 fills to the 60 mark (9.6 steps). Each further press adds
+  a step (1/16, or 1/64 with Option + Shift); the press that unlocked it doesn't keep climbing while held. Brightness-down
+  takes the red off first, step by step, and at 100 it's off; then the white bar drops as usual. Moving the brightness
+  slider also turns it off. It turns itself off when the screen sleeps or locks, the lid closes or the display
+  changes, below 20% battery on battery power, or at serious thermal pressure, and it never survives a restart.
+  Settings > Notch > Brightness has its switch (on by default, shown only on an XDR Mac).
 - Under something that outranks it (1.5, owner request 2026-11-23): during the unlock animation, on the lock screen or
   during the face scan, a key press no longer goes unseen. The island grows a 34 pt row under what's showing, with
   the icon, the step bar and the number, and draws it back up 1.5 s after the last press. Under the wide bar it's
