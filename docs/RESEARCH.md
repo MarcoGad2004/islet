@@ -279,8 +279,11 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   an `AXButton` "Undo" (`arrow.uturn.backward`). A connect card's texts are the name, the battery ("41") and
   "Connected", with no button. Control Center renders the same content off screen (y = 982) in an
   `AXHostedViewSceneWindow`. `AXCreated` arrives with the texts already in. Switching the AirPods to the iPhone and back
-  fired no IOBluetooth connect or disconnect on the Mac, so the card's text is the only signal. Islet moves a "Connected"
-  card's window to (-3000, -3000) as it does notification banners and leaves other cards alone (`RoutingBannerWatcher`).
+  fired no IOBluetooth connect or disconnect on the Mac, so the card's text is the only signal. Islet moved a "Connected"
+  card's window to (-3000, -3000) as it does notification banners. **It doesn't hold (1.6 test builds, 2026-11-24):** the
+  move reports success, but MenuBarAgent puts the card back at its place within a frame, every frame, for its whole ~4 s
+  (moving it again every 16 ms only made it flicker at best). So the card is left alone and only read, to show the connect
+  in the notch (`RoutingBannerWatcher`).
 - **Q23 Event sources: verified on this Mac (2026-11-19, `-IsletDebugShape spikewatch`, Full Disk Access granted).**
   - **Focus works.** With Full Disk Access, `~/Library/DoNotDisturb/DB/Assertions.json` is readable (11 KB). Watching the DB
     folder with a `DispatchSource` file-system source fired within a second of toggling. Turning Do Not Disturb on parsed as

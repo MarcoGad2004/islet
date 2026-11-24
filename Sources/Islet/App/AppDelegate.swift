@@ -353,12 +353,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.notificationExpired = { [weak self] in self?.notifications.expired($0) }
         store.notificationAction = { [weak self] in self?.notifications.perform($0, action: $1) }
         notifications.start()
-        // The AirPods "Connected" card goes with the notifications: into the notch only.
+        // The AirPods "Connected" card: the notch shows the connect too (with Notifications in the notch on).
         routingBanners.enabled = { Feature.notifications.isOn }
         routingBanners.onConnected = { [weak store] name in
-            guard let store, store.canShowEvent else { return false }
+            guard let store, store.canShowEvent else { return }
             showConnected(name, BluetoothController.icon(name: name, major: 0))
-            return true
         }
         routingBanners.start()
 

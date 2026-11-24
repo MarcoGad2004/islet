@@ -1,20 +1,20 @@
 import AppKit
 import ApplicationServices
 
-/// Keeps the AirPods "Connected" card out of the top-right corner, so a device connecting to this Mac shows only in the
-/// notch (RESEARCH.md Q22).
+/// Tells the notch when AirPods or another device connect, from the macOS "Connected" card (RESEARCH.md Q22). The card
+/// is the only sign when AirPods switch back from an iPhone: IOBluetooth reports no connect then.
 ///
 /// The card is not a notification: `com.apple.MenuBarAgent` opens a window identified `smart-routing-system-banner`
-/// holding the device's name and the status. A card saying the device connected is moved off screen the moment it is
-/// created, and kept there until it closes by itself. Every other card (such as "Moved to iPhone") is left alone, as
-/// are all other windows. When the notch can't show the event (panel open, locked) the card stays where macOS put it.
+/// holding the device's name and the status. Only cards saying the device connected count; others (such as "Moved to
+/// iPhone") are ignored. The card itself stays: MenuBarAgent puts it back every frame when it's moved (1.6 test
+/// builds, 2026-11-24), so it can't be hidden.
 @MainActor
 final class RoutingBannerWatcher {
     nonisolated static let agentBundleID = "com.apple.MenuBarAgent"
     static let bannerID = "smart-routing-system-banner"
 
-    /// A device connected (its name). Returns whether the notch shows it; if not, the card stays.
-    var onConnected: ((_ name: String) -> Bool)?
+    /// A device connected (its name).
+    var onConnected: ((_ name: String) -> Void)?
     var enabled: () -> Bool = { true }
 
     private var observer: AXObserver?
@@ -81,29 +81,9 @@ final class RoutingBannerWatcher {
             }
             return
         }
-        let origin = AX.position(window)
         // Name first, then the texts: a "Connected" card also has the battery ("41") between them.
         guard enabled(), texts.dropFirst().contains(where: Self.isConnect) else { return }
-        AX.setPosition(window, CGPoint(x: -3000, y: -3000))
-        guard onConnected?(texts[0]) == true else {
-            if let origin { AX.setPosition(window, origin) }
-            return
-        }
-        keepAway(window)
-    }
-
-    /// MenuBarAgent may place the card again as it animates in: keep it off screen until it closes (at most 10 s).
-    /// Off the main thread: each check is a round trip to MenuBarAgent, 60 times a second while the notch animates the
-    /// connection, and on the main thread they made that animation stutter.
-    private func keepAway(_ window: AXUIElement) {
-        nonisolated(unsafe) let window = window
-        Task.detached(priority: .userInitiated) {
-            let start = Date()
-            while Date().timeIntervalSince(start) < 10, AX.alive(window) {
-                if let p = AX.position(window), p.x > -2000 { AX.setPosition(window, CGPoint(x: -3000, y: -3000)) }
-                try? await Task.sleep(for: .milliseconds(16))
-            }
-        }
+        onConnected?(texts[0])
     }
 }
 
