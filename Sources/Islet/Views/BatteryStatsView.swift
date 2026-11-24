@@ -24,13 +24,16 @@ struct BatteryStatsView: View {
             VStack(spacing: 7) {
                 ForEach(Self.chargeRows(s, d, unplugged: power.history.unpluggedAt), id: \.0) { row($0.0, $0.1) }
             }
+            if PowerModeController.shared.mode != nil {
+                EnergyModeRow(controller: .shared, onAC: s.onAC, stacked: true).padding(.top, 12)
+            }
             divider
             VStack(spacing: 7) {
                 row("Power Source", s.onAC ? (d.adapterName.map { "Power Adapter · \($0)" } ?? "Power Adapter") : "Battery Power")
                 row("Cycle Count", d.cycles.map { "\($0)" } ?? "–")
                 row("Temperature", d.temperature.map(Self.temperature) ?? "–")
                 row("Battery Health", health(d))
-                // The Energy Mode switch below shows it when this Mac has energy modes.
+                // The Energy Mode switch above shows it when this Mac has energy modes.
                 if d.lowPower && PowerModeController.shared.mode == nil { row("Low Power Mode", "On") }
             }
             divider
@@ -41,10 +44,6 @@ struct BatteryStatsView: View {
             divider
             Text("Power distribution").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
             PowerFlow(state: s, details: d).padding(.top, 8)
-            if PowerModeController.shared.mode != nil {
-                divider
-                EnergyModeRow(controller: .shared, onAC: s.onAC, stacked: true)
-            }
             divider
             HStack {
                 Button(action: openControls) {

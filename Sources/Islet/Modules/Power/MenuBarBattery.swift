@@ -37,10 +37,12 @@ enum MenuBarBattery {
         let mark: String? = charging ? "bolt.fill" : onAC ? "powerplug.portrait.fill" : nil
         // The shared shape (`BatteryMetrics`), 13.5 pt tall.
         let h: CGFloat = 13.5
-        let size = NSSize(width: ceil(BatteryMetrics.width(height: h)) + 1, height: 15)
+        // Clear space either side so it doesn't crowd the menu bar icons next to it.
+        let pad: CGFloat = 3
+        let size = NSSize(width: ceil(BatteryMetrics.width(height: h)) + 1 + 2 * pad, height: 15)
         let image = NSImage(size: size, flipped: false) { _ in
             let ink = fillColor == nil ? NSColor.black : NSColor.labelColor
-            let body = NSRect(x: 0, y: (15 - h) / 2, width: h * BatteryMetrics.bodyLength, height: h)
+            let body = NSRect(x: pad, y: (15 - h) / 2, width: h * BatteryMetrics.bodyLength, height: h)
             let corner = h * BatteryMetrics.corner
             let shape = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
             ink.withAlphaComponent(BatteryMetrics.trackOpacity).setFill()
@@ -65,7 +67,7 @@ enum MenuBarBattery {
             }
 
             let nubW = h * BatteryMetrics.nubWidth, nubH = h * BatteryMetrics.nubHeight
-            let nubRect = NSRect(x: h * (BatteryMetrics.bodyLength + BatteryMetrics.gap), y: 7.5 - nubH / 2, width: nubW, height: nubH)
+            let nubRect = NSRect(x: pad + h * (BatteryMetrics.bodyLength + BatteryMetrics.gap), y: 7.5 - nubH / 2, width: nubW, height: nubH)
             // Flat against the body, round on the outside.
             let nub = NSBezierPath()
             nub.move(to: NSPoint(x: nubRect.minX, y: nubRect.minY))

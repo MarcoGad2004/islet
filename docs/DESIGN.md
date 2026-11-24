@@ -342,7 +342,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
 - Since 1.6.1 it follows Apple's 2027 battery (owner request, 2026-11-24): no outline. The body is a solid pale track
   (40%) and the charge fills it from the left edge to edge, clipped to the body's rounded corners, its right end cut
   straight; at least a sliver shows above 0%. The nub is pale too, flat against the body and round on the outside.
-- The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), the pale track, the charge as a solid fill, a bolt while
+- The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body) with 3 pt of clear space either side (1.6.1) so it doesn't crowd the icons beside it, the pale track, the charge as a solid fill, a bolt while
   charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill and the track). Green
   fill while the battery is actually charging (back to the menu bar's colour once it stops, even still plugged in; the track, the nub and the
   bolt stay the menu bar's colour), red fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
@@ -351,8 +351,8 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
 - The stats drop down 5 pt under the icon, left edges lined up and kept 8 pt inside the screen: a 300 pt panel: with the glass look (macOS 26 and later) Liquid Glass like Control Center's (24 pt corners, the system's own glass as it comes (light or dark with the Mac's appearance, no tint of ours), so it follows System Settings' Liquid Glass and Reduce Transparency choices, with the text in the system's adaptive label colours (`IsletInk`) so it stays readable on it; clipped to its rounded shape with no window shadow, so nothing square shows round it; glass tiles and pills inside), otherwise dark glass
   panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or "Time to 85%"
   with a charge limit, timed to the limit, or the status), the charge limit right under it when there is one, and
-  time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or °C by
-  region), battery health (System Settings' maximum capacity), and Low Power Mode when it's on (only on a Mac without energy modes, where the switch below can't show it); a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
+  time since unplugged; then, on a Mac with energy modes, "Energy Mode" with "On battery" or "On power adapter" on the right and, under it, the battery page's Low Power / Automatic / High Power switch at full width (1.6.1, owner request, 2026-11-24; it changes the mode for the source in use, and a failure shows under it in red); a rule; power source (with the charger's name), cycle count, temperature (°F or °C by
+  region), battery health (System Settings' maximum capacity), and Low Power Mode when it's on (only on a Mac without energy modes, where the switch above can't show it); a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
   the bottom; a rule; "Power distribution", a flow diagram: Charger, Mac and Battery as round glass nodes in a row
   with their watts under them, a line from the charger into the Mac, one from the battery into the Mac, and an arc
   from the charger over the Mac into the battery. A line runs only while power moves along it (faint rails
@@ -361,7 +361,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   weak for the load with the battery helping. The dashes run faster with more power (8 pt/s barely moving to 30 pt/s at 100 W, on a square root),
   easing to a new speed over about a second without jumping. Changes glide (spring, 0.7 s): a line lighting up runs out from its
   source, one going dark draws back and fades, thickness and colours ease. The battery's share is the charger's input
-  minus the Mac's draw, rounded alike, so the labels always add up. Still dashes with Reduce Motion; a rule; on a Mac with energy modes, "Energy Mode" with "On battery" or "On power adapter" on the right and, under it, the battery page's Low Power / Automatic / High Power switch at full width (1.6.1, owner request, 2026-11-24; it changes the mode for the source in use, and a failure shows under it in red), then a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
+  minus the Mac's draw, rounded alike, so the labels always add up. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
   Numbers refresh every second while open, and at once when a charger goes in or out. A click elsewhere, Esc or the icon closes it.
 - In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
   Controls pill.
