@@ -79,9 +79,9 @@ struct ConversationView: View {
     private var messages: some View {
         let list = conversation.messages
         let lastMine = list.lastIndex(where: \.mine)
-        return PanelScrollView(anchorBottom: true, indicators: false, scrollTo: list.last?.id) {
+        return PanelScrollView(anchorBottom: true, indicators: false, scrollTo: list.last?.key) {
             VStack(spacing: 3) {
-                ForEach(Array(list.enumerated()), id: \.element.id) { i, m in
+                ForEach(Array(list.enumerated()), id: \.element.key) { i, m in
                     let prev = i > 0 ? list[i - 1] : nil
                     VStack(alignment: m.mine ? .trailing : .leading, spacing: 1) {
                         if prev == nil || m.date.timeIntervalSince(prev!.date) > 3600 {
@@ -92,14 +92,21 @@ struct ConversationView: View {
                             Text(sender).font(.system(size: 10)).foregroundStyle(Color.isletTertiary).padding(.horizontal, 12).padding(.top, 3)
                         }
                         bubble(m)
+                            // On its way to Messages: faded and a touch smaller, filling in once Messages has it.
+                            .opacity(m.inFlight ? 0.55 : 1)
+                            .scaleEffect(m.inFlight ? 0.97 : 1, anchor: .bottomTrailing)
                         if i == lastMine, let status = Self.statusText(m.status) {
                             Text(status)
                                 .font(.system(size: 10)).foregroundStyle(m.status == .failed ? Color.isletRedText : Color.isletTertiary)
                                 .padding(.horizontal, 4).padding(.top, 2)
+                                .contentTransition(.opacity)
+                                .id(status)
+                                .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: m.mine ? .trailing : .leading)
-                    .id(m.id)
+                    .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+                    .id(m.key)
                 }
             }
             .padding(.horizontal, 2).padding(.bottom, 2)
@@ -215,11 +222,12 @@ struct ConversationView: View {
 
     // MARK: Helpers
 
-    /// "Sending…", "Delivered", "Read 2:31 PM", "Read Yesterday", "Read Mon", "Read 12 Nov", "Not delivered".
+    /// "Sending…", "Sent", "Delivered", "Read 2:31 PM", "Read Yesterday", "Read Mon", "Read 12 Nov", "Not delivered".
     static func statusText(_ s: MessagesStore.Message.Status) -> String? {
         switch s {
         case .none: return nil
         case .sending: return "Sending…"
+        case .sent: return "Sent"
         case .delivered: return "Delivered"
         case .failed: return "Not delivered"
         case .read(let d):

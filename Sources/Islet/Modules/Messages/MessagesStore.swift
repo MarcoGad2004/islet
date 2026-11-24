@@ -2,6 +2,7 @@ import OSLog
 import AppKit
 import Contacts
 import SQLite3
+import SwiftUI
 
 /// Messages conversations in the notch (DESIGN.md "Messages", RESEARCH.md Q32-Q38).
 ///
@@ -13,7 +14,7 @@ final class MessagesStore {
     static let enabledKey = "messagesInNotch"
 
     struct Message: Identifiable, Equatable {
-        enum Status: Equatable { case none, sending, delivered, read(Date), failed }
+        enum Status: Equatable, Sendable { case none, sending, sent, delivered, read(Date), failed }
         let id: Int64
         /// Messages' own id, which reactions point at.
         var guid: String = ""
@@ -26,6 +27,12 @@ final class MessagesStore {
         var status: Status
         /// Sent as an iMessage (blue), not SMS / RCS (green). Messages colours each bubble by how it went.
         var iMessage = true
+        /// The "Sending…" bubble this message took over from, so the list keeps it in place.
+        var viewKey: Int64?
+        /// What the list knows it by.
+        var key: Int64 { viewKey ?? id }
+        /// Still on its way to Messages (shown faded).
+        var inFlight: Bool { id < 0 && status == .sending }
         /// Tapbacks on it, oldest first.
         var reactions: [Reaction] = []
         /// What came with it: photos, stickers, files.
@@ -103,36 +110,8 @@ final class MessagesStore {
     private(set) var inbox: [ChatSummary] = []
     /// Chats with unread messages, as Messages' badge counts them: the panel's messages pill shows when there are any.
     private(set) var unreadCount = 0
-    @ObservationIgnored private var inboxWatcher: DispatchSourceFileSystemObject?
-    @ObservationIgnored private var inboxTask: Task<Void, Never>?
-    @ObservationIgnored private var lastLoggedUnread = -1
-    @ObservationIgnored private var known: [Int64: Bool] = [:]
-    private static let log = Logger(subsystem: "com.marcogad.islet", category: "messages")
-    /// `chat.is_filtered` where Messages keeps it (its own known/unknown verdict), else nothing.
-    @ObservationIgnored private lazy var chatFilterColumn: String =
-        rows("pragma table_info(chat)").contains { ($0[1] as? String) == "is_filtered" } ? "c.is_filtered" : "null"
-
-    /// Someone in the chat is in Contacts, or you've written in it (a reply makes a sender known, as in Messages).
-    private func isKnown(_ chat: Int64) -> Bool {
-        if let k = known[chat] { return k }
-        let handles = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chat])
-            .compactMap { $0[0] as? String }
-        var k = handles.contains { names?.name(for: $0) != nil }
-        if !k {
-            k = !rows("""
-                select 1 from message m join chat_message_join j on j.message_id = m.ROWID
-                where j.chat_id = ? and m.is_from_me = 1 limit 1
-                """, [chat]).isEmpty
-        }
-        // Known stays known; unknown is asked again next time (you may reply or add them).
-        if k { known[chat] = true }
-        return k
-    }
     /// A reply that went out but hasn't shown up in the history yet: shown at once, "Sending…".
     private(set) var pending: [Message] = []
-    @ObservationIgnored private var sendCount: Int64 = 0
-    /// One-to-one chats replied to that Messages still shows unread: marked read when the conversation closes.
-    @ObservationIgnored private var toMarkRead: [Conversation] = []
     /// The send itself failed (no permission, Messages refused).
     private(set) var sendError: String?
     /// A tapback is on its way (Messages is in front for a moment).
@@ -140,79 +119,75 @@ final class MessagesStore {
 
     var enabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
 
-    @ObservationIgnored private var db: OpaquePointer?
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "messages")
+    /// All reading happens on its own queue, never on the main thread (see `MessagesDB`).
+    @ObservationIgnored private let db = MessagesDB()
+    @ObservationIgnored private var connected = false
+    @ObservationIgnored private var inboxWatcher: DispatchSourceFileSystemObject?
+    @ObservationIgnored private var inboxTask: Task<Void, Never>?
+    @ObservationIgnored private var lastLoggedUnread = -1
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var names: ContactNames?
-    /// Whether `message` has `associated_message_emoji` (any-emoji tapbacks, macOS 15 and later).
-    @ObservationIgnored private lazy var hasEmojiColumn: Bool =
-        rows("pragma table_info(message)").contains { ($0[1] as? String) == "associated_message_emoji" }
-    /// Whether `attachment` has `is_sticker` (macOS 11 and later).
-    @ObservationIgnored private lazy var hasStickerColumn: Bool =
-        rows("pragma table_info(attachment)").contains { ($0[1] as? String) == "is_sticker" }
+    @ObservationIgnored private var chatHandles: [Int64: [String]] = [:]
+    @ObservationIgnored private var sendCount: Int64 = 0
+    /// One-to-one chats replied to that Messages still shows unread: marked read when the conversation closes.
+    @ObservationIgnored private var toMarkRead: [Conversation] = []
+    /// A sent message's id in the history → the id of the "Sending…" bubble it replaces, so the bubble stays put.
+    @ObservationIgnored private var keys: [Int64: Int64] = [:]
 
-    private static var dbPath: String {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Messages/chat.db").path
+    /// Whether the history can be read (Full Disk Access). Once it can, this never waits.
+    var available: Bool {
+        guard enabled else { return false }
+        if !connected { connected = db.sync { $0.connect() } }
+        return connected
     }
 
-    /// Opens the database on first use. False without Full Disk Access.
-    private func connect() -> Bool {
-        if db != nil { return true }
-        var handle: OpaquePointer?
-        guard sqlite3_open_v2(Self.dbPath, &handle, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(handle)
-            return false
-        }
-        db = handle
-        return true
+    private func loadNames() {
+        names = names ?? ContactNames()
+        names?.load()
     }
+    private var book: NameBook { names?.book ?? NameBook() }
 
-    var available: Bool { enabled && connect() }
+    // MARK: Finding a conversation
 
-    // MARK: Finding the conversation of a notification
-
-    /// The chat a Messages notification came from: the newest incoming message (in the last 10 minutes) whose text
-    /// matches the notification's, else the newest incoming one.
+    /// The chat a Messages notification came from.
     func chatID(for item: NotificationItem) -> Int64? {
         guard available else { return nil }
-        let since = Self.dbDate(Date().addingTimeInterval(-600))
-        let recent = rows("""
-            select j.chat_id, m.text, m.attributedBody from message m join chat_message_join j on j.message_id = m.ROWID
-            where m.is_from_me = 0 and m.date > ? and m.associated_message_type = 0 order by m.date desc limit 30
-            """, [since])
-        let wanted = Self.clean(item.body)
-        for r in recent {
-            let text = Self.clean(Self.text(r[1] as? String, r[2] as? Data) ?? "")
-            if !wanted.isEmpty, !text.isEmpty, text == wanted || text.hasPrefix(wanted) || wanted.hasPrefix(text) { return r[0] as? Int64 }
-        }
-        return recent.first?[0] as? Int64
+        let body = item.body
+        return db.sync { $0.chatID(forNotificationText: body) }
     }
 
-    /// The one-to-one chat with someone, by any of their numbers or emails (search's Message). The newest such chat when
-    /// there are several (iMessage and SMS). Numbers compare by their last 10 digits, like contact names.
+    /// The one-to-one chat with someone, by any of their numbers or emails (search's Message).
     func chatID(forHandles handles: [String]) -> Int64? {
         guard available, !handles.isEmpty else { return nil }
-        func key(_ h: String) -> String { h.contains("@") ? h.lowercased() : String(h.filter(\.isNumber).suffix(10)) }
-        let wanted = Set(handles.map(key).filter { !$0.isEmpty })
-        let sql = "select c.ROWID, h.id from chat c join chat_handle_join j on j.chat_id = c.ROWID join handle h on h.ROWID = j.handle_id "
-            + "where (select count(*) from chat_handle_join x where x.chat_id = c.ROWID) = 1 order by c.ROWID desc"
-        return rows(sql).first { ($0[1] as? String).map { wanted.contains(key($0)) } ?? false }?[0] as? Int64
+        return db.sync { $0.chatID(forHandles: handles) }
     }
 
     #if DEBUG
     /// The chat of the latest message with exactly this text (the preview opens the one with "Islet test").
     func chatID(withText text: String) -> Int64? {
         guard available else { return nil }
-        return rows("select j.chat_id, m.text from message m join chat_message_join j on j.message_id = m.ROWID where m.is_from_me = 1 order by m.date desc limit 200")
-            .first { ($0[1] as? String) == text }?[0] as? Int64
+        return db.sync { $0.chatID(withText: text) }
     }
 
     /// The chat with the newest message, when there's no "Islet test".
     func latestChatID() -> Int64? {
         guard available else { return nil }
-        return rows("select j.chat_id from message m join chat_message_join j on j.message_id = m.ROWID order by m.date desc limit 1").first?[0] as? Int64
+        return db.sync { $0.latestChatID() }
     }
     #endif
+
+    /// The contact photo for a one-to-one chat, when the person has one in Contacts. Groups have none (their initial shows).
+    func photo(forChat chatID: Int64) -> NSImage? {
+        let handles = chatHandles[chatID] ?? {
+            let h = db.sync { $0.handles(chatID) }
+            chatHandles[chatID] = h
+            return h
+        }()
+        guard handles.count == 1 else { return nil }
+        return names?.photo(for: handles[0])
+    }
 
     // MARK: The inbox
 
@@ -225,105 +200,44 @@ final class MessagesStore {
 
     private func watchInbox() {
         inboxWatcher?.cancel()
-        let fd = Darwin.open(Self.dbPath + "-wal", O_EVTONLY)
-        guard fd >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .delete, .rename], queue: .main)
-        src.setEventHandler { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                if src.data.contains(.delete) || src.data.contains(.rename) { self.watchInbox() }
-                self.inboxTask?.cancel()
-                self.inboxTask = Task { [weak self] in
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard !Task.isCancelled else { return }
-                    self?.refreshInbox()
-                }
+        inboxWatcher = Self.watchLog { [weak self] reopened in
+            guard let self else { return }
+            if reopened { self.watchInbox() }
+            self.inboxTask?.cancel()
+            self.inboxTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                self?.refreshInbox()
             }
         }
-        src.setCancelHandler { Darwin.close(fd) }
-        src.resume()
-        inboxWatcher = src
     }
 
-    /// Re-reads the unread messages and the recent chats.
+    /// Re-reads the unread messages and the recent chats, in the background.
     func refreshInbox() {
         guard available else { inbox = []; unreadCount = 0; return }
-        names = names ?? ContactNames()
-        names?.load()
-        // What Messages counts on its badge: chats with unread incoming messages, however old (reading on any device
-        // clears them, as it syncs), from known senders only. A reply counts as reading what came before it (the island
-        // can send but can't mark messages read in Messages). Like "Filter Unknown Senders", a chat is known when someone in it
-        // is in Contacts or you've written in it; spam and deleted chats never count.
-        var unread: [Int64: Int] = [:]
-        var all = 0
-        for r in rows("""
-            select j.chat_id, count(*), \(chatFilterColumn) from message m join chat_message_join j on j.message_id = m.ROWID
-            join chat c on c.ROWID = j.chat_id
-            where m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
-              and m.date > coalesce((select max(r.date) from message r join chat_message_join rj on rj.message_id = r.ROWID
-                                     where rj.chat_id = j.chat_id and r.is_from_me = 1), 0)
-            group by j.chat_id
-            """) {
-            guard let chat = r[0] as? Int64, let n = r[1] as? Int64, n > 0 else { continue }
-            all += Int(n)
-            guard isKnown(chat) else { continue }
-            unread[chat] = Int(n)
+        loadNames()
+        let book = self.book
+        Task {
+            let result = await db.read { $0.inbox(book) }
+            if result.allUnread != lastLoggedUnread {
+                lastLoggedUnread = result.allUnread
+                Self.log.notice("unread: \(result.allUnread) in all, \(result.chats.reduce(0) { $0 + $1.unread }) from known senders in \(result.unreadChats) chats")
+            }
+            if result.chats != inbox { inbox = result.chats }
+            if result.unreadChats != unreadCount { unreadCount = result.unreadChats }
         }
-        if all != lastLoggedUnread {
-            lastLoggedUnread = all
-            Self.log.notice("unread: \(all) in all, \(unread.values.reduce(0, +)) from known senders in \(unread.count) chats")
-        }
-        let recent = rows("""
-            select j.chat_id, max(m.date) from message m join chat_message_join j on j.message_id = m.ROWID
-            where m.associated_message_type = 0 and m.date > ? group by j.chat_id order by max(m.date) desc limit 12
-            """, [Self.dbDate(Date().addingTimeInterval(-30 * 86400))])
-        var list: [ChatSummary] = recent.compactMap { r in
-            guard let chat = r[0] as? Int64 else { return nil }
-            return summary(chat, unread: unread[chat] ?? 0)
-        }
-        // An unread chat older than the recent ones still makes the list.
-        for (chat, n) in unread where !list.contains(where: { $0.chatID == chat }) {
-            if let s = summary(chat, unread: n) { list.append(s) }
-        }
-        list.sort { ($0.unread > 0) != ($1.unread > 0) ? $0.unread > 0 : $0.date > $1.date }
-        if list != inbox { inbox = list }
-        // Messages' badge counts chats, not messages.
-        let total = unread.count
-        if total != unreadCount { unreadCount = total }
-    }
-
-    private func summary(_ chat: Int64, unread: Int) -> ChatSummary? {
-        guard let title = title(of: chat) else { return nil }
-        guard let r = rows("""
-            select m.text, m.attributedBody, m.is_from_me, m.cache_has_attachments, m.date
-            from message m join chat_message_join j on j.message_id = m.ROWID
-            where j.chat_id = ? and m.associated_message_type = 0 order by m.date desc limit 1
-            """, [chat]).first else { return nil }
-        var text = (Self.text(r[0] as? String, r[1] as? Data) ?? "").replacingOccurrences(of: "\u{FFFC}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { text = (r[3] as? Int64) == 1 ? "Attachment" : "" }
-        if (r[2] as? Int64) == 1, !text.isEmpty { text = "You: " + text }
-        return ChatSummary(chatID: chat, title: title.title, preview: text, date: Self.date(r[4] as? Int64 ?? 0), unread: unread)
-    }
-
-    /// A chat's name: its own, or the people in it.
-    private func title(of chat: Int64) -> (title: String, isGroup: Bool)? {
-        guard let c = rows("select display_name, style from chat where ROWID = ?", [chat]).first else { return nil }
-        let handles = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chat])
-            .compactMap { $0[0] as? String }
-        let display = (c[0] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        return (display ?? (handles.isEmpty ? "Messages" : handles.map { name(for: $0) }.joined(separator: ", ")), (c[1] as? Int64) == 43)
     }
 
     // MARK: The open conversation
 
     func openChat(_ chatID: Int64) {
         guard available else { return }
-        names = names ?? ContactNames()
-        names?.load()
+        loadNames()
         pending = []
+        keys = [:]
         sendError = nil
-        open = load(chatID)
+        let book = self.book
+        open = db.sync { $0.conversation(chatID, book) }
         watch()
     }
 
@@ -334,7 +248,7 @@ final class MessagesStore {
             let chats = toMarkRead
             toMarkRead = []
             Task {
-                try? await Task.sleep(for: .milliseconds(600))
+                try? await Task.sleep(for: .milliseconds(800))
                 for chat in chats { await TapbackSender.markRead(chat) }
             }
         }
@@ -342,176 +256,77 @@ final class MessagesStore {
         reloadTask?.cancel()
         open = nil
         pending = []
+        keys = [:]
         sendError = nil
     }
 
     func isOpen(_ chatID: Int64?) -> Bool { chatID != nil && open?.chatID == chatID }
 
-    private func load(_ chatID: Int64) -> Conversation? {
-        guard let c = rows("select guid, display_name, style, service_name from chat where ROWID = ?", [chatID]).first,
-              let guid = c[0] as? String else { return nil }
-        let handles = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chatID])
-            .compactMap { $0[0] as? String }
-        let isGroup = (c[2] as? Int64) == 43
-        let service = (c[3] as? String) ?? "iMessage"
-        let display = (c[1] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        let title = display ?? (handles.isEmpty ? "Messages" : handles.map { name(for: $0) }.joined(separator: ", "))
-        let raw = rows("""
-            select m.ROWID, m.text, m.attributedBody, m.is_from_me, m.date, m.cache_has_attachments, m.is_delivered, m.error, h.id,
-                   m.guid, m.date_read, m.service
-            from message m join chat_message_join j on j.message_id = m.ROWID left join handle h on h.ROWID = m.handle_id
-            where j.chat_id = ? and m.associated_message_type = 0 order by m.date desc limit 50
-            """, [chatID])
-        var messages: [Message] = raw.reversed().compactMap { r in
-            guard let id = r[0] as? Int64 else { return nil }
-            let mine = (r[3] as? Int64) == 1
-            let attachment = (r[5] as? Int64) == 1
-            var text = Self.text(r[1] as? String, r[2] as? Data) ?? ""
-            text = text.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty && !attachment { return nil }
-            let read = r[10] as? Int64 ?? 0
-            let status: Message.Status = !mine ? .none
-                : (r[7] as? Int64 ?? 0) != 0 ? .failed
-                : read > 0 ? .read(Self.date(read))
-                : (r[6] as? Int64) == 1 ? .delivered : .sending
-            return Message(id: id, guid: r[9] as? String ?? "", text: text, mine: mine, date: Self.date(r[4] as? Int64 ?? 0),
-                           sender: isGroup && !mine ? (r[8] as? String).map { name(for: $0) } : nil,
-                           attachment: attachment, status: status, iMessage: !Self.isText(r[11] as? String))
-        }
-        addReactions(to: &messages, chatID: chatID)
-        addAttachments(to: &messages, chatID: chatID)
-        // A reply sent from the notch that the history now has replaces its "Sending…" copy.
-        pending.removeAll { p in messages.contains { $0.mine && $0.text == p.text && $0.date >= p.date.addingTimeInterval(-5) } }
-        // Newer macOS keeps someone's iMessages and texts in one chat whose service isn't "iMessage": what the latest
-        // message went as says how the next one will (as Messages shows it), else the chat's own service.
-        let latest = raw.first { ($0[11] as? String).map { !$0.isEmpty } ?? false }?[11] as? String
-        let iMessage = !Self.isText(latest ?? service)
-        messages += pending.map { var p = $0; p.iMessage = iMessage; return p }
-        return Conversation(chatID: chatID, guid: guid, title: title, isGroup: isGroup, people: handles.count + 1,
-                            iMessage: iMessage, messages: messages)
-    }
-
-    /// Tapbacks on the loaded messages. Each person has one at a time on a message: the newest add (2000-2006) or
-    /// removal (3000-3006) wins. `associated_message_guid` is "p:0/<guid>" (a part of the message) or "bp:<guid>".
-    private func addReactions(to messages: inout [Message], chatID: Int64) {
-        guard let oldest = messages.first?.date else { return }
-        let emoji = hasEmojiColumn ? "m.associated_message_emoji" : "null"
-        let raw = rows("""
-            select m.associated_message_guid, m.associated_message_type, m.is_from_me, m.handle_id, \(emoji)
-            from message m join chat_message_join j on j.message_id = m.ROWID
-            where j.chat_id = ? and m.date >= ? and m.associated_message_type between 2000 and 3006 order by m.date
-            """, [chatID, Self.dbDate(oldest)])
-        var latest: [String: [String: Reaction?]] = [:] // message guid → person → reaction
-        var order: [String: [String]] = [:]
-        for r in raw {
-            guard let target = r[0] as? String, let type = r[1] as? Int64 else { continue }
-            let guid = target.components(separatedBy: "/").last.map { $0.hasPrefix("bp:") ? String($0.dropFirst(3)) : $0 } ?? target
-            let mine = (r[2] as? Int64) == 1
-            let person = mine ? "me" : "\(r[3] as? Int64 ?? 0)"
-            var reaction: Reaction?
-            if type < 3000 {
-                let tapback = Tapback(rawValue: Int(type))
-                guard let e = tapback?.emoji ?? (r[4] as? String) else { continue }
-                reaction = Reaction(emoji: e, mine: mine, tapback: tapback)
-            }
-            if latest[guid]?[person] == nil { order[guid, default: []].append(person) }
-            latest[guid, default: [:]][person] = .some(reaction)
-        }
-        for i in messages.indices {
-            let g = messages[i].guid
-            guard let people = order[g] else { continue }
-            messages[i].reactions = people.compactMap { latest[g]?[$0] ?? nil }
-        }
-    }
-
-    /// The files with the loaded messages, and stickers placed on them (`associated_message_type` 1000, pointing at
-    /// the message like a tapback does).
-    private func addAttachments(to messages: inout [Message], chatID: Int64) {
-        let ids = messages.filter { $0.attachment && $0.id > 0 }.map(\.id)
-        let sticker = hasStickerColumn ? "a.is_sticker" : "0"
-        if !ids.isEmpty {
-            let list = ids.map(String.init).joined(separator: ",") // integers only
-            var found: [Int64: [Attachment]] = [:]
-            for r in rows("""
-                select j.message_id, a.filename, a.mime_type, a.uti, a.transfer_name, \(sticker)
-                from message_attachment_join j join attachment a on a.ROWID = j.attachment_id
-                where j.message_id in (\(list)) order by a.ROWID
-                """) {
-                guard let id = r[0] as? Int64 else { continue }
-                found[id, default: []].append(Self.attachment(r, from: 1))
-            }
-            for i in messages.indices { messages[i].attachments = found[messages[i].id] ?? [] }
-        }
-        guard let oldest = messages.first?.date else { return }
-        var placed: [String: [Attachment]] = [:]
-        for r in rows("""
-            select m.associated_message_guid, a.filename, a.mime_type, a.uti, a.transfer_name, 1
-            from message m join chat_message_join cj on cj.message_id = m.ROWID
-            join message_attachment_join j on j.message_id = m.ROWID join attachment a on a.ROWID = j.attachment_id
-            where cj.chat_id = ? and m.date >= ? and m.associated_message_type = 1000 order by m.date
-            """, [chatID, Self.dbDate(oldest)]) {
-            guard let target = r[0] as? String else { continue }
-            let guid = target.components(separatedBy: "/").last.map { $0.hasPrefix("bp:") ? String($0.dropFirst(3)) : $0 } ?? target
-            placed[guid, default: []].append(Self.attachment(r, from: 1))
-        }
-        for i in messages.indices { messages[i].stickers = placed[messages[i].guid] ?? [] }
-    }
-
-    /// Columns filename, mime_type, uti, transfer_name, is_sticker from `start`.
-    private static func attachment(_ r: [Any?], from start: Int) -> Attachment {
-        let raw = r[start] as? String
-        let path = raw.map { $0.hasPrefix("~") ? (NSString(string: $0).expandingTildeInPath) : $0 }
-        return Attachment(path: path, mime: r[start + 1] as? String, uti: r[start + 2] as? String,
-                          name: r[start + 3] as? String, sticker: (r[start + 4] as? Int64 ?? 0) == 1)
-    }
-
-    private func name(for handle: String) -> String { names?.name(for: handle) ?? Self.pretty(handle) }
-
-    @ObservationIgnored private var chatHandles: [Int64: [String]] = [:]
-
-    /// The contact photo for a one-to-one chat, when the person has one in Contacts. Groups have none (their initial shows).
-    func photo(forChat chatID: Int64) -> NSImage? {
-        let handles = chatHandles[chatID] ?? {
-            let h = rows("select h.id from handle h join chat_handle_join j on j.handle_id = h.ROWID where j.chat_id = ?", [chatID])
-                .compactMap { $0[0] as? String }
-            chatHandles[chatID] = h
-            return h
-        }()
-        guard handles.count == 1 else { return nil }
-        return names?.photo(for: handles[0])
-    }
-
     /// Messages writes its write-ahead log as messages arrive: re-read the open conversation then.
     private func watch() {
         watcher?.cancel()
-        let fd = Darwin.open(Self.dbPath + "-wal", O_EVTONLY)
-        guard fd >= 0 else { return }
+        watcher = Self.watchLog { [weak self] reopened in
+            guard let self else { return }
+            if reopened { self.watch() }
+            self.scheduleReload()
+        }
+    }
+
+    /// Calls `changed` on the main thread when Messages writes its write-ahead log; true when it was checkpointed
+    /// (deleted or replaced), when the caller should watch the new file.
+    private static func watchLog(_ changed: @escaping @MainActor (Bool) -> Void) -> DispatchSourceFileSystemObject? {
+        let fd = Darwin.open(MessagesDB.path + "-wal", O_EVTONLY)
+        guard fd >= 0 else { return nil }
         let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .delete, .rename], queue: .main)
-        src.setEventHandler { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                if src.data.contains(.delete) || src.data.contains(.rename) { self.watch() } // checkpointed: watch the new one
-                self.scheduleReload()
-            }
+        src.setEventHandler {
+            let reopened = src.data.contains(.delete) || src.data.contains(.rename)
+            MainActor.assumeIsolated { changed(reopened) }
         }
         src.setCancelHandler { Darwin.close(fd) }
         src.resume()
-        watcher = src
+        return src
     }
 
+    /// Messages writes several times per message (sent, delivered, read): wait for it to settle, read in the
+    /// background, then show the result with an animation.
     private func scheduleReload() {
         reloadTask?.cancel()
         reloadTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, let self, let id = self.open?.chatID else { return }
-            if let c = self.load(id), c != self.open { self.open = c }
+            let book = self.book
+            let loaded = await self.db.read { $0.conversation(id, book) }
+            guard !Task.isCancelled, let loaded, self.open?.chatID == id else { return }
+            self.show(loaded)
+        }
+    }
+
+    /// Shows a freshly read conversation. A reply the history now has takes over its "Sending…" bubble's identity, so
+    /// the bubble settles in place instead of being swapped for a new one.
+    private func show(_ loaded: Conversation) {
+        var c = loaded
+        for p in pending where !keys.values.contains(p.id) {
+            if let i = c.messages.firstIndex(where: {
+                $0.mine && keys[$0.id] == nil && $0.text == p.text && $0.date >= p.date.addingTimeInterval(-5)
+            }) {
+                keys[c.messages[i].id] = p.id
+            }
+        }
+        let claimed = Set(keys.values)
+        let waiting = pending.filter { !claimed.contains($0.id) }
+        for i in c.messages.indices { c.messages[i].viewKey = keys[c.messages[i].id] }
+        c.messages += waiting
+        guard c != open else { return }
+        withAnimation(.smooth(duration: 0.35)) {
+            pending = waiting
+            open = c
         }
     }
 
     // MARK: Sending
 
-    /// Asks Messages to send `text` to the open conversation. Shows it at once as "Sending…"; the Apple Event goes
-    /// out on its own queue so the main thread (and the panel's animations) never wait for Messages to answer.
+    /// Asks Messages to send `text` to the open conversation. It shows at once, faded, as "Sending…"; the Apple Event
+    /// goes out on its own queue so the panel never waits for Messages, and the bubble settles once Messages has it.
     /// `failed` gets the text back when Messages refuses it.
     func send(_ text: String, failed: @escaping @MainActor (String) -> Void = { _ in }) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -523,26 +338,34 @@ final class MessagesStore {
         sendCount += 1
         let p = Message(id: -sendCount, text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending,
                         iMessage: c.iMessage)
-        pending.append(p)
-        open?.messages.append(p)
-        // Replying doesn't mark the chat read in Messages. Doing that brings Messages forward, so it waits until the
-        // conversation closes (see `close()`) instead of interrupting it.
-        let unreadInMessages = rows("""
-            select count(*) from message m join chat_message_join j on j.message_id = m.ROWID
-            where j.chat_id = ? and m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
-            """, [c.chatID]).first?[0] as? Int64 ?? 0
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            pending.append(p)
+            open?.messages.append(p)
+        }
         Task {
             let error = await Self.runAppleScript(source)
             if let error {
-                pending.removeAll { $0.id == p.id }
-                if open?.chatID == c.chatID {
-                    open?.messages.removeAll { $0.id == p.id }
-                    sendError = error == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
+                withAnimation(.easeOut(duration: 0.25)) {
+                    pending.removeAll { $0.id == p.id }
+                    if open?.chatID == c.chatID {
+                        open?.messages.removeAll { $0.id == p.id }
+                        sendError = error == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
+                    }
                 }
                 failed(text)
                 return
             }
-            if unreadInMessages > 0, !toMarkRead.contains(where: { $0.chatID == c.chatID }) { toMarkRead.append(c) }
+            // Messages has it: the bubble fills in ("Sent") even before the history shows it.
+            withAnimation(.easeOut(duration: 0.3)) {
+                if let i = pending.firstIndex(where: { $0.id == p.id }) { pending[i].status = .sent }
+                if let i = open?.messages.firstIndex(where: { $0.id == p.id }) { open?.messages[i].status = .sent }
+            }
+            // Replying doesn't mark the chat read in Messages. Doing that brings Messages forward, so it waits until the
+            // conversation closes (see `close()`) instead of interrupting it.
+            let chat = c.chatID
+            if await db.read({ $0.unreadInMessages(chat) }) > 0, !toMarkRead.contains(where: { $0.chatID == chat }) {
+                toMarkRead.append(c)
+            }
             scheduleReload()
         }
     }
@@ -575,61 +398,8 @@ final class MessagesStore {
         }
     }
 
-    // MARK: Helpers
-
-    /// A green-bubble service: SMS or RCS. Anything else (iMessage, or a merged chat's "any") is blue.
-    private static func isText(_ service: String?) -> Bool {
-        guard let service else { return false }
-        return ["SMS", "RCS"].contains(service.uppercased())
-    }
-
-    private static func dbDate(_ d: Date) -> Int64 { Int64(d.timeIntervalSinceReferenceDate * 1e9) }
-    private static func date(_ v: Int64) -> Date {
-        Date(timeIntervalSinceReferenceDate: v > 1_000_000_000_000 ? Double(v) / 1e9 : Double(v))
-    }
-
-    /// The message text: the `text` column, or (newer macOS) the typedstream `attributedBody`.
-    private static func text(_ text: String?, _ body: Data?) -> String? {
-        if let text, !text.isEmpty { return text }
-        guard let body else { return nil }
-        return (NSUnarchiver.unarchiveObject(with: body) as? NSAttributedString)?.string
-    }
-
-    private static func clean(_ s: String) -> String {
-        s.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     /// "+15551234567" → "+1 (555) 123-4567"; anything else as it is.
-    static func pretty(_ handle: String) -> String {
-        let d = handle.filter(\.isNumber)
-        guard handle.hasPrefix("+1"), d.count == 11 else { return handle }
-        let a = Array(d)
-        return "+1 (\(String(a[1...3]))) \(String(a[4...6]))-\(String(a[7...10]))"
-    }
-
-    private func rows(_ sql: String, _ args: [Int64] = []) -> [[Any?]] {
-        guard let db else { return [] }
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(stmt) }
-        for (i, a) in args.enumerated() { sqlite3_bind_int64(stmt, Int32(i + 1), a) }
-        var result: [[Any?]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            var row: [Any?] = []
-            for i in 0..<sqlite3_column_count(stmt) {
-                switch sqlite3_column_type(stmt, i) {
-                case SQLITE_INTEGER: row.append(sqlite3_column_int64(stmt, i))
-                case SQLITE_TEXT: row.append(String(cString: sqlite3_column_text(stmt, i)))
-                case SQLITE_BLOB:
-                    let n = Int(sqlite3_column_bytes(stmt, i))
-                    row.append(n > 0 ? Data(bytes: sqlite3_column_blob(stmt, i), count: n) : nil)
-                default: row.append(nil)
-                }
-            }
-            result.append(row)
-        }
-        return result
-    }
+    static func pretty(_ handle: String) -> String { MessagesDB.pretty(handle) }
 }
 
 /// Contact names for phone numbers and emails. Messages keeps numbers as "+15551234567" and contacts have them as typed,
@@ -687,6 +457,8 @@ final class ContactNames {
         photos[id] = i
         return i
     }
+
+    var book: NameBook { NameBook(byPhone: byPhone, byEmail: byEmail) }
 
     func name(for handle: String) -> String? {
         handle.contains("@") ? byEmail[handle.lowercased()] : byPhone[String(handle.filter(\.isNumber).suffix(10))]
