@@ -24,6 +24,8 @@ final class MessagesStore {
         var sender: String?
         var attachment: Bool
         var status: Status
+        /// Sent as an iMessage (blue), not SMS / RCS (green). Messages colours each bubble by how it went.
+        var iMessage = true
         /// Tapbacks on it, oldest first.
         var reactions: [Reaction] = []
         /// What came with it: photos, stickers, files.
@@ -356,7 +358,7 @@ final class MessagesStore {
         let title = display ?? (handles.isEmpty ? "Messages" : handles.map { name(for: $0) }.joined(separator: ", "))
         let raw = rows("""
             select m.ROWID, m.text, m.attributedBody, m.is_from_me, m.date, m.cache_has_attachments, m.is_delivered, m.error, h.id,
-                   m.guid, m.date_read
+                   m.guid, m.date_read, m.service
             from message m join chat_message_join j on j.message_id = m.ROWID left join handle h on h.ROWID = m.handle_id
             where j.chat_id = ? and m.associated_message_type = 0 order by m.date desc limit 50
             """, [chatID])
@@ -374,15 +376,19 @@ final class MessagesStore {
                 : (r[6] as? Int64) == 1 ? .delivered : .sending
             return Message(id: id, guid: r[9] as? String ?? "", text: text, mine: mine, date: Self.date(r[4] as? Int64 ?? 0),
                            sender: isGroup && !mine ? (r[8] as? String).map { name(for: $0) } : nil,
-                           attachment: attachment, status: status)
+                           attachment: attachment, status: status, iMessage: !Self.isText(r[11] as? String))
         }
         addReactions(to: &messages, chatID: chatID)
         addAttachments(to: &messages, chatID: chatID)
         // A reply sent from the notch that the history now has replaces its "Sending…" copy.
         pending.removeAll { p in messages.contains { $0.mine && $0.text == p.text && $0.date >= p.date.addingTimeInterval(-5) } }
-        messages += pending
+        // Newer macOS keeps someone's iMessages and texts in one chat whose service isn't "iMessage": what the latest
+        // message went as says how the next one will (as Messages shows it), else the chat's own service.
+        let latest = raw.first { ($0[11] as? String).map { !$0.isEmpty } ?? false }?[11] as? String
+        let iMessage = !Self.isText(latest ?? service)
+        messages += pending.map { var p = $0; p.iMessage = iMessage; return p }
         return Conversation(chatID: chatID, guid: guid, title: title, isGroup: isGroup, people: handles.count + 1,
-                            iMessage: service == "iMessage", messages: messages)
+                            iMessage: iMessage, messages: messages)
     }
 
     /// Tapbacks on the loaded messages. Each person has one at a time on a message: the newest add (2000-2006) or
@@ -515,7 +521,8 @@ final class MessagesStore {
         let guid = c.guid.replacingOccurrences(of: "\"", with: "")
         let source = "tell application \"Messages\" to send \"\(escaped)\" to chat id \"\(guid)\""
         sendCount += 1
-        let p = Message(id: -sendCount, text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending)
+        let p = Message(id: -sendCount, text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending,
+                        iMessage: c.iMessage)
         pending.append(p)
         open?.messages.append(p)
         // Replying doesn't mark the chat read in Messages. Doing that brings Messages forward, so it waits until the
@@ -569,6 +576,12 @@ final class MessagesStore {
     }
 
     // MARK: Helpers
+
+    /// A green-bubble service: SMS or RCS. Anything else (iMessage, or a merged chat's "any") is blue.
+    private static func isText(_ service: String?) -> Bool {
+        guard let service else { return false }
+        return ["SMS", "RCS"].contains(service.uppercased())
+    }
 
     private static func dbDate(_ d: Date) -> Int64 { Int64(d.timeIntervalSinceReferenceDate * 1e9) }
     private static func date(_ v: Int64) -> Date {

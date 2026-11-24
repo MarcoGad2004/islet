@@ -7,7 +7,8 @@ struct ConversationView: View {
     let conversation: MessagesStore.Conversation
     @FocusState private var focused: Bool
 
-    private var tint: Color { conversation.iMessage ? Color(hex: 0x0A84FF) : .isletGreen }
+    private var tint: Color { Self.tint(iMessage: conversation.iMessage) }
+    private static func tint(iMessage: Bool) -> Color { iMessage ? Color(hex: 0x0A84FF) : .isletGreen }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -106,7 +107,7 @@ struct ConversationView: View {
     }
 
     @ViewBuilder private func bubble(_ m: MessagesStore.Message) -> some View {
-        let fill = m.mine ? tint : Color.isletRing
+        let fill = m.mine ? Self.tint(iMessage: m.iMessage) : Color.isletRing
         if m.attachment {
             // Photos and stickers show as themselves; anything else (or a file Messages hasn't downloaded) is a chip.
             let files = m.attachments.isEmpty ? [MessagesStore.Attachment(sticker: false)] : m.attachments
