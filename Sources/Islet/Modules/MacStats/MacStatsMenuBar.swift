@@ -133,8 +133,8 @@ struct MacStatsMenuBarContent: Equatable {
 enum MacStatsMenuBar {
     static let height: CGFloat = 22
     /// The GPU and memory bars; the CPU bar is twice as wide, its halves the efficiency and performance cores.
-    static let barWidth: CGFloat = 7
-    static let barHeight: CGFloat = 18
+    static let barWidth: CGFloat = 8
+    static let barHeight: CGFloat = 20
     static let barGap: CGFloat = 2.5
     static let columnGap: CGFloat = 5
     static let sectionGap: CGFloat = 6

@@ -963,10 +963,10 @@ Both are one item so the spacing is ours, not macOS's gap between items (owner, 
 spacing kept tight). Either half can be off; with both off, nothing shows (Settings says so).
 
 - **Meters** (owner, 2026-11-24, after trying it: wider, and the CPU as one bar; then taller and a little wider to read
-  at a glance): three bars 18 pt tall (of the item's 22) with fully
-  rounded ends, 2.5 pt apart, filling from the bottom. The CPU bar is 14 pt wide and split down the middle with no gap:
+  at a glance): three bars 20 pt tall (of the item's 22) with fully
+  rounded ends, 2.5 pt apart, filling from the bottom. The CPU bar is 16 pt wide and split down the middle with no gap:
   its left half fills for the efficiency cores (green), its right half for the performance cores (blue), each with its
-  own warning colour. Then the GPU and memory, 7 pt each. With one core type turned off, the other is a plain 7 pt bar.
+  own warning colour. Then the GPU and memory, 8 pt each. With one core type turned off, the other is a plain 8 pt bar.
   The empty part is the menu bar's colour at 30%. CPU halves are the mean use of that core type; GPU is device
   utilisation; memory is used ÷ installed.
 - **Readouts** (owner, 2026-11-24): no icons, two lines in 10 pt (numbers semibold with monospaced digits), right-aligned,
