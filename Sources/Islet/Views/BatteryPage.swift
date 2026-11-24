@@ -217,19 +217,18 @@ struct BatteryGlyph: View {
     var percent: Int
     var tint: Color
     var bolt: Bool
-    /// A tick in the outline at the charge limit.
+    /// A tick across the body at the charge limit.
     var limit: Int?
 
     var body: some View {
         GeometryReader { geo in
             let h = geo.size.height
-            let inset = h * BatteryMetrics.inset
             let w = h * BatteryMetrics.bodyLength
             BatteryBody(level: Double(percent) / 100, tint: tint) {
                 ZStack(alignment: .leading) {
                     if let limit {
                         Rectangle().fill(Color.isletText.opacity(0.6)).frame(width: 1.2, height: h + 4)
-                            .offset(x: inset + (w - 2 * inset) * CGFloat(limit) / 100 - 0.6)
+                            .offset(x: w * CGFloat(limit) / 100 - 0.6)
                     }
                     if bolt {
                         Image(systemName: "bolt.fill").font(.system(size: h * 0.62, weight: .bold))

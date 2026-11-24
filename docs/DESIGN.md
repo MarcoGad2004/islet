@@ -338,10 +338,13 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
 
 - One battery shape everywhere (`BatteryMetrics`): the menu bar icon, the battery page (22 pt tall), quick info
   (12 or 13 pt) and the charging animation (13 pt) differ only in height. The body is twice as long as it is tall,
-  with the gap, nub, corners, inset and outline as fixed shares of that height.
-- The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), a pale outline (40%), the charge as a solid fill, a bolt while
-  charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill, never into the outline). Green
-  fill while the battery is actually charging (back to the menu bar's colour once it stops, even still plugged in; the outline and the
+  with the gap, nub and corners as fixed shares of that height.
+- Since 1.6.1 it follows Apple's 2027 battery (owner request, 2026-11-24): no outline. The body is a solid pale track
+  (40%) and the charge fills it from the left edge to edge, clipped to the body's rounded corners, its right end cut
+  straight; at least a sliver shows above 0%. The nub is pale too, flat against the body and round on the outside.
+- The icon follows macOS's: a 31 × 15 pt battery (27 × 13.5 pt body), the pale track, the charge as a solid fill, a bolt while
+  charging and a plug when plugged in and not charging (each with a smooth 1 pt gap cut round it so it reads over the fill and the track). Green
+  fill while the battery is actually charging (back to the menu bar's colour once it stops, even still plugged in; the track, the nub and the
   bolt stay the menu bar's colour), red fill at 10% and below on battery, yellow in Low Power Mode; otherwise a template image in the menu bar's colour.
   The percentage sits to its left unless "Show percentage" is off.
 - Click: "Battery stats" (default) or "Control center" (Settings). Right-click or Control/Option-click: Islet's menu.

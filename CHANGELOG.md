@@ -3,6 +3,10 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.6.1 (unreleased)
+
+- **The new battery look.** The battery in the menu bar, on the battery page, in quick info and in the charging animation now matches Apple's 2027 design: no outline, just a pale battery that the charge fills from the left.
+
 ## 1.6 (unreleased)
 
 ### Shazam in the notch

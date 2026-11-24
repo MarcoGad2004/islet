@@ -1,27 +1,32 @@
 import SwiftUI
 
-/// One battery shape everywhere, after the menu bar battery (DESIGN.md "Menu bar battery"): the menu bar icon, the
+/// One battery shape everywhere, after Apple's 2027 battery (DESIGN.md "Menu bar battery"): the menu bar icon, the
 /// battery page, quick info and the charging animation all draw from these proportions, given as shares of the body's
-/// height, so only the height changes between them.
+/// height, so only the height changes between them. There is no outline: the body is a solid pale track and the charge
+/// fills it from the left, edge to edge, its right end cut straight.
 enum BatteryMetrics {
     /// The body is twice as long as it is tall.
     static let bodyLength: CGFloat = 2
     /// The gap before the nub, and the nub's width and height.
     static let gap: CGFloat = 0.067
     static let nubWidth: CGFloat = 0.148
-    static let nubHeight: CGFloat = 0.311
-    static let corner: CGFloat = 0.296
-    /// Between the outline and the fill.
-    static let inset: CGFloat = 0.148
-    static let line: CGFloat = 0.074
-    static let outlineOpacity = 0.4
+    static let nubHeight: CGFloat = 0.37
+    static let corner: CGFloat = 0.33
+    /// The empty part of the body and the nub.
+    static let trackOpacity = 0.4
+    /// The least fill shown above 0%, so a nearly empty battery still shows a sliver.
+    static let minFill: CGFloat = 0.12
 
     /// The whole battery's width, nub included, for a body this tall.
     static func width(height h: CGFloat) -> CGFloat { h * (bodyLength + gap + nubWidth) }
-    static func lineWidth(height h: CGFloat) -> CGFloat { max(1, h * line) }
+    /// How far the fill reaches across a body this tall, for a 0...1 level.
+    static func fillWidth(level: Double, height h: CGFloat) -> CGFloat {
+        let l = CGFloat(min(max(level, 0), 1))
+        return l == 0 ? 0 : max(h * minFill, h * bodyLength * l)
+    }
 }
 
-/// The battery's outline, nub and charge fill, with an optional mark (a bolt) centred on the body. Give it a frame of
+/// The battery's track, nub and charge fill, with an optional mark (a bolt) centred on the body. Give it a frame of
 /// `BatteryMetrics.width(height:)` by the height.
 struct BatteryBody<Mark: View>: View {
     /// 0...1.
@@ -34,21 +39,19 @@ struct BatteryBody<Mark: View>: View {
         GeometryReader { geo in
             let h = geo.size.height
             let w = h * BatteryMetrics.bodyLength
-            let inset = h * BatteryMetrics.inset
-            let corner = h * BatteryMetrics.corner
+            let shape = RoundedRectangle(cornerRadius: h * BatteryMetrics.corner, style: .continuous)
             HStack(spacing: h * BatteryMetrics.gap) {
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .strokeBorder(outline.opacity(BatteryMetrics.outlineOpacity), lineWidth: BatteryMetrics.lineWidth(height: h))
-                    RoundedRectangle(cornerRadius: max(1, corner - inset), style: .continuous)
-                        .fill(tint)
-                        .frame(width: max(1.5, (w - 2 * inset) * CGFloat(min(max(level, 0), 1))), height: h - 2 * inset)
-                        .padding(.leading, inset)
+                    shape.fill(outline.opacity(BatteryMetrics.trackOpacity))
+                    Rectangle().fill(tint)
+                        .frame(width: BatteryMetrics.fillWidth(level: level, height: h))
                 }
                 .frame(width: w, height: h)
+                .clipShape(shape)
                 .overlay { mark() }
-                RoundedRectangle(cornerRadius: h * BatteryMetrics.nubWidth / 2, style: .continuous)
-                    .fill(outline.opacity(BatteryMetrics.outlineOpacity))
+                UnevenRoundedRectangle(bottomTrailingRadius: h * BatteryMetrics.nubWidth,
+                                       topTrailingRadius: h * BatteryMetrics.nubWidth, style: .continuous)
+                    .fill(outline.opacity(BatteryMetrics.trackOpacity))
                     .frame(width: h * BatteryMetrics.nubWidth, height: h * BatteryMetrics.nubHeight)
             }
         }

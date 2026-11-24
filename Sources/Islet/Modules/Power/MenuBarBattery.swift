@@ -27,10 +27,10 @@ enum MenuBarBattery {
     /// macOS colours its battery icon red at this charge and below while on battery.
     static let lowPercent = 10
 
-    /// The icon after macOS's own: a pale outline with the charge as a solid fill, a bolt while charging, a plug when
-    /// plugged in and not charging. The fill is green while the battery is actually charging (not merely plugged in),
-    /// red when low, yellow in Low Power Mode; otherwise a template image, so it follows the menu bar's colours. The
-    /// outline and the bolt keep the menu bar's colour.
+    /// The icon after macOS's own (the 2027 design): a pale solid body with the charge filling it from the left, a bolt
+    /// while charging, a plug when plugged in and not charging. The fill is green while the battery is actually charging
+    /// (not merely plugged in), red when low, yellow in Low Power Mode; otherwise a template image, so it follows the menu
+    /// bar's colours. The empty part, the nub and the bolt keep the menu bar's colour.
     static func image(percent: Int, charging: Bool, onAC: Bool, lowPower: Bool) -> NSImage {
         let low = !onAC && percent <= lowPercent
         let fillColor: NSColor? = charging ? .systemGreen : low ? .systemRed : lowPower ? .systemYellow : nil
@@ -40,14 +40,17 @@ enum MenuBarBattery {
         let size = NSSize(width: ceil(BatteryMetrics.width(height: h)) + 1, height: 15)
         let image = NSImage(size: size, flipped: false) { _ in
             let ink = fillColor == nil ? NSColor.black : NSColor.labelColor
-            let line = BatteryMetrics.lineWidth(height: h)
-            let body = NSRect(x: line / 2, y: (15 - h) / 2 + line / 2, width: h * BatteryMetrics.bodyLength - line, height: h - line)
-            let inner = body.insetBy(dx: h * BatteryMetrics.inset - line / 2, dy: h * BatteryMetrics.inset - line / 2)
-            let share = CGFloat(min(max(percent, 0), 100)) / 100
-            let fill = NSRect(x: inner.minX, y: inner.minY, width: max(1.5, inner.width * share), height: inner.height)
+            let body = NSRect(x: 0, y: (15 - h) / 2, width: h * BatteryMetrics.bodyLength, height: h)
+            let corner = h * BatteryMetrics.corner
+            let shape = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
+            ink.withAlphaComponent(BatteryMetrics.trackOpacity).setFill()
+            shape.fill()
+            let fillWidth = BatteryMetrics.fillWidth(level: Double(percent) / 100, height: h)
+            NSGraphicsContext.saveGraphicsState()
+            shape.addClip()
             (fillColor ?? ink).setFill()
-            let fillCorner = max(1, h * (BatteryMetrics.corner - BatteryMetrics.inset))
-            NSBezierPath(roundedRect: fill, xRadius: fillCorner, yRadius: fillCorner).fill()
+            NSRect(x: body.minX, y: body.minY, width: fillWidth, height: h).fill()
+            NSGraphicsContext.restoreGraphicsState()
 
             if let mark, let symbol = symbol(mark) {
                 let s = symbol.size
@@ -61,15 +64,16 @@ enum MenuBarBattery {
                 tinted(symbol, ink).draw(in: at)
             }
 
-            let corner = h * BatteryMetrics.corner - line / 2
-            let outline = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
-            outline.lineWidth = line
-            ink.withAlphaComponent(BatteryMetrics.outlineOpacity).setStroke()
-            outline.stroke()
             let nubW = h * BatteryMetrics.nubWidth, nubH = h * BatteryMetrics.nubHeight
             let nubRect = NSRect(x: h * (BatteryMetrics.bodyLength + BatteryMetrics.gap), y: 7.5 - nubH / 2, width: nubW, height: nubH)
-            let nub = NSBezierPath(roundedRect: nubRect, xRadius: nubW / 2, yRadius: nubW / 2)
-            ink.withAlphaComponent(BatteryMetrics.outlineOpacity).setFill()
+            // Flat against the body, round on the outside.
+            let nub = NSBezierPath()
+            nub.move(to: NSPoint(x: nubRect.minX, y: nubRect.minY))
+            nub.appendArc(from: NSPoint(x: nubRect.maxX, y: nubRect.minY), to: NSPoint(x: nubRect.maxX, y: nubRect.maxY), radius: nubW)
+            nub.appendArc(from: NSPoint(x: nubRect.maxX, y: nubRect.maxY), to: NSPoint(x: nubRect.minX, y: nubRect.maxY), radius: nubW)
+            nub.line(to: NSPoint(x: nubRect.minX, y: nubRect.maxY))
+            nub.close()
+            ink.withAlphaComponent(BatteryMetrics.trackOpacity).setFill()
             nub.fill()
             return true
         }
