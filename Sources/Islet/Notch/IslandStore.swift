@@ -574,7 +574,7 @@ final class IslandStore {
         }
         if expandedPage == .search { return searchKey(key) }
         // A letter typed in the open panel starts a search with it.
-        if Feature.search.isOn, key.plainText, let c = key.characters, c != " " {
+        if Feature.search.isOn, !key.inTextField, key.plainText, let c = key.characters, c != " " {
             openSearch(initial: c)
             return true
         }
