@@ -398,7 +398,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
     number rolls to 106.
   - **Controls and Display page**: the brightness slider shows the extra in red over the white fill on the same scale
     and its number counts past 100 %, with a red "XDR" label beside it. The Display page adds a card under the slider
-    (the page grows 66 pt): "XDR brightness is on", that it uses more battery and makes the Mac warmer and when it
+    (the page grows 80 pt; the card is 70 pt tall so its text gets three lines): "XDR brightness is on", that it uses more battery and makes the Mac warmer and when it
     turns itself off, and Turn Off (back to 100). The keys' level HUD keeps only the red bar and the number.
 - Under something that outranks it (1.5, owner request 2026-11-23): during the unlock animation, on the lock screen or
   during the face scan, a key press no longer goes unseen. The island grows a 34 pt row under what's showing, with
@@ -962,10 +962,11 @@ One status item, left of Islet's own icon (battery or pill), holding left to rig
 Both are one item so the spacing is ours, not macOS's gap between items (owner, 2026-11-24: meters on the right,
 spacing kept tight). Either half can be off; with both off, nothing shows (Settings says so).
 
-- **Meters** (owner, 2026-11-24, after trying it: wider, and the CPU as one bar): three bars 15 pt tall with fully
-  rounded ends, 2.5 pt apart, filling from the bottom. The CPU bar is 12 pt wide and split down the middle with no gap:
+- **Meters** (owner, 2026-11-24, after trying it: wider, and the CPU as one bar; then taller and a little wider to read
+  at a glance): three bars 18 pt tall (of the item's 22) with fully
+  rounded ends, 2.5 pt apart, filling from the bottom. The CPU bar is 14 pt wide and split down the middle with no gap:
   its left half fills for the efficiency cores (green), its right half for the performance cores (blue), each with its
-  own warning colour. Then the GPU and memory, 6 pt each. With one core type turned off, the other is a plain 6 pt bar.
+  own warning colour. Then the GPU and memory, 7 pt each. With one core type turned off, the other is a plain 7 pt bar.
   The empty part is the menu bar's colour at 30%. CPU halves are the mean use of that core type; GPU is device
   utilisation; memory is used ÷ installed.
 - **Readouts** (owner, 2026-11-24): no icons, two lines in 10 pt (numbers semibold with monospaced digits), right-aligned,

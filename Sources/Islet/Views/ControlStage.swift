@@ -311,7 +311,7 @@ struct ControlStage: View {
                 .opacity(rest)
             // Extended brightness on: what it costs, under the slider, and a way back to 100.
             XDRCard(extra: levels.brightnessExtra) { levels.endExtendedBrightness() }
-                .slot(CGRect(x: 0, y: 102, width: W, height: 56), visible: bright && levels.brightnessExtra > 0)
+                .slot(CGRect(x: 0, y: 102, width: W, height: IslandLayout.xdrCardHeight), visible: bright && levels.brightnessExtra > 0)
             // Keyboard backlight: only on the Display page, under the screen's slider, when the Mac has one.
             SliderCard(icon: levels.keyboard == 0 ? "light.min" : "light.max", value: levels.keyboard, enabled: true, large: true,
                        iconAction: {}, set: { levels.setKeyboard($0) }, expand: {})
@@ -536,7 +536,7 @@ struct XDRCard: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("XDR brightness is on").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
                 Text("Uses more battery and makes the Mac warmer. Turns off when the screen sleeps, below 20% battery or if it runs hot.")
-                    .font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 4)
             Button(action: turnOff) {
