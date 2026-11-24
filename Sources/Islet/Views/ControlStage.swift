@@ -25,8 +25,6 @@ struct ControlStage: View {
     /// Opened from quick info: what doesn't glide in from it fades in (DESIGN.md "Quick info").
     @Environment(\.quickInfoRest) private var rest
     @Environment(\.quickInfoNamespace) private var ns
-    /// The pointer is behind the camera (flush): the header row fades and "Click to open Settings" shows across it.
-    @State private var settingsHover = false
 
     private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, battery, media }
 
@@ -138,7 +136,7 @@ struct ControlStage: View {
     }
 
     /// The header row's pieces, faded out while the pointer is behind the camera.
-    private var headerFade: Double { settingsHover ? 0 : 1 }
+    private var headerFade: Double { store.settingsHover ? 0 : 1 }
 
     /// Right-hand end of the header row (owner's request, 2026-11-23): Shazam sits at the far right, or just left of
     /// the mini player's art when music is loaded, so the battery chip on the left keeps its room.
@@ -243,8 +241,9 @@ struct ControlStage: View {
         SettingsGear(store: store).slot(CGRect(x: W - 26, y: headerY, width: 26, height: 26)).opacity(rest)
     }
 
-    /// Flush, there's no gear: the space behind the camera is the Settings button (owner's request, 2026-11-23).
-    /// With the pointer there the header row fades and "Click to open | ⚙ Settings" fades in on each side of it.
+    /// Flush, there's no gear: the camera's area is the Settings button (owner's request, 2026-11-23; the hot spot is
+    /// in IslandView, exactly the notch). With the pointer there the header row fades and "Click to open | ⚙ Settings"
+    /// fades in on each side of it.
     private var notchSettings: some View {
         let notch = CGFloat(store.geometry?.width ?? 190)
         let left = 234 - notch / 2
@@ -260,16 +259,8 @@ struct ControlStage: View {
             .frame(height: 26)
             .offset(x: left + notch + 10, y: headerY)
         }
-        .opacity(settingsHover ? 1 : 0)
+        .opacity(store.settingsHover ? 1 : 0)
         .allowsHitTesting(false)
-        .overlay(alignment: .topLeading) {
-            Color.clear
-                .frame(width: notch - 8, height: 40)
-                .contentShape(Rectangle())
-                .offset(x: left + 4, y: headerY - 8)
-                .onHover { inside in withAnimation(.easeOut(duration: 0.2)) { settingsHover = inside } }
-                .onTapGesture { settingsHover = false; store.collapse(); store.openSettings?() }
-        }
         .opacity(rest)
     }
 

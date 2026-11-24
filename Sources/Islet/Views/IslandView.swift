@@ -168,6 +168,21 @@ struct IslandView: View {
                 }
             }
             .clipShape(shape)
+            // Flush on the controls, the camera's own area opens Settings (no gear there).
+            .overlay(alignment: .top) {
+                if store.notchOpensSettings, let g = store.geometry {
+                    Color.clear
+                        .frame(width: g.width, height: g.height)
+                        .contentShape(Rectangle())
+                        .onHover { inside in withAnimation(.easeOut(duration: 0.2)) { store.settingsHover = inside } }
+                        .onTapGesture {
+                            store.settingsHover = false
+                            store.collapse()
+                            store.openSettings?()
+                        }
+                        .onDisappear { store.settingsHover = false }
+                }
+            }
             // Hidden media swiped back: the peek's colour gathers into the artwork.
             if let start = store.morphFromPeek, case .media? = content {
                 let nw = store.geometry?.width ?? 190

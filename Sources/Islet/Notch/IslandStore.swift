@@ -148,6 +148,16 @@ final class IslandStore {
 
     /// Flush, the controls' header row sits in the band beside the camera, so their page moves up by this much and
     /// the panel is that much shorter. Other pages keep their layout under the band.
+    /// Flush, the pointer is behind the camera, which opens Settings when clicked: the controls' header row fades and
+    /// "Click to open ⚙ Settings" shows on each side of it (DESIGN.md "Flush panel").
+    var settingsHover = false
+
+    /// Where the camera's area opens Settings: the panel is open flush on the controls (or one of their pages).
+    var notchOpensSettings: Bool {
+        expanded && flushLift > 0 && geometry?.mode == .notch
+            && (expandedPage == .displaySound || expandedPage == .media)
+    }
+
     var flushLift: CGFloat {
         guard flushPanel, [.media, .displaySound].contains(expandedPage), let g = geometry else { return 0 }
         return g.height / 2 + 29 // the header (26 tall, 16 below the band) centred in the band instead
