@@ -7,6 +7,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - **Smoother Mac Stats charts.** Only each chart's newest point eases to a new reading now, which takes less CPU while the panel is open.
 - **Longer swipes for skip and Shazam.** The two-finger swipe over media and the one that pulls Shazam in need more travel on the trackpad before they complete.
+- **Face unlock works from further away.** The camera now captures at 720p instead of 640 x 480, and a face counts from 11% of the frame's width instead of 14%. It also logs the face's width and match score while scanning, to tune the range.
+- **Smoother bubble on Macs without a notch.** The liquid neck that joins the card to the top edge is now drawn over a small area instead of the whole panel.
 - **Page transitions in Mac Stats.** Opening a page or going back now drifts a few points sideways as it fades, instead of a plain fade.
 
 ## 1.7 (unreleased)

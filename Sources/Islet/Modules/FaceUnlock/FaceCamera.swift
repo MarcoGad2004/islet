@@ -47,7 +47,11 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
         session.beginConfiguration()
-        if session.canSetSessionPreset(.vga640x480) { session.sessionPreset = .vga640x480 }
+        // 720p where the camera has it (all the built-in ones do; the older, notch-less Macs top out there): twice the
+        // pixels across a face, so it still reads at a greater distance. The 1080p ones aren't used: more to process
+        // for no gain the recogniser can use.
+        if session.canSetSessionPreset(.hd1280x720) { session.sessionPreset = .hd1280x720 }
+        else if session.canSetSessionPreset(.vga640x480) { session.sessionPreset = .vga640x480 }
         if session.canAddInput(input) { session.addInput(input) }
         if session.canAddOutput(output) { session.addOutput(output) }
         session.commitConfiguration()

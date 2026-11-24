@@ -11,6 +11,10 @@ struct FaceAnalysis: @unchecked Sendable {
     var box: CGRect
     /// Face box width as a fraction of the frame width.
     var boxWidth: Double { Double(box.width) }
+    /// The narrowest face (as a fraction of the frame's width) that counts as a face at all, in scanning, enrolment
+    /// and the test. 1.7.1: 0.14 at 640x480; the 16:9 frames of `FaceCamera` show more to the sides, so the same
+    /// distance is a narrower share of the frame.
+    static let minimumWidth = 0.11
     /// Eyes, nose, mouth corners in image coordinates (bottom-left origin), ordered left to right.
     var points: [CGPoint]
     /// Eye height over eye width along the eye axis, both eyes averaged. Drops sharply during a blink.

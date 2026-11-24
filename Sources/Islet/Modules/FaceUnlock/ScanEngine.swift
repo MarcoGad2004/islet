@@ -69,6 +69,7 @@ final class ScanEngine: @unchecked Sendable {
     private var lightHarsh = false
     private var verifyingSent = false
     private var detector: ChallengeDetector
+    private var frameCount = 0
     /// When the challenge was shown in this attempt.
     private var promptedAt: Date?
     private var faceLost = 0
@@ -131,7 +132,7 @@ final class ScanEngine: @unchecked Sendable {
         if let light { onEvent(.light(light)) }
         guard !paused else { return }
         let now = Date()
-        guard let a = analysis, a.boxWidth > 0.14, let image = a.alignedImage(), let e = embedder.embed(image) else {
+        guard let a = analysis, a.boxWidth > FaceAnalysis.minimumWidth, let image = a.alignedImage(), let e = embedder.embed(image) else {
             matches = 0; misses = 0
             faceLost += 1
             // A face gone for a moment (not one dropped frame) has to prove it's live again: no doing it, then
@@ -174,6 +175,11 @@ final class ScanEngine: @unchecked Sendable {
         let score = FaceMatcher.score(e, enrolled: enrolled)
         best = max(best, score)
         scores.append(score)
+        frameCount += 1
+        // For tuning the range (1.7.1): how wide the face was, how well it matched, what the spoof model made of it.
+        if frameCount % 10 == 1 {
+            Self.log.notice("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2))")
+        }
         if score >= threshold { lastMatch = (score, e) }
         if case .running = pulse, harsh, pulseSchedule == nil {
             // The sun came out before the glow started: don't bother with it.

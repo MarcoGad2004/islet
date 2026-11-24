@@ -176,7 +176,7 @@ final class FaceUnlockCoordinator {
                 guard counter.shouldProcess() || recording else { return }
                 var score: Float?, framed = false
                 let a = analyzer.analyze(pb)
-                if let a, a.boxWidth > 0.14, let img = a.alignedImage(), let e = embedder.embed(img) {
+                if let a, a.boxWidth > FaceAnalysis.minimumWidth, let img = a.alignedImage(), let e = embedder.embed(img) {
                     score = FaceMatcher.score(e, enrolled: enrolled)
                     framed = a.framed
                     if recording {

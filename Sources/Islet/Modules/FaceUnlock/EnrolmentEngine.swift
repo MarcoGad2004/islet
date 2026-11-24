@@ -51,7 +51,7 @@ final class EnrolmentEngine: @unchecked Sendable {
     func handle(_ analysis: FaceAnalysis?) {
         lock.lock(); defer { lock.unlock() }
         guard !finished else { return }
-        guard let a = analysis, a.boxWidth > 0.14 else {
+        guard let a = analysis, a.boxWidth > FaceAnalysis.minimumWidth else {
             snapshot.faceVisible = false
             calibration.removeAll()
             onUpdate(snapshot)
