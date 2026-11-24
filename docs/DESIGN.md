@@ -148,7 +148,7 @@ Draw the island as **one custom `Shape`** (stem + body + inner curves) whose dim
 
 On the lock screen the island sits in the **wings** with a **white closed padlock on the right**. The face
 scan expands the wide bar **downward** (wings width × notch height + 150, bottom radius 40) so the padlock
-stays visible. On a match the dots fly into a check (0.5 s), then the check **flies to the left wing**
+stays visible. On a match the face turns into a check (0.35 s), then the check **flies to the left wing**
 (spring, from 0.65 s) while the right-hand padlock opens and turns green (starting 0.1 s after the match).
 At the same moment the tall shape folds up into the wide bar, which holds the green check (left) and the open
 green padlock (right) for about 2 s, then folds back to the notch. The lock-screen bar (locked, scan top, hold, unlock) is 8 pt taller than the notch so each icon has equal
@@ -173,27 +173,28 @@ Leave headroom above the padlock so the lifted shackle is never clipped.
 Started from Settings → Face unlock, after confirming with Touch ID/password and storing the login
 password. The island flows down into a 380 × 214 body (`enrol` shape, same flow-down/bubble-out motion).
 
-- **Ring**: 48 ticks in 4 parts, right, up, left and down (3 o'clock = sector 0, counter-clockwise), `#2C2C2E` when
-  empty. They're asked for one at a time, up, down, left, right (owner, 2026-11-24; it was a full circle of 8): the
-  part to do next is lit faintly (cyan at 45%, a little longer), and its ticks spring to cyan, staggered 20 ms, once
-  three good face samples are captured there. Only the asked-for part captures.
-- **Face dots**: the same 33-dot grid as the scan at 1.7×, shifted a few points with the head
-  (parallax), with the cyan sweep while a face is visible.
-- **Head dot**: an 8 pt cyan dot inside the ring follows the head like a level bubble. Touching the
-  ring captures that direction. "Straight ahead" is calibrated from the first ~0.6 s (3 samples).
+- **Ring** (owner's Option B, 2026-11-24, replacing 48 ticks, the dot grid and the head dot): one solid 4 pt ring,
+  radius 58, `#2C2C2E`, in four quarters (right, up, left, down; 80° each with a gap). They're asked for one at a
+  time, up, down, left, right (it was a full circle of 8): the quarter to do next shows cyan at 30%, 70% while the
+  head is turned far enough that way, and fills cyan once three good face samples are captured there. Only the
+  asked-for quarter captures. "Straight ahead" is calibrated from the first ~0.6 s (3 samples).
+- **Face**: the line-drawn face (`FaceGlyph`: four corner brackets, two eyes, nose and smile, 3 pt lines, 92 pt)
+  inside the ring: grey and breathing until a face is in view, then cyan; its features slide up to 10% of its size
+  the way the head is turned.
 - **Labels**: "Looking for you" → "Look straight ahead" → "Tilt your head up" → "Tilt your head down" → "Turn your
   head left" → "Turn your head right".
-- **Done**: dots fly into a green check (8 ms stagger), ring turns green, "Face enrolled", fold back
-  after 2.4 s. **Failure** (no consistent scan, or 2 min): ring dims, red label, fold back.
+- **Done**: the features fade into a green check drawn in 0.35 s, ring and brackets turn green, "Face enrolled", fold
+  back after 2.4 s. **Failure** (no consistent scan, the scan couldn't be saved, or 2 min): ring and face turn red,
+  the face shakes, red label, fold back.
 - Click and hover are ignored while it runs; Cancel is in Settings.
 
 ### Face scan
 
 The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 
-- **Looking**: a face-shaped grid of dots (7 × 7 grid at 8 pt spacing, keeping the dots within a
-  26 pt radius of the centre: about 33 dots, shown at ≈1.35×) inside a thin ring (`#2C2C2E`). A
-  cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
+- **Looking** (owner, 2026-11-24, replacing the dot grid in a ring): the line-drawn face (`FaceGlyph`, 84 pt, no
+  ring), `#48484A` and breathing (1.6 s) with no face in view, cyan (`#64D2FF`) once there is one, breathing while it
+  recognizes and steady after; when the challenge is a blink its eyes blink every 1.6 s. Label: "Looking for you",
   then what it's doing (owner, 2026-11-24, replacing a generic "Checking"): "Recognizing you" once a face is in view,
   "Making sure it's you" while the spoof model's first frames come in, "Hold still: checking with light" during the
   glow, and the liveness challenge if one is needed (below): "Blink to unlock", or on More secure one of "Blink to
@@ -241,10 +242,9 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   face matches. The same for the rest of the scan once a glow got no response.
 - **Dark room** (always on since 1.6): if the camera sees a dark room, the screen brightness eases up over ≈1.4 s to light the
   face, and eases back over ≈1 s when the scan ends. Pressing a brightness key cancels it.
-- **Match**: the dots fly into a check-mark shape in a quick stagger (≈8 ms per dot, 0.5 s each),
-  turning green; the ring turns green; label "Welcome back". After ≈0.9 s the shape pulls up and
+- **Match**: the features fade and a green check draws in (0.35 s), the brackets turn green; label "Welcome back". After ≈0.9 s the shape pulls up and
   the **lock opens** animation plays.
-- **No match**: dots and ring turn red (`#FF453A`), the grid shakes sideways (0.45 s), label "Not
+- **No match**: the face turns red (`#FF453A`) and shakes sideways (0.45 s), label "Not
   recognized". After 3 failed tries, stop and wait for Command+Shift (below).
 - **No face in view**: no face in front of the camera for 10 s: label "No face in view" (failed style),
   fold back after 1.6 s and wait for Command+Shift.

@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// The face scan, in the wide notch expanded downward so the padlock stays visible in the right wing.
-/// Dot grid inside a thin ring with a cyan sweep. A match flies the dots into a green check, the check then
-/// flies to the left wing while the right-hand padlock opens. No match: red, with a shake.
+/// The line-drawn face (`FaceGlyph`, owner 2026-11-24, replacing the dot grid in a ring): grey and breathing while it
+/// looks, cyan once a face is in view, blinking when it asks for a blink. A match turns it into a green check, which
+/// then flies to the left wing while the right-hand padlock opens. No match: red, with a shake.
 struct ScanView: View {
     let model: ScanModel
     let notchWidth: CGFloat
@@ -12,7 +13,9 @@ struct ScanView: View {
     private var rejected: Bool {
         switch model.phase { case .noMatch, .failed: true; default: false }
     }
-    private var tint: Color { matched ? .isletGreen : rejected ? .isletRed : .isletRing }
+    private var glyphColor: Color {
+        matched ? .isletGreen : rejected ? .isletRed : model.faceVisible ? .isletCyan : Color(hex: 0x48484A)
+    }
 
     private let ringSize: CGFloat = 92
     private let bodyTop: CGFloat = 10
@@ -45,9 +48,11 @@ struct ScanView: View {
 
             VStack(spacing: 8) {
                 ZStack {
-                    Circle().stroke(tint, lineWidth: 1.5).opacity(model.flown ? 0 : 1)
-                    FaceDots(scale: 1.35, checked: matched, showSweep: !matched && !rejected,
-                             dotColor: rejected ? .isletRed : Color(hex: 0x48484A))
+                    FaceGlyph(color: glyphColor, size: 84,
+                              blinking: model.phase == .looking && model.challenge == .blink,
+                              breathing: model.phase == .looking && model.challenge == nil
+                                  && (!model.faceVisible || model.step == .recognizing),
+                              checked: matched)
                         .modifier(ShakeEffect(shakes: CGFloat(model.shakes)))
                         .opacity(model.flown ? 0 : 1)
                         .animation(.easeIn(duration: 0.18).delay(model.flown ? 0.32 : 0), value: model.flown)

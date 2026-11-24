@@ -1,81 +1,77 @@
 import SwiftUI
 
-/// Face enrolment inside the island: a ring of ticks in four parts (up, down, left, right), the next one lit faintly
-/// and each turning cyan once it's done; a cyan dot follows the head, and the dot face shifts with it. On success the
-/// dots fly into a check mark.
+/// Face enrolment inside the island (owner's Option B, 2026-11-24): the line-drawn face inside one solid ring. The
+/// ring's quarter for the direction to do next glows faintly, brighter while the head is turned that way, and fills
+/// cyan once it's done; the face tilts with the head. On success the ring turns green and the face becomes a check.
 struct EnrolView: View {
     let model: EnrolmentModel
-    private let ringRadius: CGFloat = 62
+    private let ringRadius: CGFloat = 58
 
     private var success: Bool { model.phase == .success }
     private var failed: Bool { if case .failed = model.phase { true } else { false } }
-    private var accent: Color { success ? .isletGreen : failed ? .isletRed : .isletCyan }
 
     var body: some View {
         let s = model.snapshot
+        let scanning = model.phase == .scanning
         VStack(spacing: 8) {
             ZStack {
-                ring(filled: s.filled, target: s.calibrated && model.phase == .scanning ? s.target : nil)
-                FaceDots(shift: CGSize(width: s.x * 7, height: -s.y * 7).clamped(to: 12),
-                         checked: success, showSweep: s.faceVisible && !failed)
-                    .opacity(failed ? 0.35 : 1)
-                if s.faceVisible && s.calibrated && model.phase == .scanning {
-                    let v = vector(s)
-                    Circle()
-                        .fill(Color.isletCyan)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: .isletCyan.opacity(0.8), radius: 5)
-                        .offset(x: v.width, y: v.height)
-                        .animation(.smooth(duration: 0.18), value: v)
-                        .transition(.opacity)
+                Circle().stroke(failed ? Color.isletRed.opacity(0.5) : Color.isletRing, lineWidth: 4)
+                    .frame(width: ringRadius * 2, height: ringRadius * 2)
+                ForEach(0..<EnrolmentEngine.sectorCount, id: \.self) { q in
+                    QuarterArc(sector: q, radius: ringRadius)
+                        .stroke(arcColor(q, s, scanning: scanning), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .opacity(arcOpacity(q, s, scanning: scanning))
+                        .animation(.easeInOut(duration: 0.3), value: arcOpacity(q, s, scanning: scanning))
                 }
+                FaceGlyph(color: success ? .isletGreen : failed ? .isletRed : s.faceVisible ? .isletCyan : Color(hex: 0x48484A),
+                          size: 92, tilt: s.calibrated && scanning ? CGSize(width: s.x, height: s.y) : .zero, reach: 10,
+                          breathing: scanning && !s.faceVisible, checked: success)
+                    .modifier(ShakeEffect(shakes: failed ? 1 : 0))
+                    .animation(.linear(duration: 0.45), value: failed)
             }
             .frame(width: 140, height: 140)
 
             Text(model.label)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(failed ? Color.isletRed : (success ? Color.isletGreen : Color.isletSecondary))
+                .lineLimit(1).minimumScaleFactor(0.8)
                 .contentTransition(.opacity)
                 .animation(.easeInOut(duration: 0.25), value: model.label)
         }
         .padding(.top, 12)
     }
 
-    /// Head position inside the ring; it touches the ring at magnitude 1.
-    private func vector(_ s: EnrolmentSnapshot) -> CGSize {
-        let m = hypot(s.x, s.y)
-        let k = m > 1.12 ? 1.12 / m : 1
-        return CGSize(width: s.x * k * ringRadius, height: -s.y * k * ringRadius)
+    /// The head is turned far enough towards sector `q` to capture it.
+    private func reaching(_ q: Int, _ s: EnrolmentSnapshot) -> Bool {
+        guard hypot(s.x, s.y) >= 1 else { return false }
+        var angle = atan2(s.y, s.x)
+        if angle < 0 { angle += 2 * .pi }
+        return Int((angle / (2 * .pi / Double(EnrolmentEngine.sectorCount))).rounded()) % EnrolmentEngine.sectorCount == q
     }
 
-    private func ring(filled: [Bool], target: Int?) -> some View {
-        let per = 48 / EnrolmentEngine.sectorCount
-        return ZStack {
-            ForEach(0..<48, id: \.self) { i in
-                let sector = i / per
-                let on = filled[sector] || success
-                let next = !on && sector == target
-                // Sector 0 is centred on the right (3 o'clock) and they run counter-clockwise like the dot.
-                let degrees = (Double(i) - Double(per - 1) / 2) / 48 * 360
-                ZStack {
-                    Capsule()
-                        .fill(on ? accent : next ? Color.isletCyan.opacity(0.45) : Color.isletRing)
-                        .frame(width: 2.4, height: on ? 10 : next ? 8.5 : 7)
-                        .offset(y: -ringRadius)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.6).delay(Double(i % per) * 0.02), value: on)
-                        .animation(.easeInOut(duration: 0.25), value: next)
-                }
-                .frame(width: 140, height: 140)
-                .rotationEffect(.degrees(90 - degrees))
-            }
-        }
+    private func arcColor(_ q: Int, _ s: EnrolmentSnapshot, scanning: Bool) -> Color {
+        success ? .isletGreen : .isletCyan
+    }
+
+    private func arcOpacity(_ q: Int, _ s: EnrolmentSnapshot, scanning: Bool) -> Double {
+        if success { return 1 }
+        if failed { return 0 }
+        if s.filled[q] { return 1 }
+        guard scanning, s.calibrated, s.target == q else { return 0 }
+        return reaching(q, s) ? 0.7 : 0.3
     }
 }
 
-private extension CGSize {
-    func clamped(to limit: CGFloat) -> CGSize {
-        let m = hypot(width, height)
-        guard m > limit else { return self }
-        return CGSize(width: width / m * limit, height: height / m * limit)
+/// A quarter of the ring, centred on sector `sector` (0 right, 1 up, 2 left, 3 down), with a gap either side.
+private struct QuarterArc: Shape {
+    let sector: Int
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let centre = -Double(sector) * 90 // SwiftUI angles run clockwise from 3 o'clock; sectors run counter-clockwise
+        var p = Path()
+        p.addArc(center: CGPoint(x: rect.midX, y: rect.midY), radius: radius,
+                 startAngle: .degrees(centre - 40), endAngle: .degrees(centre + 40), clockwise: false)
+        return p
     }
 }
