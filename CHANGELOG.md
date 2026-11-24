@@ -23,6 +23,21 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Quit what's using the most.** On the CPU and Memory pages, hover a row and click ⓧ to quit it. If it won't quit, the row offers Force Quit.
 - **It all moves smoothly.** The panel fades in as it drops into place. Numbers roll up or down to each new reading, bars ease, and every graph glides to each reading and slides along as time passes. Pages fade in as the panel settles to their size, the app lists stay put unless one app clearly passes another, and tiles and buttons respond to the pointer. Reduce Motion keeps it still.
 
+### Fixes
+
+- **Much less CPU while idle.** Once the battery stats had been opened, their power-flow animation kept redrawing out of sight, keeping Dynamic Peninsula near 20% CPU. The menu bar panels now let go of their contents when they close.
+- **The menu bar stays still.** The Mac Stats item keeps the same width as its numbers change, so the icons beside it no longer shift.
+- **Switching fan modes quickly works.** The newest choice wins. Automatic can call off a takeover that's still starting, and a fan the system was still handing back is taken over again.
+- **Clicks reach the top of the screen on Macs without a notch.** With "Bubble from the top edge" on, hovering the top strip (a full-screen browser's tab bar, say) used to block clicks across 260 pt, so a tab's close button didn't work. Now only the small pill itself takes clicks and the two-finger swipe down; the rest of the strip stays clickable.
+- **Typing a Wi-Fi password no longer opens search.** The first letter typed into the password (or username) box used to start a search over the Wi-Fi page; text fields now keep their own typing.
+
+## 1.6.1 (unreleased)
+
+- **The new battery look.** The battery in the menu bar, on the battery page, in quick info and in the charging animation now matches Apple's 2027 design: no outline, just a pale battery that the charge fills from the left.
+- **Energy Mode in the battery stats.** The menu bar battery's stats now have the Low Power / Automatic / High Power switch from the notch's battery page, for the power source you're on.
+
+## 1.6 (unreleased)
+
 ### Shazam in the notch
 
 - **Name the song playing around you.** Press the new Shazam button in the controls, next to the battery, or pull Shazam in with two fingers sideways over the notch while nothing is showing.
@@ -68,18 +83,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Your devices' own names.** AirPods and other devices show the name you gave them ("Marco's AirPods Pro"), as Bluetooth Settings does, instead of just the model.
 - **Battery for AirPods and other devices.** Bluetooth's details show each connected device's charge: the earbuds and the case for AirPods, one battery for others. Quick info shows it next to the device's name. 20% and under is red.
 
-### Battery
-
-- **The new battery look.** The battery in the menu bar, on the battery page, in quick info and in the charging animation now matches Apple's 2027 design: no outline, just a pale battery that the charge fills from the left.
-- **Energy Mode in the battery stats.** The menu bar battery's stats now have the Low Power / Automatic / High Power switch from the notch's battery page, for the power source you're on.
-
 ### Fixes
 
-- **Much less CPU while idle.** Once the battery stats had been opened, their power-flow animation kept redrawing out of sight, keeping Dynamic Peninsula near 20% CPU. The menu bar panels now let go of their contents when they close.
-- **The menu bar stays still.** The Mac Stats item keeps the same width as its numbers change, so the icons beside it no longer shift.
-- **Switching fan modes quickly works.** The newest choice wins. Automatic can call off a takeover that's still starting, and a fan the system was still handing back is taken over again.
-- **Clicks reach the top of the screen on Macs without a notch.** With "Bubble from the top edge" on, hovering the top strip (a full-screen browser's tab bar, say) used to block clicks across 260 pt, so a tab's close button didn't work. Now only the small pill itself takes clicks and the two-finger swipe down; the rest of the strip stays clickable.
-- **Typing a Wi-Fi password no longer opens search.** The first letter typed into the password (or username) box used to start a search over the Wi-Fi page; text fields now keep their own typing.
 - **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.
 - **Setup fits the screen.** The setup window can be resized, is never taller than the screen, and its feature list scrolls, so Continue is always in reach (with a larger text size the list ran past the bottom).
 - **Shazam is steadier.** Stopping Shazam just as it found a song could crash Dynamic Peninsula; it no longer does. A slow network no longer holds the song back waiting for its cover. Locking the Mac or pausing Dynamic Peninsula stops Shazam, so the microphone isn't left listening behind the lock screen.
