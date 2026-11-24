@@ -80,7 +80,8 @@ private struct MacStatsOverview: View {
                     Tile(title: "GPU", value: MacStatsFormat.percent(s.gpu?.utilization),
                          level: StatLevel(load: s.gpu?.utilization ?? 0), action: { open(.gpu) }) {
                         Caption(s.gpu.map { "\(MacStatsFormat.megabytes($0.memoryInUse)) in use" } ?? " ")
-                        Sparkline(values: stats.history.map(\.gpu), top: 1, colour: MacStatsColour.gpu)
+                        let gpu = ChartHistory.buckets(stats.history)
+                        Sparkline(values: gpu.map(\.gpu), newest: gpu.last?.date, top: 1, colour: MacStatsColour.gpu)
                     }
                 }
                 GridRow {
@@ -95,8 +96,9 @@ private struct MacStatsOverview: View {
                     }
                     Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), level: .normal, action: nil) {
                         Caption(s.energy.map { "CPU \(MacStatsFormat.number($0.cpu)) · GPU \(MacStatsFormat.number($0.gpu)) W" } ?? " ")
-                        let watts = stats.history.compactMap(\.watts)
-                        Sparkline(values: watts, top: max(watts.max() ?? 1, 1) * 1.15, colour: nil)
+                        let power = ChartHistory.buckets(stats.history).filter { $0.watts != nil }
+                        let watts = power.compactMap(\.watts)
+                        Sparkline(values: watts, newest: power.last?.date, top: max(watts.max() ?? 1, 1) * 1.15, colour: nil)
                     }
                 }
             }
@@ -197,7 +199,7 @@ private struct MacStatsCPUPage: View {
                 if eCount > 0 { Legend(name: "Efficiency", colour: MacStatsColour.efficiency) }
                 Legend(name: "Performance", colour: MacStatsColour.performance)
             }
-            LoadChart(points: stats.history.flatMap { p -> [LoadChart.Point] in
+            LoadChart(points: ChartHistory.buckets(stats.history).flatMap { p -> [LoadChart.Point] in
                 let e = p.efficiency * Double(eCount) / Double(cores)
                 let perf = p.performance * Double(cores - eCount) / Double(cores)
                 return (eCount > 0 ? [LoadChart.Point(date: p.date, series: "Efficiency", value: e)] : [])
@@ -277,7 +279,7 @@ private struct MacStatsMemoryPage: View {
                     .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .labelColor))
             }
             Chart {
-                ForEach(stats.history, id: \.date) { p in
+                ForEach(ChartHistory.buckets(stats.history), id: \.date) { p in
                     BarMark(x: .value("Time", p.date), y: .value("Used", p.memoryFraction), width: .fixed(1.2))
                         .foregroundStyle(MacStatsColour.level(StatLevel(p.memoryPressure)) ?? MacStatsColour.memory)
                 }
@@ -344,7 +346,7 @@ private struct MacStatsGPUPage: View {
         VStack(alignment: .leading, spacing: 0) {
             PageHeader(title: "GPU", trailing: MacStatsFormat.percent(s.gpu?.utilization), back: back)
             Text("Last 10 minutes").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
-            LoadChart(points: stats.history.map { LoadChart.Point(date: $0.date, series: "GPU", value: $0.gpu) },
+            LoadChart(points: ChartHistory.buckets(stats.history).map { LoadChart.Point(date: $0.date, series: "GPU", value: $0.gpu) },
                       colours: ["GPU": MacStatsColour.gpu])
                 .padding(.top, 8)
 
@@ -608,6 +610,8 @@ private extension View {
 
 private struct Sparkline: View {
     let values: [Double]
+    /// The newest slot's start: a new one slides the line along; the same one only updates its value.
+    let newest: Date?
     let top: Double
     /// nil: the label colour.
     let colour: Color?
@@ -615,6 +619,7 @@ private struct Sparkline: View {
     @State private var drawn: [Double] = []
     /// 1 when a reading has just come in, sitting one step off the right edge; it eases to 0 to slide it in.
     @State private var shift: CGFloat = 0
+    @State private var slot: Date?
 
     /// The newest readings across the width; fewer leave the left empty.
     private static let slots = 120
@@ -641,8 +646,10 @@ private struct Sparkline: View {
         .clipped()
         .frame(height: 26)
         .padding(.top, 6)
-        .onAppear { drawn = values }
-        .onChange(of: values) { _, now in
+        .onAppear { drawn = values; slot = newest }
+        .onChange(of: values) { old, now in
+            guard newest != slot || drawn.isEmpty else { drawn = now; return }
+            slot = newest
             var still = Transaction()
             still.disablesAnimations = true
             withTransaction(still) {
@@ -703,17 +710,28 @@ private struct ProcessList: View {
     /// Hovering a row offers to quit it (the CPU and Memory pages).
     var stoppable = false
 
+    /// Every row the same height and room for all five, so a row with a second line or a sixth app never changes
+    /// the page's height (which moved the whole panel).
+    static let rows = 5
+    static let rowHeight: CGFloat = 30
+    static let spacing: CGFloat = 4
+
     var body: some View {
-        if groups.isEmpty {
-            Text(empty).font(.system(size: 12)).foregroundStyle(IsletInk.tertiary)
-        } else {
-            VStack(spacing: 7) {
-                ForEach(groups) { g in
-                    ProcessRow(group: g, value: format(g.value), stoppable: stoppable && ProcessStopper.canStop(g))
-                        .transition(.opacity)
+        Group {
+            if groups.isEmpty {
+                Text(empty).font(.system(size: 12)).foregroundStyle(IsletInk.tertiary)
+            } else {
+                VStack(spacing: Self.spacing) {
+                    ForEach(groups.prefix(Self.rows)) { g in
+                        ProcessRow(group: g, value: format(g.value), stoppable: stoppable && ProcessStopper.canStop(g))
+                            .frame(height: Self.rowHeight)
+                            .transition(.opacity)
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: CGFloat(Self.rows) * Self.rowHeight + CGFloat(Self.rows - 1) * Self.spacing, alignment: .top)
     }
 }
 
@@ -895,6 +913,44 @@ private struct Legend: View {
             Text(name).font(.system(size: 10)).foregroundStyle(IsletInk.secondary).fixedSize()
         }
         .padding(.leading, 6)
+    }
+}
+
+// MARK: - Charts
+
+/// The history in 5-second slots (120 over the 10 minutes), averaged: at one reading a second the charts would
+/// otherwise redraw 600 marks a series every second while the panel is open.
+enum ChartHistory {
+    static let slot: TimeInterval = 5
+
+    static func buckets(_ history: [MacStatsPoint]) -> [MacStatsPoint] {
+        var out: [MacStatsPoint] = []
+        var run: [MacStatsPoint] = []
+        func flush() {
+            guard var p = run.first else { return }
+            let n = Double(run.count)
+            p.date = Date(timeIntervalSinceReferenceDate: (run[0].date.timeIntervalSinceReferenceDate / slot).rounded(.down) * slot)
+            p.efficiency = run.map(\.efficiency).reduce(0, +) / n
+            p.performance = run.map(\.performance).reduce(0, +) / n
+            p.user = run.map(\.user).reduce(0, +) / n
+            p.system = run.map(\.system).reduce(0, +) / n
+            p.gpu = run.map(\.gpu).reduce(0, +) / n
+            p.memoryFraction = run.map(\.memoryFraction).reduce(0, +) / n
+            p.memoryPressure = run.last!.memoryPressure
+            let watts = run.compactMap(\.watts)
+            p.watts = watts.isEmpty ? nil : watts.reduce(0, +) / Double(watts.count)
+            out.append(p)
+            run = []
+        }
+        for p in history {
+            if let first = run.first,
+               (p.date.timeIntervalSinceReferenceDate / slot).rounded(.down) != (first.date.timeIntervalSinceReferenceDate / slot).rounded(.down) {
+                flush()
+            }
+            run.append(p)
+        }
+        flush()
+        return out
     }
 }
 

@@ -1035,8 +1035,11 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
 
 - Each reading glides in on the same spring: numbers roll to their new value, bars and the memory breakdown ease to it,
   and the charts slide along as time passes.
-- The tile sparklines keep one slot per reading, the newest at the right edge, and slide left a step as each one
-  arrives; with fewer than 120 readings the left stays empty.
+- The charts and tile sparklines show the 10 minutes in 5-second slots (120), each the average of its readings, the
+  newest at the right edge; the sparklines slide left a step as each new slot starts. Until there are 10 minutes of
+  readings the left stays empty.
+- The "Using the most" lists always take the room of five rows of one height, so a row with a second line, or a list
+  that grows or shrinks, never changes the page's height.
 - Going between the overview and a page is a plain fade: the old page fades out (0.12 s), the new one fades in (0.2 s).
   Nothing slides or grows in (owner, 2026-11-24: simpler is better here).
 - The panel eases to the new page's size (0.25 s), its top edge staying put, the content kept to the top. The battery
