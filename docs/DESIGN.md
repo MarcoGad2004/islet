@@ -1057,7 +1057,8 @@ The "Using the most" lists name things the way a person would, while still being
 
 Like the battery stats' power flow, everything in the panel moves rather than jumps:
 
-- Each reading glides in on the same spring: numbers roll to their new value (up as it rises, down as it falls), bars and
+- Each reading glides in on the same spring (0.45 s from 1.7.1): numbers change without rolling (1.7.1, owner 2026-11-24: rolling digits
+  roughly doubled the panel's CPU use, about 50% of a core on the CPU page, 25% without them), bars and
   the memory breakdown ease to it, and the charts slide along as time passes.
 - The charts and tile sparklines show the 10 minutes in 5-second slots (120), each the average of its readings, the
   newest at the right edge. Within a slot the newest point eases to each reading, and so does a sparkline's scale when
@@ -1079,7 +1080,7 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
 - Tiles, pills and the back button lighten a little under the pointer and press in slightly when clicked.
 - On the Fans page, what's under the mode switch fades as it changes, and the switch's selection slides to the new
   mode.
-- With Reduce Motion, readings show without rolling or gliding, the plots step instead of sliding, and the panel
+- With Reduce Motion, readings show without gliding, the plots step instead of sliding, and the panel
   only fades.
 
 ### Settings > Mac Stats

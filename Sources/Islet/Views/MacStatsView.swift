@@ -36,8 +36,8 @@ struct MacStatsView: View {
         .offset(x: offset)
         .padding(16)
         .frame(width: 300, alignment: .topLeading)
-        // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
-        // Nothing rolls or glides with Reduce Motion: the new readings just show.
+        // Each reading glides in: bars and charts ease to it (the numbers just change: rolling digits cost too much CPU,
+        // see `MacStatsMotion.reading`). Nothing glides with Reduce Motion: the new readings just show.
         .animation(reduceMotion ? nil : MacStatsMotion.reading, value: stats.snapshot.date)
         .onChange(of: state.page, initial: true) { _, page in
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
@@ -188,7 +188,6 @@ private struct Tile<Content: View>: View {
             }
             Text(value).font(.system(size: 22, weight: .semibold)).monospacedDigit()
                 .foregroundStyle(MacStatsColour.level(level) ?? Color(nsColor: .labelColor))
-                .rolls(number)
             content
         }
         .padding(EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10))
@@ -216,7 +215,6 @@ private struct CoreTypeRow: View {
             Text(MacStatsFormat.percent(value)).font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(IsletInk.primary).lineLimit(1).fixedSize()
                 .frame(width: 34, alignment: .trailing)
-                .rolls(value)
         }
     }
 }
@@ -293,7 +291,6 @@ private struct CoreGroup: View {
             HStack(spacing: 3) {
                 Text(name).foregroundStyle(colour)
                 Text(MacStatsFormat.percent(total)).foregroundStyle(IsletInk.primary).monospacedDigit()
-                    .rolls(total)
             }
             .font(.system(size: 11))
         }
@@ -621,7 +618,6 @@ private struct PageHeader<Trailing: View>: View {
             Spacer()
             if let trailing {
                 Text(trailing).font(.system(size: 15, weight: .bold)).monospacedDigit().foregroundStyle(IsletInk.primary)
-                    .rolls(number)
             }
             extra
         }
@@ -1051,7 +1047,6 @@ private struct ProcessRow: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
                 Text(value).font(.system(size: 13)).monospacedDigit().foregroundStyle(IsletInk.primary)
-                    .rolls(g.value)
             }
         }
         .contentShape(Rectangle())
@@ -1149,7 +1144,6 @@ private struct StatRow: View {
             Spacer(minLength: 12)
             Text(value).monospacedDigit().lineLimit(1)
                 .foregroundStyle(colour.map { AnyShapeStyle($0) } ?? AnyShapeStyle(IsletInk.primary))
-                .rolls(number)
         }
         .font(.system(size: 13))
     }
@@ -1173,7 +1167,6 @@ private struct KeyRow: View {
             Text(label).foregroundStyle(IsletInk.secondary)
             Spacer(minLength: 12)
             Text(value).monospacedDigit().foregroundStyle(IsletInk.primary)
-                .rolls(number)
         }
         .font(.system(size: 13))
     }
@@ -1235,6 +1228,9 @@ enum ChartHistory {
 enum MacStatsMotion {
     /// 0.45 s, not 0.7 (1.7.1): every frame of an animation redraws the panel's layers on the CPU, so a shorter spring
     /// took the CPU page from about 50% of a core to about 30% (measured with the panel open, 2 s readings).
+    /// 0.45 s, not 0.7 (1.7.1). Every frame of an animation redraws the panel's layers on the CPU, so the time spent
+    /// animating is what the panel costs: measured with the CPU page open and 2 s readings, 0.7 s with rolling digits
+    /// used about 50% of a core, this about 25%, and no animation at all about 4%.
     static let reading = Animation.spring(response: 0.45, dampingFraction: 0.9)
     /// A page fading in: the same curve and length as the panel easing to its size (`MenuBarPanel.settle`).
     static let settle = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)
@@ -1251,11 +1247,6 @@ private struct ReadingMotion<Value: Equatable>: ViewModifier {
 private extension View {
     /// Eases to each reading on the panel's spring; not with Reduce Motion.
     func readingMotion<Value: Equatable>(_ value: Value) -> some View { modifier(ReadingMotion(value: value)) }
-
-    /// Digits roll up as `value` rises and down as it falls; text that isn't one number just rolls.
-    @ViewBuilder func rolls(_ value: Double?) -> some View {
-        if let value { contentTransition(.numericText(value: value)) } else { contentTransition(.numericText()) }
-    }
 }
 
 /// The tiles', pills' and back button's feedback: a faint veil while the pointer is over it, a little press.
