@@ -48,6 +48,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.
 - **Setup fits the screen.** The setup window can be resized, is never taller than the screen, and its feature list scrolls, so Continue is always in reach (with a larger text size the list ran past the bottom).
+- **Shazam is steadier.** Stopping Shazam just as it found a song could crash Dynamic Peninsula; it no longer does. A slow network no longer holds the song back waiting for its cover. Locking the Mac or pausing Dynamic Peninsula stops Shazam, so the microphone isn't left listening behind the lock screen.
+- **Smoother when AirPods connect.** Keeping the macOS card away no longer runs on the thread that draws the notch, so the connection animation doesn't stutter.
+- **Messages keeps up.** The unread count no longer stops updating if Messages' history log was missing when Dynamic Peninsula started.
 - **Battery stats icon click.** Clicking the menu bar battery while its stats are open now closes them instead of opening them again. Clicking elsewhere to close them, then clicking the icon, no longer opens them straight back up.
 
 ## 1.5 (2026-11-23)

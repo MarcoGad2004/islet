@@ -74,6 +74,9 @@ final class MessagesDB: @unchecked Sendable {
             sqlite3_close(handle)
             return false
         }
+        // Messages writes often; a read that meets its write lock waits a moment instead of coming back empty (the
+        // inbox and the badge blinking to nothing).
+        sqlite3_busy_timeout(handle, 100)
         db = handle
         return true
     }

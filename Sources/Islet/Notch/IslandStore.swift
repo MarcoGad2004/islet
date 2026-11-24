@@ -873,6 +873,13 @@ final class IslandStore {
                                  done: { [weak self] in self?.clearShazamDrag() })
     }
 
+    private func cancelShazamPull() {
+        pullSpring?.stop(); pullSpring = nil
+        guard shazamPull != nil else { return }
+        shazamPull = nil
+        updatePullShape()
+    }
+
     private func clearShazamDrag() {
         dragSpring?.stop(); dragSpring = nil
         guard shazamDrag != nil else { return }
@@ -1124,6 +1131,9 @@ final class IslandStore {
     func setLockScreen(_ value: Bool) {
         guard value != lockScreen else { return }
         lockScreen = value
+        // Locking stops Shazam: the microphone isn't left on behind the lock screen, and no stale song waits for the
+        // unlock. A pull in progress lets go.
+        if value { endShazam(); cancelShazamPull() }
         refresh()
     }
 
@@ -1153,6 +1163,9 @@ final class IslandStore {
 
     func setPaused(_ value: Bool) {
         paused = value
+        // Paused from the menu: Shazam stops rather than listening unseen, or leaving a song that would never time out
+        // (the pointer is taken out without the hover's timer).
+        if value { endShazam(); cancelShazamPull() }
         if value { expanded = false; pointerInside = false; base = nil; onExpandedChange?(false) }
         refresh()
     }

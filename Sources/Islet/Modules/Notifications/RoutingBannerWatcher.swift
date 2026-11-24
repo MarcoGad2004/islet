@@ -104,20 +104,22 @@ final class RoutingBannerWatcher {
     }
 
     /// MenuBarAgent may place the card again as it animates in: keep it off screen until it closes (at most 10 s).
+    /// Off the main thread: each check is a round trip to MenuBarAgent, 60 times a second while the notch animates the
+    /// connection, and on the main thread they made that animation stutter.
     private func keepAway(_ window: AXUIElement) {
-        Task { [weak self] in
+        nonisolated(unsafe) let window = window
+        Task.detached(priority: .userInitiated) { [weak self] in
             let start = Date()
-            var lastLogged = -1.0
+            var moves = 0
             while Date().timeIntervalSince(start) < 10, AX.alive(window) {
-                let p = AX.position(window)
-                if let p, p.x > -2000 {
-                    let ok = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
-                    let t = Date().timeIntervalSince(start)
-                    if t - lastLogged > 0.2 { self?.log(String(format: "  +%.2fs back at %@, moved again: %@", t, "\(p)", ok ? "yes" : "no")); lastLogged = t }
+                if let p = AX.position(window), p.x > -2000 {
+                    _ = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
+                    moves += 1
                 }
                 try? await Task.sleep(for: .milliseconds(16))
             }
-            self?.log(String(format: "  card gone after %.1fs", Date().timeIntervalSince(start)))
+            let summary = String(format: "  card gone after %.1fs, moved back %d times", Date().timeIntervalSince(start), moves)
+            await MainActor.run { self?.log(summary) }
         }
     }
 }

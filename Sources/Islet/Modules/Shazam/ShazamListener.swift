@@ -57,6 +57,10 @@ final class ShazamListener {
             }
             await session.prepare()
             let result = await session.result()
+            // It has answered: from here nothing may cancel it (that crashes inside ShazamKit), not the timeout and
+            // not a cancel() while the cover downloads.
+            self.timeoutTask?.cancel(); self.timeoutTask = nil
+            if self.session === session { self.session = nil }
             guard !Task.isCancelled else { return }
             switch result {
             case .match(let match):
@@ -102,7 +106,8 @@ final class ShazamListener {
     }
 
     private static func image(_ url: URL) async -> NSImage? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        // A slow network shouldn't hold the song back: past a few seconds it shows without its cover.
+        guard let (data, _) = try? await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 4)) else { return nil }
         return NSImage(data: data)
     }
 

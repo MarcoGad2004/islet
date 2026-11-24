@@ -114,6 +114,7 @@ final class MessagesStore {
     @ObservationIgnored private var connected = false
     @ObservationIgnored private var inboxWatcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var inboxTask: Task<Void, Never>?
+    @ObservationIgnored private var inboxRetry: Task<Void, Never>?
     @ObservationIgnored private var lastLoggedUnread = -1
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
@@ -184,6 +185,19 @@ final class MessagesStore {
 
     private func watchInbox() {
         inboxWatcher?.cancel()
+        inboxRetry?.cancel()
+        defer {
+            // No log to watch yet (Messages hasn't written since it was checkpointed away): look again shortly, or
+            // the unread count would stop updating for good.
+            if inboxWatcher == nil {
+                inboxRetry = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(15))
+                    guard !Task.isCancelled, let self, self.inboxWatcher == nil else { return }
+                    self.refreshInbox()
+                    self.watchInbox()
+                }
+            }
+        }
         inboxWatcher = Self.watchLog { [weak self] reopened in
             guard let self else { return }
             if reopened { self.watchInbox() }
