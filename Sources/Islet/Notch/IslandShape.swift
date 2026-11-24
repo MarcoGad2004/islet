@@ -138,7 +138,15 @@ struct BezelBackdrop: View {
             // card's own flare joins it to the edge, so the blurred neck fades out rather than smudging it.
             let neck = 1 - CardShape.attachment(f)
             if f.minY < Self.blur * 3 && neck > 0 {
-                ctx.drawLayer { layer in
+                // The blur only matters where the strip meets the card. Clipped to that zone (the blur's reach,
+                // 3 radii, beyond it), the filters work on a small area instead of the whole 560 x 450 pt panel on
+                // every frame of the fall. What shows is the same: the card is drawn crisp over the rest.
+                let reach = Self.blur * 3
+                let zone = CGRect(x: f.minX - 40 - reach, y: 0, width: f.width + 80 + 2 * reach,
+                                  height: min(f.maxY, f.minY + Self.blur * 5) + reach)
+                var clipped = ctx
+                clipped.clip(to: Path(zone))
+                clipped.drawLayer { layer in
                     layer.opacity = neck
                     layer.addFilter(.alphaThreshold(min: 0.5, color: .black))
                     layer.addFilter(.blur(radius: Self.blur))
