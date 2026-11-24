@@ -187,6 +187,23 @@ lock screen. Each question below can block it:
          asks for the blink as soon as the face matches (Standard and More secure; Faster is unchanged). A refusal now
          logs whether a photo edge or the spoof model did it: at 09:09 (1448 lux, just under the glow's limit) one
          attempt was refused with no "doubted" line, so the photo-edge check, not the model.
+    - *Enrolment simplified (owner, 2026-11-24):* the embedder sees one aligned photo at a time and a scan scores
+      against the closest three, so the circle of 8 directions was never required. Now: straight ahead (3), then up,
+      down, left, right, one at a time (3 each), 15 samples.
+    - *Replacing the spoof model (survey, 2026-11-24; nothing tried on this camera yet):* MiniFASNet fails the owner in
+      bright light and in a hood. Candidates, all small enough for every frame:
+      - **Intel Open Model Zoo `anti-spoof-mn3`:** MobileNetV3, 128x128 RGB (mean 151.2/119.6/107.8, scale
+        63.0/56.5/55.0), output [real, spoof], 3.0 M params, 0.15 GFLOPs, ACER 3.81% on CelebA-Spoof, MIT. A different
+        architecture and a different, much larger dataset (CelebA-Spoof: 625k images, many lighting conditions) from
+        Minivision's. Intel's forum notes it's weak outside its demo; untested here. CelebA-Spoof itself is
+        non-commercial research only, fine for this personal app.
+      - **MiniFASNet retrained on CelebA-Spoof** (hairymax/face-antispoofing; suriAI/face-antispoof-onnx, 128x128,
+        1.8 MB): same architecture as now, more varied training data. Licences to check per weights file.
+      - ONNX re-exports of the current Minivision models (QingHeYang, garciafido) are the same model: no gain.
+      No small passive model is reliable in direct sun; that's why a bright room now asks for the blink. Next step
+      proposed: convert `anti-spoof-mn3` (and one CelebA-Spoof MiniFASNet) to Core ML next to the current one, show
+      all scores in Test recognition, and try the owner's face (normal light, sun, hood) and a photo and phone video
+      of it before swapping anything.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

@@ -102,7 +102,7 @@ struct FaceUnlockSettings: View {
     private var scanningStep: some View {
         Section {
             HStack {
-                Text("Look at the notch at the top of your screen and slowly move your head in a circle. Keep the dot touching the ring all the way round.")
+                Text("Look at the notch at the top of your screen, then tilt your head up, down, left and right as the notch asks, until the dot touches the lit part of the ring.")
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button("Cancel") { face.cancelEnrolment(); step = .overview }

@@ -14,8 +14,14 @@ final class EnrolmentModel {
         case .failed(let message): return message
         case .scanning:
             if !snapshot.faceVisible { return "Looking for you" }
-            if !snapshot.calibrated { return "Hold still" }
-            return snapshot.progress < 0.5 ? "Slowly move your head in a circle" : "Keep going"
+            if !snapshot.calibrated { return "Look straight ahead" }
+            switch snapshot.target {
+            case 1: return "Tilt your head up"
+            case 3: return "Tilt your head down"
+            case 2: return "Turn your head left"
+            case 0: return "Turn your head right"
+            default: return "Hold still"
+            }
         }
     }
 }

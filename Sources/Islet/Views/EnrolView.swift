@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Face enrolment inside the island: a ring of ticks lights up as the head sweeps round it, a cyan dot
-/// follows the head, and the dot face shifts with it. On success the dots fly into a check mark.
+/// Face enrolment inside the island: a ring of ticks in four parts (up, down, left, right), the next one lit faintly
+/// and each turning cyan once it's done; a cyan dot follows the head, and the dot face shifts with it. On success the
+/// dots fly into a check mark.
 struct EnrolView: View {
     let model: EnrolmentModel
     private let ringRadius: CGFloat = 62
@@ -14,7 +15,7 @@ struct EnrolView: View {
         let s = model.snapshot
         VStack(spacing: 8) {
             ZStack {
-                ring(filled: s.filled)
+                ring(filled: s.filled, target: s.calibrated && model.phase == .scanning ? s.target : nil)
                 FaceDots(shift: CGSize(width: s.x * 7, height: -s.y * 7).clamped(to: 12),
                          checked: success, showSweep: s.faceVisible && !failed)
                     .opacity(failed ? 0.35 : 1)
@@ -47,19 +48,22 @@ struct EnrolView: View {
         return CGSize(width: s.x * k * ringRadius, height: -s.y * k * ringRadius)
     }
 
-    private func ring(filled: [Bool]) -> some View {
-        ZStack {
-            ForEach(0..<(EnrolmentEngine.sectorCount * 6), id: \.self) { i in
-                let sector = i / 6
+    private func ring(filled: [Bool], target: Int?) -> some View {
+        let per = 48 / EnrolmentEngine.sectorCount
+        return ZStack {
+            ForEach(0..<48, id: \.self) { i in
+                let sector = i / per
                 let on = filled[sector] || success
+                let next = !on && sector == target
                 // Sector 0 is centred on the right (3 o'clock) and they run counter-clockwise like the dot.
-                let degrees = (Double(i) - 2.5) / 48 * 360
+                let degrees = (Double(i) - Double(per - 1) / 2) / 48 * 360
                 ZStack {
                     Capsule()
-                        .fill(on ? accent : Color.isletRing)
-                        .frame(width: 2.4, height: on ? 10 : 7)
+                        .fill(on ? accent : next ? Color.isletCyan.opacity(0.45) : Color.isletRing)
+                        .frame(width: 2.4, height: on ? 10 : next ? 8.5 : 7)
                         .offset(y: -ringRadius)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.6).delay(Double(i % 6) * 0.035), value: on)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.6).delay(Double(i % per) * 0.02), value: on)
+                        .animation(.easeInOut(duration: 0.25), value: next)
                 }
                 .frame(width: 140, height: 140)
                 .rotationEffect(.degrees(90 - degrees))

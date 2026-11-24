@@ -583,13 +583,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.snapshot.faceVisible = true
             try? await Task.sleep(for: .seconds(0.8))
             model.snapshot.calibrated = true
-            for step in 0..<(8 * 20) {
-                let a = Double(step) / 20 * (.pi / 4)
-                model.snapshot.x = cos(a) * 1.05
-                model.snapshot.y = sin(a) * 1.05
-                if step % 20 == 10 { model.snapshot.filled[(step / 20) % 8] = true }
-                try? await Task.sleep(for: .milliseconds(45))
+            for sector in EnrolmentEngine.order {
+                model.snapshot.target = sector
+                let a = Double(sector) * .pi / 2
+                for step in 0..<20 {
+                    let k = step < 10 ? Double(step) / 10 * 1.05 : Double(20 - step) / 10 * 1.05
+                    model.snapshot.x = cos(a) * k
+                    model.snapshot.y = sin(a) * k
+                    if step == 10 { model.snapshot.filled[sector] = true }
+                    try? await Task.sleep(for: .milliseconds(45))
+                }
             }
+            model.snapshot.target = nil
             model.snapshot.x = 0; model.snapshot.y = 0
             model.phase = .success
             try? await Task.sleep(for: .seconds(2.6))

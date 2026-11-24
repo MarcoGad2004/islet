@@ -173,13 +173,16 @@ Leave headroom above the padlock so the lifted shackle is never clipped.
 Started from Settings → Face unlock, after confirming with Touch ID/password and storing the login
 password. The island flows down into a 380 × 214 body (`enrol` shape, same flow-down/bubble-out motion).
 
-- **Ring**: 48 ticks in 8 sectors (3 o'clock = sector 0, counter-clockwise), `#2C2C2E` when empty.
-  A sector's ticks spring to cyan, staggered 35 ms, once two good face samples are captured there.
+- **Ring**: 48 ticks in 4 parts, right, up, left and down (3 o'clock = sector 0, counter-clockwise), `#2C2C2E` when
+  empty. They're asked for one at a time, up, down, left, right (owner, 2026-11-24; it was a full circle of 8): the
+  part to do next is lit faintly (cyan at 45%, a little longer), and its ticks spring to cyan, staggered 20 ms, once
+  three good face samples are captured there. Only the asked-for part captures.
 - **Face dots**: the same 33-dot grid as the scan at 1.7×, shifted a few points with the head
   (parallax), with the cyan sweep while a face is visible.
 - **Head dot**: an 8 pt cyan dot inside the ring follows the head like a level bubble. Touching the
   ring captures that direction. "Straight ahead" is calibrated from the first ~0.6 s (3 samples).
-- **Labels**: "Looking for you" → "Hold still" → "Slowly move your head in a circle" → "Keep going".
+- **Labels**: "Looking for you" → "Look straight ahead" → "Tilt your head up" → "Tilt your head down" → "Turn your
+  head left" → "Turn your head right".
 - **Done**: dots fly into a green check (8 ms stagger), ring turns green, "Face enrolled", fold back
   after 2.4 s. **Failure** (no consistent scan, or 2 min): ring dims, red label, fold back.
 - Click and hover are ignored while it runs; Cancel is in Settings.

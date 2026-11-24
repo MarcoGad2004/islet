@@ -8,17 +8,24 @@ struct EnrolmentSnapshot: Sendable {
     var x = 0.0, y = 0.0
     var filled = [Bool](repeating: false, count: EnrolmentEngine.sectorCount)
     var calibrated = false
+    /// The direction to do next (a sector), nil once all are done.
+    var target: Int? = EnrolmentEngine.order.first
     var progress: Double { Double(filled.filter { $0 }.count) / Double(filled.count) }
 }
 
-/// Guides the user through a slow head circle and collects face embeddings on the way:
-/// a few from the centre (which also calibrates "straight ahead"), then two per direction.
+/// Guides the user through four head moves and collects face embeddings on the way: a few looking straight ahead
+/// (which also calibrates "straight ahead"), then three each tilting up, down, left and right, one at a time (owner,
+/// 2026-11-24; it was a full circle of eight directions, which the model doesn't need: it sees one photo at a time,
+/// and a scan compares with the closest three).
 /// Runs on the camera queue; state is guarded by a lock.
 final class EnrolmentEngine: @unchecked Sendable {
-    static let sectorCount = 8
+    /// Sectors run counter-clockwise from the right, mirror-style: 0 right, 1 up, 2 left, 3 down.
+    static let sectorCount = 4
+    /// The order they're asked for: up, down, left, right.
+    static let order = [1, 3, 2, 0]
     /// Head movement (in eye distances) that counts as reaching the ring. Tune on the real camera.
     static let reachX = 0.10, reachY = 0.075
-    private static let samplesPerSector = 2, centreSamples = 3, calibrationFrames = 9
+    private static let samplesPerSector = 3, centreSamples = 3, calibrationFrames = 9
 
     private let embedder: FaceEmbedder
     private let onUpdate: @Sendable (EnrolmentSnapshot) -> Void
@@ -76,8 +83,8 @@ final class EnrolmentEngine: @unchecked Sendable {
         if magnitude >= 1 {
             var angle = atan2(smoothed.y, smoothed.x)
             if angle < 0 { angle += 2 * .pi }
-            let sector = Int((angle / (.pi / 4)).rounded()) % Self.sectorCount
-            capture(sector: sector, from: a)
+            let sector = Int((angle / (2 * .pi / Double(Self.sectorCount))).rounded()) % Self.sectorCount
+            if sector == snapshot.target { capture(sector: sector, from: a) }
         }
         onUpdate(snapshot)
     }
@@ -88,7 +95,10 @@ final class EnrolmentEngine: @unchecked Sendable {
         lastCapture = Date()
         samples.append(e)
         counts[sector] += 1
-        if counts[sector] >= Self.samplesPerSector { snapshot.filled[sector] = true }
+        if counts[sector] >= Self.samplesPerSector {
+            snapshot.filled[sector] = true
+            snapshot.target = Self.order.first { !snapshot.filled[$0] }
+        }
         if snapshot.filled.allSatisfy({ $0 }) {
             finished = true
             onFinish(samples)

@@ -311,7 +311,7 @@ struct OnboardingView: View {
                 card {
                     HStack(spacing: 14) {
                         ProgressView()
-                        Text("Look at the notch and slowly move your head in a circle, keeping the dot on the ring.")
+                        Text("Look at the notch, then tilt your head up, down, left and right as it asks, until the dot touches the lit part of the ring.")
                     }
                 }
                 Text("The scan plays in the notch at the top of your screen.").font(.caption).foregroundStyle(.secondary)
