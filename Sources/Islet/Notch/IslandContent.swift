@@ -69,6 +69,10 @@ struct LevelState: Equatable {
     var extra = 0.0
     /// The number shown: 0...1, or past 1 with extended brightness.
     var shown: Double { value + extra }
+    /// Extended brightness's cues at 100 (brightness only): the nudge, the hold filling the bar, the unlock.
+    var cue: XDRCue?
+    /// How long it stays after the last press: longer while the nudge's hint is up, so it can be read.
+    var seconds: Double { cue?.kind == .nudge ? 2.8 : 1.5 }
     /// 0...16 filled steps of the bar.
     var steps: Int { Int((value * 16).rounded()) }
 
@@ -80,6 +84,20 @@ struct LevelState: Equatable {
         case .volume: muted || value == 0 ? "speaker.slash.fill" : (value < 0.34 ? "speaker.wave.1.fill" : (value < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill"))
         }
     }
+}
+
+/// What the brightness level shows at 100 on an XDR Mac (DESIGN.md "Extended brightness").
+struct XDRCue: Equatable {
+    enum Kind { case nudge, charging, unlocked }
+    var kind: Kind
+    /// When it began: the animations run from here.
+    var since: Date
+
+    /// The hold: how long before the bar starts filling (a tap shouldn't flash it), and until it unlocks.
+    static let chargeDelay = 0.15
+    static let holdSeconds = 1.0
+    /// The nudge: how long the bar shows 100 before the hint takes its place.
+    static let hintDelay = 0.7
 }
 
 struct ChargeEvent: Equatable {

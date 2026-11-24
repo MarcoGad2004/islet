@@ -178,7 +178,10 @@ final class IslandStore {
         guard expandedPage == .displaySound else { return IslandLayout.expandedBodyHeight }
         switch controlDetail {
         case .wifi?, .bluetooth?: return IslandLayout.expandedListBodyHeight
-        case .display? where levels?.keyboardAvailable == true: return IslandLayout.expandedDisplayBodyHeight
+        case .display?:
+            // Extended brightness on: its card goes under the slider.
+            let xdr = (levels?.brightnessExtra ?? 0) > 0 ? IslandLayout.xdrCardRow : 0
+            return (levels?.keyboardAvailable == true ? IslandLayout.expandedDisplayBodyHeight : IslandLayout.expandedBodyHeight) + xdr
         case .battery?: return IslandLayout.expandedBatteryBodyHeight
         default: return IslandLayout.expandedBodyHeight
         }
@@ -372,7 +375,7 @@ final class IslandStore {
         return IslandMetrics(sw: w, sh: m.sh, bw: w, bh: m.bh, tr: 0, br: m.br, ic: 0)
     }
 
-    private func refresh() {
+    func refresh() {
         updateQuickInfo()
         let tray = levelTray != nil
         if level == nil { if levelLeftTray { levelLeftTray = false } }
@@ -1250,7 +1253,7 @@ final class IslandStore {
         level = state
         levelTask?.cancel()
         levelTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.5))
+            try? await Task.sleep(for: .seconds(state.seconds))
             guard !Task.isCancelled else { return }
             self?.level = nil
             self?.refresh()

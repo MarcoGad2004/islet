@@ -49,6 +49,8 @@ struct ControlStage: View {
     /// The header row's top: 0, or up past the pill when flush.
     private var headerY: CGFloat { -headerLift }
     private var H: CGFloat { store.expandedBodyHeight - 32 }
+    /// The Display page moves down for the extended brightness card.
+    private var xdrShift: CGFloat { (store.levels?.brightnessExtra ?? 0) > 0 ? IslandLayout.xdrCardRow : 0 }
     private let glide = Animation.spring(response: 0.46, dampingFraction: 0.72)
     private let tileW: CGFloat = 109.5
 
@@ -304,13 +306,16 @@ struct ControlStage: View {
             let bright = mode == .display
             SliderCard(icon: "sun.max.fill", value: levels.brightness, enabled: levels.brightnessAvailable, large: bright,
                        iconAction: { if !bright { store.setControlDetail(.display) } },
-                       set: { levels.setBrightness($0) }, expand: { store.setControlDetail(.display) })
+                       set: { levels.setBrightness($0) }, expand: { store.setControlDetail(.display) }, extra: levels.brightnessExtra)
                 .slot(bright ? sliderBig : brightSmall, visible: inControls || bright)
                 .opacity(rest)
+            // Extended brightness on: what it costs, under the slider, and a way back to 100.
+            XDRCard(extra: levels.brightnessExtra) { levels.endExtendedBrightness() }
+                .slot(CGRect(x: 0, y: 102, width: W, height: 56), visible: bright && levels.brightnessExtra > 0)
             // Keyboard backlight: only on the Display page, under the screen's slider, when the Mac has one.
             SliderCard(icon: levels.keyboard == 0 ? "light.min" : "light.max", value: levels.keyboard, enabled: true, large: true,
                        iconAction: {}, set: { levels.setKeyboard($0) }, expand: {})
-                .slot(CGRect(x: 0, y: 102, width: W, height: 56), visible: bright && levels.keyboardAvailable)
+                .slot(CGRect(x: 0, y: 102 + xdrShift, width: W, height: 56), visible: bright && levels.keyboardAvailable)
             let loud = mode == .sound
             SliderCard(icon: levels.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", value: levels.muted ? 0 : levels.volume,
                        enabled: true, large: loud,
@@ -321,7 +326,7 @@ struct ControlStage: View {
             SoundOutputList(levels: levels).slot(CGRect(x: 0, y: 102, width: W, height: max(H - 102, 60)), visible: loud)
         }
         if let d = store.display {
-            let y: CGFloat = store.levels?.keyboardAvailable == true ? 168 : 102
+            let y: CGFloat = (store.levels?.keyboardAvailable == true ? 168 : 102) + xdrShift
             DisplayToggleRow(display: d).slot(CGRect(x: 0, y: y, width: W, height: 62), visible: mode == .display)
         }
     }
@@ -480,22 +485,70 @@ struct SliderCard: View {
     var iconAction: () -> Void
     var set: (Double) -> Void
     var expand: () -> Void
+    /// Extended brightness past 100: drawn in red over the fill, the number counts on, and an XDR label shows.
+    var extra = 0.0
 
     var body: some View {
         HStack(spacing: large ? 12 : 10) {
             Button(action: iconAction) {
                 Image(systemName: icon).font(.system(size: large ? 15 : 13, weight: .semibold)).frame(width: large ? 22 : 20)
             }.buttonStyle(.plain)
-            ValueSlider(value: value, height: large ? 14 : 8, enabled: enabled, onChange: set, onTap: large ? nil : expand)
-            RollingNumber(value: value, suffix: "%", size: large ? 13 : 12)
+            ValueSlider(value: value, height: large ? 14 : 8, enabled: enabled, onChange: set, onTap: large ? nil : expand, extra: extra)
+            if extra > 0 {
+                XDRBadge(large: large).transition(.scale(scale: 0.5).combined(with: .opacity))
+            }
+            RollingNumber(value: value + extra, suffix: "%", size: large ? 13 : 12)
                 .frame(width: large ? 42 : 38, alignment: .trailing)
         }
+        .animation(.levelGlide, value: extra > 0)
         .foregroundStyle(Color.isletText)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture { if !large { expand() } }
+    }
+}
+
+/// "XDR" in red: extended brightness is on.
+struct XDRBadge: View {
+    var large = false
+    var body: some View {
+        Text("XDR").font(.system(size: large ? 10 : 9, weight: .heavy)).foregroundStyle(Color.isletRedText)
+            .padding(.horizontal, large ? 6 : 5).frame(height: large ? 18 : 16)
+            .background(Capsule().fill(Color.isletRed.opacity(0.18)))
+            .fixedSize()
+    }
+}
+
+/// The Display page while extended brightness is on: what it costs and a way back to 100.
+struct XDRCard: View {
+    var extra: Double
+    var turnOff: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(Color.isletRed.opacity(0.2))
+                Image(systemName: "sun.max.trianglebadge.exclamationmark.fill").font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.isletRedText)
+            }.frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("XDR brightness is on").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+                Text("Uses more battery and makes the Mac warmer. Turns off when the screen sleeps, below 20% battery or if it runs hot.")
+                    .font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            Button(action: turnOff) {
+                Text("Turn Off").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletText)
+                    .padding(.horizontal, 10).frame(height: 24)
+                    .background(Capsule().fill(Color(hex: 0x3A3A3C)))
+                    .contentShape(Capsule())
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
     }
 }
 
@@ -506,6 +559,8 @@ struct ValueSlider: View {
     var enabled = true
     var onChange: (Double) -> Void
     var onTap: (() -> Void)?
+    /// Extended brightness past 100, on the same scale: a red fill over the white one from the left.
+    var extra = 0.0
     @State private var dragged = false
 
     var body: some View {
@@ -516,6 +571,9 @@ struct ValueSlider: View {
                 Capsule().fill(Color.white).frame(width: max(height, w * CGFloat(min(max(value, 0), 1))))
                     // Keys and outside changes glide; a drag follows the pointer directly.
                     .animation(dragged ? nil : .levelGlide, value: value)
+                Capsule().fill(Color.isletRed).frame(width: extra > 0 ? max(height, w * CGFloat(min(extra, 1))) : 0)
+                    .opacity(extra > 0 ? 1 : 0)
+                    .animation(.levelGlide, value: extra)
             }
             .frame(height: height)
             .frame(maxHeight: .infinity)

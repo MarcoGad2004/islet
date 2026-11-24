@@ -81,8 +81,7 @@ struct CompactContentView: View {
                     if levelBody, case .level(let l) = content {
                         // 16 steps spanning the bar with the same side inset as the icon and number above.
                         let inner = nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset
-                        StepBar(value: l.value, muted: l.muted, stepWidth: (inner - 15 * 3) / 16, extra: l.extra)
-                            .animation(.levelGlide, value: l.value).animation(.levelGlide, value: l.extra)
+                        LevelBar(level: l, stepWidth: (inner - 15 * 3) / 16)
                             .levelPiece("bar", ns)
                             .frame(width: inner, height: IslandLayout.levelBodyHeight).offset(y: 1)
                     }
@@ -122,8 +121,7 @@ struct CompactContentView: View {
         case .charge(let c): chargeIcon(c)
         case .unlock(let start): CheckPop(start: appears(start)).offset(x: -IslandLayout.checkInset)
         case .level(let l):
-            Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
-                .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l))
+            LevelIcon(level: l)
                 .frame(width: 18).levelPiece("icon", ns).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, IslandLayout.levelSideInset - 2)
         case .locked:
             if store.lockHint && !hintBody {
@@ -204,10 +202,9 @@ struct CompactContentView: View {
             }
         case .level(let l):
             HStack(spacing: 10) {
-                Image(systemName: levelIcon(l)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
-                    .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: levelIcon(l)).frame(width: 18)
+                LevelIcon(level: l).frame(width: 18)
                     .levelPiece("icon", ns)
-                StepBar(value: l.value, muted: l.muted, extra: l.extra).animation(.levelGlide, value: l.value).animation(.levelGlide, value: l.extra).levelPiece("bar", ns)
+                LevelBar(level: l).levelPiece("bar", ns)
                 Spacer(minLength: 2)
                 RollingNumber(value: l.shown, off: l.muted).foregroundStyle(Color.isletText)
                     .frame(width: 30, alignment: .trailing).levelPiece("number", ns)
@@ -338,7 +335,6 @@ struct CompactContentView: View {
         }
     }
 
-    private func levelIcon(_ l: LevelState) -> String { l.symbol }
 }
 
 /// Icon that pops in from scale 0 with overshoot, 0.4 s.

@@ -387,6 +387,19 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   slider also turns it off. It turns itself off when the screen sleeps or locks, the lid closes or the display
   changes, below 20% battery on battery power, or at serious thermal pressure, and it never survives a restart.
   Settings > Notch > Brightness has its switch (on by default, shown only on an XDR Mac).
+  - **Nudge** (owner, 2026-11-24): reaching 100 with brightness-up, the bar gives a small bump against its end (scale
+    1.04 from the left and back), and 0.7 s later "Hold ☀ for XDR brightness" ("XDR" in red) cross-fades into the
+    bar's place; the level then stays 2.8 s instead of 1.5 s. A tap at 100 that lets go too soon brings the hint
+    back after 0.25 s.
+  - **Hold**: with the key held at 100, after 0.15 s (so a tap doesn't flash it) translucent red fills the whole bar
+    from the left over the rest of the second, and the sun swells (up to 1.22×) with a red glow. Let go early and the
+    fill drains over 0.25 s and the sun settles.
+  - **Unlock**: the bar flashes red and fades over 0.55 s as the first red step springs in, the sun bounces and the
+    number rolls to 106.
+  - **Controls and Display page**: the brightness slider shows the extra in red over the white fill on the same scale
+    and its number counts past 100 %, with a red "XDR" label beside it. The Display page adds a card under the slider
+    (the page grows 66 pt): "XDR brightness is on", that it uses more battery and makes the Mac warmer and when it
+    turns itself off, and Turn Off (back to 100). The keys' level HUD keeps only the red bar and the number.
 - Under something that outranks it (1.5, owner request 2026-11-23): during the unlock animation, on the lock screen or
   during the face scan, a key press no longer goes unseen. The island grows a 34 pt row under what's showing, with
   the icon, the step bar and the number, and draws it back up 1.5 s after the last press. Under the wide bar it's

@@ -110,6 +110,9 @@ struct StepBar: View, Animatable {
     /// Extended brightness past 100 (0...0.6): a second fill in red over the white one, from the left edge, on the
     /// same scale (0.6 fills to the 60 mark).
     var extra = 0.0
+    /// The hold at 100 (0...1 of the whole bar) and how strongly it shows: a translucent red filling the bar.
+    var charge = 0.0
+    var chargeOpacity = 0.5
 
     nonisolated var animatableData: AnimatablePair<Double, Double> {
         get { AnimatablePair(value, extra) }
@@ -123,6 +126,7 @@ struct StepBar: View, Animatable {
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 1.5).fill(muted ? Color.isletRing : Color(hex: 0x3A3A3C))
                     Rectangle().fill(muted ? Color(hex: 0x636366) : Color.isletText).frame(width: stepWidth * f)
+                    Rectangle().fill(Color.isletRed.opacity(chargeOpacity)).frame(width: stepWidth * min(max(charge * 16 - Double(i), 0), 1))
                     Rectangle().fill(Color.isletRed).frame(width: stepWidth * min(max(extra * 16 - Double(i), 0), 1))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 1.5))
@@ -130,6 +134,102 @@ struct StepBar: View, Animatable {
             }
         }
         .animation(.easeOut(duration: 0.2), value: muted)
+    }
+}
+
+/// The level's 16-step bar with extended brightness's cues at 100 (XDR Macs): reaching 100 the bar gives a little
+/// bump, then the hint "Hold ☀ for XDR brightness" takes its place; holding the key fills the bar with translucent red
+/// over a second; unlocking flashes it and collapses into the first red step.
+struct LevelBar: View {
+    let level: LevelState
+    var stepWidth: CGFloat = 9
+    @State private var hint = false
+    @State private var bump = false
+
+    private var cue: XDRCue? { level.kind == .brightness ? level.cue : nil }
+
+    /// How far the hold has got, 0...1.
+    static func progress(_ cue: XDRCue, at date: Date) -> Double {
+        let t = date.timeIntervalSince(cue.since) - XDRCue.chargeDelay
+        let p = min(max(t / (XDRCue.holdSeconds - XDRCue.chargeDelay), 0), 1)
+        return p * p * (3 - 2 * p)
+    }
+
+    /// The red fill and its strength at a moment: growing while held, then a flash that fades as it unlocks.
+    static func charge(_ cue: XDRCue?, at date: Date) -> (Double, Double) {
+        guard let cue else { return (0, 0.5) }
+        switch cue.kind {
+        case .nudge: return (0, 0.5)
+        case .charging: return (progress(cue, at: date), 0.35 + 0.25 * progress(cue, at: date))
+        case .unlocked:
+            let t = date.timeIntervalSince(cue.since)
+            return (1, 0.85 * max(0, 1 - t / 0.55))
+        }
+    }
+
+    var body: some View {
+        let live = cue?.kind == .charging || cue?.kind == .unlocked
+        TimelineView(.animation(paused: !live)) { ctx in
+            let (c, o) = Self.charge(cue, at: ctx.date)
+            StepBar(value: level.value, muted: level.muted, stepWidth: stepWidth, extra: level.extra, charge: c, chargeOpacity: o)
+        }
+        .animation(.levelGlide, value: level.value)
+        .animation(.levelGlide, value: level.extra)
+        // Let go too soon: the fill drains rather than vanishing.
+        .animation(.easeOut(duration: 0.25), value: cue?.kind)
+        .scaleEffect(x: bump ? 1.04 : 1, anchor: .leading)
+        .opacity(hint ? 0 : 1)
+        .overlay {
+            if hint {
+                XDRHint().transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .task(id: cue) {
+            guard let cue, cue.kind == .nudge else {
+                if hint { withAnimation(.easeOut(duration: 0.15)) { hint = false } }
+                return
+            }
+            // Fresh at 100: a small push against the end, like reaching the end of a scroll.
+            if Date().timeIntervalSince(cue.since) < 0.15 {
+                withAnimation(.spring(response: 0.16, dampingFraction: 0.6)) { bump = true }
+                try? await Task.sleep(for: .milliseconds(130))
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.55)) { bump = false }
+            }
+            let wait = XDRCue.hintDelay - Date().timeIntervalSince(cue.since)
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { hint = true }
+        }
+    }
+}
+
+/// The nudge at 100: "Hold ☀ for XDR brightness", in the bar's place.
+struct XDRHint: View {
+    var body: some View {
+        (Text("Hold ") + Text(Image(systemName: "sun.max.fill")) + Text(" for ") + Text("XDR").foregroundColor(Color.isletRedText)
+         + Text(" brightness"))
+            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+    }
+}
+
+/// The level's icon. Holding brightness-up at 100 it swells with a red glow; unlocking makes it bounce.
+struct LevelIcon: View {
+    let level: LevelState
+
+    var body: some View {
+        let cue = level.kind == .brightness ? level.cue : nil
+        TimelineView(.animation(paused: cue?.kind != .charging)) { ctx in
+            let p = cue.map { $0.kind == .charging ? LevelBar.progress($0, at: ctx.date) : 0 } ?? 0
+            Image(systemName: level.symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
+                .scaleEffect(1 + 0.22 * p)
+                .shadow(color: Color.isletRed.opacity(0.9 * p), radius: 5 * p)
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: cue?.kind)
+        .symbolEffect(.bounce, value: cue?.kind == .unlocked ? cue?.since : nil)
+        .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: level.symbol)
     }
 }
 

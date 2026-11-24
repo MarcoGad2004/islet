@@ -8,6 +8,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ### Extended brightness
 
 - **Brighter than 100 on an XDR MacBook Pro.** At 100, hold the brightness-up key for a second and the whole screen goes past it, up to 160, using the display's HDR headroom. A red bar fills over the white one from the left to show how far, and the number counts on past 100. Brightness-down takes the extra off first, then the white bar as usual.
+- **It shows you how.** Reaching 100, the bar bumps against its end and then suggests holding the key for XDR brightness. Holding fills the bar with red and the sun swells until it unlocks with a flash.
+- **The Display page knows.** The brightness slider in Controls and on the Display page shows the extra in red with an XDR label, and the Display page says it uses more battery and heat, with a Turn Off button.
 - It turns itself off when the screen sleeps or locks, the lid closes, below 20% battery, or when the Mac runs hot, and never stays on after a restart. Settings > Notch > Extended brightness turns it off.
 
 ### Mac Stats

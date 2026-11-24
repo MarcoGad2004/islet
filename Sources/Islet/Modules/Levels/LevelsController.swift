@@ -21,6 +21,8 @@ final class LevelsController {
     private(set) var tapActive = false
 
     @ObservationIgnored var onChange: ((LevelState) -> Void)?
+    /// Extended brightness turned on or off (the Display page grows its card).
+    @ObservationIgnored var onExtendedChange: (() -> Void)?
     @ObservationIgnored fileprivate var tap: CFMachPort?
     @ObservationIgnored private var displayID: CGDirectDisplayID = CGMainDisplayID()
     @ObservationIgnored private let displayServices = DisplayServices()
@@ -33,6 +35,8 @@ final class LevelsController {
     @ObservationIgnored private var holdTask: Task<Void, Never>?
     /// The press that turned extended brightness on: its repeats are ignored until the key comes up.
     @ObservationIgnored private var swallowRepeats = false
+    /// The nudge, hold or unlock showing at 100 (XDR Macs).
+    @ObservationIgnored private var cue: XDRCue?
 
     // MARK: Setup
 
@@ -43,6 +47,7 @@ final class LevelsController {
         extended.onEnded = { [weak self] in
             guard let self else { return }
             brightnessExtra = 0
+            onExtendedChange?()
         }
     }
 
@@ -151,31 +156,50 @@ final class LevelsController {
             let next = up ? min(ExtendedBrightness.maxExtra, ((e * n + 1e-6).rounded(.down) + 1) / n)
                           : ((e * n - 1e-6).rounded(.up) - 1) / n
             brightnessExtra = extended.set(next)
+            cue = nil
+            if brightnessExtra == 0 { onExtendedChange?() }
             onChange?(LevelState(kind: .brightness, value: 1, extra: brightnessExtra))
             return
         }
 
         let step = ((displayServices.get(displayID).map(Double.init) ?? brightness) * n).rounded()
-        // At 100, holding brightness-up for a second unlocks extended brightness.
-        if up, step >= n, holdTask == nil, extended.mayStart {
-            holdTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(1))
-                guard let self, !Task.isCancelled else { return }
-                holdTask = nil
-                swallowRepeats = true
-                brightnessExtra = extended.set(1 / 16)
-                onChange?(LevelState(kind: .brightness, value: 1, extra: brightnessExtra))
-            }
-        }
         let b = (up ? min(n, step + 1) : max(0, step - 1)) / n
         displayServices.set(displayID, Float(b))
         brightness = b
-        onChange?(LevelState(kind: .brightness, value: b))
+
+        if up, b >= 1, extended.mayStart {
+            if step >= n {
+                // Already at 100: holding for a second unlocks extended brightness; the bar fills meanwhile.
+                if holdTask == nil {
+                    cue = XDRCue(kind: .charging, since: Date())
+                    holdTask = Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(XDRCue.holdSeconds))
+                        guard let self, !Task.isCancelled else { return }
+                        holdTask = nil
+                        swallowRepeats = true
+                        brightnessExtra = extended.set(1 / 16)
+                        cue = brightnessExtra > 0 ? XDRCue(kind: .unlocked, since: Date()) : nil
+                        onExtendedChange?()
+                        onChange?(LevelState(kind: .brightness, value: 1, extra: brightnessExtra, cue: cue))
+                    }
+                }
+            } else {
+                // Just reached 100: the nudge.
+                cue = XDRCue(kind: .nudge, since: Date())
+            }
+        } else {
+            cue = nil
+        }
+        onChange?(LevelState(kind: .brightness, value: b, cue: cue))
     }
 
     private func brightnessKeyUp() {
-        holdTask?.cancel(); holdTask = nil
         swallowRepeats = false
+        guard let task = holdTask else { return }
+        // Let go too soon: the fill drains and the hint says to hold.
+        task.cancel(); holdTask = nil
+        cue = XDRCue(kind: .nudge, since: Date().addingTimeInterval(-XDRCue.hintDelay + 0.25))
+        onChange?(LevelState(kind: .brightness, value: brightness, cue: cue))
     }
 
     /// Remembered by the toggle key so a second press brings the backlight back where it was.
@@ -212,8 +236,14 @@ final class LevelsController {
     func setBrightness(_ b: Double) {
         rampTask?.cancel(); boostRestore = nil
         // The slider covers 0...100: moving it leaves extended brightness.
-        if extended.isOn { extended.stop(); brightnessExtra = 0 }
+        if extended.isOn { extended.stop(); brightnessExtra = 0; onExtendedChange?() }
         displayServices.set(displayID, Float(b)); brightness = b
+    }
+
+    /// The Display page's Turn Off: back to 100.
+    func endExtendedBrightness() {
+        guard extended.isOn else { return }
+        extended.stop(); brightnessExtra = 0; onExtendedChange?()
     }
 
     func setKeyboard(_ k: Double) {

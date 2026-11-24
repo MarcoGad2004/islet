@@ -212,11 +212,9 @@ private struct LevelTray: View {
     var body: some View {
         let inset = IslandLayout.levelSideInset
         HStack(spacing: 10) {
-            Image(systemName: level.symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
-                .contentTransition(.symbolEffect(.replace)).animation(.levelGlide, value: level.symbol).frame(width: 18)
+            LevelIcon(level: level).frame(width: 18)
                 .levelPiece("icon", ns)
-            StepBar(value: level.value, muted: level.muted, stepWidth: max(3, (width - 2 * inset - 18 - 30 - 20 - 15 * 3) / 16), extra: level.extra)
-                .animation(.levelGlide, value: level.value).animation(.levelGlide, value: level.extra)
+            LevelBar(level: level, stepWidth: max(3, (width - 2 * inset - 18 - 30 - 20 - 15 * 3) / 16))
                 .levelPiece("bar", ns)
             RollingNumber(value: level.shown, off: level.muted).foregroundStyle(Color.isletText)
                 .frame(width: 30, alignment: .trailing)

@@ -184,6 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "muted": notch.store.showLevel(LevelState(kind: .volume, value: 0.5, muted: true))
         case "brightness": notch.store.showLevel(LevelState(kind: .brightness, value: 0.75))
         case "xdr": notch.store.showLevel(LevelState(kind: .brightness, value: 1, extra: 0.375))
+        case "xdrhint": notch.store.showLevel(LevelState(kind: .brightness, value: 1, cue: XDRCue(kind: .nudge, since: Date())))
+        case "xdrhold": notch.store.showLevel(LevelState(kind: .brightness, value: 1, cue: XDRCue(kind: .charging, since: Date())))
         case "unlock": notch.store.playUnlock()
         case "notification", "notifications", "notificationpill":
             let store = notch.store
@@ -359,6 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         power.start()
 
         levels.onChange = { [weak store] in store?.showLevel($0) }
+        levels.onExtendedChange = { [weak store] in store?.refresh() }
         levels.start()
 
         media.onChange = { [weak store] in store?.setMedia($0) }

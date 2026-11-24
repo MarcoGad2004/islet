@@ -55,6 +55,8 @@ enum IslandLayout {
     static let expandedListBodyHeight: CGFloat = 300
     /// The Display page with a keyboard backlight slider under the screen's.
     static let expandedDisplayBodyHeight: CGFloat = 280
+    /// The Display page's extended brightness card and the gap under it.
+    static let xdrCardRow: CGFloat = 66
     /// The battery page: the charge, four stat tiles, the energy mode switch and a footer.
     static let expandedBatteryBodyHeight: CGFloat = 308
     /// Bezel mode: the floating panel's top margin (no notch to clear).
