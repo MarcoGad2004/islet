@@ -20,7 +20,7 @@ struct MacStatsView: View {
             switch state.page {
             case .overview:
                 MacStatsOverview(stats: stats, open: { state.page = $0 })
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .transition(Self.pageTransition)
             case .cpu: page { MacStatsCPUPage(stats: stats, back: back) }
             case .memory: page { MacStatsMemoryPage(stats: stats, back: back) }
             case .gpu: page { MacStatsGPUPage(stats: stats, back: back) }
@@ -29,8 +29,7 @@ struct MacStatsView: View {
         }
         .padding(16)
         .frame(width: 300, alignment: .topLeading)
-        .clipped()
-        .animation(.spring(response: 0.35, dampingFraction: 0.88), value: state.page)
+        .animation(.easeOut(duration: 0.22), value: state.page)
         // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
         .animation(MacStatsMotion.reading, value: stats.snapshot.date)
         .onChange(of: state.page, initial: true) { _, page in
@@ -40,8 +39,12 @@ struct MacStatsView: View {
 
     private func back() { state.page = .overview }
 
+    /// Pages don't slide: the old one goes at once (so the panel changes size once) and the new one fades in, while its
+    /// own bars grow and graphs draw in (DESIGN.md "Mac Stats (1.7)", Motion).
+    private static let pageTransition = AnyTransition.asymmetric(insertion: .opacity, removal: .identity)
+
     private func page(@ViewBuilder _ content: () -> some View) -> some View {
-        content().transition(.move(edge: .trailing).combined(with: .opacity))
+        content().transition(Self.pageTransition)
     }
 }
 
