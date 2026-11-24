@@ -759,7 +759,9 @@ The probe tools were throwaway command-line programs, not kept in the repo.
 sudoers rule, because the fans need a process that stays and watches: launchd starts it when the app connects (Mach
 service `com.marcogad.islet.fanhelper`), relaunches it after a crash (`KeepAlive` `Crashed`), and it exits after a minute
 idle with the fans automatic. The listener only accepts Dynamic Peninsula signed by team L4Y6A9NY9T
-(`setConnectionCodeSigningRequirement`), and the app only trusts the helper's identifier; both requirements were checked
-with `codesign -v -R` against the Debug build (and `/bin/ls` is refused). To check on the first run: that registration
+(`setConnectionCodeSigningRequirement`), and the app only trusts the helper's identifier. The team in both rules is the
+checker's own (`SecCodeCopySigningInformation`): Debug builds are signed by the development team (L4Y6A9NY9T), releases
+by Developer ID (X9Q5Y948RX), so a fixed team would have shut a release out of its own helper. `make-dmg.sh` signs the
+helper before the app. Checked with `codesign -v -R` on both builds (and `/bin/ls` is refused). To check on the first run: that registration
 works from a Debug build in DerivedData, what Login Items shows for it, and that the 6 s take-over doesn't trip XPC
 timeouts.

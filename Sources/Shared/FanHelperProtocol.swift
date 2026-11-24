@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 // Shared by Dynamic Peninsula and its fan helper (RESEARCH.md "Mac Stats", spike results): the helper runs as root
 // through `SMAppService.daemon` and is the only thing that writes the SMC.
@@ -6,13 +7,32 @@ import Foundation
 enum FanHelperInfo {
     static let machService = "com.marcogad.islet.fanhelper"
     static let plistName = "com.marcogad.islet.fanhelper.plist"
-    static let teamID = "L4Y6A9NY9T"
     /// Raised when the protocol changes, so an older helper still registered is replaced.
     static let version = 1
 
-    /// Only Dynamic Peninsula, signed by its own team, may talk to the helper; and the app only trusts that helper.
-    static let appRequirement = #"anchor apple generic and certificate leaf[subject.OU] = "L4Y6A9NY9T" and identifier "com.marcogad.islet""#
-    static let helperRequirement = #"anchor apple generic and certificate leaf[subject.OU] = "L4Y6A9NY9T" and identifier "com.marcogad.islet.fanhelper""#
+    /// Only Dynamic Peninsula may talk to the helper, and the app only trusts that helper: each must be signed by the
+    /// same team as the one checking. Development builds are signed by one team and releases (Developer ID) by another,
+    /// so the team comes from our own signature rather than being written here.
+    static var appRequirement: String { requirement(identifier: "com.marcogad.islet") }
+    static var helperRequirement: String { requirement(identifier: "com.marcogad.islet.fanhelper") }
+
+    private static func requirement(identifier: String) -> String {
+        // An unsigned build has no team: then nothing matches, and the fans can't be changed.
+        let team = ownTeam() ?? "unsigned"
+        return #"anchor apple generic and certificate leaf[subject.OU] = "\#(team)" and identifier "\#(identifier)""#
+    }
+
+    /// The team that signed this process.
+    static func ownTeam() -> String? {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any] else { return nil }
+        return dict[kSecCodeInfoTeamIdentifier as String] as? String
+    }
 
     /// Hand the fans back when the app hasn't been heard from for this long while it holds them.
     static let heartbeatTimeout: TimeInterval = 10
