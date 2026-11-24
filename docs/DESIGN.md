@@ -584,53 +584,53 @@ Owner approved, 2026-11-20. Mockup: the "Messages in the notch" prototype on
 
 - **Arriving**: a Messages notification shows like any other (wide bar or chin); in a group, the message reads
   "Name: text".
-- **Card**: Mark as Read (the banner's own) and **Reply**, white (Islet's own).
-- **Click or Reply**: opens the conversation in the panel instead of the Messages app (Settings > General "Open
+Simplified 2026-11-23 (owner's decision: stability over features): the notch is a window onto Messages. It shows
+conversations read only; replying happens in Messages. Sending, tapbacks, the emoji picker and marking chats read
+(which all had to drive Messages) are gone, and so is the Automation permission for Messages.
+
+- **Card**: Mark as Read (the banner's own) and **View**, white (Islet's own).
+- **Click or View**: opens the conversation in the panel instead of the Messages app (Settings > General "Open
   Messages conversations in the notch", on by default; off, it opens Messages). It's found in Messages' history by the
   notification's text; if it can't be, Messages opens as before.
-- **Conversation page** (500 x 300 under the stem): a header with a 32 pt round picture: the person's Contacts photo in a one-to-one chat
-  (owner request, 2026-11-23), else an initial (a colour per conversation),
-  the name (14 semibold; contact names from Contacts, else the number; a group's own name, else its people's names),
-  "iMessage" / "Text Message" / "4 people · iMessage" (11, `tertiary`), an "Open in Messages ↗" pill and the collapse
-  arrow. Then the latest 50 messages, newest at the bottom: theirs on `#2C2C2E`, yours blue `#0A84FF` (iMessage) or green
-  (SMS / RCS), 13 pt in 16 pt-round bubbles up to 300 wide; a time between messages more than an hour apart (10,
-  `tertiary`); in groups the sender's name over their first message in a run. Photos and other attachments show as a
-  grey "Photo" / "Attachment" bubble. Edits are left out. Tapbacks sit on the bubble's top corner like Messages (one of
-  each emoji in a small dark pill, yours on a blue circle). Under your last message: "Sending…", then "Delivered",
-  "Read 2:31 PM" (or "Read Yesterday", a weekday, a date) when they share read receipts, or, in red, "Not delivered".
-- **Right-click a message**: the six tapbacks (yours ticked; choosing it again takes it off), "Other Emoji in
-  Messages…" (opens that message's menu in Messages, which stays in front) and Copy. A tapback is sent by pressing
-  Messages' own button (RESEARCH.md Q57): Messages comes forward for a moment and the app you were in comes back.
-  Needs Accessibility; a group has to be open in Messages already.
-- **Reply field**: a round smiley button on its left opens Emoji & Symbols (as does ⌃⌘Space), then a 32 pt pill
-  ("iMessage" / "Text Message" placeholder) with a round send button (grey until there's
-  text). It has the cursor when the page opens. Return sends (through Messages); Esc closes the page.
-- **Live**: new messages in the conversation appear as they arrive (Islet watches Messages' database while the page is
-  open). A notification for the open conversation doesn't show again; others go to the system banner while it's open.
-- **Closing**: the collapse arrow, a click outside, Esc, a swipe up (see Gestures, "Over a list"). It doesn't close when
-  the pointer leaves (its right-click menu and the emoji picker are outside the panel), on clicks in the emoji picker, or
-  while Messages is in front for a tapback.
-- **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it), Contacts (names) and
-  Automation for Messages (sending), each asked the first time it's needed.
+- **Conversation page** (500 x 300 under the stem): a header with a round back button (to the inbox, wherever the
+  conversation was opened from), a 32 pt round picture (the person's Contacts photo in a one-to-one chat, else an
+  initial on a colour per conversation), the name (14 semibold; contact names from Contacts, else the number; a group's
+  own name, else its people's names) and "iMessage" / "Text Message" / "4 people · iMessage" (11, `tertiary`). Then the
+  latest 50 messages, newest at the bottom: theirs on `#2C2C2E`, yours blue `#0A84FF` (iMessage) or green (SMS / RCS,
+  bubble by bubble, as each message went), 13 pt in 16 pt-round bubbles up to 300 wide; a time between messages more
+  than an hour apart (10, `tertiary`); in groups the sender's name over their first message in a run. Edits are left
+  out. Tapbacks sit on the bubble's top corner like Messages (one of each emoji in a small dark pill, yours on a blue
+  circle). Under your last message: "Sent", "Delivered", "Read 2:31 PM" (or "Read Yesterday", a weekday, a date) when
+  they share read receipts, or, in red, "Not delivered".
+- **Reply in Messages**: where the reply field was, one full-width 34 pt pill in the conversation's colour
+  ("message" symbol, "Reply in Messages", ↗). It closes the panel and opens the conversation in Messages (a group
+  opens Messages).
+- **Right-click a message**: Copy.
+- **Live**: new messages in the conversation slide in as they arrive (Islet watches Messages' database while the page
+  is open and reads it in the background, so the panel never waits for it). A notification for the open conversation
+  doesn't show again; others go to the system banner while it's open.
+- **Closing**: a click outside, Esc, a swipe up (see Gestures, "Over a list").
+- **Permissions**: Full Disk Access (reading Messages' history; onboarding already asks for it) and Contacts (names
+  and photos), each asked the first time it's needed.
 
 ### Messages inbox (1.5, owner request 2026-11-23)
 
 - A messages pill (blue message bubble and the count) sits beside the battery pill in the panel's header while there
   are unread messages, counting what Messages' badge counts: chats (not messages) with unread incoming messages from
   known senders (someone in the chat is in Contacts, or you've written in it), however old (owner's choice,
-  2026-11-23). It reads Messages' history, so reading on the iPhone clears it too. A reply sent from the island counts
-  as reading what came before it there (the island can't mark messages read in Messages).
+  2026-11-23). It reads Messages' history, so reading on the iPhone clears it too. A reply counts as reading what came
+  before it.
 - Click it for the inbox, in the panel at the conversation's height: "‹ MESSAGES", "n new" in blue and Open Messages,
   then chats with unread messages first (bold name, the preview in white, the time and a count in blue, a faint card
   behind) and the other chats from the last 30 days (12 at most) under them. Each row starts with the same picture as
   the conversation's header (Contacts photo or initial), 34 pt.
-- A row opens its conversation, whose header gets a back button to the inbox. Reading a conversation in the island
+- A row opens its conversation. Reading a conversation in the island
   doesn't clear it: the island can only read Messages' history, so it stays unread until it's read in Messages or on
   another device.
 - In a conversation, photos show as rounded thumbnails up to 200 pt (click opens them), stickers on their own up to
   96 pt with no bubble, and stickers placed on a message overlap its bottom corner at 40 pt, tilted a little. Other
   files are a chip saying what they are (Video, Audio message, the file's name).
-- Emoji & Symbols (⌃⌘Space or the smiley) opens in the desktop's space, under the island's lock-screen space, so
+- Emoji & Symbols (⌃⌘Space in search) opens in the desktop's space, under the island's lock-screen space, so
   while it's on screen the panel moves into the desktop's space just under it, and back once it closes.
 - With the panel open, a two-finger swipe up closes it only from the notch itself (where nothing is ever drawn);
   anywhere else in the panel the fingers scroll what's under them. Without a notch, from the panel's top strip.

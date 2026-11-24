@@ -32,9 +32,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ### Notifications and Messages
 
 - **Longer notifications.** They grow downward to fit their text, up to 6 lines in the bar and 10 on the hover card, so most can be read without hovering.
-- **Replies clear the badge.** Replying from the notch now clears the red badge in Messages. Once you close the conversation, Messages flashes forward for a moment with the chat open so it marks it read (it no longer interrupts you after each reply). This works for one-to-one chats only; group chats can't be opened that way.
+- **Messages in the notch is now a window onto Messages.** Conversations show read only, smoothly and live as messages arrive; one big Reply in Messages button opens the conversation there to answer. Replying, tapbacks and the emoji picker in the notch are gone, so Messages no longer has to come forward and nothing stutters. The back button always goes to the conversation list, and a notification's Reply button is now View. Dynamic Peninsula no longer asks to control Messages.
 - **Contact photos in Messages.** The inbox and a conversation's header show the person's photo from Contacts, where they have one. Group chats keep their initial.
-- **Smoother replies.** Messages no longer stalls the notch: the island reads Messages' history in the background, and replies go out in the background too. A sent message slides in faded while it's on its way, then fills in and shows "Sent" once Messages has it, staying in place as it's delivered and read.
 - **AirPods connect once, in the notch.** When AirPods or another device connect, only the notch shows it: with Notifications in the notch on, the macOS "Connected" card in the top-right corner stays away. The notch also no longer sometimes shows the same connection twice.
 
 ### Fixes

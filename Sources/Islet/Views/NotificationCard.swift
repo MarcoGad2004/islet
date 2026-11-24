@@ -109,7 +109,7 @@ struct NotificationActions: View {
         banner(primaryLast: !reply)
         if reply {
             // Islet's own: the conversation, in the notch.
-            Button { store.openConversation(item) } label: { pillLabel("Reply", primary: true) }.buttonStyle(.plain)
+            Button { store.openConversation(item) } label: { pillLabel("View", primary: true) }.buttonStyle(.plain)
         }
     }
 

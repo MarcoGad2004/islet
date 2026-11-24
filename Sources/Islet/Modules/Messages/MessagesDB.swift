@@ -2,6 +2,15 @@ import AppKit
 import OSLog
 import SQLite3
 
+/// A tapback, as Messages stores it on a message (`associated_message_type` 2000-2005; RESEARCH.md Q57-Q60). Shown,
+/// never sent: the notch only views conversations.
+enum Tapback: Int, CaseIterable, Identifiable {
+    case love = 2000, like, dislike, laugh, emphasize, question
+
+    var id: Int { rawValue }
+    var emoji: String { ["❤️", "👍", "👎", "😂", "‼️", "❓"][rawValue - 2000] }
+}
+
 /// Contact names for numbers and emails, as a copy the background reader can use (`ContactNames` lives on the main thread).
 struct NameBook: Sendable {
     var byPhone: [String: String] = [:]

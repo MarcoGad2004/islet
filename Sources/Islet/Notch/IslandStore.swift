@@ -98,8 +98,6 @@ final class IslandStore {
     var sidecar: SidecarController?
     var mediaMonitor: MediaMonitor?
     var messages: MessagesStore?
-    /// The reply being typed on the conversation page; while it has text the page stays open when the pointer leaves.
-    var messageDraft = ""
     /// Search in the notch (DESIGN.md "Search").
     let search = SearchModel()
     /// The page the notification list was opened from (the pill), to go back to.
@@ -489,12 +487,12 @@ final class IslandStore {
         // The list closing: what's left stays in Notification Center.
         if !value, expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
         if !value, expandedPage == .search { search.end() }
-        if !value, expandedPage == .messages { messages?.close(); messageDraft = "" }
+        if !value, expandedPage == .messages { messages?.close() }
         // Notifications left waiting under the pill show again briefly, then time out as usual.
         if !value, !notifications.isEmpty { armNotification(Self.notificationAfterHover) }
         if value { notificationTask?.cancel() }
         if value { flushPanel = geometry?.mode == .notch && panelLayoutCheck?() == true }
-        if !value { notificationReturnPage = nil; openNotificationID = nil; expandedFromQuickInfo = false; quickInfo = false; conversationFromInbox = false }
+        if !value { notificationReturnPage = nil; openNotificationID = nil; expandedFromQuickInfo = false; quickInfo = false }
         expanded = value
         lastInUse = Date()
         if value { eventTask?.cancel(); event = nil }
@@ -528,7 +526,7 @@ final class IslandStore {
         }
         if expanded {
             if expandedPage == .search { search.text = initial.isEmpty ? search.text : search.text + initial; return }
-            if expandedPage == .messages { messages?.close(); messageDraft = "" }
+            if expandedPage == .messages { messages?.close() }
             if expandedPage == .notifications { endAllNotifications(.expired, refreshing: false) }
             searchFromPanel = true
             controlDetail = nil
@@ -558,13 +556,13 @@ final class IslandStore {
     func handleKey(_ key: KeyPress) -> Bool {
         guard expanded, !locked else { return false }
         // ⌃⌘Space: Emoji & Symbols, as in any app (Islet has no Edit menu to give it the shortcut).
-        if key.control, key.command, key.code == KeyPress.space, expandedPage == .messages || expandedPage == .search {
+        if key.control, key.command, key.code == KeyPress.space, expandedPage == .search {
             showCharacterPalette()
             return true
         }
         if expandedPage == .search { return searchKey(key) }
-        // A letter typed in the open panel starts a search with it (not in a conversation, where it's the reply).
-        if expandedPage != .messages, Feature.search.isOn, key.plainText, let c = key.characters, c != " " {
+        // A letter typed in the open panel starts a search with it.
+        if Feature.search.isOn, key.plainText, let c = key.characters, c != " " {
             openSearch(initial: c)
             return true
         }
@@ -955,13 +953,9 @@ final class IslandStore {
     /// A click outside: closes the panel.
     func dismiss() { collapse() }
 
-    /// A click outside the panel. In a conversation, clicks in the emoji picker and Messages coming forward for a
-    /// tapback are part of using it, so they leave it open.
+    /// A click outside the panel. In search, clicks in the emoji picker are part of typing, so they leave it open.
     func clickedOutside(onto bundleID: String?) {
-        if expandedPage == .messages {
-            if messages?.reacting == true { return }
-            if bundleID == "com.apple.CharacterPaletteIM" { return }
-        }
+        if expandedPage == .search, bundleID == "com.apple.CharacterPaletteIM" { return }
         dismiss()
     }
 
@@ -1064,7 +1058,7 @@ final class IslandStore {
 
     // MARK: Messages
 
-    /// The card shows buttons: the banner's own, or Reply for Messages.
+    /// The card shows buttons: the banner's own, or View for Messages (the conversation, in the notch).
     func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || canReply(n) }
     func canReply(_ n: NotificationItem) -> Bool { n.isMessages && messages?.available == true }
 
@@ -1079,50 +1073,34 @@ final class IslandStore {
         return true
     }
 
-    /// The open conversation came from the inbox: its header has a back button to it.
-    private(set) var conversationFromInbox = false
-
     /// The messages pill: the inbox, unread chats first (DESIGN.md "Messages inbox").
     func openInbox() {
         guard let m = messages, m.available else { return }
-        if expandedPage == .messages { m.close(); messageDraft = "" }
+        if expandedPage == .messages { m.close() }
         m.refreshInbox()
-        conversationFromInbox = false
         controlDetail = nil
         expandedPage = .inbox
         if !expanded { setExpanded(true) } else { refresh() }
     }
 
-    /// From a conversation back to the inbox, or from the inbox back to the controls.
+    /// From the inbox back to the controls.
     func closeInbox() {
         guard expanded else { return }
-        if expandedPage == .messages, conversationFromInbox { openInbox(); return }
         expandedPage = mediaPlaying ? .media : .displaySound
         refresh()
     }
 
     /// Opens a conversation on the panel by its chat.
     @discardableResult
-    func openChat(_ chat: Int64, fromInbox: Bool = false) -> Bool {
+    func openChat(_ chat: Int64) -> Bool {
         guard let m = messages else { return false }
         m.openChat(chat)
         guard m.open != nil else { return false }
-        conversationFromInbox = fromInbox
         if expandedPage == .search { search.end() } // from search's Message: the conversation takes its place
         expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
         controlDetail = nil
-        messageDraft = ""
         if !expanded { setExpanded(true) } else { refresh() }
         return true
-    }
-
-    func sendMessage() {
-        guard !messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        messages?.send(messageDraft) { [weak self] text in
-            // Messages refused it: give the text back to fix and resend, unless something new was typed.
-            if let self, self.messageDraft.isEmpty { self.messageDraft = text }
-        }
-        messageDraft = ""
     }
 
     func setBase(_ p: Presentation?) {

@@ -7,14 +7,15 @@ import SwiftUI
 /// Messages conversations in the notch (DESIGN.md "Messages", RESEARCH.md Q32-Q38).
 ///
 /// Reads Messages' history (`~/Library/Messages/chat.db`, read only; needs Full Disk Access), names people from
-/// Contacts, and sends replies by asking Messages to (Apple Events), so Islet itself never goes on the network.
+/// Contacts, and shows them read only: to reply, the conversation's button opens it in Messages (owner's decision,
+/// 2026-11-23: stability over sending from the notch). Islet never controls Messages or goes on the network for it.
 /// Messages' database is private and may change with macOS: everything here fails quietly to "open Messages instead".
 @MainActor @Observable
 final class MessagesStore {
     static let enabledKey = "messagesInNotch"
 
     struct Message: Identifiable, Equatable {
-        enum Status: Equatable, Sendable { case none, sending, sent, delivered, read(Date), failed }
+        enum Status: Equatable, Sendable { case none, sent, delivered, read(Date), failed }
         let id: Int64
         /// Messages' own id, which reactions point at.
         var guid: String = ""
@@ -27,12 +28,6 @@ final class MessagesStore {
         var status: Status
         /// Sent as an iMessage (blue), not SMS / RCS (green). Messages colours each bubble by how it went.
         var iMessage = true
-        /// The "Sending…" bubble this message took over from, so the list keeps it in place.
-        var viewKey: Int64?
-        /// What the list knows it by.
-        var key: Int64 { viewKey ?? id }
-        /// Still on its way to Messages (shown faded).
-        var inFlight: Bool { id < 0 && status == .sending }
         /// Tapbacks on it, oldest first.
         var reactions: [Reaction] = []
         /// What came with it: photos, stickers, files.
@@ -110,12 +105,6 @@ final class MessagesStore {
     private(set) var inbox: [ChatSummary] = []
     /// Chats with unread messages, as Messages' badge counts them: the panel's messages pill shows when there are any.
     private(set) var unreadCount = 0
-    /// A reply that went out but hasn't shown up in the history yet: shown at once, "Sending…".
-    private(set) var pending: [Message] = []
-    /// The send itself failed (no permission, Messages refused).
-    private(set) var sendError: String?
-    /// A tapback is on its way (Messages is in front for a moment).
-    private(set) var reacting = false
 
     var enabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
 
@@ -130,11 +119,6 @@ final class MessagesStore {
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var names: ContactNames?
     @ObservationIgnored private var chatHandles: [Int64: [String]] = [:]
-    @ObservationIgnored private var sendCount: Int64 = 0
-    /// One-to-one chats replied to that Messages still shows unread: marked read when the conversation closes.
-    @ObservationIgnored private var toMarkRead: [Conversation] = []
-    /// A sent message's id in the history → the id of the "Sending…" bubble it replaces, so the bubble stays put.
-    @ObservationIgnored private var keys: [Int64: Int64] = [:]
 
     /// Whether the history can be read (Full Disk Access). Once it can, this never waits.
     var available: Bool {
@@ -233,31 +217,15 @@ final class MessagesStore {
     func openChat(_ chatID: Int64) {
         guard available else { return }
         loadNames()
-        pending = []
-        keys = [:]
-        sendError = nil
         let book = self.book
         open = db.sync { $0.conversation(chatID, book) }
         watch()
     }
 
     func close() {
-        // Chats replied to while they still showed a badge in Messages: mark them read now the conversation is
-        // done, after the panel has finished closing, so Messages coming forward doesn't interrupt anything.
-        if !toMarkRead.isEmpty {
-            let chats = toMarkRead
-            toMarkRead = []
-            Task {
-                try? await Task.sleep(for: .milliseconds(800))
-                for chat in chats { await TapbackSender.markRead(chat) }
-            }
-        }
         watcher?.cancel(); watcher = nil
         reloadTask?.cancel()
         open = nil
-        pending = []
-        keys = [:]
-        sendError = nil
     }
 
     func isOpen(_ chatID: Int64?) -> Bool { chatID != nil && open?.chatID == chatID }
@@ -288,7 +256,7 @@ final class MessagesStore {
     }
 
     /// Messages writes several times per message (sent, delivered, read): wait for it to settle, read in the
-    /// background, then show the result with an animation.
+    /// background, then show the result with an animation. New messages slide in at the bottom.
     private func scheduleReload() {
         reloadTask?.cancel()
         reloadTask = Task { [weak self] in
@@ -297,104 +265,7 @@ final class MessagesStore {
             let book = self.book
             let loaded = await self.db.read { $0.conversation(id, book) }
             guard !Task.isCancelled, let loaded, self.open?.chatID == id else { return }
-            self.show(loaded)
-        }
-    }
-
-    /// Shows a freshly read conversation. A reply the history now has takes over its "Sending…" bubble's identity, so
-    /// the bubble settles in place instead of being swapped for a new one.
-    private func show(_ loaded: Conversation) {
-        var c = loaded
-        for p in pending where !keys.values.contains(p.id) {
-            if let i = c.messages.firstIndex(where: {
-                $0.mine && keys[$0.id] == nil && $0.text == p.text && $0.date >= p.date.addingTimeInterval(-5)
-            }) {
-                keys[c.messages[i].id] = p.id
-            }
-        }
-        let claimed = Set(keys.values)
-        let waiting = pending.filter { !claimed.contains($0.id) }
-        for i in c.messages.indices { c.messages[i].viewKey = keys[c.messages[i].id] }
-        c.messages += waiting
-        guard c != open else { return }
-        withAnimation(.smooth(duration: 0.35)) {
-            pending = waiting
-            open = c
-        }
-    }
-
-    // MARK: Sending
-
-    /// Asks Messages to send `text` to the open conversation. It shows at once, faded, as "Sending…"; the Apple Event
-    /// goes out on its own queue so the panel never waits for Messages, and the bubble settles once Messages has it.
-    /// `failed` gets the text back when Messages refuses it.
-    func send(_ text: String, failed: @escaping @MainActor (String) -> Void = { _ in }) {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let c = open else { return }
-        sendError = nil
-        let escaped = text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let guid = c.guid.replacingOccurrences(of: "\"", with: "")
-        let source = "tell application \"Messages\" to send \"\(escaped)\" to chat id \"\(guid)\""
-        sendCount += 1
-        let p = Message(id: -sendCount, text: text, mine: true, date: Date(), sender: nil, attachment: false, status: .sending,
-                        iMessage: c.iMessage)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            pending.append(p)
-            open?.messages.append(p)
-        }
-        Task {
-            let error = await Self.runAppleScript(source)
-            if let error {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    pending.removeAll { $0.id == p.id }
-                    if open?.chatID == c.chatID {
-                        open?.messages.removeAll { $0.id == p.id }
-                        sendError = error == -1743 ? "Allow Dynamic Peninsula to control Messages in System Settings" : "Messages couldn't send it"
-                    }
-                }
-                failed(text)
-                return
-            }
-            // Messages has it: the bubble fills in ("Sent") even before the history shows it.
-            withAnimation(.easeOut(duration: 0.3)) {
-                if let i = pending.firstIndex(where: { $0.id == p.id }) { pending[i].status = .sent }
-                if let i = open?.messages.firstIndex(where: { $0.id == p.id }) { open?.messages[i].status = .sent }
-            }
-            // Replying doesn't mark the chat read in Messages. Doing that brings Messages forward, so it waits until the
-            // conversation closes (see `close()`) instead of interrupting it.
-            let chat = c.chatID
-            if await db.read({ $0.unreadInMessages(chat) }) > 0, !toMarkRead.contains(where: { $0.chatID == chat }) {
-                toMarkRead.append(c)
-            }
-            scheduleReload()
-        }
-    }
-
-    /// Runs Apple Events one at a time, in order, off the main thread. Nil when it worked, else the error number.
-    nonisolated private static let appleEvents = DispatchQueue(label: "com.marcogad.islet.messages.send")
-    nonisolated private static func runAppleScript(_ source: String) async -> Int? {
-        await withCheckedContinuation { done in
-            appleEvents.async {
-                var error: NSDictionary?
-                let ok = NSAppleScript(source: source)?.executeAndReturnError(&error) != nil
-                done.resume(returning: ok ? nil : (error?[NSAppleScript.errorNumber] as? Int ?? 0))
-            }
-        }
-    }
-
-    // MARK: Reacting
-
-    /// Sends a tapback on a message through Messages; nil opens the message's menu in Messages for any emoji.
-    func react(_ tapback: Tapback?, to message: Message) {
-        guard let c = open, !reacting, message.id > 0, let i = c.messages.firstIndex(of: message) else { return }
-        let occurrence = c.messages[(i + 1)...].filter { $0.mine == message.mine && $0.text == message.text }.count
-        sendError = nil
-        reacting = true
-        Task {
-            let error = await TapbackSender.react(tapback, to: message, in: c, occurrence: occurrence)
-            reacting = false
-            if open?.chatID == c.chatID { sendError = error }
-            scheduleReload()
+            if loaded != self.open { withAnimation(.smooth(duration: 0.35)) { self.open = loaded } }
         }
     }
 

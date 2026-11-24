@@ -225,7 +225,6 @@ struct OnboardingView: View {
         case "Accessibility": accessibility
         case "Full Disk Access": focus.accessGranted
         case "Contacts": messagesAccess.contactsAllowed
-        case "Control Messages": messagesAccess.automationAllowed
         case "Location": wifi.locationAllowed
         default: camera == .authorized
         }
@@ -236,7 +235,6 @@ struct OnboardingView: View {
         case "Accessibility": "accessibility"
         case "Full Disk Access": "internaldrive.fill"
         case "Contacts": "person.crop.circle.fill"
-        case "Control Messages": "message.fill"
         case "Location": "location.fill"
         default: "camera.fill"
         }
@@ -247,7 +245,6 @@ struct OnboardingView: View {
         case "Accessibility": "Opens System Settings: switch Dynamic Peninsula on, then come back."
         case "Full Disk Access": "Opens System Settings: switch Dynamic Peninsula on. Dynamic Peninsula only reads Focus and Messages, never changes them. Restart Dynamic Peninsula after."
         case "Contacts": "macOS asks right here."
-        case "Control Messages": "Messages opens in the background and macOS asks."
         case "Location": "macOS asks right here. Your location is never used."
         default: "macOS asks right here. Only used while you set up Face Unlock or the Mac is locked."
         }
@@ -258,7 +255,6 @@ struct OnboardingView: View {
         case "Accessibility": accessibilityAction
         case "Full Disk Access": { SystemSettings.open(SystemSettings.fullDisk) }
         case "Contacts": { messagesAccess.requestContacts() }
-        case "Control Messages": { messagesAccess.requestAutomation() }
         case "Location": locationAction
         default: cameraAction
         }

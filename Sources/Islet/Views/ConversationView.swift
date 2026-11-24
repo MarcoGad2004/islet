@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// A Messages conversation in the panel (DESIGN.md "Messages"): header, the latest messages (newest at the bottom), and a
-/// reply field that sends through Messages.
+/// A Messages conversation in the panel (DESIGN.md "Messages"), read only: a back button to the inbox and who it is,
+/// the latest messages (newest at the bottom), and one big button that opens the conversation in Messages to reply.
+/// Owner's decision, 2026-11-23: the notch is a window onto Messages, not a second Messages (stability over features).
 struct ConversationView: View {
-    @Bindable var store: IslandStore
+    let store: IslandStore
     let conversation: MessagesStore.Conversation
-    @FocusState private var focused: Bool
 
     private var tint: Color { Self.tint(iMessage: conversation.iMessage) }
     private static func tint(iMessage: Bool) -> Color { iMessage ? Color(hex: 0x0A84FF) : .isletGreen }
@@ -14,52 +14,47 @@ struct ConversationView: View {
         VStack(spacing: 8) {
             header
             messages
-            if let error = store.messages?.sendError {
-                Text(error).font(.system(size: 11)).foregroundStyle(Color.isletRedText).frame(maxWidth: .infinity, alignment: .leading)
-            }
-            replyField
+            openButton
         }
         .padding(EdgeInsets(top: 10, leading: 16, bottom: 14, trailing: 16))
-        .onAppear {
-            // The panel becomes key as it opens; give it a moment, then put the cursor in the reply field.
-            Task { @MainActor in try? await Task.sleep(for: .milliseconds(120)); focused = true }
-        }
     }
 
     // MARK: Header
 
     private var header: some View {
         HStack(spacing: 10) {
-            if store.conversationFromInbox {
-                Button { store.closeInbox() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.isletText)
-                        .frame(width: 28, height: 28).background(Circle().fill(Color.isletRing))
-                }
-                .buttonStyle(.plain).help("Inbox")
+            Button { store.openInbox() } label: {
+                Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.isletText)
+                    .frame(width: 28, height: 28).background(Circle().fill(Color.isletRing))
             }
+            .buttonStyle(.plain).help("All conversations").accessibilityLabel("Back")
             ChatAvatar(photo: store.messages?.photo(forChat: conversation.chatID), initial: conversation.initial,
                        chatID: conversation.chatID, size: 32)
             VStack(alignment: .leading, spacing: 1) {
                 Text(conversation.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
                 Text(conversation.subtitle).font(.system(size: 11)).foregroundStyle(Color.isletTertiary).lineLimit(1)
             }
-            Spacer(minLength: 8)
-            Button { openInMessages() } label: {
-                HStack(spacing: 5) {
-                    Text("Open in Messages").font(.system(size: 11, weight: .semibold))
-                    Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundStyle(Color.isletText).padding(.horizontal, 10).frame(height: 26)
-                .background(Capsule().fill(Color.isletRing))
-            }
-            .buttonStyle(.plain)
-            Button { store.collapse() } label: {
-                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(Color.isletText)
-                    .frame(width: 28, height: 28).background(Circle().fill(Color.isletRing))
-            }
-            .buttonStyle(.plain).help("Collapse")
+            Spacer(minLength: 0)
         }
         .frame(height: 36)
+    }
+
+    // MARK: Opening in Messages
+
+    /// Where the reply field was: the whole width, in the conversation's colour. Messages is where you reply.
+    private var openButton: some View {
+        Button { openInMessages() } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "message.fill").font(.system(size: 13, weight: .semibold))
+                Text("Reply in Messages").font(.system(size: 13, weight: .semibold))
+                Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity).frame(height: 34)
+            .background(Capsule().fill(tint))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private func openInMessages() {
@@ -79,9 +74,9 @@ struct ConversationView: View {
     private var messages: some View {
         let list = conversation.messages
         let lastMine = list.lastIndex(where: \.mine)
-        return PanelScrollView(anchorBottom: true, indicators: false, scrollTo: list.last?.key) {
+        return PanelScrollView(anchorBottom: true, indicators: false, scrollTo: list.last?.id) {
             VStack(spacing: 3) {
-                ForEach(Array(list.enumerated()), id: \.element.key) { i, m in
+                ForEach(Array(list.enumerated()), id: \.element.id) { i, m in
                     let prev = i > 0 ? list[i - 1] : nil
                     VStack(alignment: m.mine ? .trailing : .leading, spacing: 1) {
                         if prev == nil || m.date.timeIntervalSince(prev!.date) > 3600 {
@@ -92,21 +87,17 @@ struct ConversationView: View {
                             Text(sender).font(.system(size: 10)).foregroundStyle(Color.isletTertiary).padding(.horizontal, 12).padding(.top, 3)
                         }
                         bubble(m)
-                            // On its way to Messages: faded and a touch smaller, filling in once Messages has it.
-                            .opacity(m.inFlight ? 0.55 : 1)
-                            .scaleEffect(m.inFlight ? 0.97 : 1, anchor: .bottomTrailing)
                         if i == lastMine, let status = Self.statusText(m.status) {
                             Text(status)
                                 .font(.system(size: 10)).foregroundStyle(m.status == .failed ? Color.isletRedText : Color.isletTertiary)
                                 .padding(.horizontal, 4).padding(.top, 2)
-                                .contentTransition(.opacity)
                                 .id(status)
                                 .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: m.mine ? .trailing : .leading)
                     .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
-                    .id(m.key)
+                    .id(m.id)
                 }
             }
             .padding(.horizontal, 2).padding(.bottom, 2)
@@ -145,7 +136,12 @@ struct ConversationView: View {
                 .frame(maxWidth: 300, alignment: m.mine ? .trailing : .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .contentShape(Rectangle())
-                .contextMenu { menu(m) }
+                .contextMenu {
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(m.text, forType: .string)
+                    }
+                }
         }
     }
 
@@ -167,66 +163,12 @@ struct ConversationView: View {
         .help(m.reactions.count > unique.count ? "\(m.reactions.count) reactions" : "")
     }
 
-    /// Right-click: the six tapbacks (yours ticked; choosing it again takes it off), any emoji in Messages, Copy.
-    @ViewBuilder private func menu(_ m: MessagesStore.Message) -> some View {
-        let mine = m.reactions.first(where: \.mine)
-        if m.id > 0 {
-            ForEach(Tapback.allCases) { t in
-                Button { store.messages?.react(t, to: m) } label: {
-                    if mine?.tapback == t { Label("\(t.emoji)  \(t.name)", systemImage: "checkmark") } else { Text("\(t.emoji)  \(t.name)") }
-                }
-            }
-            Button("Other Emoji in Messages…") { store.messages?.react(nil, to: m) }
-            Divider()
-        }
-        Button("Copy") {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(m.text, forType: .string)
-        }
-    }
-
-    // MARK: Reply
-
-    private var replyField: some View {
-        let hasText = !store.messageDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return HStack(spacing: 8) {
-            Button { showEmoji() } label: {
-                Image(systemName: "face.smiling").font(.system(size: 15)).foregroundStyle(Color.isletSecondary)
-                    .frame(width: 30, height: 30).background(Circle().fill(Color.isletRing))
-            }
-            .buttonStyle(.plain).help("Emoji & Symbols (⌃⌘Space)").accessibilityLabel("Emoji")
-            TextField("", text: $store.messageDraft, prompt: Text(conversation.placeholder).foregroundStyle(Color.isletTertiary))
-                .textFieldStyle(.plain).font(.system(size: 13)).foregroundStyle(Color.isletText)
-                .focused($focused)
-                .onSubmit { store.sendMessage(); focused = true }
-                .onExitCommand { store.collapse() }
-                .padding(.horizontal, 14).frame(height: 32)
-                .background(Capsule().fill(Color(hex: 0x1C1C1E)))
-                .overlay(Capsule().stroke(focused ? Color(hex: 0x0A84FF) : Color(hex: 0x3A3A3C), lineWidth: 1))
-            Button { store.sendMessage() } label: {
-                Image(systemName: "arrow.up").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 30, height: 30).background(Circle().fill(hasText ? tint : Color(hex: 0x3A3A3C)))
-            }
-            .buttonStyle(.plain).disabled(!hasText).accessibilityLabel("Send")
-        }
-    }
-
-    /// The system's Emoji & Symbols picker, into the reply field.
-    private func showEmoji() {
-        focused = true
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
-            store.showCharacterPalette()
-        }
-    }
-
     // MARK: Helpers
 
-    /// "Sending…", "Sent", "Delivered", "Read 2:31 PM", "Read Yesterday", "Read Mon", "Read 12 Nov", "Not delivered".
+    /// "Sent", "Delivered", "Read 2:31 PM", "Read Yesterday", "Read Mon", "Read 12 Nov", "Not delivered".
     static func statusText(_ s: MessagesStore.Message.Status) -> String? {
         switch s {
         case .none: return nil
-        case .sending: return "Sending…"
         case .sent: return "Sent"
         case .delivered: return "Delivered"
         case .failed: return "Not delivered"

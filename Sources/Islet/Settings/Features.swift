@@ -37,7 +37,7 @@ enum Feature: String, CaseIterable, Identifiable {
     var needs: [String] {
         switch self {
         case .levels, .notifications: ["Accessibility"]
-        case .messages: ["Full Disk Access", "Contacts", "Control Messages"]
+        case .messages: ["Full Disk Access", "Contacts"]
         case .focus: ["Full Disk Access"]
         case .search, .menuBarBattery: []
         case .shazam: [] // the microphone is asked the first time it listens

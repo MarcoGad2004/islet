@@ -111,8 +111,6 @@ struct SettingsChecks {
             SettingsPermission(name: "Contacts", purpose: "Names on messages, and people in search",
                                allowed: messagesAccess.contactsAllowed, usedBy: used("Contacts"),
                                optional: on.contains(.notifications) || on.contains(.search) ? "Names instead of numbers, and people in search." : nil) { messagesAccess.requestContacts() },
-            SettingsPermission(name: "Control Messages", purpose: messagesAccess.asking ? "Answer the macOS prompt…" : "Sends your replies from the notch. Allow opens Messages to ask.",
-                               allowed: messagesAccess.automationAllowed, usedBy: used("Control Messages")) { messagesAccess.requestAutomation() },
             SettingsPermission(name: "Location", purpose: "Names of nearby Wi-Fi networks. Your location is never used.",
                                allowed: wifi.locationAllowed, usedBy: [], optional: "The island: names of nearby Wi-Fi networks.") {
                 if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }

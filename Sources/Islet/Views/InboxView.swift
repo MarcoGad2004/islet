@@ -56,7 +56,7 @@ struct InboxView: View {
 
     private func row(_ c: MessagesStore.ChatSummary) -> some View {
         let new = c.unread > 0
-        return Button { store.openChat(c.chatID, fromInbox: true) } label: {
+        return Button { store.openChat(c.chatID) } label: {
             HStack(spacing: 10) {
                 ChatAvatar(photo: messages.photo(forChat: c.chatID), initial: c.initial, chatID: c.chatID, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
