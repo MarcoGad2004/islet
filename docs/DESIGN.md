@@ -75,9 +75,14 @@ docs/mockups/expanded-flush.html).
   like every shape), bottom corners 30. It is the stem shape's height minus 44 pt: the header row moves up into the
   band beside the camera.
 - **Header beside the camera** (on the Controls page and its detail pages): left, the battery chip, update and Focus
-  icons (or the back button and the page's name on a detail page); right, the album art and play/pause when music is
-  loaded, then the gear. The "Controls" label and the song's name aren't shown; hovering the art shows the name and
-  clicking it opens the player. Everything else on the page moves up by the header's height.
+  icons (or the back button and the page's name on a detail page); right, the Shazam button, then the album art and
+  play/pause when music is loaded (owner's request, 2026-11-23: Shazam moved right so the battery chip isn't cut off).
+  The "Controls" label and the song's name aren't shown; hovering the art shows the name and clicking it opens the
+  player. Everything else on the page moves up by the header's height.
+- **Settings behind the camera** (owner's request, 2026-11-23): flush, there's no gear. With the pointer behind the
+  camera the header row fades out (0.2 s) and "Click to open" (left of the camera, `secondary`) and "⚙ Settings" (right
+  of it) fade in; a click there closes the panel and opens Settings. With the stem (no room beside the camera) or
+  without a notch, the gear stays at the header's right end, with Shazam just left of it.
 - **Other pages** (the player, search, a conversation, the notification list) keep their layout: the band beside the
   camera is part of the black panel, with the page under it.
 - **Motion**: like the wings, the notch springs out sideways and down at once (width with the wings' soft overshoot,
@@ -842,7 +847,7 @@ docs/mockups/quick-info.html).
 Owner request, 2026-11-23: name the song playing nearby from the notch.
 
 - **Starting it**: a round Shazam button (the blue Shazam mark on a glass circle, 22 pt) in the controls' header,
-  right of the battery chip; it closes the panel and the notch listens. Or pull it in with two fingers (below).
+  at its right end (beside the mini player or the gear; see "Flush panel"); it closes the panel and the notch listens. Or pull it in with two fingers (below).
   Settings > Dynamic Peninsula > Features "Shazam" (on by default) removes both.
 - **Pulling it in** (owner, 2026-11-23: "drag Shazam in with some resistance"): two fingers sideways over the idle
   notch (quick info, the peek; not over media, where they skip). The mark follows the fingers in from the edge they

@@ -36,6 +36,10 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Contact photos in Messages.** The inbox and a conversation's header show the person's photo from Contacts, where they have one. Group chats keep their initial.
 - **AirPods connect once, in the notch.** When AirPods or another device connect, only the notch shows it: with Notifications in the notch on, the macOS "Connected" card in the top-right corner stays away. The notch also no longer sometimes shows the same connection twice.
 
+### The panel
+
+- **Settings from behind the camera.** With the panel beside the notch, move the pointer behind the camera: the header fades and "Click to open Settings" appears across it. Click to open Settings. The gear is gone from there, and Shazam moved to the right side, so the battery no longer gets cut off.
+
 ### Fixes
 
 - **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.

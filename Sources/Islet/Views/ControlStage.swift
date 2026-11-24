@@ -25,6 +25,8 @@ struct ControlStage: View {
     /// Opened from quick info: what doesn't glide in from it fades in (DESIGN.md "Quick info").
     @Environment(\.quickInfoRest) private var rest
     @Environment(\.quickInfoNamespace) private var ns
+    /// The pointer is behind the camera (flush): the header row fades and "Click to open Settings" shows across it.
+    @State private var settingsHover = false
 
     private enum Mode: Equatable { case controls, display, sound, wifi, bluetooth, mirroring, battery, media }
 
@@ -67,7 +69,8 @@ struct ControlStage: View {
             if let power = store.power, power.state.hasBattery {
                 BatteryPage(power: power).slot(below, visible: mode == .battery)
             }
-            gear
+            if Feature.shazam.isOn { shazamButton.slot(shazamSlot, visible: mode == .controls).opacity(rest * headerFade) }
+            if flush { notchSettings } else { gear }
         }
         .frame(width: W, height: H, alignment: .topLeading)
         .animation(glide, value: mode)
@@ -109,7 +112,6 @@ struct ControlStage: View {
                         .opacity(rest)
                 }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
-                if Feature.shazam.isOn { shazamButton.opacity(rest) }
                 if Feature.messages.isOn, let m = store.messages, m.unreadCount > 0 { messagesChip(m.unreadCount).opacity(rest) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag).opacity(rest) }
                 if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f).opacity(rest) }
@@ -132,6 +134,17 @@ struct ControlStage: View {
         // the header has the room left of the camera.
         .frame(width: flush ? leftBand : store.media != nil ? 196 : W - 40, height: 26, alignment: .leading)
         .offset(y: headerY)
+        .opacity(headerFade)
+    }
+
+    /// The header row's pieces, faded out while the pointer is behind the camera.
+    private var headerFade: Double { settingsHover ? 0 : 1 }
+
+    /// Right-hand end of the header row (owner's request, 2026-11-23): Shazam sits at the far right, or just left of
+    /// the mini player's art when music is loaded, so the battery chip on the left keeps its room.
+    private var shazamSlot: CGRect {
+        let x: CGFloat = store.media == nil ? (flush ? W - 22 : W - 26 - 8 - 22) : (flush ? W - 26 - 8 - 22 - 8 - 22 : 376)
+        return CGRect(x: x, y: 2 + headerY, width: 22, height: 22)
     }
 
     /// A new version is out: click to close the panel and update, the progress playing out in the notch. Next to
@@ -228,6 +241,36 @@ struct ControlStage: View {
 
     private var gear: some View {
         SettingsGear(store: store).slot(CGRect(x: W - 26, y: headerY, width: 26, height: 26)).opacity(rest)
+    }
+
+    /// Flush, there's no gear: the space behind the camera is the Settings button (owner's request, 2026-11-23).
+    /// With the pointer there the header row fades and "Click to open | ⚙ Settings" fades in on each side of it.
+    private var notchSettings: some View {
+        let notch = CGFloat(store.geometry?.width ?? 190)
+        let left = 234 - notch / 2
+        return ZStack(alignment: .topLeading) {
+            Text("Click to open").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletSecondary)
+                .frame(width: left - 10, height: 26, alignment: .trailing)
+                .offset(y: headerY)
+            HStack(spacing: 5) {
+                Image(systemName: "gearshape.fill").font(.system(size: 11, weight: .semibold))
+                Text("Settings").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(Color.isletText)
+            .frame(height: 26)
+            .offset(x: left + notch + 10, y: headerY)
+        }
+        .opacity(settingsHover ? 1 : 0)
+        .allowsHitTesting(false)
+        .overlay(alignment: .topLeading) {
+            Color.clear
+                .frame(width: notch - 8, height: 40)
+                .contentShape(Rectangle())
+                .offset(x: left + 4, y: headerY - 8)
+                .onHover { inside in withAnimation(.easeOut(duration: 0.2)) { settingsHover = inside } }
+                .onTapGesture { settingsHover = false; store.collapse(); store.openSettings?() }
+        }
+        .opacity(rest)
     }
 
     // MARK: Controls, tiles and sliders
@@ -329,14 +372,16 @@ struct ControlStage: View {
             ArtworkView(image: m.artwork, size: 80, radius: 14, playing: m.playing)
                 .frame(width: 80, height: 80, alignment: .topLeading)
                 .scaleEffect(isMedia ? 1 : 22.0 / 80, anchor: .topLeading)
-                .offset(x: isMedia ? 0 : flush ? 376 : 198, y: isMedia ? 48 : 2 + headerY)
+                .offset(x: isMedia ? 0 : flush ? W - 26 - 8 - 22 : 198, y: isMedia ? 48 : 2 + headerY)
+                .opacity(isMedia ? 1 : headerFade)
                 .help(flush && !isMedia ? m.title : "")
                 .onTapGesture { if isMedia { monitor.activatePlayer(); store.collapse() } else { store.showMediaPage() } }
 
             Text(m.title)
                 .font(.system(size: 17, weight: .semibold)).lineLimit(1)
                 .foregroundStyle(isMedia ? Color.isletText : Color.isletSecondary)
-                .frame(width: 240, height: 22, alignment: .leading)
+                // In the header row it stops short of Shazam (at x 376).
+                .frame(width: isMedia || !Feature.shazam.isOn ? 240 : 196, height: 22, alignment: .leading)
                 .scaleEffect(isMedia ? 1 : 12.0 / 17, anchor: .topLeading)
                 .offset(x: isMedia ? 94 : 228, y: isMedia ? 54 : 6 + headerY)
                 // Flush, there's no room for the name beside the camera: hovering the art shows it.
@@ -352,7 +397,8 @@ struct ControlStage: View {
             Button { monitor.togglePlayPause() } label: {
                 Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
                     .frame(width: 26, height: 22).background(IsletCard(shape: Capsule()))
-            }.buttonStyle(.plain).slot(CGRect(x: 406, y: 2 + headerY, width: 26, height: 22), visible: !isMedia)
+            }.buttonStyle(.plain).slot(CGRect(x: flush ? W - 26 : 406, y: 2 + headerY, width: 26, height: 22), visible: !isMedia)
+                .opacity(headerFade)
 
             HStack(spacing: 16) {
                 transport("backward.fill", 17) { monitor.previous() }
@@ -364,7 +410,8 @@ struct ControlStage: View {
                 .slot(CGRect(x: 0, y: 148, width: W, height: 20), visible: isMedia)
 
             SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing)
-                .slot(CGRect(x: W - 26 - 10 - 20, y: 3 + headerY, width: 20, height: 20), visible: isMedia)
+                .slot(CGRect(x: flush ? W - 20 : W - 26 - 10 - 20, y: 3 + headerY, width: 20, height: 20), visible: isMedia)
+                .opacity(headerFade)
         }
     }
 
