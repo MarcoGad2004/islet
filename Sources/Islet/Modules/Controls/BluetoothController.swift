@@ -7,6 +7,26 @@ struct BTDevice: Identifiable, Equatable {
     var name: String
     var connected: Bool
     var icon: String
+    var battery: BTBattery? = nil
+}
+
+/// A connected device's charge, in percent, as macOS reports it: earbuds each and their case, or one battery.
+struct BTBattery: Equatable, Sendable {
+    var left: Int?
+    var right: Int?
+    var caseLevel: Int?
+    var single: Int?
+
+    /// The earbuds' charge (the lower of the two, as the one that runs out first), else the single battery.
+    var main: Int? {
+        switch (left, right) {
+        case let (l?, r?): min(l, r)
+        case let (l?, nil): l
+        case let (nil, r?): r
+        default: single
+        }
+    }
+    var hasEarbuds: Bool { left != nil || right != nil }
 }
 
 /// Bluetooth: power (private IOBluetooth call), paired devices, and connect/disconnect. Connect and disconnect
@@ -20,6 +40,10 @@ final class BluetoothController: NSObject {
     var error: String?
 
     @ObservationIgnored private var note: IOBluetoothUserNotification?
+    /// Names and charge from System Information, by address (see `readDetails`).
+    @ObservationIgnored private var details: [String: Details] = [:]
+    @ObservationIgnored private var detailsRead = Date.distantPast
+    @ObservationIgnored private var readingDetails = false
     @ObservationIgnored private var disconnectNotes: [String: IOBluetoothUserNotification] = [:]
 
     // MARK: Power (private symbols, resolved at runtime)
@@ -62,8 +86,96 @@ final class BluetoothController: NSObject {
             guard let address = d.addressString, let name = d.name, !name.isEmpty else { return nil }
             registerDisconnect(d, address: address)
             guard Self.isAccessory(name: name, major: d.deviceClassMajor) else { return nil }
-            return BTDevice(id: address, name: name, connected: d.isConnected(), icon: Self.icon(name: name, major: d.deviceClassMajor))
+            let connected = d.isConnected()
+            let info = details[Self.key(address)]
+            return BTDevice(id: address, name: info?.name ?? name, connected: connected,
+                            icon: Self.icon(name: name, major: d.deviceClassMajor), battery: connected ? info?.battery : nil)
         }.sorted { ($0.connected ? 0 : 1, $0.name) < ($1.connected ? 0 : 1, $1.name) }
+        updateDetails()
+    }
+
+    // MARK: Names and charge
+
+    struct Details: Sendable {
+        var name: String
+        var battery: BTBattery?
+    }
+
+    /// IOBluetooth often knows a device only by its model ("AirPods Pro") and never its charge. System Information has
+    /// the name you gave it ("Marco's AirPods Pro") and, for AirPods and many others, each earbud's and the case's
+    /// charge. It's read in the background (about 60 ms) at most every 10 s, whenever the list refreshes (quick info
+    /// showing, the panel opening, a device connecting), and the list is rebuilt with it.
+    private func updateDetails() {
+        guard !readingDetails, Date().timeIntervalSince(detailsRead) > 10, devices.contains(where: \.connected) || details.isEmpty
+        else { return }
+        readingDetails = true
+        Task.detached(priority: .utility) {
+            let read = Self.readDetails()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.readingDetails = false
+                self.detailsRead = Date()
+                guard let read else { return }
+                self.details = read
+                self.applyDetails()
+            }
+        }
+    }
+
+    /// Puts the names and charge on the current list without asking IOBluetooth again.
+    private func applyDetails() {
+        devices = devices.map { d in
+            var d = d
+            if let info = details[Self.key(d.id)] {
+                d.name = info.name
+                d.battery = d.connected ? info.battery : nil
+            }
+            return d
+        }.sorted { ($0.connected ? 0 : 1, $0.name) < ($1.connected ? 0 : 1, $1.name) }
+    }
+
+    /// "38-C4-3A-16-FF-CD" and "38:c4:3a:16:ff:cd" alike.
+    nonisolated private static func key(_ address: String) -> String {
+        address.lowercased().replacingOccurrences(of: "-", with: ":")
+    }
+
+    /// `system_profiler SPBluetoothDataType -json`: devices under "device_connected" and "device_not_connected", each a
+    /// one-key dictionary of name to details ("device_address", "device_batteryLevelLeft": "81%", …). Nil if it fails.
+    nonisolated private static func readDetails() -> [String: Details]? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        p.arguments = ["SPBluetoothDataType", "-json", "-detailLevel", "basic"]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return parseDetails(data)
+    }
+
+    nonisolated static func parseDetails(_ data: Data) -> [String: Details]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let sections = root["SPBluetoothDataType"] as? [[String: Any]] else { return nil }
+        func percent(_ v: Any?) -> Int? {
+            (v as? String).flatMap { Int($0.trimmingCharacters(in: CharacterSet(charactersIn: "% "))) }
+        }
+        var result: [String: Details] = [:]
+        for section in sections {
+            for list in ["device_connected", "device_not_connected"] {
+                for entry in section[list] as? [[String: Any]] ?? [] {
+                    for (name, value) in entry {
+                        guard let info = value as? [String: Any], let address = info["device_address"] as? String else { continue }
+                        let b = BTBattery(left: percent(info["device_batteryLevelLeft"]), right: percent(info["device_batteryLevelRight"]),
+                                          caseLevel: percent(info["device_batteryLevelCase"]),
+                                          single: percent(info["device_batteryLevelMain"]) ?? percent(info["device_batteryLevel"]))
+                        let known = b.left != nil || b.right != nil || b.caseLevel != nil || b.single != nil
+                        result[key(address)] = Details(name: name, battery: known ? b : nil)
+                    }
+                }
+            }
+        }
+        return result
     }
 
     func setPower(_ on: Bool) {

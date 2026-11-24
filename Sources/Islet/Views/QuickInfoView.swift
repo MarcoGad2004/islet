@@ -95,10 +95,10 @@ struct QuickInfoView: View {
         HStack(spacing: 24) {
             if let w = store.wifi {
                 HStack(spacing: 6) {
-                    Image(systemName: !w.powerOn || w.ssid == nil ? "wifi.slash" : w.hotspot ? "personalhotspot" : "wifi")
+                    Image(systemName: !w.isConnected ? "wifi.slash" : w.hotspot ? "personalhotspot" : "wifi")
                         .font(.system(size: 12, weight: .semibold))
                         .quickInfoPiece(.wifiIcon, ns)
-                    Text(!w.powerOn ? "Wi-Fi Off" : w.ssid ?? "Not connected")
+                    Text(w.shortStatus ?? "Wi-Fi Off")
                         .font(.system(size: 12, weight: .semibold))
                         .quickInfoPiece(.wifiName, ns)
                 }
@@ -110,6 +110,11 @@ struct QuickInfoView: View {
                         .quickInfoPiece(.bluetoothIcon, ns)
                     Text(name).font(.system(size: 12, weight: .semibold))
                         .quickInfoPiece(.bluetoothName, ns)
+                    // One device: its charge beside its name (the earbuds' for AirPods).
+                    if let p = bluetoothBattery {
+                        Text("\(p)%").font(.system(size: 12, weight: .medium)).monospacedDigit()
+                            .foregroundStyle(p <= 20 ? Color.isletRedText : Color.isletSecondary)
+                    }
                 }
                 .lineLimit(1)
             }
@@ -123,6 +128,13 @@ struct QuickInfoView: View {
         let connected = bt.devices.filter(\.connected)
         if connected.isEmpty { return nil }
         return connected.count == 1 ? connected[0].name : "\(connected.count) devices"
+    }
+
+    /// The one connected device's charge, when macOS knows it.
+    private var bluetoothBattery: Int? {
+        guard let bt = store.bluetooth, bt.powerOn else { return nil }
+        let connected = bt.devices.filter(\.connected)
+        return connected.count == 1 ? connected[0].battery?.main : nil
     }
 
     /// Quick info shows this Bluetooth piece, so the panel's Bluetooth tile glides from it.

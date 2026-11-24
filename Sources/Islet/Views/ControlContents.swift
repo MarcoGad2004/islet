@@ -223,10 +223,10 @@ struct WiFiContent: View {
         }
     }
 
-    /// "Off", "Not connected", the network, or "Personal Hotspot · Marco's iPhone".
+    /// "Off", "Not connected", the network, "Connected · name needs Location", or "Personal Hotspot · Marco's iPhone".
     static func status(_ wifi: WiFiController) -> String {
         guard wifi.powerOn else { return "Off" }
-        guard let ssid = wifi.ssid else { return "Not connected" }
+        guard let ssid = wifi.ssid else { return wifi.nameHidden ? "Connected · name needs Location" : "Not connected" }
         return wifi.hotspot ? "Personal Hotspot · \(ssid)" : ssid
     }
 
@@ -236,7 +236,7 @@ struct WiFiContent: View {
 
     private var locationPrompt: some View {
         VStack(spacing: 6) {
-            Text("Network names need Location access.").font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
+            Text(wifi.nameHidden ? "You're connected. Network names need Location access." : "Network names need Location access.").font(.system(size: 12)).foregroundStyle(Color.isletSecondary)
             Button(wifi.locationStatus == .notDetermined ? "Allow Location…" : "Open Location Settings…") {
                 if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
             }.controlSize(.small)
@@ -381,7 +381,13 @@ struct BluetoothContent: View {
                                     Image(systemName: d.icon)
                                 } trailing: {
                                     if bt.busy.contains(d.id) { ProgressView().controlSize(.small) }
-                                    else if d.connected { Text("Connected").font(.system(size: 10)).foregroundStyle(Color.isletSecondary) }
+                                    else if d.connected {
+                                        HStack(spacing: 8) {
+                                            Text("Connected")
+                                            if let b = d.battery { BTBatteryLabel(battery: b) }
+                                        }
+                                        .font(.system(size: 10)).foregroundStyle(Color.isletSecondary)
+                                    }
                                 }
                             }
                         }
@@ -392,6 +398,36 @@ struct BluetoothContent: View {
                 if let e = bt.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
             }
         }
+    }
+}
+
+/// A Bluetooth device's charge, as Bluetooth Settings shows it: the earbuds and their case each with an icon, or one
+/// battery. Red at 20% and under.
+struct BTBatteryLabel: View {
+    let battery: BTBattery
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if battery.hasEarbuds {
+                if let m = battery.main { level("earbuds", m) }
+                if let c = battery.caseLevel { level("earbuds.case.fill", c) }
+            } else if let m = battery.main {
+                level(Self.batterySymbol(m), m)
+            }
+        }
+        .monospacedDigit()
+    }
+
+    private func level(_ symbol: String, _ percent: Int) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol).font(.system(size: 9))
+            Text("\(percent)%")
+        }
+        .foregroundStyle(percent <= 20 ? Color.isletRedText : Color.isletSecondary)
+    }
+
+    static func batterySymbol(_ p: Int) -> String {
+        p >= 88 ? "battery.100" : p >= 63 ? "battery.75" : p >= 38 ? "battery.50" : p >= 13 ? "battery.25" : "battery.0"
     }
 }
 

@@ -44,6 +44,12 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - **Settings from behind the camera.** With the panel beside the notch, move the pointer behind the camera: the header fades and "Click to open Settings" appears across it. Click to open Settings. The gear is gone from there, and Shazam moved to the right side, so the battery no longer gets cut off.
 
+### Wi-Fi and Bluetooth
+
+- **Says when Location is the problem.** Without Location access macOS hides the network's name, and the notch used to say "Not connected" even though you were. It now says "Location needed" in quick info and on the Wi-Fi tile, and "Connected · name needs Location" in Wi-Fi's details, where the button to allow it is.
+- **Your devices' own names.** AirPods and other devices show the name you gave them ("Marco's AirPods Pro"), as Bluetooth Settings does, instead of just the model.
+- **Battery for AirPods and other devices.** Bluetooth's details show each connected device's charge: the earbuds and the case for AirPods, one battery for others. Quick info shows it next to the device's name. 20% and under is red.
+
 ### Fixes
 
 - **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.

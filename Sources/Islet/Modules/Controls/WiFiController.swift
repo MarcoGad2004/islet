@@ -55,6 +55,17 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     @ObservationIgnored private var settleTask: Task<Void, Never>?
 
     var locationAllowed: Bool { locationStatus == .authorizedAlways || locationStatus == .authorized }
+    /// On a network whose name macOS won't tell without Location access: the Wi-Fi interface has an address but no
+    /// network name. Shown as "Location needed", not "Not connected".
+    private(set) var nameHidden = false
+
+    /// For the tile and quick info: the network, "Location needed", "Not connected", or nil when Wi-Fi is off.
+    var shortStatus: String? {
+        guard powerOn else { return nil }
+        return ssid ?? (nameHidden ? "Location needed" : "Not connected")
+    }
+    /// Joined to a network, named or not.
+    var isConnected: Bool { powerOn && (ssid != nil || nameHidden) }
 
     func start() {
         location.delegate = self
@@ -80,6 +91,7 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         powerOn = i?.powerOn() ?? false
         ssid = powerOn ? i?.ssid() : nil
         let address = i?.interfaceName.flatMap(Self.ipv4)
+        nameHidden = powerOn && ssid == nil && !locationAllowed && address != nil
         let phoneAddress = address.map(Self.isPhoneHotspotAddress) == true
         let phone = ssid.map { s in instantHotspots.contains { $0.name == s } } ?? false
         hotspot = ssid != nil && (phoneAddress || phone || expensiveSSID == ssid)
@@ -287,6 +299,7 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         let status = manager.authorizationStatus
         Task { @MainActor in
             self.locationStatus = status
+            self.refresh() // the name shows (or hides) straight away
             if self.locationAllowed { await self.scan() }
         }
     }

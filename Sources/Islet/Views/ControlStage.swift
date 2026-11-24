@@ -270,9 +270,9 @@ struct ControlStage: View {
         let inControls = mode == .controls
         if let wifi = store.wifi {
             card(index: 0, active: mode == .wifi, mode: mode, detailHeight: 232) {
-                TileFace(icon: !wifi.powerOn ? "wifi.slash" : wifi.hotspot ? "personalhotspot" : "wifi",
+                TileFace(icon: !wifi.isConnected ? "wifi.slash" : wifi.hotspot ? "personalhotspot" : "wifi",
                          title: wifi.hotspot ? "Hotspot" : "Wi-Fi",
-                         status: wifi.powerOn ? (wifi.ssid ?? "Not connected") : "Off", on: wifi.powerOn,
+                         status: wifi.shortStatus ?? "Off", on: wifi.powerOn,
                          toggle: { wifi.setPower(!wifi.powerOn) }, open: { store.setControlDetail(.wifi) },
                          iconPiece: .wifiIcon, statusPiece: .wifiName)
             } detail: { WiFiContent(wifi: wifi).frame(width: W, height: 232, alignment: .topLeading) }
