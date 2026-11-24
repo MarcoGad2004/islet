@@ -347,7 +347,39 @@ final class MessagesDB: @unchecked Sendable {
     static func text(_ text: String?, _ body: Data?) -> String? {
         if let text, !text.isEmpty { return text }
         guard let body else { return nil }
-        return (NSUnarchiver.unarchiveObject(with: body) as? NSAttributedString)?.string
+        return typedstreamString(body)
+    }
+
+    /// The string of an attributed string archived as a typedstream (NSArchiver), read by hand: NSUnarchiver throws an
+    /// Objective-C exception on a body it can't read, which Swift can't catch, so one odd message would crash the app.
+    ///
+    /// The string follows the first "NSString" class name: a few bytes of class info end with "+" (a C string follows),
+    /// then its length (one byte; 0x81 then 2 bytes, or 0x82 then 4 bytes, little-endian) and its UTF-8 bytes. Nil when
+    /// the body isn't shaped like that.
+    static func typedstreamString(_ body: Data) -> String? {
+        let bytes = [UInt8](body)
+        let marker = Array("NSString".utf8)
+        guard bytes.count > marker.count,
+              let at = (0...(bytes.count - marker.count)).first(where: { bytes[$0..<$0 + marker.count].elementsEqual(marker) })
+        else { return nil }
+        var i = at + marker.count
+        let end = min(i + 12, bytes.count)
+        guard let plus = bytes[i..<end].firstIndex(of: 0x2B) else { return nil }
+        i = plus + 1
+        func little(_ n: Int) -> Int? {
+            guard i + n <= bytes.count else { return nil }
+            defer { i += n }
+            return bytes[i..<i + n].enumerated().reduce(0) { $0 | Int($1.element) << (8 * $1.offset) }
+        }
+        guard i < bytes.count else { return nil }
+        let lead = bytes[i]; i += 1
+        let length: Int? = switch lead {
+        case 0x81: little(2)
+        case 0x82: little(4)
+        default: lead < 0x80 ? Int(lead) : nil
+        }
+        guard let length, length >= 0, i + length <= bytes.count else { return nil }
+        return String(bytes: bytes[i..<i + length], encoding: .utf8)
     }
 
     static func clean(_ s: String) -> String {

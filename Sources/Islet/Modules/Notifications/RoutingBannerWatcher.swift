@@ -10,7 +10,7 @@ import ApplicationServices
 /// are all other windows. When the notch can't show the event (panel open, locked) the card stays where macOS put it.
 @MainActor
 final class RoutingBannerWatcher {
-    static let agentBundleID = "com.apple.MenuBarAgent"
+    nonisolated static let agentBundleID = "com.apple.MenuBarAgent"
     static let bannerID = "smart-routing-system-banner"
 
     /// A device connected (its name). Returns whether the notch shows it; if not, the card stays.
@@ -20,15 +20,10 @@ final class RoutingBannerWatcher {
     private var observer: AXObserver?
     private var retryTask: Task<Void, Never>?
 
-    /// Diagnostics while hiding is being tuned (device names and statuses only).
-    private let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Islet-airpods-card.log")
-    private func log(_ s: String) {
-        let line = "\(Date().formatted(.iso8601))  " + s + "\n"
-        if !FileManager.default.fileExists(atPath: logURL.path) { try? "".write(to: logURL, atomically: true, encoding: .utf8) }
-        if let h = try? FileHandle(forWritingTo: logURL) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
-    }
-
     func start() {
+        // The diagnostics file 1.6's test builds kept while hiding was tuned: nothing writes it any more.
+        try? FileManager.default.removeItem(at: FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Islet-airpods-card.log"))
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] note in
             let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
             guard id == Self.agentBundleID else { return }
@@ -54,12 +49,11 @@ final class RoutingBannerWatcher {
         if let observer { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes) }
         observer = nil
         var obs: AXObserver?
-        guard AXObserverCreate(app.processIdentifier, routingCallback, &obs) == .success, let obs else { log("observer failed"); return }
-        let r = AXObserverAddNotification(obs, AXUIElementCreateApplication(app.processIdentifier), kAXCreatedNotification as CFString,
+        guard AXObserverCreate(app.processIdentifier, routingCallback, &obs) == .success, let obs else { return }
+        AXObserverAddNotification(obs, AXUIElementCreateApplication(app.processIdentifier), kAXCreatedNotification as CFString,
                                           Unmanaged.passUnretained(self).toOpaque())
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observer = obs
-        log("attached to MenuBarAgent pid \(app.processIdentifier) (\(r.rawValue))")
     }
 
     fileprivate func created(_ window: AXUIElement) {
@@ -84,20 +78,15 @@ final class RoutingBannerWatcher {
                     try? await Task.sleep(for: .milliseconds(25))
                     self?.look(at: window, attempt: attempt + 1)
                 }
-            } else { log("card without texts: \(texts)") }
+            }
             return
         }
         let origin = AX.position(window)
-        log("card \(texts) at \(origin.map { "\($0)" } ?? "?")")
         // Name first, then the texts: a "Connected" card also has the battery ("41") between them.
-        guard enabled(), texts.dropFirst().contains(where: Self.isConnect) else { log("  left alone"); return }
-        var settable = DarwinBoolean(false)
-        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &settable)
-        let moved = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
-        log("  position settable=\(settable.boolValue) set=\(moved) now=\(AX.position(window).map { "\($0)" } ?? "?")")
+        guard enabled(), texts.dropFirst().contains(where: Self.isConnect) else { return }
+        AX.setPosition(window, CGPoint(x: -3000, y: -3000))
         guard onConnected?(texts[0]) == true else {
             if let origin { AX.setPosition(window, origin) }
-            log("  notch busy: card put back")
             return
         }
         keepAway(window)
@@ -108,18 +97,12 @@ final class RoutingBannerWatcher {
     /// connection, and on the main thread they made that animation stutter.
     private func keepAway(_ window: AXUIElement) {
         nonisolated(unsafe) let window = window
-        Task.detached(priority: .userInitiated) { [weak self] in
+        Task.detached(priority: .userInitiated) {
             let start = Date()
-            var moves = 0
             while Date().timeIntervalSince(start) < 10, AX.alive(window) {
-                if let p = AX.position(window), p.x > -2000 {
-                    _ = AX.setPosition(window, CGPoint(x: -3000, y: -3000))
-                    moves += 1
-                }
+                if let p = AX.position(window), p.x > -2000 { AX.setPosition(window, CGPoint(x: -3000, y: -3000)) }
                 try? await Task.sleep(for: .milliseconds(16))
             }
-            let summary = String(format: "  card gone after %.1fs, moved back %d times", Date().timeIntervalSince(start), moves)
-            await MainActor.run { self?.log(summary) }
         }
     }
 }

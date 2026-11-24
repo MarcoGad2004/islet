@@ -51,6 +51,9 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Shazam is steadier.** Stopping Shazam just as it found a song could crash Dynamic Peninsula; it no longer does. A slow network no longer holds the song back waiting for its cover. Locking the Mac or pausing Dynamic Peninsula stops Shazam, so the microphone isn't left listening behind the lock screen.
 - **Smoother when AirPods connect.** Keeping the macOS card away no longer runs on the thread that draws the notch, so the connection animation doesn't stutter.
 - **Messages keeps up.** The unread count no longer stops updating if Messages' history log was missing when Dynamic Peninsula started.
+- **Conversations open without a hitch.** A conversation is read in the background before the panel switches to it, so the island keeps moving smoothly, even while the inbox is refreshing.
+- **An unusual message can't crash it.** Message text is read by Dynamic Peninsula itself instead of by an old system decoder that crashed on anything it couldn't read.
+- **No more log file.** The AirPods diagnostics file the test builds kept in Library/Logs is gone, and removed if it's there.
 - **Battery stats icon click.** Clicking the menu bar battery while its stats are open now closes them instead of opening them again. Clicking elsewhere to close them, then clicking the icon, no longer opens them straight back up.
 
 ## 1.5 (2026-11-23)

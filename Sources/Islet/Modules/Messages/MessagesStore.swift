@@ -143,10 +143,17 @@ final class MessagesStore {
         return db.sync { $0.chatID(forNotificationText: body) }
     }
 
-    /// The one-to-one chat with someone, by any of their numbers or emails (search's Message).
-    func chatID(forHandles handles: [String]) -> Int64? {
+    /// The chat a Messages notification came from, looked up in the background (opening it from a click).
+    func findChat(for item: NotificationItem) async -> Int64? {
+        guard available else { return nil }
+        let body = item.body
+        return await db.read { $0.chatID(forNotificationText: body) }
+    }
+
+    /// The one-to-one chat with someone, by any of their numbers or emails (search's Message), in the background.
+    func findChat(forHandles handles: [String]) async -> Int64? {
         guard available, !handles.isEmpty else { return nil }
-        return db.sync { $0.chatID(forHandles: handles) }
+        return await db.read { $0.chatID(forHandles: handles) }
     }
 
     #if DEBUG
@@ -228,12 +235,16 @@ final class MessagesStore {
 
     // MARK: The open conversation
 
-    func openChat(_ chatID: Int64) {
-        guard available else { return }
+    /// Reads the conversation in the background and makes it the open one. False when it can't be read. The read
+    /// used to wait on the main thread, behind an inbox refresh when one was running, and the panel stuttered.
+    func openChat(_ chatID: Int64) async -> Bool {
+        guard available else { return false }
         loadNames()
         let book = self.book
-        open = db.sync { $0.conversation(chatID, book) }
+        guard let loaded = await db.read({ $0.conversation(chatID, book) }) else { return false }
+        open = loaded
         watch()
+        return true
     }
 
     func close() {

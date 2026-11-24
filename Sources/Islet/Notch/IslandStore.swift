@@ -460,8 +460,9 @@ final class IslandStore {
     func click() {
         if case .shazam? = content, !expanded { shazamClicked(); return }
         if let n = notification, !expanded {
-            if n.isMessages, openConversation(n) { return }
-            removeNotification(n, .shown); return
+            // A Messages one opens as its conversation; if it can't be found, in Messages as usual.
+            openConversation(n) { [weak self] in self?.removeNotification(n, .shown) }
+            return
         }
         if progress?.state == .done, let action = progressAction {
             progressTask?.cancel(); progress = nil; progressAction = nil
@@ -525,10 +526,11 @@ final class IslandStore {
         guard !locked, !paused, !lockScreen, geometry != nil else { return }
         search.close = { [weak self] in self?.collapse() }
         // A contact's Message: their conversation in the notch, when there is one.
-        search.openConversation = { [weak self] handles in
+        search.openConversation = { [weak self] handles, otherwise in
             guard let self, UserDefaults.standard.object(forKey: MessagesStore.enabledKey) as? Bool ?? true,
-                  let m = self.messages, m.available, let chat = m.chatID(forHandles: handles) else { return false }
-            return self.openChat(chat)
+                  let m = self.messages, m.available, !handles.isEmpty else { return false }
+            self.openChat(finding: { await m.findChat(forHandles: handles) }, otherwise: otherwise)
+            return true
         }
         search.onChange = { [weak self] in
             guard let self, self.expanded, self.expandedPage == .search else { return }
@@ -1048,9 +1050,10 @@ final class IslandStore {
     /// The open row's Open: the notification in its app (the banner's own Show), and the panel closes so the app shows.
     /// A Messages one opens as its conversation in the panel instead, when it can.
     func openNotificationInApp(_ n: NotificationItem) {
-        if n.isMessages && openConversation(n) { return }
-        removeNotification(n, .shown)
-        collapse()
+        openConversation(n) { [weak self] in
+            self?.removeNotification(n, .shown)
+            self?.collapse()
+        }
     }
 
     /// All of them: swiped up, "Clear all", the time running out, or the list closing.
@@ -1079,15 +1082,15 @@ final class IslandStore {
     func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || canReply(n) }
     func canReply(_ n: NotificationItem) -> Bool { n.isMessages && messages?.available == true }
 
-    /// A Messages notification opens as its conversation in the panel (DESIGN.md "Messages"). False when it can't be
-    /// (turned off, no Full Disk Access, not found): then it opens in Messages as usual.
-    @discardableResult
-    func openConversation(_ n: NotificationItem) -> Bool {
-        guard let m = messages, m.available, let chat = m.chatID(for: n) else { return false }
-        guard openChat(chat) else { return false }
-        removeNotification(n, .expired) // it stays in Notification Center, like the others
+    /// A Messages notification opens as its conversation in the panel (DESIGN.md "Messages"). When it can't be (not
+    /// Messages, turned off, no Full Disk Access, not found), `otherwise` runs: it opens in Messages as usual.
+    func openConversation(_ n: NotificationItem, otherwise: (() -> Void)? = nil) {
+        guard n.isMessages, let m = messages, m.available else { otherwise?(); return }
+        // It waits while the conversation is read, so it's still there for `otherwise`.
         notificationTask?.cancel()
-        return true
+        openChat(finding: { await m.findChat(for: n) }, opened: { [weak self] in
+            self?.removeNotification(n, .expired) // it stays in Notification Center, like the others
+        }, otherwise: otherwise)
     }
 
     /// The messages pill: the inbox, unread chats first (DESIGN.md "Messages inbox").
@@ -1108,17 +1111,28 @@ final class IslandStore {
     }
 
     /// Opens a conversation on the panel by its chat.
-    @discardableResult
-    func openChat(_ chat: Int64) -> Bool {
-        guard let m = messages else { return false }
-        m.openChat(chat)
-        guard m.open != nil else { return false }
-        if expandedPage == .search { search.end() } // from search's Message: the conversation takes its place
-        expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
-        controlDetail = nil
-        if !expanded { setExpanded(true) } else { refresh() }
-        return true
+    func openChat(_ chat: Int64) { openChat(finding: { chat }) }
+
+    /// Finds the chat and reads it in the background, so the island keeps animating meanwhile, then shows it. The
+    /// latest request wins; `otherwise` runs when there's nothing to show.
+    private func openChat(finding find: @escaping @MainActor () async -> Int64?, opened: (() -> Void)? = nil,
+                          otherwise: (() -> Void)? = nil) {
+        guard let m = messages else { otherwise?(); return }
+        chatOpening?.cancel()
+        chatOpening = Task { [weak self] in
+            let chat = await find()
+            let ok = if let chat { await m.openChat(chat) } else { false }
+            guard !Task.isCancelled, let self else { return }
+            self.chatOpening = nil
+            guard ok else { otherwise?(); return }
+            if self.expandedPage == .search { self.search.end() } // from search's Message: the conversation takes its place
+            self.expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
+            self.controlDetail = nil
+            opened?()
+            if !self.expanded { self.setExpanded(true) } else { self.refresh() }
+        }
     }
+    @ObservationIgnored private var chatOpening: Task<Void, Never>?
 
     func setBase(_ p: Presentation?) {
         base = p

@@ -29,7 +29,9 @@ final class SearchModel {
     /// Set by the store: closes the island (opening a result, Esc on an empty field).
     @ObservationIgnored var close: (() -> Void)?
     /// Set by the store: opens the conversation with one of these numbers / emails in the notch; false when there isn't one.
-    @ObservationIgnored var openConversation: (([String]) -> Bool)?
+    /// Opens the conversation with these handles in the notch. True when it's trying (the second argument runs if
+    /// it then isn't found), false when it can't.
+    @ObservationIgnored var openConversation: (([String], @escaping () -> Void) -> Bool)?
     /// Set by the store: the results changed, so the body's height may have.
     @ObservationIgnored var onChange: (() -> Void)?
 
@@ -290,8 +292,13 @@ final class SearchModel {
         var url: URL?
         switch action {
         case .message:
-            if openConversation?(c.handles) == true { return }
-            url = phone.flatMap { URL(string: "sms:" + $0) } ?? c.email.flatMap { URL(string: "imessage:" + $0) }
+            let messages = phone.flatMap { URL(string: "sms:" + $0) } ?? c.email.flatMap { URL(string: "imessage:" + $0) }
+            let inMessages = { [weak self] in
+                self?.close?()
+                if let messages { NSWorkspace.shared.open(messages) }
+            }
+            if openConversation?(c.handles, inMessages) == true { return }
+            url = messages
         case .call: url = phone.flatMap { URL(string: "tel:" + $0) }
         case .faceTime: url = (phone ?? c.email).flatMap { URL(string: "facetime:" + $0) }
         case .email: url = c.email.flatMap { URL(string: "mailto:" + $0) }
