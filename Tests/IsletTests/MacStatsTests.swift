@@ -124,7 +124,8 @@ final class MacStatsTests: XCTestCase {
         XCTAssertEqual(c.bars.map(\.part), [.efficiency, .performance, .gpu, .memory])
         XCTAssertEqual(c.bars.map(\.value), [0.5, 0.1, 0.3, 0.6])
         XCTAssertEqual(c.bars[1].level, .warning)
-        XCTAssertEqual(c.spoken, "Efficiency cores 50%, Performance cores 10%, GPU 30%, Memory 60%, Temperature 106°, Power 9 W, Fans Off")
+        XCTAssertEqual(c.fan?.unit, "fans")
+        XCTAssertEqual(c.spoken, "Efficiency cores 50%, Performance cores 10%, GPU 30%, Memory 60%, Temperature 106°, Power 9 W, Fans off")
     }
 
     func testMenuBarFollowsTheSwitches() {
@@ -145,9 +146,11 @@ final class MacStatsTests: XCTestCase {
         s.fans = [FanSample(rpm: 2400, min: 2317, max: 7826), FanSample(rpm: 3913, min: 2317, max: 7826)]
         s.fansHeld = true
         let c = MacStatsMenuBarContent.make(s, levels: [:], temperatureLevel: .normal, fahrenheit: false, on: { _ in true })
-        XCTAssertEqual(c.fan?.text, "50%")
-        XCTAssertEqual(c.fanFraction, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(c.fan?.text, "3.9k")
+        XCTAssertEqual(c.fan?.unit, "manual")
         XCTAssertTrue(c.fansHeld)
+        XCTAssertEqual(MacStatsMenuBarContent.rpm(842), "840")
+        XCTAssertEqual(MacStatsMenuBarContent.rpm(7826), "7.8k")
     }
 
     func testMenuBarWithoutEfficiencyCores() {

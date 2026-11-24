@@ -941,18 +941,22 @@ One status item, left of Islet's own icon (battery or pill), holding left to rig
 Both are one item so the spacing is ours, not macOS's gap between items (owner, 2026-11-24: meters on the right,
 spacing kept tight). Either half can be off; with both off, nothing shows (Settings says so).
 
-- **Meters**: four bars, each 5 × 15 pt with fully rounded ends, filling from the bottom: efficiency cores and
-  performance cores (1.5 pt apart, the CPU), then the GPU and memory, 2.5 pt between groups; about 27 pt wide. The
-  empty part is the menu bar's colour at 30%. CPU bars are the mean use of that core type; GPU is device utilisation;
-  memory is used ÷ installed.
-- **Readouts**, one line like the battery's percentage, 5 pt between them and about 0.5 pt between glyph and number:
-  - Temperature: a thermometer and the degrees (no unit letter), °F or °C by region. The CPU's average by default;
-    Settings can pick the hottest CPU core or the GPU. Yellow from 80 °C (176 °F), red from 95 °C (203 °F).
-  - Power: a bolt and the whole Mac's draw in whole watts (the battery stats' Mac figure, SMC `PSTR`). Never coloured.
-  - Fan: SF Symbols' `fanblades.fill` (10 pt, a little smaller than the other glyphs so it doesn't look heavier; four
-    even blades turn more evenly than the mockup's three) that turns at a speed following the faster fan (one turn every
-    0.35 s at full speed, up to 1.6 s) and stands still when they're off or with Reduce Motion, then that
-    fan's share of its maximum ("41%"), or "Off". A thin ring round it while the fans are on Manual or Full Speed.
+- **Meters** (owner, 2026-11-24, after trying it: wider, and the CPU as one bar): three bars 15 pt tall with fully
+  rounded ends, 2.5 pt apart, filling from the bottom. The CPU bar is 12 pt wide and split down the middle with no gap:
+  its left half fills for the efficiency cores (green), its right half for the performance cores (blue), each with its
+  own warning colour. Then the GPU and memory, 6 pt each. With one core type turned off, the other is a plain 6 pt bar.
+  The empty part is the menu bar's colour at 30%. CPU halves are the mean use of that core type; GPU is device
+  utilisation; memory is used ÷ installed.
+- **Readouts** (owner, 2026-11-24): no icons, two lines in 10 pt (numbers semibold with monospaced digits), right-aligned,
+  in two columns 5 pt apart and 6 pt before the meters:
+  - Temperature over power: "106°" (no unit letter; °F or °C by region; the CPU's average by default, Settings can pick
+    the hottest CPU core or the GPU; yellow from 80 °C, red from 95 °C) over "9 W" (the whole Mac's draw, SMC `PSTR`,
+    never coloured). With one of them off, the other sits alone in the middle.
+  - The faster fan: "5.3k" over "rpm" (under 1,000 rpm in whole tens: "840"), or "Off" over "fans". The unit line is
+    dimmer and in the normal (not monospaced) font. While fan control holds the fans it reads "manual" instead of "rpm".
+  - The fan is a number, not a percentage: next to the bars a lone "41%" would read as a load. The turning fan icon of
+    the first build went with the icons.
+  - The whole item is about 91 pt wide with everything on.
 - Each readout and each bar can be turned off on its own (Settings).
 - Click: the stats panel. Right-click or Control/Option-click: Islet's menu, as for the battery.
 

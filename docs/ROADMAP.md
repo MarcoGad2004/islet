@@ -117,7 +117,8 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       thread by `MacStatsSampler`; `MacStats.shared` keeps 10 minutes of history and `LevelHold` the 5 s warning
       hold. Checked on this Mac (about 40 ms a reading, 95 ms with the app lists); nothing starts it yet
 - [x] Menu bar item (`MacStatsMenuBar.swift`): meters and readouts in one status item, colours, warnings held 5 s,
-      the turning fan (a layer animation), light and dark menu bars. Off by default: Settings > Mac Stats or the Features list turns it on. A click opens the panel, a right-click the app's menu
+      light and dark menu bars. Since 2026-11-24 the readouts are stacked numbers without icons and the CPU is one
+      split bar (DESIGN.md). Off by default: Settings > Mac Stats or the Features list turns it on. A click opens the panel, a right-click the app's menu
 - [ ] Try it in the real menu bar: position left of Islet's icon, the fan over its gap, the click, light and dark
       menu bars, a wallpaper that turns the menu bar light
 - [x] Panel (`Views/MacStatsView.swift`, in the battery stats' `MenuBarPanel`): title, tiles, temperatures, fans,

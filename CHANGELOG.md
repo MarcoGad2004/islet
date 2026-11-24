@@ -7,9 +7,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ### Mac Stats
 
-- **Your Mac's vitals in the menu bar.** Turn on Settings > Mac Stats (or Mac Stats in the features list) for one menu bar item beside the battery: the CPU temperature, what the whole Mac is drawing, and the fans, then four small bars for the efficiency cores (green), performance cores (blue), GPU (purple) and memory (cyan).
+- **Your Mac's vitals in the menu bar.** Turn on Settings > Mac Stats (or Mac Stats in the features list) for one compact menu bar item beside the battery: the CPU temperature over what the whole Mac is drawing, the fan speed, then bars for the CPU (one bar, its halves the efficiency cores in green and the performance cores in blue), the GPU (purple) and memory (cyan).
 - **Warnings you can't miss.** A bar turns yellow above 70% and red above 90% once it has stayed there a few seconds, and memory by memory pressure rather than by how full it is. The temperature turns yellow from 80 °C and red from 95 °C.
-- **A fan that turns.** The fan beside its speed spins with the real fans, and stands still when they're off, as they are most of the time.
 - **Click for the details.** A panel like the battery stats: CPU, GPU, memory and power at a glance, temperatures and fans. Click a part for its page: the last 10 minutes, each core, the memory breakdown, and the apps using the most.
 - **Names you can read.** The app lists add helpers up under their app (Claude, not "Claude Helper (Renderer)"), with its icon, and give macOS's own processes a plain name, with the real one underneath: "Drawing the screen" (WindowServer), "Spotlight indexing", "Sound".
 - **Control the fans.** Turn on "Let me control the fans", install the small fan helper once, and the Fans page gets Automatic, Manual (one slider for both fans) and Full Speed. The fans always go back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts, or the CPU gets too hot.
