@@ -6,8 +6,13 @@ import os
 @MainActor @Observable
 final class ScanModel {
     enum Phase: Equatable { case looking, match, noMatch, failed(String) }
+    /// What it's doing while `.looking` with a face in view (owner, 2026-11-24: say it rather than "Checking").
+    enum Step: Equatable { case recognizing, verifying, glow }
     var phase = Phase.looking
+    var step = Step.recognizing
     var faceVisible = false
+    /// The challenge is asked because the light is too bright for the quiet checks.
+    var brightLight = false
     /// The face matches; it only needs to do this (blink, smile, turn) to show it is live.
     var challenge: LivenessChallenge?
     /// Bumped on each "not recognized" so the grid shakes.
@@ -18,7 +23,16 @@ final class ScanModel {
 
     var label: String {
         switch phase {
-        case .looking: return challenge?.prompt ?? (faceVisible ? "Checking" : "Looking for you")
+        case .looking:
+            if let challenge {
+                return brightLight ? "Bright environment detected, \(challenge.prompt.prefix(1).lowercased() + challenge.prompt.dropFirst())" : challenge.prompt
+            }
+            guard faceVisible else { return "Looking for you" }
+            switch step {
+            case .recognizing: return "Recognizing you"
+            case .verifying: return "Making sure it's you"
+            case .glow: return "Hold still: checking with light"
+            }
         case .match: return "Welcome back"
         case .noMatch: return "Not recognized"
         case .failed(let message): return message
@@ -279,11 +293,15 @@ final class FaceUnlockService {
         switch event {
         case .face(let visible):
             model.faceVisible = visible
-        case .challenge(let c):
+        case .challenge(let c, let bright):
             model.challenge = c
+            model.brightLight = bright
+        case .verifying:
+            model.step = .verifying
         case .light(let luma):
             brightenIfDark(luma)
         case .pulse:
+            model.step = .glow
             Task { await runPulse() }
         case .pulseResult(let verdict):
             let r = verdict.reading
@@ -316,6 +334,8 @@ final class FaceUnlockService {
                     giveUp(collapseAfter: 0)
                 } else {
                     model.phase = .looking
+                    model.step = .recognizing
+                    model.challenge = nil; model.brightLight = false
                     engine?.resume()
                 }
             }

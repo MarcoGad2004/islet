@@ -191,9 +191,12 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 - **Looking**: a face-shaped grid of dots (7 × 7 grid at 8 pt spacing, keeping the dots within a
   26 pt radius of the centre: about 33 dots, shown at ≈1.35×) inside a thin ring (`#2C2C2E`). A
   cyan (`#64D2FF`) sweep runs down the grid row by row on a 1.3 s loop. Label: "Looking for you",
-  "Checking" once a face is in view, and the liveness challenge if one is needed (below): "Blink to unlock", or on
-  More secure one of "Blink to unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at
-  random each attempt, with 8 s to do it.
+  then what it's doing (owner, 2026-11-24, replacing a generic "Checking"): "Recognizing you" once a face is in view,
+  "Making sure it's you" while the spoof model's first frames come in, "Hold still: checking with light" during the
+  glow, and the liveness challenge if one is needed (below): "Blink to unlock", or on More secure one of "Blink to
+  unlock", "Smile to unlock", "Turn your head left", "Turn your head right", picked at random each attempt, with 8 s
+  to do it. When it's asked because of the light (sun on the face, or a room too bright for the glow) it reads
+  "Bright environment detected, blink to unlock" (and so on). One line, shrinking to 80% if it has to.
 - **Security** (owner's design, 2026-11-23; replaces the Automatic / Random / Blink / Off modes, the spoof model
   switch and "just ask me to blink"): one choice of three. Each tries the quietest check first and goes further only
   when it isn't sure. The spoof model runs on every frame with a face from the start; once the face matches:
@@ -217,7 +220,7 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   Off to Faster, the rest to Standard. The match threshold is set by the level too, not by hand (owner, 2026-11-23:
   the slider is gone); Test recognition shows the one in use and how it was set.
 - **Light check** (Standard and More secure, when the spoof model isn't sure; owner request 2026-11-22): the label
-  stays "Checking" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
+  reads "Hold still: checking with light" while the screen lights the face. **Glow** (owner request 2026-11-23, replacing the brightness swell, which
   depended on the wallpaper being bright): after a random 0.3-0.45 s wait, a full-screen layer of white on the
   built-in display fades in over 0.3 s, holds 0.28 s, then takes four steps between a lower and a higher level in a
   random order (at least two up, one down; 0.15 s eased step, 0.28 s hold each), and fades out over 0.3 s: ~2.3 s

@@ -26,8 +26,11 @@ import os
 final class ScanEngine: @unchecked Sendable {
     enum Event: Sendable {
         case face(Bool)
-        /// The face matches and now has to do this to unlock; nil once it isn't waiting.
-        case challenge(LivenessChallenge?)
+        /// The face matches and now has to do this to unlock; nil once it isn't waiting. `bright` when it's asked
+        /// because the light is too bright for the quiet checks (sun on the face, or a bright room).
+        case challenge(LivenessChallenge?, bright: Bool)
+        /// The face matches and the spoof model's first frames are being gathered (a fraction of a second).
+        case verifying
         /// The face matches but the spoof model isn't sure: run the glow, then call `finishPulse`.
         case pulse
         case pulseResult(FacePulse.Verdict)
@@ -62,6 +65,9 @@ final class ScanEngine: @unchecked Sendable {
     private var paused = false
     private var lastFace: Bool?
     private var lastPrompt: LivenessChallenge?
+    /// The last frame's light was harsh (sun on the face), for the prompt's wording.
+    private var lightHarsh = false
+    private var verifyingSent = false
     private var detector: ChallengeDetector
     /// When the challenge was shown in this attempt.
     private var promptedAt: Date?
@@ -115,7 +121,7 @@ final class ScanEngine: @unchecked Sendable {
         paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
         detector = ChallengeDetector(Self.pick(security)); promptedAt = nil
         spoof.reset(); pulse = .idle; fallback = false; scores = []; lastMatch = nil
-        pulseSchedule = nil; harshHistory = []; doubted = false
+        pulseSchedule = nil; harshHistory = []; doubted = false; verifyingSent = false; lastPrompt = nil
     }
     func pause() { lock.lock(); paused = true; lock.unlock() }
 
@@ -152,6 +158,7 @@ final class ScanEngine: @unchecked Sendable {
             if harshHistory.count > 6 { harshHistory.removeFirst() }
         }
         let harsh = harshHistory.count >= 3 && harshHistory.filter { $0 }.count * 2 > harshHistory.count
+        lightHarsh = harsh
         let spoofVerdict = spoof.verdict(security)
         // In harsh light the spoof model can't be trusted to refuse a real face; the challenge decides instead.
         let fake = spoofVerdict == .spoof && !harsh && !brightRoom
@@ -229,7 +236,10 @@ final class ScanEngine: @unchecked Sendable {
         if spoofVerdict == .live { finish(score: score, embedding: e, via: "spoof model", pulse: nil); return }
         // Still gathering the spoof model's frames (a fraction of a second): wait for them, unless the room is too
         // bright to trust them anyway.
-        if spoofVerdict == .unknown, antiSpoof != nil, !brightRoom { return }
+        if spoofVerdict == .unknown, antiSpoof != nil, !brightRoom {
+            if !verifyingSent { verifyingSent = true; onEvent(.verifying) }
+            return
+        }
         if security.usesGlow, case .idle = pulse, !harsh, !skipGlow {
             pulse = .running(since: now, frames: [])
             onEvent(.pulse)
@@ -325,6 +335,6 @@ final class ScanEngine: @unchecked Sendable {
     private func prompt(_ challenge: LivenessChallenge?) {
         guard lastPrompt != challenge else { return }
         lastPrompt = challenge
-        onEvent(.challenge(challenge))
+        onEvent(.challenge(challenge, bright: challenge != nil && (brightRoom || lightHarsh)))
     }
 }

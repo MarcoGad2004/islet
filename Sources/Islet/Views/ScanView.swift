@@ -60,6 +60,8 @@ struct ScanView: View {
 
                 Text(model.label)
                     .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 12)
                     .foregroundStyle(matched ? Color.isletGreen : rejected ? Color.isletRedText : Color.isletSecondary)
                     .contentTransition(.opacity)
                     .opacity(model.flown ? 0 : 1)
