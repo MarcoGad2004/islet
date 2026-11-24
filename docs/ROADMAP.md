@@ -117,9 +117,7 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       thread by `MacStatsSampler`; `MacStats.shared` keeps 10 minutes of history and `LevelHold` the 5 s warning
       hold. Checked on this Mac (about 40 ms a reading, 95 ms with the app lists); nothing starts it yet
 - [x] Menu bar item (`MacStatsMenuBar.swift`): meters and readouts in one status item, colours, warnings held 5 s,
-      the turning fan (a layer animation), light and dark menu bars. Off by default and there's no Settings page yet:
-      `defaults write com.marcogad.islet macStatsEnabled -bool true` turns it on (the other `macStats*` switches are
-      in `MacStatsSettings`). A click opens the panel, a right-click the app's menu
+      the turning fan (a layer animation), light and dark menu bars. Off by default: Settings > Mac Stats or the Features list turns it on. A click opens the panel, a right-click the app's menu
 - [ ] Try it in the real menu bar: position left of Islet's icon, the fan over its gap, the click, light and dark
       menu bars, a wallpaper that turns the menu bar light
 - [x] Panel (`Views/MacStatsView.swift`, in the battery stats' `MenuBarPanel`): title, tiles, temperatures, fans,
@@ -127,7 +125,8 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       (`MacStatsPanelRenderTests`, run with `TEST_RUNNER_MACSTATS_RENDER_DIR=<folder>`); not yet opened on screen
 - [x] App lists: helpers under their app, plain names for macOS's own processes (`ProcessNames`)
 - [ ] Fans page and fan control: the helper's install and removal, Automatic / Manual / Full Speed, handing back
-- [ ] Settings > Mac Stats, the Features list entry (readouts and meters indented under it), setup
+- [x] Settings > Mac Stats (`MacStatsSettingsPage`), between Battery and Face Unlock; "Mac Stats" in the Features list
+      and setup (`Feature.macStats`). The Fan control section comes with fan control
 - [ ] To decide with the owner: should the efficiency-core bar warn on its own, or only when the performance cores are
       busy too (they often run high at idle)? What does the Power tile open? Anything in the notch (a "running hot"
       notice, a stats tile in the control center)?

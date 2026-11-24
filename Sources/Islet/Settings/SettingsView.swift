@@ -35,6 +35,7 @@ struct SettingsView: View {
     @AppStorage(Feature.focusKey) private var focusInNotch = true
     @AppStorage(Feature.shazamKey) private var shazamInNotch = true
     @AppStorage(SiriQuestion.enabledKey) private var askSiri = true
+    @AppStorage(MacStatsSettings.enabled) private var macStatsEnabled = false
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
     @State private var messagesAccess = MessagesAccess()
     @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
@@ -81,7 +82,7 @@ struct SettingsView: View {
         List(selection: page) {
             statusRow(issues).tag(SettingsPage.status)
             Section {
-                ForEach([SettingsPage.general, .notch, .notifications, .search, .battery, .faceUnlock]) { sidebarRow($0, issues) }
+                ForEach([SettingsPage.general, .notch, .notifications, .search, .battery, .macStats, .faceUnlock]) { sidebarRow($0, issues) }
             }
             Section {
                 ForEach([SettingsPage.permissions, .updates]) { sidebarRow($0, issues) }
@@ -132,6 +133,7 @@ struct SettingsView: View {
         case .notifications: notifications(here)
         case .search: search(here)
         case .battery: battery
+        case .macStats: MacStatsSettingsPage()
         case .faceUnlock: FaceUnlockSettings(face: face, issues: here)
         case .permissions: permissions(issues)
         case .updates: updates
@@ -207,6 +209,7 @@ struct SettingsView: View {
         case .focus: $focusInNotch
         case .shazam: $shazamInNotch
         case .faceUnlock: Binding(get: { face.unlock.enabled }, set: { face.unlock.enabled = $0 })
+        case .macStats: $macStatsEnabled
         case .menuBarBattery: Binding(get: { menuBarIconStyle == MenuBarIconStyle.battery.rawValue },
                                       set: { menuBarIconStyle = ($0 ? MenuBarIconStyle.battery : .pill).rawValue })
         case .search: Binding(get: { searchShortcut != SearchShortcutChoice.off.rawValue }, set: { on in

@@ -1022,7 +1022,9 @@ A page between Battery and Face Unlock, in the usual grouped form:
   stats from."
 - **Look**: "Colour each part", "Warn in yellow and red", "Update every" (1, 2 or 5 seconds).
 - **Fan control**: "Let me control the fans" (off by default); while on, "Fan helper" with its state and Install…
-  (or Remove…).
+  (or Remove…). Added with fan control; until then the page ends at Look.
+- The Features list (status page and setup) has one row, "Mac Stats", with its switch; the parts are on this page.
+- Each meter's row has its colour as a small square (faded while "Colour each part" is off).
 
 ## Features (1.4)
 

@@ -27,4 +27,22 @@ final class MacStatsPanelRenderTests: XCTestCase {
         }
         stats.stop()
     }
+
+    /// Settings > Mac Stats, drawn in an offscreen window (a grouped Form is AppKit underneath).
+    func testRenderSettingsPage() throws {
+        guard let dir = ProcessInfo.processInfo.environment["MACSTATS_RENDER_DIR"] else { throw XCTSkip("Set MACSTATS_RENDER_DIR to render") }
+        let d = UserDefaults.standard
+        let was = d.object(forKey: MacStatsSettings.enabled)
+        d.set(true, forKey: MacStatsSettings.enabled)
+        defer { d.set(was, forKey: MacStatsSettings.enabled) }
+        let host = NSHostingView(rootView: MacStatsSettingsPage().frame(width: 520, height: 760))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 760), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: rep)
+        try XCTUnwrap(rep.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: dir).appendingPathComponent("settings.png"))
+    }
 }

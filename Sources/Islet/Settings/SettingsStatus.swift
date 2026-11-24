@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The pages of Settings, in the sidebar's order (DESIGN.md "Settings").
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case status, general, notch, notifications, search, battery, faceUnlock, permissions, updates
+    case status, general, notch, notifications, search, battery, macStats, faceUnlock, permissions, updates
 
     var id: String { rawValue }
     static let storageKey = "settingsPage"
@@ -16,6 +16,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .notifications: "Notifications"
         case .search: "Search"
         case .battery: "Battery"
+        case .macStats: "Mac Stats"
         case .faceUnlock: "Face Unlock"
         case .permissions: "Permissions"
         case .updates: "Updates"
@@ -30,6 +31,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .notifications: "bell.badge.fill"
         case .search: "magnifyingglass"
         case .battery: "battery.75percent"
+        case .macStats: "cpu.fill"
         case .faceUnlock: "faceid"
         case .permissions: "hand.raised.fill"
         case .updates: "arrow.down.circle.fill"
@@ -44,6 +46,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .notifications: .red
         case .search: .blue
         case .battery: .green
+        case .macStats: .purple
         case .faceUnlock: .teal
         case .permissions: .indigo
         }
