@@ -6,6 +6,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ## 1.6.1 (unreleased)
 
 - **The new battery look.** The battery in the menu bar, on the battery page, in quick info and in the charging animation now matches Apple's 2027 design: no outline, just a pale battery that the charge fills from the left.
+- **Energy Mode in the battery stats.** The menu bar battery's stats now have the Low Power / Automatic / High Power switch from the notch's battery page, for the power source you're on.
 
 ## 1.6 (unreleased)
 

@@ -352,7 +352,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   panel (HUD material, 14 pt corners) with, in order: "Battery" and the percentage; time left (or to full, or "Time to 85%"
   with a charge limit, timed to the limit, or the status), the charge limit right under it when there is one, and
   time since unplugged; a rule; power source (with the charger's name), cycle count, temperature (°F or °C by
-  region), battery health (System Settings' maximum capacity), and Low Power Mode when it's on; a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
+  region), battery health (System Settings' maximum capacity), and Low Power Mode when it's on (only on a Mac without energy modes, where the switch below can't show it); a rule; "Last 12 hours", a green line over a fading green fill, 0/50/100% on the right, every 3 hours along
   the bottom; a rule; "Power distribution", a flow diagram: Charger, Mac and Battery as round glass nodes in a row
   with their watts under them, a line from the charger into the Mac, one from the battery into the Mac, and an arc
   from the charger over the Mac into the battery. A line runs only while power moves along it (faint rails
@@ -361,7 +361,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   weak for the load with the battery helping. The dashes run faster with more power (8 pt/s barely moving to 30 pt/s at 100 W, on a square root),
   easing to a new speed over about a second without jumping. Changes glide (spring, 0.7 s): a line lighting up runs out from its
   source, one going dark draws back and fades, thickness and colours ease. The battery's share is the charger's input
-  minus the Mac's draw, rounded alike, so the labels always add up. Still dashes with Reduce Motion; a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
+  minus the Mac's draw, rounded alike, so the labels always add up. Still dashes with Reduce Motion; a rule; on a Mac with energy modes, "Energy Mode" with "On battery" or "On power adapter" on the right and, under it, the battery page's Low Power / Automatic / High Power switch at full width (1.6.1, owner request, 2026-11-24; it changes the mode for the source in use, and a failure shows under it in red), then a rule; a "Controls" pill that opens the island's control center and "Battery Settings…".
   Numbers refresh every second while open, and at once when a charger goes in or out. A click elsewhere, Esc or the icon closes it.
 - In menu bar island mode the icon's click is the one setting decides; with stats, the island opens from the panel's
   Controls pill.

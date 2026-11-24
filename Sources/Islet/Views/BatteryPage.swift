@@ -139,10 +139,12 @@ struct BatteryPage: View {
 }
 
 /// Energy Mode for the source in use: Low Power, Automatic, High Power. The first change asks for the admin password
-/// once (`PowerModeController`).
-private struct EnergyModeRow: View {
+/// once (`PowerModeController`). On the battery page the title sits beside the switch; in the menu bar battery's stats
+/// (`stacked`) it is a section title over a full-width switch. The ink follows the surface (`IsletInk`).
+struct EnergyModeRow: View {
     let controller: PowerModeController
     var onAC: Bool
+    var stacked = false
 
     private static let order: [(PowerModeController.Mode, String, String, Color)] = [
         (.low, "Low Power", "tortoise.fill", Color(hex: 0xFFD60A)),
@@ -152,40 +154,60 @@ private struct EnergyModeRow: View {
 
     var body: some View {
         if let mode = controller.mode {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Energy Mode").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
+            if stacked {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Energy Mode").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
+                        Spacer()
+                        Text(onAC ? "On power adapter" : "On battery").font(.system(size: 11)).foregroundStyle(IsletInk.tertiary)
+                    }
+                    picker(mode, fill: true)
                     if let e = controller.error {
-                        Text(e).font(.system(size: 10)).foregroundStyle(Color.isletRedText).lineLimit(1).minimumScaleFactor(0.8)
-                    } else {
-                        Text(onAC ? "On power adapter" : "On battery").font(.system(size: 10)).foregroundStyle(Color.isletSecondary)
+                        Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(2)
                     }
                 }
-                Spacer(minLength: 8)
-                HStack(spacing: 2) {
-                    ForEach(Self.order, id: \.0) { item in
-                        let selected = item.0 == mode
-                        Button { controller.set(item.0, onAC: onAC) } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: item.2).font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(selected ? item.3 : Color.isletTertiary)
-                                Text(item.1).font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(selected ? Color.isletText : Color.isletSecondary)
-                            }
-                            .padding(.horizontal, 10).frame(height: 26)
-                            .background { if selected { IsletCard(shape: Capsule()) } }
-                            .contentShape(Capsule())
+            } else {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Energy Mode").font(.system(size: 12, weight: .semibold)).foregroundStyle(IsletInk.primary)
+                        if let e = controller.error {
+                            Text(e).font(.system(size: 10)).foregroundStyle(Color.isletRedText).lineLimit(1).minimumScaleFactor(0.8)
+                        } else {
+                            Text(onAC ? "On power adapter" : "On battery").font(.system(size: 10)).foregroundStyle(IsletInk.secondary)
                         }
-                        .buttonStyle(.plain)
                     }
+                    Spacer(minLength: 8)
+                    picker(mode, fill: false)
                 }
-                .padding(3)
-                .background(Capsule().fill(Color.white.opacity(0.06)))
-                .opacity(controller.busy ? 0.6 : 1)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: mode)
+                .padding(.horizontal, 8)
             }
-            .padding(.horizontal, 8)
         }
+    }
+
+    private func picker(_ mode: PowerModeController.Mode, fill: Bool) -> some View {
+        HStack(spacing: 2) {
+            ForEach(Self.order, id: \.0) { item in
+                let selected = item.0 == mode
+                Button { controller.set(item.0, onAC: onAC) } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: item.2).font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(selected ? AnyShapeStyle(item.0 == .automatic ? AnyShapeStyle(IsletInk.primary) : AnyShapeStyle(item.3))
+                                             : AnyShapeStyle(IsletInk.tertiary))
+                        Text(item.1).font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(selected ? IsletInk.primary : IsletInk.secondary)
+                            .lineLimit(1).fixedSize()
+                    }
+                    .padding(.horizontal, fill ? 4 : 10).frame(maxWidth: fill ? .infinity : nil).frame(height: 26)
+                    .background { if selected { IsletCard(shape: Capsule()) } }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(IsletInk.faint))
+        .opacity(controller.busy ? 0.6 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: mode)
     }
 }
 

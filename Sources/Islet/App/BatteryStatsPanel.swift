@@ -42,6 +42,7 @@ final class BatteryStatsPanel {
         let panel = self.panel ?? makePanel(glass: glass)
         power.refresh()
         power.watchDetails(true)
+        PowerModeController.shared.refresh()
         power.history.backfillIfNeeded()
         fit(below: window)
         panel.orderFrontRegardless()
