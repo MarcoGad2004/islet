@@ -996,8 +996,14 @@ the panel keeps its width.
   - Full Speed: both fans at their maximum.
   - A note: back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts; changing the fans needs a
     small helper installed once with the password. Manual and Full Speed only show with "Let me control the fans" on.
-  - Until fan control is built, the page shows "Control: Automatic" (or "Manual" while something else holds them) and
-    the Automatic line.
+  - With "Let me control the fans" off, the page shows "Control: Automatic" (or "Manual" while something else holds
+    them) and the Automatic line.
+  - With it on and the helper not installed: "Install Fan Helper…" (macOS then asks for it to be allowed in Login Items,
+    which takes the password); waiting for that: "Open Login Items…". While taking the fans over (about 6 s the first
+    time): a small spinner and "Taking over the fans…". A failure, or the helper giving the fans back on its own (the
+    Mac got hot, the app stopped answering), shows in red under the switch.
+  - Manual starts at the fans' speed now, or 3,000 rpm when they're off; the slider moves in 100 rpm steps and is sent
+    when let go.
 
 ### App names in the lists (owner, 2026-11-24)
 
@@ -1021,8 +1027,8 @@ A page between Battery and Face Unlock, in the usual grouped form:
   their parent is off. With nothing on, an orange line: "Nothing is on in the menu bar, so there's nowhere to open the
   stats from."
 - **Look**: "Colour each part", "Warn in yellow and red", "Update every" (1, 2 or 5 seconds).
-- **Fan control**: "Let me control the fans" (off by default); while on, "Fan helper" with its state and Install…
-  (or Remove…). Added with fan control; until then the page ends at Look.
+- **Fan Control**: "Let me control the fans" (off by default; turning it off gives the fans back); while on, "Fan
+  helper" with its state and Install…, Open Login Items… or Remove….
 - The Features list (status page and setup) has one row, "Mac Stats", with its switch; the parts are on this page.
 - Each meter's row has its colour as a small square (faded while "Colour each part" is off).
 

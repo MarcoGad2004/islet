@@ -754,3 +754,12 @@ The probe tools were throwaway command-line programs, not kept in the repo.
   (WindowServer, launchd); `/bin/ps -axo pid=,%cpu=,rss=,comm=` lists them all. So `ProcessReader` takes the list and
   CPU from `ps` (its %cpu is a recent average, as Activity Monitor's) and the memory footprint from `proc_pid_rusage`
   where it can, else `ps`'s resident size. Run only while a page shows the lists.
+
+**Fan helper design (1.7, built 2026-11-24, not yet run)**: `SMAppService.daemon(plistName:)` rather than Energy Mode's
+sudoers rule, because the fans need a process that stays and watches: launchd starts it when the app connects (Mach
+service `com.marcogad.islet.fanhelper`), relaunches it after a crash (`KeepAlive` `Crashed`), and it exits after a minute
+idle with the fans automatic. The listener only accepts Dynamic Peninsula signed by team L4Y6A9NY9T
+(`setConnectionCodeSigningRequirement`), and the app only trusts the helper's identifier; both requirements were checked
+with `codesign -v -R` against the Debug build (and `/bin/ls` is refused). To check on the first run: that registration
+works from a Debug build in DerivedData, what Login Items shows for it, and that the 6 s take-over doesn't trip XPC
+timeouts.

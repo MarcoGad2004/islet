@@ -19,6 +19,13 @@ targets:
     platform: macOS
     sources:
       - Sources/Islet
+      - Sources/Shared
+      # Mac Stats' fan helper (1.7): a launch daemon registered with SMAppService, which looks for its plist here.
+      - path: Sources/IsletFanHelper/com.marcogad.islet.fanhelper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
       - path: Models/FaceEmbedding.mlmodel   # fetched by scripts/fetch-model.sh, not in git
         optional: true
       - path: Models/AntiSpoof.mlpackage   # MiniFASNet, built by scripts/convert-antispoof.py, in git
@@ -49,6 +56,11 @@ targets:
           - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
         script: |
           "$SRCROOT/scripts/stamp-build.sh" "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+    dependencies:
+      - target: IsletFanHelper
+        copy:
+          destination: executables   # Contents/MacOS, where the daemon's plist points
+        codeSign: true
     entitlements:
       path: Sources/Islet/Islet.entitlements
       properties:
@@ -65,6 +77,24 @@ targets:
         PRODUCT_NAME: Dynamic Peninsula   # the app's name since 1.5 (name only; the code and repo are still Islet)
         PRODUCT_MODULE_NAME: Islet
         OTHER_LDFLAGS: "$(inherited) -lIOReport"   # Mac Stats' CPU and GPU watts (IOReport "Energy Model", no root)
+  IsletFanHelper:
+    # Runs as root and is the only thing that writes the SMC (RESEARCH.md "Mac Stats"). Only Dynamic Peninsula may
+    # talk to it.
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/IsletFanHelper
+        excludes:
+          - "*.plist"
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_NAME: IsletFanHelper
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcogad.islet.fanhelper
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+        SWIFT_VERSION: "5.0"
   IsletTests:
     type: bundle.unit-test
     platform: macOS

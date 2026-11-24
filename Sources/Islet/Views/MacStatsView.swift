@@ -363,6 +363,9 @@ private struct MacStatsGPUPage: View {
 private struct MacStatsFansPage: View {
     let stats: MacStats
     let back: () -> Void
+    let fans = FanControl.shared
+    /// The slider while it's being dragged; sent when it's let go.
+    @State private var dragging: Double?
 
     var body: some View {
         let s = stats.snapshot
@@ -383,10 +386,129 @@ private struct MacStatsFansPage: View {
             .animation(.easeOut(duration: 0.5), value: s.fans)
 
             Rule()
-            StatRow("Control", s.fansHeld ? "Manual" : "Automatic")
-            Caption("macOS runs the fans. On this Mac they stay off until it gets warm, then speed up as it heats.")
-                .padding(.top, 8)
+            if FanControl.isEnabled {
+                control(s)
+            } else {
+                StatRow("Control", s.fansHeld ? "Manual" : "Automatic")
+                Caption(Self.automaticNote).padding(.top, 8)
+            }
         }
+        .onAppear { fans.refresh() }
+    }
+
+    static let automaticNote = "macOS runs the fans. On this Mac they stay off until it gets warm, then speed up as it heats."
+
+    @ViewBuilder private func control(_ s: MacStatsSnapshot) -> some View {
+        StatsSectionLabel("Control")
+        switch fans.helper {
+        case .ready:
+            modePicker
+            switch fans.mode {
+            case .automatic:
+                Caption(Self.automaticNote).padding(.top, 10)
+            case .manual(let rpm):
+                slider(rpm: rpm, range: range(s))
+            case .full:
+                Caption("Both fans at full speed, for cooling down fast. Loud.").padding(.top, 10)
+            }
+            if fans.busy {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Caption("Taking over the fans…")
+                }
+                .padding(.top, 8)
+            }
+            if let note = fans.note {
+                Text(note).font(.system(size: 11)).foregroundStyle(Color.isletRedText).padding(.top, 8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Rule()
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "checkmark.shield").font(.system(size: 11)).foregroundStyle(IsletInk.secondary)
+                Caption("Back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts, or the CPU reaches \(MacStatsFormat.temperature(FanHelperInfo.handBackCelsius)).")
+            }
+        case .needsApproval:
+            Caption("Allow Dynamic Peninsula's fan helper in Login Items, under Allow in the Background.")
+            Pill(title: "Open Login Items…", chevron: false) { fans.openLoginItems() }.padding(.top, 8)
+        case .notInstalled, .failed:
+            Caption("Changing the fans needs a small helper that runs as an administrator. macOS asks you to allow it once.")
+            if case .failed(let why) = fans.helper {
+                Text(why).font(.system(size: 11)).foregroundStyle(Color.isletRedText).padding(.top, 6)
+            }
+            Pill(title: "Install Fan Helper…", chevron: false) { fans.install() }.padding(.top, 8)
+        }
+    }
+
+    /// Automatic / Manual / Full Speed, like the battery's Energy Mode switch.
+    private var modePicker: some View {
+        let current: Int = switch fans.mode { case .automatic: 0; case .manual: 1; case .full: 2 }
+        let items: [(String, String)] = [("Automatic", "gauge.with.dots.needle.33percent"), ("Manual", "slider.horizontal.3"),
+                                         ("Full Speed", "fanblades.fill")]
+        return HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+                let selected = i == current
+                Button {
+                    switch i {
+                    case 0: fans.setAutomatic()
+                    case 1: fans.setManual(rpm: manualStart)
+                    default: fans.setFull()
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: item.1).font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(selected ? IsletInk.primary : IsletInk.tertiary)
+                        Text(item.0).font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(selected ? IsletInk.primary : IsletInk.secondary)
+                            .lineLimit(1).fixedSize()
+                    }
+                    .padding(.horizontal, 4).frame(maxWidth: .infinity).frame(height: 26)
+                    .background { if selected { IsletCard(shape: Capsule()) } }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(fans.busy)
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(IsletInk.faint))
+        .opacity(fans.busy ? 0.6 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: current)
+    }
+
+    /// Where Manual starts: the fans' speed now if they're turning, else a quiet 3,000 rpm.
+    private var manualStart: Double {
+        let r = range(stats.snapshot)
+        let now = stats.snapshot.fastestFan?.rpm ?? 0
+        return min(max(now > 1 ? (now / 100).rounded() * 100 : 3000, r.lowerBound), r.upperBound)
+    }
+
+    private func range(_ s: MacStatsSnapshot) -> ClosedRange<Double> {
+        let lo = s.fans.map(\.min).max() ?? 2300, hi = s.fans.map(\.max).min() ?? 7800
+        return lo < hi ? lo...hi : 2300...7800
+    }
+
+    private func slider(rpm: Double, range: ClosedRange<Double>) -> some View {
+        VStack(spacing: 6) {
+            StatRow("Both fans", MacStatsFormat.rpm(dragging ?? rpm))
+            Slider(value: Binding(get: { dragging ?? rpm }, set: { dragging = $0 }), in: range, step: 100) { editing in
+                if !editing, let value = dragging {
+                    dragging = nil
+                    fans.setManual(rpm: value)
+                }
+            }
+            .controlSize(.small)
+            .disabled(fans.busy)
+            HStack {
+                Text("Quietest")
+                Spacer()
+                Text("Fastest")
+            }
+            .font(.system(size: 10)).foregroundStyle(IsletInk.tertiary)
+            Caption("If the Mac gets too hot for this speed, macOS takes over again.")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
+        }
+        .padding(.top, 12)
     }
 }
 

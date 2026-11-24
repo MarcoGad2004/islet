@@ -263,7 +263,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Wires each module to the island store. A failing module must not take down the others.
-    func applicationWillTerminate(_ notification: Notification) { media.stop() }
+    func applicationWillTerminate(_ notification: Notification) {
+        media.stop()
+        // The helper also gives the fans back when the app's connection closes; this is the polite way.
+        FanControl.shared.setAutomatic()
+    }
 
     /// System Settings' "Quit & Reopen" (after a permission is turned on) doesn't always bring the app back, so the
     /// app sees to it itself.

@@ -124,7 +124,12 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       footer; the CPU, Memory, GPU and Fans pages (Fans read-only for now). Checked in renders from live readings
       (`MacStatsPanelRenderTests`, run with `TEST_RUNNER_MACSTATS_RENDER_DIR=<folder>`); not yet opened on screen
 - [x] App lists: helpers under their app, plain names for macOS's own processes (`ProcessNames`)
-- [ ] Fans page and fan control: the helper's install and removal, Automatic / Manual / Full Speed, handing back
+- [x] Fan control: `IsletFanHelper` (root launch daemon via `SMAppService`, XPC, code-signing checks both ways),
+      `FanControl` in the app, the Fans page's Automatic / Manual / Full Speed and slider, Settings' Fan Control
+      section. The helper gives the fans back when the app disconnects or stops checking in (10 s), before sleep, on
+      SIGTERM, at its own start, and at a 90 °C CPU average. Builds; not yet run
+- [ ] Try fan control on this Mac from Xcode: install and allow the helper, Manual, the slider, Full Speed, Automatic;
+      quitting the app, sleeping, and Remove all give the fans back; the menu bar ring
 - [x] Settings > Mac Stats (`MacStatsSettingsPage`), between Battery and Face Unlock; "Mac Stats" in the Features list
       and setup (`Feature.macStats`). The Fan control section comes with fan control
 - [ ] To decide with the owner: should the efficiency-core bar warn on its own, or only when the performance cores are

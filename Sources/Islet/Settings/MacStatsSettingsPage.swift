@@ -17,6 +17,8 @@ struct MacStatsSettingsPage: View {
     @AppStorage(MacStatsSettings.colourParts) private var colourParts = true
     @AppStorage(MacStatsSettings.warnings) private var warnings = true
     @AppStorage(MacStatsSettings.interval) private var interval = 2
+    @AppStorage(FanControl.enabledKey) private var fanControl = false
+    private let fans = FanControl.shared
 
     /// Nothing left on in the menu bar, so there's nowhere to open the stats from.
     private var nothingShows: Bool {
@@ -80,8 +82,41 @@ struct MacStatsSettingsPage: View {
                 Text("Look")
             }
             .disabled(!enabled)
+
+            Section {
+                Toggle(isOn: $fanControl) {
+                    SettingsLabel("Let me control the fans", "Adds Manual and Full Speed to the Fans page. They go back to Automatic when the Mac sleeps or Dynamic Peninsula quits, and macOS takes over if the Mac gets too hot.")
+                }
+                .onChange(of: fanControl) { _, on in if !on { fans.setAutomatic() } }
+                if fanControl {
+                    LabeledContent {
+                        switch fans.helper {
+                        case .ready: Button("Remove…") { fans.remove() }
+                        case .needsApproval: Button("Open Login Items…") { fans.openLoginItems() }
+                        case .notInstalled, .failed: Button("Install…") { fans.install() }
+                        }
+                    } label: {
+                        SettingsLabel("Fan helper", helperDetail)
+                    }
+                }
+            } header: {
+                Text("Fan Control")
+            }
+            .disabled(!enabled)
         }
         .formStyle(.grouped)
+        .onAppear { fans.refresh() }
+        // Allowing it happens in System Settings: look again when the window comes back.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in fans.refresh() }
+    }
+
+    private var helperDetail: String {
+        switch fans.helper {
+        case .ready: "Installed. Changing fan speed needs this small helper, which runs as an administrator."
+        case .needsApproval: "Waiting to be allowed in System Settings > General > Login Items, under Allow in the Background."
+        case .notInstalled: "Changing fan speed needs a small helper that runs as an administrator. macOS asks you to allow it once."
+        case .failed(let why): "Couldn't install it: \(why)"
+        }
     }
 
     /// A meter's switch, tied to the row above it, with its colour.

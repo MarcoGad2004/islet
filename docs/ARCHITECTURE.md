@@ -54,7 +54,11 @@ What it should look like and do is in [DESIGN.md](DESIGN.md). This file is how t
     GPU (`IOAccelerator` statistics, per-app GPU time from its user clients), CPU/GPU/Neural Engine watts (IOReport
     "Energy Model", linked with `-lIOReport`), temperatures and fans from the SMC (`SMCSensors.allKeys`, listed once),
     and the busiest apps (`ps`) only while a page shows them. It keeps 10 minutes of `MacStatsPoint`s for the graphs.
-    Fan control will go through a root helper (RESEARCH.md "Mac Stats"). `MacStatsStatusItem` draws the menu bar item
+    Fan control: `FanControl` (app) registers `IsletFanHelper`, a launch daemon in the app bundle
+    (`Contents/MacOS/IsletFanHelper`, plist in `Contents/Library/LaunchDaemons`), with `SMAppService.daemon`, and talks
+    to it over XPC (`Sources/Shared/FanHelperProtocol.swift`); each side checks the other's code signature (team and
+    identifier). The helper runs as root, is the only thing that writes the SMC, and gives the fans back on its own
+    (RESEARCH.md "Mac Stats"). `MacStatsStatusItem` draws the menu bar item
     (`MacStatsMenuBar`, with the fan as a turning layer, `FanSpinView`) and opens `MacStatsView` in a `MenuBarPanel`,
     the drop-down window the battery stats use too. `ProcessNames` groups processes into app rows.
 
