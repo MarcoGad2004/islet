@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settings = SettingsWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private lazy var onboarding = OnboardingWindowController(face: faceUnlock, levels: levels, media: media, focus: focus, wifi: wifi)
     private var statusItem: NSStatusItem?
+    /// Mac Stats' meters and readouts (1.7), a status item of its own.
+    private var macStatsItem: MacStatsStatusItem?
     private lazy var batteryStats = BatteryStatsPanel(power: power)
     private var iconObservers: [NSKeyValueObservation] = []
     private var menuBarObserver: NSKeyValueObservation?
@@ -420,6 +422,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
         watchStatusIcon()
+
+        let stats = MacStatsStatusItem()
+        // Until the stats panel exists, both clicks give the app's menu.
+        stats.onMenu = { [weak self] item in
+            guard let menu = self?.statusMenu else { return }
+            item.menu = menu
+            item.button?.performClick(nil)
+            item.menu = nil
+        }
+        macStatsItem = stats
     }
 
     /// The pill, or the battery (DESIGN.md "Menu bar battery"), kept up to date with the charge.

@@ -949,7 +949,9 @@ spacing kept tight). Either half can be off; with both off, nothing shows (Setti
   - Temperature: a thermometer and the degrees (no unit letter), °F or °C by region. The CPU's average by default;
     Settings can pick the hottest CPU core or the GPU. Yellow from 80 °C (176 °F), red from 95 °C (203 °F).
   - Power: a bolt and the whole Mac's draw in whole watts (the battery stats' Mac figure, SMC `PSTR`). Never coloured.
-  - Fan: a three-blade fan that turns at a speed following the faster fan and stands still when they're off, then that
+  - Fan: SF Symbols' `fanblades.fill` (10 pt, a little smaller than the other glyphs so it doesn't look heavier; four
+    even blades turn more evenly than the mockup's three) that turns at a speed following the faster fan (one turn every
+    0.35 s at full speed, up to 1.6 s) and stands still when they're off or with Reduce Motion, then that
     fan's share of its maximum ("41%"), or "Off". A thin ring round it while the fans are on Manual or Full Speed.
 - Each readout and each bar can be turned off on its own (Settings).
 - Click: the stats panel. Right-click or Control/Option-click: Islet's menu, as for the battery.
@@ -991,6 +993,17 @@ the panel keeps its width.
   - Full Speed: both fans at their maximum.
   - A note: back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts; changing the fans needs a
     small helper installed once with the password. Manual and Full Speed only show with "Let me control the fans" on.
+
+### App names in the lists (owner, 2026-11-24)
+
+The "Using the most" lists name things the way a person would, while still being exact about what uses the resource:
+
+- Helper processes count under their app: "Claude Helper" and "Claude Helper (Renderer)" are one row, "Claude", with
+  the app's icon and the sum. The same for browsers' content processes and other helpers.
+- macOS's own processes get a plain name and say they're part of macOS, with the process name small and secondary
+  underneath so it can still be looked up: "Spotlight indexing" (corespotlightd), "Drawing the screen"
+  (WindowServer), "Sound" (coreaudiod), "Screenshot" (screencapture). One that isn't in the list keeps its own name.
+- Hovering a grouped row shows what's in it.
 
 ### Settings > Mac Stats
 

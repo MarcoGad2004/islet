@@ -98,4 +98,60 @@ final class MacStatsTests: XCTestCase {
         XCTAssertEqual(FanSample(rpm: 3913, min: 2317, max: 7826).fraction, 0.5, accuracy: 1e-9)
         XCTAssertEqual(FanSample(rpm: 9000, min: 2317, max: 7826).fraction, 1)
     }
+
+    // MARK: - Menu bar
+
+    private func snapshot() -> MacStatsSnapshot {
+        var s = MacStatsSnapshot()
+        s.cpu = CPUSample(cores: [0.5, 0.5, 0.1, 0.1], efficiencyCount: 2, user: 0.2, system: 0.1)
+        s.gpu = GPUSample(utilization: 0.3, memoryInUse: 0)
+        s.memory = MemorySample(total: 100, pageSize: 1, anonymous: 60, purgeable: 0, wired: 0, compressor: 0, swapUsed: 0, pressure: .normal)
+        s.systemWatts = 9.4
+        s.thermal.cpuAverage = 41
+        s.thermal.cpuHottest = 49
+        s.fans = [FanSample(rpm: 0, min: 2317, max: 7826), FanSample(rpm: 0, min: 2317, max: 7826)]
+        return s
+    }
+
+    func testMenuBarShowsEverythingByDefault() {
+        let c = MacStatsMenuBarContent.make(snapshot(), levels: [.performance: .warning], temperatureLevel: .normal,
+                                            fahrenheit: true, on: { _ in true }, source: .cpuAverage)
+        XCTAssertEqual(c.temperature?.text, "106°")
+        XCTAssertEqual(c.power?.text, "9 W")
+        XCTAssertEqual(c.fan?.text, "Off")
+        XCTAssertEqual(c.bars.map(\.part), [.efficiency, .performance, .gpu, .memory])
+        XCTAssertEqual(c.bars.map(\.value), [0.5, 0.1, 0.3, 0.6])
+        XCTAssertEqual(c.bars[1].level, .warning)
+        XCTAssertEqual(c.spoken, "Efficiency cores 50%, Performance cores 10%, GPU 30%, Memory 60%, Temperature 106°, Power 9 W, Fans Off")
+    }
+
+    func testMenuBarFollowsTheSwitches() {
+        let off: Set<String> = [MacStatsSettings.gpu, MacStatsSettings.power]
+        let c = MacStatsMenuBarContent.make(snapshot(), levels: [:], temperatureLevel: .normal, fahrenheit: false,
+                                            on: { !off.contains($0) }, source: .cpuHottest)
+        XCTAssertEqual(c.temperature?.text, "49°")
+        XCTAssertNil(c.power)
+        XCTAssertEqual(c.bars.map(\.part), [.efficiency, .performance, .memory])
+
+        let none = MacStatsMenuBarContent.make(snapshot(), levels: [:], temperatureLevel: .normal, fahrenheit: false,
+                                               on: { $0 != MacStatsSettings.meters && $0 != MacStatsSettings.readouts })
+        XCTAssertTrue(none.isEmpty)
+    }
+
+    func testMenuBarFanShareAndHeld() {
+        var s = snapshot()
+        s.fans = [FanSample(rpm: 2400, min: 2317, max: 7826), FanSample(rpm: 3913, min: 2317, max: 7826)]
+        s.fansHeld = true
+        let c = MacStatsMenuBarContent.make(s, levels: [:], temperatureLevel: .normal, fahrenheit: false, on: { _ in true })
+        XCTAssertEqual(c.fan?.text, "50%")
+        XCTAssertEqual(c.fanFraction, 0.5, accuracy: 1e-9)
+        XCTAssertTrue(c.fansHeld)
+    }
+
+    func testMenuBarWithoutEfficiencyCores() {
+        var s = snapshot()
+        s.cpu = CPUSample(cores: [0.4, 0.4], efficiencyCount: 0, user: 0.3, system: 0.1)
+        let c = MacStatsMenuBarContent.make(s, levels: [:], temperatureLevel: .normal, fahrenheit: false, on: { _ in true })
+        XCTAssertEqual(c.bars.map(\.part), [.performance, .gpu, .memory])
+    }
 }

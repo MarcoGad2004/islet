@@ -116,9 +116,14 @@ Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU
       `ThermalReader` (SMC temperatures and fans), `ProcessReader` (`ps`, footprint where readable), sampled off the main
       thread by `MacStatsSampler`; `MacStats.shared` keeps 10 minutes of history and `LevelHold` the 5 s warning
       hold. Checked on this Mac (about 40 ms a reading, 95 ms with the app lists); nothing starts it yet
-- [ ] App lists: group helper processes under their app (Claude Helper, Claude Helper (Renderer) → Claude), as
-      iStat Menus does
-- [ ] Menu bar item: meters and readouts, colours, warnings held ~5 s, the turning fan, light and dark menu bars
+- [ ] App lists: helpers under their app and plain names for macOS's own processes (DESIGN.md "App names in the
+      lists")
+- [x] Menu bar item (`MacStatsMenuBar.swift`): meters and readouts in one status item, colours, warnings held 5 s,
+      the turning fan (a layer animation), light and dark menu bars. Off by default and there's no Settings page yet:
+      `defaults write com.marcogad.islet macStatsEnabled -bool true` turns it on (the other `macStats*` switches are
+      in `MacStatsSettings`). Until the panel exists a click gives the app's menu
+- [ ] Try it in the real menu bar: position left of Islet's icon, the fan over its gap, the click, light and dark
+      menu bars, a wallpaper that turns the menu bar light
 - [ ] Panel: title, tiles, temperatures, fans, footer; the CPU, Memory and GPU pages
 - [ ] Fans page and fan control: the helper's install and removal, Automatic / Manual / Full Speed, handing back
 - [ ] Settings > Mac Stats, the Features list entry (readouts and meters indented under it), setup
