@@ -80,6 +80,8 @@ final class MacStats {
 
     private(set) var snapshot = MacStatsSnapshot()
     private(set) var history: [MacStatsPoint] = []
+    /// `history` in the charts' 5-second slots, worked out once a reading instead of by every chart on every redraw.
+    private(set) var buckets: [MacStatsPoint] = []
     /// Settings > Mac Stats > "Update every".
     var interval: Duration = .seconds(2)
     /// Set while a page that lists the busiest apps is open: running `ps` every time otherwise would be waste.
@@ -110,6 +112,7 @@ final class MacStats {
         task?.cancel()
         task = nil
         history = []
+        buckets = []
     }
 
     private func read(processes: Bool? = nil) async {
@@ -132,6 +135,7 @@ final class MacStats {
             history.append(point)
             let cutoff = s.date.addingTimeInterval(-Self.historySpan)
             if let first = history.firstIndex(where: { $0.date >= cutoff }), first > 0 { history.removeFirst(first) }
+            buckets = ChartHistory.buckets(history)
         }
     }
 

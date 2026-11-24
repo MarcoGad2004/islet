@@ -104,7 +104,7 @@ private struct MacStatsOverview: View {
                     Tile(title: "GPU", value: MacStatsFormat.percent(s.gpu?.utilization), number: s.gpu?.utilization,
                          level: StatLevel(load: s.gpu?.utilization ?? 0), action: { open(.gpu) }) {
                         Caption(s.gpu.map { "\(MacStatsFormat.megabytes($0.memoryInUse)) in use" } ?? " ")
-                        let gpu = ChartHistory.buckets(stats.history)
+                        let gpu = stats.buckets
                         Sparkline(values: gpu.map(\.gpu), newest: gpu.last?.date, top: 1, colour: MacStatsColour.gpu)
                     }
                 }
@@ -120,7 +120,7 @@ private struct MacStatsOverview: View {
                     }
                     Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), number: s.systemWatts, level: .normal, action: nil) {
                         Caption(s.energy.map { "CPU \(MacStatsFormat.number($0.cpu)) · GPU \(MacStatsFormat.number($0.gpu)) W" } ?? " ")
-                        let power = ChartHistory.buckets(stats.history).filter { $0.watts != nil }
+                        let power = stats.buckets.filter { $0.watts != nil }
                         let watts = power.compactMap(\.watts)
                         Sparkline(values: watts, newest: power.last?.date, top: max(watts.max() ?? 1, 1) * 1.15, colour: nil)
                     }
@@ -226,7 +226,7 @@ private struct MacStatsCPUPage: View {
                 if eCount > 0 { Legend(name: "Efficiency", colour: MacStatsColour.efficiency) }
                 Legend(name: "Performance", colour: MacStatsColour.performance)
             }
-            let points = ChartHistory.buckets(stats.history)
+            let points = stats.buckets
             let perf = (colour: MacStatsColour.performance,
                         values: points.map { $0.performance * Double(cores - eCount) / Double(cores) })
             let eff = (colour: MacStatsColour.efficiency,
@@ -307,7 +307,7 @@ private struct MacStatsMemoryPage: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .labelColor))
             }
-            MemoryChart(points: ChartHistory.buckets(stats.history))
+            MemoryChart(points: stats.buckets)
                 .padding(.top, 8)
             Caption("Full is fine: macOS keeps spare memory busy. The colour is pressure, how hard it's working to find room.")
                 .padding(.top, 8)
@@ -368,7 +368,7 @@ private struct MacStatsGPUPage: View {
         VStack(alignment: .leading, spacing: 0) {
             PageHeader(title: "GPU", trailing: MacStatsFormat.percent(s.gpu?.utilization), number: s.gpu?.utilization, back: back)
             Text("Last 10 minutes").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
-            let points = ChartHistory.buckets(stats.history)
+            let points = stats.buckets
             LoadChart(layers: [(colour: MacStatsColour.gpu, values: points.map(\.gpu))], newest: points.last?.date)
                 .padding(.top, 8)
 
@@ -815,48 +815,73 @@ private struct SlotShape: Shape {
     static let barWidth: CGFloat = 1.2
 
     var kind: Kind
-    var upper: SlotValues
-    /// What an area sits on (a stacked chart's layer below); `zero` for the baseline.
-    var lower: SlotValues
+    /// Only the newest point of each series, and the scale, are animated: within a slot nothing else changes, and
+    /// easing all 120 points every frame (new arrays each time) was the panel's biggest drawing cost. A new slot is
+    /// drawn without animation, so the older points never need to ease.
+    private var upperHead: [Double]
+    private var upperTip: Double
+    private var upperCount: Int
+    private var lowerHead: [Double]
+    private var lowerTip: Double
+    private var lowerCount: Int
     /// The value at the top edge.
     var top: Double
     /// Room kept at the top and bottom, for a stroke's width.
     var inset: CGFloat = 0
 
-    var animatableData: AnimatablePair<AnimatablePair<SlotValues, SlotValues>, Double> {
-        get { AnimatablePair(AnimatablePair(upper, lower), top) }
+    /// `lower`: what an area sits on (a stacked chart's layer below); `zero` for the baseline.
+    init(kind: Kind, upper: SlotValues, lower: SlotValues, top: Double, inset: CGFloat = 0) {
+        self.kind = kind
+        let up = upper.values.suffix(Self.slots), lo = lower.values.suffix(Self.slots)
+        upperHead = Array(up.dropLast())
+        upperTip = up.last ?? 0
+        upperCount = up.count
+        lowerHead = Array(lo.dropLast())
+        lowerTip = lo.last ?? 0
+        lowerCount = lo.count
+        self.top = top
+        self.inset = inset
+    }
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, Double> {
+        get { AnimatablePair(AnimatablePair(upperTip, lowerTip), top) }
         set {
-            upper = newValue.first.first
-            lower = newValue.first.second
+            upperTip = newValue.first.first
+            lowerTip = newValue.first.second
             top = newValue.second
         }
     }
 
     func path(in rect: CGRect) -> Path {
-        let up = Array(upper.values.suffix(Self.slots))
-        let n = up.count
+        let n = upperCount
         guard n > 0, top > 0 else { return Path() }
-        let lo = Array(lower.values.suffix(n))
+        func up(_ i: Int) -> Double { i < n - 1 ? upperHead[i] : upperTip }
         let r = rect.insetBy(dx: 0, dy: inset)
         let step = rect.width / CGFloat(Self.slots - 1)
         func x(_ i: Int) -> CGFloat { rect.maxX - CGFloat(n - 1 - i) * step }
         func y(_ v: Double) -> CGFloat { r.maxY - CGFloat(min(max(v / top, 0), 1)) * r.height }
-        func below(_ i: Int) -> Double { lo.isEmpty ? 0 : lo[max(0, i - (n - lo.count))] }
+        // The lower series ends at the same newest slot, and may be the shorter.
+        let m = min(lowerCount, n)
+        func below(_ i: Int) -> Double {
+            guard m > 0 else { return 0 }
+            let e = lowerCount - m + max(0, i - (n - m))
+            return e < lowerCount - 1 ? lowerHead[e] : lowerTip
+        }
 
         var p = Path()
         switch kind {
         case .line:
             guard n > 1 else { return p }
-            p.addLines((0..<n).map { CGPoint(x: x($0), y: y(up[$0])) })
+            p.addLines((0..<n).map { CGPoint(x: x($0), y: y(up($0))) })
         case .area:
             guard n > 1 else { return p }
             p.move(to: CGPoint(x: x(0), y: y(below(0))))
-            for i in 0..<n { p.addLine(to: CGPoint(x: x(i), y: y(up[i]))) }
+            for i in 0..<n { p.addLine(to: CGPoint(x: x(i), y: y(up(i)))) }
             for i in (0..<n).reversed() { p.addLine(to: CGPoint(x: x(i), y: y(below(i)))) }
             p.closeSubpath()
         case .bars:
-            for i in 0..<n where up[i] > 0 {
-                let h = r.maxY - y(up[i])
+            for i in 0..<n where up(i) > 0 {
+                let h = r.maxY - y(up(i))
                 p.addRect(CGRect(x: x(i) - Self.barWidth, y: r.maxY - h, width: Self.barWidth, height: h))
             }
         }
