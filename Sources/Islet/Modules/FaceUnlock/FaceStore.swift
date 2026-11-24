@@ -2,19 +2,34 @@ import Foundation
 import Security
 import OpenDirectory
 import LocalAuthentication
+import os
 
 /// Generic-password Keychain items for this app only. Values are never logged.
 enum KeychainStore {
     static let service = "com.marcogad.islet.faceunlock"
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "keychain")
 
-    static func save(_ data: Data, account: String) -> Bool {
+    /// Writes the item: replaced in place when it exists, added when it doesn't. Returns the Keychain's status.
+    ///
+    /// In place, not delete-then-add: the items live in the login keychain, whose access list names the builds that
+    /// made them (a Debug build, then the Developer ID one, added by "Always Allow"). The installed app may read and
+    /// update them but not delete them, so delete-then-add failed with a duplicate and a new scan was never saved
+    /// (RESEARCH.md, 2026-11-24).
+    @discardableResult static func save(_ data: Data, account: String) -> OSStatus {
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                    kSecAttrService as String: service, kSecAttrAccount as String: account]
-        SecItemDelete(base as CFDictionary)
+        let updated = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if updated == errSecSuccess { return updated }
+        if updated != errSecItemNotFound {
+            let deleted = SecItemDelete(base as CFDictionary)
+            log.error("keychain update \(account, privacy: .public) failed \(updated), delete \(deleted)")
+        }
         var add = base
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+        let added = SecItemAdd(add as CFDictionary, nil)
+        if added != errSecSuccess { log.error("keychain add \(account, privacy: .public) failed \(added)") }
+        return added
     }
 
     static func load(account: String) -> Data? {
@@ -111,12 +126,14 @@ final class FaceStore {
         KeychainStore.load(account: account).flatMap { try? JSONDecoder().decode([[Float]].self, from: $0) } ?? []
     }
 
-    /// A new enrolment replaces the old one and forgets what was learned on top of it.
-    func saveEmbeddings(_ list: [[Float]]) -> Bool {
-        guard let data = try? JSONEncoder().encode(list), KeychainStore.save(data, account: Self.facesAccount) else { return false }
+    /// A new enrolment replaces the old one and forgets what was learned on top of it. Returns the Keychain's status.
+    func saveEmbeddings(_ list: [[Float]]) -> OSStatus {
+        guard let data = try? JSONEncoder().encode(list) else { return errSecParam }
+        let status = KeychainStore.save(data, account: Self.facesAccount)
+        guard status == errSecSuccess else { return status }
         embeddings = list
         forgetLearned()
-        return true
+        return status
     }
 
     /// Learns from a live, successful unlock. Returns true when the sample was kept.
@@ -125,7 +142,7 @@ final class FaceStore {
               FaceLearning.shouldLearn(sample, enrolled: embeddings, learned: learned, threshold: threshold) else { return false }
         var list = learned + [sample]
         if list.count > Self.maxLearned { list.removeFirst(list.count - Self.maxLearned) }
-        guard let data = try? JSONEncoder().encode(list), KeychainStore.save(data, account: Self.learnedAccount) else { return false }
+        guard let data = try? JSONEncoder().encode(list), KeychainStore.save(data, account: Self.learnedAccount) == errSecSuccess else { return false }
         learned = list
         return true
     }
@@ -153,7 +170,7 @@ final class FaceStore {
     }
 
     func savePassword(_ password: String) -> Bool {
-        let ok = KeychainStore.save(Data(password.utf8), account: Self.passwordAccount)
+        let ok = KeychainStore.save(Data(password.utf8), account: Self.passwordAccount) == errSecSuccess
         hasPassword = ok || hasPassword
         return ok
     }

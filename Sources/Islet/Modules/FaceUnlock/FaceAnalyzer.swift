@@ -137,7 +137,8 @@ enum LivenessChallenge: CaseIterable, Sendable {
 /// 2. the glow (`usesGlow`): the screen lights the face and its shape has to answer, with the spoof model at least at
 ///    `glowSpoofFloor`;
 /// 3. a challenge, the last resort: a blink, or with `randomChallenge` a blink, smile or head turn.
-/// Below `refuseLevel` the spoof model refuses the face outright, like a held-up photo's edge. The level also sets how
+/// Below `refuseLevel` (over `SpoofTracker.refuseFrames`) Faster refuses the face outright, like a held-up photo's edge;
+/// Standard and More secure doubt it, and then need the glow and the challenge both (ScanEngine). The level also sets how
 /// close to you a face has to be (`matchFloor`, and how tightly the learned threshold follows your scores).
 enum FaceSecurity: String, CaseIterable, Sendable {
     /// Trusts the spoof model sooner and never lights the screen: a good video on a phone could get through.
@@ -167,9 +168,11 @@ enum FaceSecurity: String, CaseIterable, Sendable {
     var matchMargin: Float {
         switch self { case .faster: 0.08; case .standard: 0.05; case .secure: 0.02 }
     }
-    /// The most it can rise above `matchFloor`.
+    /// The most it can rise above `matchFloor`. Faster and Standard stop at 0.55 and 0.60, 1.5's ceiling: higher, a
+    /// new look (glasses, a hood, other light) fails before it can be learned, and it adds nothing against a photo
+    /// of you, which the liveness checks stop, not the match (RESEARCH.md, 2026-11-24).
     var matchMaxRaise: Float {
-        switch self { case .faster: 0.15; case .standard: 0.20; case .secure: 0.25 }
+        switch self { case .faster: 0.10; case .standard: 0.10; case .secure: 0.25 }
     }
 
     var title: String {
@@ -180,7 +183,7 @@ enum FaceSecurity: String, CaseIterable, Sendable {
         case .faster:
             "Unlocks as soon as the spoof model is fairly sure your face is real, and asks for a blink when it isn't. The screen never lights up, and the match is the most forgiving. A good video of you on a phone could get through."
         case .standard:
-            "Unlocks at once when the spoof model is sure. When it isn't, the screen glows briefly to check your face's shape, and a blink is the last resort."
+            "Unlocks at once when the spoof model is sure. When it isn't, the screen glows briefly to check your face's shape, and a blink is the last resort. When it thinks your face is fake (a hood can do that), it needs the glow and the blink both."
         case .secure:
             "Unlocks at once only when the spoof model is very sure. Otherwise the screen glows to check your face's shape, and a random blink, smile or head turn is the last resort. Your face has to match your usual scores closely. Slower, and the glow shows more often."
         }

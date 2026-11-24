@@ -148,19 +148,23 @@ struct FaceUnlockSettings: View {
     private var testResult: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let score = face.testScore {
-                // In harsh light a fake-looking score asks for the challenge instead of refusing.
-                let fake = (face.testLive.map { $0 < face.faces.security.refuseLevel } ?? false) && !(face.testLighting?.harsh ?? false)
-                let match = score >= face.faces.effectiveThreshold && !face.testFramed && !fake
-                Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : fake ? "Fake" : match ? "Match" : "No match"),
-                      systemImage: match ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundStyle(match ? .green : .red).monospacedDigit()
+                // In harsh light a fake-looking score asks for the challenge instead of refusing. Standard and More
+                // secure doubt a fake-looking face rather than refuse it: it needs the glow and the challenge.
+                let level = face.faces.security
+                let fake = (face.testLive.map { $0 < level.refuseLevel } ?? false) && !(face.testLighting?.harsh ?? false)
+                let refused = face.testFramed || (fake && !level.usesGlow)
+                let match = score >= face.faces.effectiveThreshold && !refused && !fake
+                Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : refused ? "Fake"
+                             : score < face.faces.effectiveThreshold ? "No match" : fake ? "Doubtful: needs glow and \(Self.challengeWord(level))" : "Match"),
+                      systemImage: match ? "checkmark.circle.fill" : refused || score < face.faces.effectiveThreshold ? "xmark.circle.fill" : "questionmark.circle.fill")
+                    .foregroundStyle(match ? .green : refused || score < face.faces.effectiveThreshold ? .red : .orange).monospacedDigit()
             } else {
                 Text("No face in view").foregroundStyle(.secondary)
             }
             HStack(spacing: 14) {
                 if let live = face.testLive {
                     let level = face.faces.security
-                    let label = live >= level.liveLevel ? "Real" : live < level.refuseLevel ? "Fake" : level.usesGlow ? "Unsure: would glow" : "Unsure: would ask"
+                    let label = live >= level.liveLevel ? "Real" : live < level.refuseLevel ? (level.usesGlow ? "Fake: would doubt" : "Fake") : level.usesGlow ? "Unsure: would glow" : "Unsure: would ask"
                     Label(String(format: "Spoof model: %@ %.2f", label, live), systemImage: "person.crop.square.badge.camera")
                         .foregroundStyle(live >= level.liveLevel ? .green : live < level.refuseLevel ? .red : .secondary)
                         .monospacedDigit()
@@ -191,6 +195,8 @@ struct FaceUnlockSettings: View {
             .font(.callout)
         }
     }
+
+    private static func challengeWord(_ level: FaceSecurity) -> String { level.randomChallenge ? "a challenge" : "a blink" }
 
     private func pulseText(_ v: FacePulse.Verdict) -> some View {
         let r = v.reading

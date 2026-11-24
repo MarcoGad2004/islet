@@ -283,10 +283,14 @@ final class FaceLivenessTests: XCTestCase {
 
     func testSpoofTrackerNeedsAFewFrames() {
         var t = SpoofTracker()
-        for _ in 0..<5 { t.add(0.05) }
-        XCTAssertEqual(t.verdict(.standard), .unknown) // fake-looking, but not yet enough frames to refuse
+        for _ in 0..<(SpoofTracker.refuseFrames - 1) { t.add(0.05) }
+        XCTAssertNotEqual(t.verdict(.standard), .spoof) // fake-looking, but not yet enough frames to refuse
         t.add(0.05)
         XCTAssertEqual(t.verdict(.standard), .spoof)
+        // A real face the model wavers on: a short dip under the refuse level isn't a refusal.
+        t.reset()
+        for v: Float in [0.5, 0.4, 0.6, 0.45, 0.5, 0.55, 0.1, 0.05, 0.1, 0.08, 0.1, 0.12, 0.5, 0.45, 0.5, 0.6, 0.4, 0.5, 0.5, 0.45] { t.add(v) }
+        XCTAssertNotEqual(t.verdict(.standard), .spoof)
         t.reset()
         for _ in 0..<6 { t.add(0.95) }
         XCTAssertEqual(t.verdict(.faster), .live)
@@ -334,8 +338,9 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: []), 0.55)
         // Unlocks scoring ~0.75: each level sits under them by its own margin, stricter levels closer.
         let mine = Array(repeating: Float(0.75), count: 30)
-        XCTAssertEqual(AdaptiveThreshold.value(.faster, scores: mine), 0.60, accuracy: 0.001) // capped: 0.45 + 0.15
-        XCTAssertEqual(AdaptiveThreshold.value(.standard, scores: mine), 0.70, accuracy: 0.001)
+        // Faster and Standard stop at 1.5's ceiling, so a new look (glasses, a hood) can still match and be learned.
+        XCTAssertEqual(AdaptiveThreshold.value(.faster, scores: mine), 0.55, accuracy: 0.001) // capped: 0.45 + 0.10
+        XCTAssertEqual(AdaptiveThreshold.value(.standard, scores: mine), 0.60, accuracy: 0.001) // capped: 0.50 + 0.10
         XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: mine), 0.73, accuracy: 0.001)
         // Low scores never pull it under the level's floor.
         XCTAssertEqual(AdaptiveThreshold.value(.secure, scores: Array(repeating: 0.5, count: 30)), 0.55)

@@ -204,12 +204,14 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   | averaged over | 6 frames (~0.2 s) | 12 (~0.4 s) | 20 (~0.7 s) |
   | When it isn't sure | blink | glow, then blink | glow, then a random challenge |
   | Glow also needs the spoof model at | n/a | ≥ 0.5 | ≥ 0.75 |
-  | Refuses below (6 frames) | 0.25 | 0.25 | 0.35 |
+  | Sure it's fake below (20 frames, ~0.7 s) | 0.25: refused | 0.25: glow and blink both | 0.35: glow and challenge both |
   | Match threshold until 20 unlocks are learned, and its floor after | 0.45 | 0.50 | 0.55 |
   | Once learned: under your usual scores (5th percentile) by | 0.08 | 0.05 | 0.02 |
-  | Most the threshold can rise above its floor | 0.15 | 0.20 | 0.25 |
+  | Most the threshold can rise above its floor | 0.10 | 0.10 | 0.25 |
 
-  There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
+  When the spoof model is sure the face is fake, Faster refuses it; Standard and More secure doubt it instead (the
+  model also calls real faces fake, a hood round the face for one; 2026-11-24): the glow has to vouch and then the
+  challenge has to be done, and where the glow can't run or doesn't vouch it's refused. There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
   Off to Faster, the rest to Standard. The match threshold is set by the level too, not by hand (owner, 2026-11-23:
   the slider is gone); Test recognition shows the one in use and how it was set.
 - **Light check** (Standard and More secure, when the spoof model isn't sure; owner request 2026-11-22): the label
@@ -462,7 +464,8 @@ Convenience, explicitly weaker than Touch ID. Agreed by the owner.
 - 3 attempts per lock, then stop.
 - Only the Mac's built-in camera is used (never Continuity Camera, USB or virtual cameras).
 - Spoof checks on every scan: a rectangle edge around the face, and a spoof model (MiniFASNet) that refuses
-  a face it's sure is a print or screen, and the Security level's light check and challenge (Face scan, above).
+  a face it's sure is a print or screen (on Standard and More secure, that face needs the glow and the challenge
+  both instead), and the Security level's light check and challenge (Face scan, above).
 - "Learn my face from unlocks" (on by default; since 1.6 one switch for what were two): adds new looks, learns how
   the face answers the glow, and after 20 confirmed unlocks fits the threshold to just under the owner's usual
   scores, as the Security level sets (table above). With it off, the threshold is the level's starting point.

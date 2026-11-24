@@ -15,6 +15,11 @@ import Foundation
 ///    and so it is for the rest of the scan once one got no response.
 /// 3. A challenge: a blink, or on More secure a random blink, smile or head turn, with `challengeSeconds` to do it
 ///    once shown (looking away to turn doesn't count as a miss).
+///
+/// When the spoof model is sure the face is fake (`refuseLevel`), Faster refuses it. Standard and More secure doubt it
+/// instead, since the model also calls real faces fake (a hood around the face, a dim room): the glow has to vouch
+/// for the face's shape and then the challenge has to be done, both. Where the glow can't run (a bright room, no
+/// response earlier in the scan) or doesn't vouch, the face is refused as before.
 /// Runs on the camera queue; `finishPulse` may come from any thread.
 final class ScanEngine: @unchecked Sendable {
     enum Event: Sendable {
@@ -75,6 +80,8 @@ final class ScanEngine: @unchecked Sendable {
     /// A glow got no response, or the room is too bright, in this scan: later attempts skip it. Kept across
     /// `resume()`.
     private var skipGlow = false
+    /// The spoof model called this attempt's face fake and it's getting the glow and the challenge instead of a refusal.
+    private var doubted = false
 
     init(embedder: FaceEmbedder, antiSpoof: AntiSpoofModel?, enrolled: [[Float]], threshold: Float, security: FaceSecurity,
          onEvent: @escaping @Sendable (Event) -> Void) {
@@ -98,7 +105,7 @@ final class ScanEngine: @unchecked Sendable {
         paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
         detector = ChallengeDetector(Self.pick(security)); promptedAt = nil
         spoof.reset(); pulse = .idle; fallback = false; scores = []; lastMatch = nil
-        pulseSchedule = nil; harshHistory = []
+        pulseSchedule = nil; harshHistory = []; doubted = false
     }
     func pause() { lock.lock(); paused = true; lock.unlock() }
 
@@ -137,7 +144,9 @@ final class ScanEngine: @unchecked Sendable {
         let harsh = harshHistory.count >= 3 && harshHistory.filter { $0 }.count * 2 > harshHistory.count
         let spoofVerdict = spoof.verdict(security)
         // In harsh light the spoof model can't be trusted to refuse a real face; the challenge decides instead.
-        let refused = framed || (spoofVerdict == .spoof && !harsh)
+        let fake = spoofVerdict == .spoof && !harsh
+        if fake, !doubted, !framed, security.usesGlow, !skipGlow, !fallback, case .idle = pulse { doubted = true }
+        let refused = framed || (fake && !doubted)
 
         let score = FaceMatcher.score(e, enrolled: enrolled)
         best = max(best, score)
@@ -193,6 +202,11 @@ final class ScanEngine: @unchecked Sendable {
             return
         }
         if case .running = pulse { return } // the glow decides
+        if doubted {
+            // Fake by the spoof model: the glow first, whatever the model says now, then the challenge.
+            if case .idle = pulse { pulse = .running(since: now, frames: []); onEvent(.pulse) }
+            return
+        }
         if spoofVerdict == .live { finish(score: score, embedding: e, via: "spoof model", pulse: nil); return }
         // Still gathering the spoof model's frames (a fraction of a second): wait for them.
         if spoofVerdict == .unknown, antiSpoof != nil { return }
@@ -220,6 +234,7 @@ final class ScanEngine: @unchecked Sendable {
         guard case .running = pulse, !paused else { return }
         pulse = .done; fallback = true; skipGlow = true
         onEvent(.pulseSkipped(why))
+        if doubted { refuse(); return }
         promptedAt = Date()
         prompt(detector.challenge)
     }
@@ -246,6 +261,15 @@ final class ScanEngine: @unchecked Sendable {
             ?? .inconclusive("no pulse", nil)
         onEvent(.pulseResult(verdict))
         if verdict.reason == "no response to the light" { skipGlow = true }
+        if doubted {
+            // The spoof model said fake: the glow vouching isn't enough on its own, the challenge has to follow. A
+            // glow that doesn't vouch refuses it, as the model would have.
+            guard case .passed = verdict, faceLost == 0, lastMatch != nil else { refuse(); return }
+            fallback = true
+            promptedAt = Date()
+            prompt(detector.challenge)
+            return
+        }
         let spoofOK = antiSpoof == nil || (spoof.mean(last: min(security.spoofFrames, spoof.values.count)) ?? 0) >= security.glowSpoofFloor
         if case .passed(let reading) = verdict, spoofOK, faceLost == 0, let m = lastMatch {
             finish(score: m.score, embedding: m.embedding, via: "glow", pulse: reading)
@@ -255,6 +279,13 @@ final class ScanEngine: @unchecked Sendable {
         fallback = true
         promptedAt = Date()
         prompt(detector.challenge)
+    }
+
+    /// A doubted face the glow couldn't vouch for: refused, like a photo.
+    private func refuse() {
+        paused = true
+        prompt(nil)
+        onEvent(.noMatch(score: 0, refused: true)); best = 0
     }
 
     private func finish(score: Float, embedding: [Float], via: String, pulse reading: FacePulse.Reading?) {

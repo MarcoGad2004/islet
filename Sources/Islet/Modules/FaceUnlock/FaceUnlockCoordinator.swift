@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The enrolment as the UI sees it.
 @MainActor @Observable
@@ -44,6 +45,7 @@ final class FaceUnlockCoordinator {
     private(set) var modelAvailable = false
 
     private let island: IslandStore
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
     let embedder = FaceEmbedder()
     /// The spoof model; nil if it isn't in the bundle (face unlock still works, with the other checks).
     let antiSpoof = AntiSpoofModel()
@@ -110,8 +112,16 @@ final class FaceUnlockCoordinator {
         timeout?.cancel()
         stopCamera()
         // A rough sanity check that the scan saw one consistent face.
-        guard FaceMatcher.consistency(samples) >= 0.35, faces.saveEmbeddings(samples) else {
+        let consistency = FaceMatcher.consistency(samples)
+        Self.log.notice("enrolment: \(samples.count) samples, consistency \(consistency)")
+        guard consistency >= 0.35 else {
             fail(model, "Couldn't get a clear scan. Try better light")
+            return
+        }
+        // Saving used to fail here too and showed the light message above (RESEARCH.md, 2026-11-24): say what it was.
+        let status = faces.saveEmbeddings(samples)
+        guard status == errSecSuccess else {
+            fail(model, "Couldn't save the scan (Keychain error \(status))")
             return
         }
         model.phase = .success

@@ -133,6 +133,41 @@ lock screen. Each question below can block it:
       `~/Library/Application Support/Islet/light-check.csv` (per-frame window, commanded level, patches, background,
       frame luma). **Thresholds still guesses:** a photo and a phone video of the owner need scoring in Test
       recognition before Faster can be trusted.
+    - *Face Unlock unreliable (2026-11-24, owner: re-enrolling fails at the end with "Try better light", it doesn't
+      recognise me, Test recognition says "0.85 Fake / Spoof model: Fake 0.14" in a hoodie):* three separate causes.
+      1. **Re-enrolment never saved.** The `face-embeddings` Keychain item's modification date was still 2026-11-19:
+         no scan since had been stored. `security dump-keychain -a` shows the items' access lists name the Apple
+         Development build that made them, with the installed Developer ID build added later ("Always Allow"), and
+         the owner entry (`change_acl`) names no app. `KeychainStore.save` deleted the item and added it again; the
+         installed app may read the item but evidently not delete it, so the add hit the existing item and the save
+         failed, and `finishEnrolment` showed the consistency check's "Couldn't get a clear scan. Try better light"
+         for both. Now `save` updates the data in place (`SecItemUpdate`, covered by the open `encrypt` entry and the
+         Developer ID partition), falls back to delete and add, and logs each OSStatus (category `keychain`); a failed
+         save says "Couldn't save the scan (Keychain error n)", and the enrolment's consistency is logged. The same
+         path saves learned looks, which had the same problem. Not tested by hand here: writing to the owner's
+         Keychain item from a test tool was refused, so the owner's next Scan Again is the test.
+      2. **The spoof model refused the owner.** Every scan this morning logged `no match best=0 refused=true`, about
+         2 s per attempt: the model, not the match (Test recognition scored the face 0.85 against a threshold of 0.50;
+         18 learned scores, so the threshold hadn't started rising). MiniFASNet judges two crops of 2.7x and 4x the
+         face box. On a laptop camera the 4x crop is most of the frame, so a hood round the face is in both crops and
+         looks like the border of a print. The same face scored 1.00 without a hood on 2026-11-23. 1.6 had also made
+         refusing much quicker: 1.5 refused when the mean of up to 12 values (every other frame, ~0.8 s) was under
+         0.25, and 1.6 did it when 6 frames (0.2 s) were. A face the model wavers on (Test recognition moved between
+         Fake and Unsure) dips under for 0.2 s almost every attempt. Now the mean of 20 frames (~0.7 s) has to be
+         under the level's refuse line. On Standard and More secure, a face the model is sure is fake is doubted
+         instead of refused: the glow has to vouch for its shape (a flat print or a screen doesn't answer it) and then
+         the blink (or random challenge) has to be done too. Where the glow can't run (a bright room, no response
+         earlier in the scan, harsh light already handled as before) or doesn't vouch, it's refused as before.
+         Faster, which has no glow, still refuses. So a photo now has to pass the glow and the challenge, where before
+         the model alone stopped it. **Unverified on the owner's camera:** a photo and a phone video of the owner need
+         trying on Standard; if the glow doesn't answer the owner's face in a hood (Check Light), the hood still
+         can't unlock, and it's the hood.
+      3. **The learned threshold would have tightened too far.** Not the cause yet (18 of 20 scores), but with the
+         owner's scores (lowest 0.71) Standard would have moved to 0.66 two unlocks later, and glasses or a hood
+         that score ~0.6 would then fail before they could be learned (a look is only learned from an unlock). The
+         threshold protects against other people, whose scores sit far lower; it does nothing against a photo of
+         the owner, which matches anyway. Faster and Standard now stop at 1.5's ceiling (0.55 and 0.60); More secure
+         keeps its 0.75.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

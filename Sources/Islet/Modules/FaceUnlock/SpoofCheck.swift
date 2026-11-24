@@ -70,8 +70,10 @@ struct SpoofTracker {
     enum Verdict: Equatable { case unknown, live, unsure, spoof }
     /// The longest any level looks back.
     static let window = 20
-    /// Frames below `refuseLevel` needed to refuse.
-    static let refuseFrames = 6
+    /// Frames whose mean has to be below `refuseLevel` to refuse (~0.7 s). It was 6 (0.2 s) in 1.6's first builds,
+    /// and a real face the model wavers on (a hood, a dim room) dipped under for that long within a second, every
+    /// attempt (RESEARCH.md, 2026-11-24). 1.5 looked at ~0.8 s.
+    static let refuseFrames = 20
 
     private(set) var values: [Float] = []
     mutating func add(_ v: Float) { values.append(v); if values.count > Self.window { values.removeFirst() } }
