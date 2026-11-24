@@ -906,6 +906,105 @@ Owner request, 2026-11-23: name the song playing nearby from the notch.
   sends a signature of the sound (not the audio) to Shazam, and the cover is downloaded from Apple; nothing else.
   It hears the room, so music playing through headphones isn't heard (see RESEARCH.md "Shazam").
 
+## Mac Stats (1.7)
+
+Owner request and approval, 2026-11-24: CPU, GPU and memory use, power draw, temperature and fan speed in the menu bar,
+a panel with a page for each part, and manual fan control. Our own design in the app's style, not a copy of other stats
+apps (the owner's reference screenshots were too cluttered). Mockups: <https://claude.ai/artifact/E8TmfaU8DeGm4nyXuQ3ixB>
+(menu bar meters, the temperature, power and fan readouts, the panel, the CPU, Memory, GPU and Fans pages, and
+Settings; the pages and Settings work in Play).
+
+A feature of its own, "Mac Stats" (Features list and Settings > Mac Stats). Off, nothing is measured.
+
+### Colours
+
+Each part has its own colour, the same in the menu bar, the panel and the pages. None is warm, so yellow and red only
+ever mean a warning.
+
+| Part | Dark menu bar / panel | Light menu bar |
+|---|---|---|
+| Efficiency cores | green `#32D74B` | `#248A3D` |
+| Performance cores | blue `#0A84FF` (text `#409CFF`) | `#0040DD` |
+| GPU | purple `#BF5AF2` | `#8944AB` |
+| Memory | cyan `#64D2FF` | `#0071A4` |
+| Warning / critical | yellow `#FFD60A` / red `#FF453A` | macOS's darker yellow / `#D70015` |
+
+- CPU core groups and the GPU turn yellow above 70% and red above 90%, once they've stayed there about 5 s (so a
+  spike doesn't flash). Memory turns yellow at memory pressure "warning" and red at "critical"; how full it is never
+  colours it (macOS fills spare memory with cache).
+- Settings "Colour each part" off: the bars use the menu bar's colour, like the battery. "Warn in yellow and red" off:
+  no warning colours.
+
+### Menu bar
+
+One status item, left of Islet's own icon (battery or pill), holding left to right: the readouts, then the meters.
+Both are one item so the spacing is ours, not macOS's gap between items (owner, 2026-11-24: meters on the right,
+spacing kept tight). Either half can be off; with both off, nothing shows (Settings says so).
+
+- **Meters**: four bars, each 5 × 15 pt with fully rounded ends, filling from the bottom: efficiency cores and
+  performance cores (1.5 pt apart, the CPU), then the GPU and memory, 2.5 pt between groups; about 27 pt wide. The
+  empty part is the menu bar's colour at 30%. CPU bars are the mean use of that core type; GPU is device utilisation;
+  memory is used ÷ installed.
+- **Readouts**, one line like the battery's percentage, 5 pt between them and about 0.5 pt between glyph and number:
+  - Temperature: a thermometer and the degrees (no unit letter), °F or °C by region. The CPU's average by default;
+    Settings can pick the hottest CPU core or the GPU. Yellow from 80 °C (176 °F), red from 95 °C (203 °F).
+  - Power: a bolt and the whole Mac's draw in whole watts (the battery stats' Mac figure, SMC `PSTR`). Never coloured.
+  - Fan: a three-blade fan that turns at a speed following the faster fan and stands still when they're off, then that
+    fan's share of its maximum ("41%"), or "Off". A thin ring round it while the fans are on Manual or Full Speed.
+- Each readout and each bar can be turned off on its own (Settings).
+- Click: the stats panel. Right-click or Control/Option-click: Islet's menu, as for the battery.
+
+### Panel
+
+Drops from the item like the battery stats and looks the same (300 pt; Liquid Glass with the glass look, else the dark
+HUD panel; title row, label/value rows at 13 pt, rules between sections, small glass pills). Numbers refresh every 2 s
+while open (Settings: "Update every").
+
+- Title row: "Mac", and the uptime on the right ("Up 6 days, 10 hr").
+- Four glass tiles, 2 × 2, each opening its page:
+  - CPU: total %, and an E and a P row, each a small bar in its colour with its %.
+  - GPU: %, GPU memory in use, a purple 10-minute sparkline.
+  - Memory: %, "28.2 of 48 GB", a bar of apps / kept for macOS / compressed in cyan shades, "Pressure normal".
+  - Power: watts, "CPU 2.1 · GPU 0.8 W", a neutral sparkline. (What it opens is still to decide: see ROADMAP.)
+- Temperature: CPU, GPU, Memory, SSD.
+- Fans: the mode as a pill ("Automatic ›", opens the Fans page), then each fan, "Off" or its rpm.
+- Footer: "Updated every 2 s" and an "Activity Monitor…" pill.
+
+Pages glide in over the panel like the control center's detail pages, with a round back button and the part's name;
+the panel keeps its width.
+
+- **CPU**: total % on the right; 10 minutes of load stacked by core type (efficiency green under performance blue,
+  100% and 50% marked); "Cores", one 12 pt bar per core grouped Efficiency then Performance, each group's %; User ·
+  System, Speed, Temperature (average · hottest); "Using the most", five apps with their icons and % (100% is one
+  core, with a note saying so); Activity Monitor….
+- **Memory**: "28.2 of 48 GB"; 10 minutes of memory pressure in cyan, with the warning and critical bands marked and a
+  line saying pressure, not fullness, sets the colour; the breakdown bar and rows (Apps, Kept for macOS, Compressed,
+  Free, Swap used); the five apps using the most; Activity Monitor….
+- **GPU**: % on the right; 10 minutes of use in purple; Neural Engine, Memory in use, Frame rate, Power, Temperature;
+  the apps using the GPU right now (no rows of 0%); Activity Monitor….
+- **Fans**: the CPU temperature on the right; each fan's speed with a bar up to its maximum; "Control": Automatic /
+  Manual / Full Speed, styled like the Energy Mode switch.
+  - Automatic: macOS runs them (on Apple silicon they stay off until the Mac is warm).
+  - Manual: one slider for both fans, from the fans' minimum to maximum (2,300 to 7,800 rpm here), "Quietest" to
+    "Fastest". If the Mac gets hotter than that speed can handle, macOS takes over again.
+  - Full Speed: both fans at their maximum.
+  - A note: back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts; changing the fans needs a
+    small helper installed once with the password. Manual and Full Speed only show with "Let me control the fans" on.
+
+### Settings > Mac Stats
+
+A page between Battery and Face Unlock, in the usual grouped form:
+
+- At the top, the feature's icon (the four meters), "Mac Stats", what it does, and its switch. Off greys out the rest.
+- **Menu bar**: "Usage meters" with a switch for each bar under it (Efficiency cores, Performance cores, GPU, Memory,
+  each with its colour dot); "Temperature, power and fans" with a switch for each under it (Temperature with its
+  choice: CPU average, Hottest CPU core, GPU). Child rows sit indented behind a turn-down-right arrow, greyed while
+  their parent is off. With nothing on, an orange line: "Nothing is on in the menu bar, so there's nowhere to open the
+  stats from."
+- **Look**: "Colour each part", "Warn in yellow and red", "Update every" (1, 2 or 5 seconds).
+- **Fan control**: "Let me control the fans" (off by default); while on, "Fan helper" with its state and Install…
+  (or Remove…).
+
 ## Features (1.4)
 
 Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/Dr9mECwP7ZuYuaacvnYXrr> (source
@@ -923,6 +1022,7 @@ the controls) is always on and needs nothing.
 | Search | nothing | no shortcut, and typing in the panel doesn't search |
 | Shazam (1.6) | nothing (the microphone is asked the first time it listens) | no button in the controls, no swipe |
 | Face Unlock | Camera, Accessibility (and the login password) | the lock screen as usual |
+| Mac Stats (1.7) | nothing (fan control: a helper installed once with the password) | no stats in the menu bar, nothing measured |
 
 - A permission only counts as missing while a feature that needs it is on. Some add to features that work without
   them and are never shown as problems: Location (Wi-Fi names on the island), Contacts (names on notifications, people

@@ -675,3 +675,39 @@ value yet, then sets the autosave name. A ⌘-drag writes the key, so the owner'
   take a Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.2+, its own "System Audio Recording"
   permission) fed to `SHSession.matchStreamingBuffer`. Not built.
 - `SHLibrary.default.addItems` puts a match into the user's Shazam library (synced with the Shazam app's history).
+
+## Mac Stats (1.7, 2026-11-24)
+
+Read on this Mac (Mac16,8, M4 Pro, 4 efficiency + 8 performance cores shown by other apps) through AppleSMC's user
+client, as `SMCSensors` already does, with no special rights:
+
+- **Fans**: `FNum` = 2 (`ui8`). `F0Ac`/`F1Ac` (actual rpm, `flt`) read 0.0 at idle: Apple silicon stops the fans when
+  cool. `F0Mn`/`F1Mn` 2317, `F0Mx`/`F1Mx` 7826 rpm. `F0Md` = 3 (`ui8`), `Ftst` = 0.
+- **Temperatures** (`flt`, °C): `Tp01`/`Tp05`/`Tp09` 40.0 (performance cores, they move in steps), `Te05` 44.8
+  (efficiency), `Tg05` 44.4 (GPU), `TCMb` 47.9 / `TCMz` 63.2 (unknown: possibly memory or the SoC). `TC0P` (the Intel
+  CPU key) doesn't exist. The full list of `Tp*`, `Te*`, `Tg*` keys has to be enumerated (SMC key count `#KEY`, then
+  read keys by index) rather than hard-coded, since it differs per chip.
+- **Power**: `PSTR` 8.45 W, as in "Battery stats".
+
+Still to check before building (the spike in ROADMAP 1.7):
+
+- **Fan control** needs root: writes through the SMC user client are refused for a normal process. Other tools install
+  a privileged helper (here: an `SMAppService.daemon` with a launchd plist, approved in Login Items) and, on M-series,
+  write `Ftst` = 1, then `F<n>Md` = 1 (manual) and `F<n>Tg` (target rpm), and `Ftst` = 0 to give control back. Check
+  on this M4 Pro: whether that works, whether macOS overrides the target when hot (the Fans page promises it does),
+  and that sleep, quit and a crash of the app all hand the fans back (the helper should reset them itself when its
+  client goes away).
+- **CPU use per core**: `host_processor_info(PROCESSOR_CPU_LOAD_INFO)` ticks, differenced; which cores are which from
+  `sysctl hw.perflevel0.logicalcpu` (performance) and `hw.perflevel1.logicalcpu` (efficiency), assuming efficiency
+  cores come first in the list (check). Speed: IOReport "CPU Stats" residencies, or leave it out.
+- **GPU**: `IOAccelerator`'s `PerformanceStatistics` ("Device Utilization %", "In use system memory") without rights.
+  Per-app GPU use and the frame rate have no obvious public source: find one or drop those rows. Neural Engine use:
+  IOReport, maybe only power.
+- **CPU and GPU watts**: IOReport "Energy Model" channels, said to work without root. `powermetrics` needs root: not
+  used.
+- **Memory**: `host_statistics64(HOST_VM_INFO64)` for the breakdown, `sysctl vm.swapusage`, and pressure from
+  `kern.memorystatus_vm_pressure_level` (1 normal, 2 warning, 4 critical) or a `DispatchSource` memory-pressure source.
+- **Top apps**: `proc_listallpids` + `proc_pid_rusage` CPU time and footprint, differenced between refreshes; names and
+  icons from `NSRunningApplication` where there is one.
+- **Cost**: all of this every 2 s while the panel is open, and only what the menu bar shows otherwise. Measure Islet's
+  own CPU use with everything on.

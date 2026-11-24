@@ -103,6 +103,23 @@ the unlock animation still ships.
       ⌘V in the field, a letter typed in the open panel, a click on a row, files from the Desktop and Downloads in the
       installed copy, "Search in Spotlight", without a notch
 
+## 1.7: Mac Stats
+Design: DESIGN.md "Mac Stats (1.7)"; mockups <https://claude.ai/artifact/E8TmfaU8DeGm4nyXuQ3ixB>.
+- [x] Mockups and design (owner, 2026-11-24): meters with a colour per part, readouts left of them in one item, a panel
+      with CPU, GPU, Memory and Fans pages, Settings > Mac Stats
+- [ ] Spike first (RESEARCH.md "Mac Stats"): fan control through a privileged helper on this M4 Pro, and handing the
+      fans back on quit, sleep and a crash; then CPU per core type, GPU, IOReport watts, memory pressure, top apps.
+      Record what works; drop what can't be read (frame rate, per-app GPU)
+- [ ] Readers: one `MacStats` model sampling every 2 s (only what's on), with 10 minutes of history
+- [ ] Menu bar item: meters and readouts, colours, warnings held ~5 s, the turning fan, light and dark menu bars
+- [ ] Panel: title, tiles, temperatures, fans, footer; the CPU, Memory and GPU pages
+- [ ] Fans page and fan control: the helper's install and removal, Automatic / Manual / Full Speed, handing back
+- [ ] Settings > Mac Stats, the Features list entry (readouts and meters indented under it), setup
+- [ ] To decide with the owner: should the efficiency-core bar warn on its own, or only when the performance cores are
+      busy too (they often run high at idle)? What does the Power tile open? Anything in the notch (a "running hot"
+      notice, a stats tile in the control center)?
+- [ ] CHANGELOG.md, then release 1.7
+
 ## Settings redesign (1.4)
 - [x] Mockup (docs/mockups/settings.html) and owner approval (2026-11-21); DESIGN.md "Settings"
 - [x] Sidebar pages, the status page and issues (`SettingsChecks`), Face Unlock's own page (`FaceUnlockSettings`).
