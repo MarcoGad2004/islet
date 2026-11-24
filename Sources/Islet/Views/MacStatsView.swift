@@ -212,8 +212,10 @@ private struct CoreTypeRow: View {
         HStack(spacing: 6) {
             Text(letter).font(.system(size: 11, weight: .bold)).foregroundStyle(colour).frame(width: 9, alignment: .leading)
             MeterBar(fraction: value ?? 0, colour: colour)
+            // One line always: "100%" is wider than the 30 pt that "99%" fits in, and wrapped its % onto a second line.
             Text(MacStatsFormat.percent(value)).font(.system(size: 11)).monospacedDigit()
-                .foregroundStyle(IsletInk.primary).frame(width: 30, alignment: .trailing)
+                .foregroundStyle(IsletInk.primary).lineLimit(1).fixedSize()
+                .frame(width: 34, alignment: .trailing)
                 .rolls(value)
         }
     }
@@ -1231,7 +1233,9 @@ enum ChartHistory {
 
 /// The panel's motion (DESIGN.md "Mac Stats (1.7)", Motion): the battery stats' spring for each reading.
 enum MacStatsMotion {
-    static let reading = Animation.spring(response: 0.7, dampingFraction: 0.9)
+    /// 0.45 s, not 0.7 (1.7.1): every frame of an animation redraws the panel's layers on the CPU, so a shorter spring
+    /// took the CPU page from about 50% of a core to about 30% (measured with the panel open, 2 s readings).
+    static let reading = Animation.spring(response: 0.45, dampingFraction: 0.9)
     /// A page fading in: the same curve and length as the panel easing to its size (`MenuBarPanel.settle`).
     static let settle = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)
 }

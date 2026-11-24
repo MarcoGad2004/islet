@@ -5,11 +5,13 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.7.1 (unreleased)
 
-- **Smoother Mac Stats charts.** Only each chart's newest point eases to a new reading now, which takes less CPU while the panel is open.
+- **Smoother Mac Stats charts.** Only each chart's newest point eases to a new reading now and each reading settles in 0.45 s instead of 0.7 s, which takes the CPU page from about 50% of a core to about 30% while it is open.
 - **Longer swipes for skip and Shazam.** The two-finger swipe over media and the one that pulls Shazam in need more travel on the trackpad before they complete.
 - **Face unlock works from further away.** The camera now captures at 720p instead of 640 x 480, and a face counts from 11% of the frame's width instead of 14%. It also logs the face's width and match score while scanning, to tune the range.
 - **Faster face unlock in bright light.** The light sensor gets a moment to answer before a scan starts, so a bright room goes straight to the blink instead of waiting on the spoof check and the glow first.
 - **The display stays awake while a scan runs,** so it no longer goes to sleep from inactivity half way through an unlock.
+- **"100%" stays on one line** in the CPU tile on the Mac Stats overview.
+- **The screen no longer stays dim after opening the lid.** The face scan's dark-room boost now waits until the display has finished waking and the camera has settled, so it can't save a half-faded brightness and put the screen back to it.
 - **Smoother bubble on Macs without a notch.** The liquid neck that joins the card to the top edge is now drawn over a small area instead of the whole panel.
 - **Page transitions in Mac Stats.** Opening a page or going back now drifts a few points sideways as it fades, instead of a plain fade.
 

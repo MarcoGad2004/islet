@@ -75,6 +75,9 @@ final class FaceUnlockService {
     /// Held from the scan's start to its end, so the display doesn't go to sleep from inactivity half way through
     /// (the lock screen's timer is short after the power button locked the Mac). 0 when not held.
     private var displayAssertion: IOPMAssertionID = 0
+    /// When the display last woke, and when the scan started: the dark-room boost waits out both (see `brightenIfDark`).
+    private var wokeAt = Date.distantPast
+    private var scanStartedAt = Date.distantPast
     private var attempts = 0
     /// Don't scan until Command+Shift is pressed (the Mac locked with the display on, or a scan gave up).
     /// Cleared when the display sleeps, so the next wake scans by itself.
@@ -119,7 +122,7 @@ final class FaceUnlockService {
         }
         add(dnc, "com.apple.screenIsLocked") { $0.didLock() }
         add(dnc, "com.apple.screenIsUnlocked") { $0.didUnlock() }
-        add(ws, NSWorkspace.screensDidWakeNotification.rawValue) { $0.screenAwake = true; $0.syncLockScreen(); $0.beginIfPossible() }
+        add(ws, NSWorkspace.screensDidWakeNotification.rawValue) { $0.screenAwake = true; $0.wokeAt = Date(); $0.syncLockScreen(); $0.beginIfPossible() }
         add(ws, NSWorkspace.screensDidSleepNotification.rawValue) {
             $0.screenAwake = false; $0.needsKey = false; $0.syncLockScreen(); $0.stop(collapseAfter: 0)
         }
@@ -232,6 +235,7 @@ final class FaceUnlockService {
             guard await FaceCamera.requestAccess() else { Self.log.error("camera denied"); return }
             self.simulated = simulated
             holdDisplayAwake()
+            scanStartedAt = Date()
             let model = ScanModel()
             self.model = model
             island.scan = model
@@ -379,9 +383,13 @@ final class FaceUnlockService {
     /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.
     private func brightenIfDark(_ luma: Double) {
         guard !brightened else { return }
+        // Not while the display is still fading up after waking (the backlight reads a fraction of its real level then,
+        // and the boost would "restore" the screen to that: very dim, for good), nor while the camera's exposure is
+        // still settling (its first frames are dark in any room).
+        guard Date().timeIntervalSince(wokeAt) > 3, Date().timeIntervalSince(scanStartedAt) > 1.5 else { darkSamples = 0; return }
         darkSamples = luma < Self.darkLuma ? darkSamples + 1 : 0
         guard darkSamples >= 3 else { return }
-        Self.log.info("dark room luma=\(luma), brightening")
+        Self.log.notice("dark room luma=\(luma), brightening from \(self.island.levels?.brightness ?? -1)")
         brightened = true
         island.levels?.boostForFaceScan()
     }
