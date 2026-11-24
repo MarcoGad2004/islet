@@ -74,6 +74,9 @@ enum SMCSensors {
         var bytes: (UInt64, UInt64, UInt64, UInt64) = (0, 0, 0, 0)
     }
 
+    nonisolated(unsafe) private static var infoCache: [UInt32: Call] = [:]
+    private static let infoLock = NSLock()
+
     private static let readKeyInfo: UInt8 = 9
     private static let readBytes: UInt8 = 5
     private static let readKeyAtIndex: UInt8 = 8
@@ -88,10 +91,19 @@ enum SMCSensors {
 
     private static func value(_ conn: io_connect_t, key: String) -> Double? {
         let code = key.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
-        var info = Call()
-        info.key = code
-        info.command = readKeyInfo
-        guard let i = call(conn, info), i.result == 0, i.size > 0 else { return nil }
+        // A key's size and type never change: asked once, so each later reading is one call to the SMC, not two.
+        let known = infoLock.withLock { infoCache[code] }
+        let i: Call
+        if let known {
+            i = known
+        } else {
+            var info = Call()
+            info.key = code
+            info.command = readKeyInfo
+            guard let asked = call(conn, info), asked.result == 0, asked.size > 0 else { return nil }
+            i = asked
+            infoLock.withLock { infoCache[code] = asked }
+        }
         var read = Call()
         read.key = code
         read.size = i.size

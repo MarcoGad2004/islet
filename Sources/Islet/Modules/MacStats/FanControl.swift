@@ -35,6 +35,8 @@ final class FanControl {
     private(set) var note: String?
 
     @ObservationIgnored private var connection: NSXPCConnection?
+    /// Counts requests, so an older one's late answer can't undo a newer choice.
+    @ObservationIgnored private var request = 0
     @ObservationIgnored private var heartbeat: Task<Void, Never>?
     @ObservationIgnored private let service = SMAppService.daemon(plistName: FanHelperInfo.plistName)
 
@@ -78,8 +80,11 @@ final class FanControl {
     // MARK: - Fans
 
     func setAutomatic(then done: (() -> Void)? = nil) {
+        request += 1
         stopHeartbeat()
         mode = .automatic
+        busy = false
+        note = nil
         guard let proxy = proxy() else { done?(); return }
         proxy.setAutomatic { _ in Task { @MainActor in done?() } }
     }
@@ -97,12 +102,15 @@ final class FanControl {
 
     private func send(_ call: (FanHelperProtocol, @escaping (Bool, String?) -> Void) -> Void) {
         guard let proxy = proxy() else { mode = .automatic; return }
+        request += 1
+        let sent = request
         busy = true
         note = nil
         startHeartbeat()
         call(proxy) { [weak self] ok, message in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                // Only the newest request's answer counts: one pressed over says nothing about the fans now.
+                guard let self, sent == self.request else { return }
                 self.busy = false
                 if !ok {
                     self.note = message ?? "The fans couldn't be changed."
@@ -121,11 +129,12 @@ final class FanControl {
                 try? await Task.sleep(for: .seconds(FanHelperInfo.heartbeatInterval))
                 guard let self, !Task.isCancelled, let proxy = self.proxy() else { return }
                 proxy.heartbeat()
+                let asked = self.request
                 proxy.status { [weak self] status in
                     let helperMode = status[FanHelperStatus.mode] as? String
                     let reason = status[FanHelperStatus.reason] as? String
                     Task { @MainActor [weak self] in
-                        guard let self, !self.busy, helperMode == "automatic", self.mode != .automatic else { return }
+                        guard let self, !self.busy, asked == self.request, helperMode == "automatic", self.mode != .automatic else { return }
                         self.mode = .automatic
                         self.note = reason
                         self.stopHeartbeat()

@@ -20,6 +20,14 @@ final class FanController {
     private var lastHeard = Date()
     private var reason: String?
     private var timer: DispatchSourceTimer?
+    /// `Ftst` is 1 but the modes aren't taken yet: a request that took over was overtaken by a newer one.
+    private var unlocked = false
+    /// The newest request's number. Bumped as each request arrives, before it waits for the queue, so a takeover still
+    /// waiting on the SMC can see it was overtaken (Automatic pressed while Manual was taking over) and stop.
+    private let latestLock = NSLock()
+    private var _latest = 0
+    func arrived() -> Int { latestLock.withLock { _latest += 1; return _latest } }
+    private func overtaken(_ request: Int) -> Bool { latestLock.withLock { _latest != request } }
     /// Connections from the app that are open.
     var connections = 0 {
         didSet { if connections == 0 { idleSince = Date(); handBack("Dynamic Peninsula closed") } }
@@ -51,40 +59,56 @@ final class FanController {
 
     func heard() { lastHeard = Date() }
 
-    /// Both fans at `target`, kept within each fan's range; `nil` is full speed.
-    func set(_ target: Double?) -> (Bool, String?) {
+    /// Both fans at `target`, kept within each fan's range; `nil` is full speed. `request` is the number `arrived()`
+    /// gave it: one overtaken by a newer request stops and leaves the fans to that one.
+    func set(_ target: Double?, request: Int) -> (Bool, String?) {
         guard fans > 0 else { return (false, "This Mac has no fans.") }
+        guard !overtaken(request) else { return (true, nil) }
         lastHeard = Date()
         reason = nil
         if mode == .automatic {
-            guard smc.write("Ftst", [1]) else { return (false, "The fans can't be changed.") }
-            // The mode is refused for a few seconds after the unlock (about 6 s on an M4 Pro).
+            // A takeover already started keeps its unlock: writing it again would start the SMC's wait over.
+            if !unlocked {
+                guard smc.write("Ftst", [1]) else { return (false, "The fans can't be changed.") }
+                unlocked = true
+            }
+            // The mode is refused for a few seconds after the unlock (about 6 s on an M4 Pro), longer right after the
+            // fans were given back.
             var taken = false
-            for _ in 0..<30 where !taken {
+            for _ in 0..<40 where !taken {
+                if overtaken(request) { return (true, nil) }
                 taken = (0..<fans).allSatisfy { smc.write("F\($0)Md", [1]) }
                 if !taken { Thread.sleep(forTimeInterval: 0.5) }
             }
             guard taken else {
                 handBack(nil, force: true)
-                return (false, "macOS didn't hand over the fans.")
+                return (false, "macOS didn't hand over the fans. Try again in a few seconds.")
             }
-        }
-        var ok = true
-        for i in 0..<fans {
-            let lo = smc.number("F\(i)Mn") ?? 0, hi = smc.number("F\(i)Mx") ?? 0
-            let value = target.map { min(max($0, lo), hi) } ?? hi
-            ok = smc.writeFloat("F\(i)Tg", value) && ok
+            unlocked = false
         }
         mode = target == nil ? .full : .manual
         rpm = target ?? (smc.number("F0Mx") ?? 0)
-        return (ok, ok ? nil : "A fan didn't take the new speed.")
+        return apply() ? (true, nil) : (false, "A fan didn't take the new speed.")
+    }
+
+    /// Writes each fan's target for the mode held now.
+    @discardableResult
+    private func apply() -> Bool {
+        var ok = true
+        for i in 0..<fans {
+            let lo = smc.number("F\(i)Mn") ?? 0, hi = smc.number("F\(i)Mx") ?? 0
+            let value = mode == .full ? hi : min(max(rpm, lo), hi)
+            ok = smc.writeFloat("F\(i)Tg", value) && ok
+        }
+        return ok
     }
 
     /// Gives the fans back to macOS. `reason` says why when the helper did it on its own.
     func handBack(_ reason: String?, force: Bool = false) {
-        guard mode != .automatic || force else { return }
+        guard mode != .automatic || unlocked || force else { return }
         for i in 0..<max(fans, 0) { _ = smc.writeFloat("F\(i)Tg", 0) }
         smc.write("Ftst", [0])
+        unlocked = false
         if mode != .automatic, let reason { self.reason = reason }
         mode = .automatic
         rpm = 0
@@ -96,6 +120,10 @@ final class FanController {
                 handBack("Dynamic Peninsula stopped answering")
             } else if let t = cpuAverage(), t >= FanHelperInfo.handBackCelsius {
                 handBack("The Mac got hot, so macOS took the fans back")
+            } else if (0..<fans).contains(where: { smc.number("F\($0)Md") != 1 }) {
+                // The SMC can still be putting a fan back to automatic from just before: take it again.
+                for i in 0..<fans { smc.write("F\(i)Md", [1]) }
+                apply()
             }
         } else if connections == 0, Date().timeIntervalSince(idleSince) > 60 {
             // Nothing to do: launchd starts it again when the app next connects.

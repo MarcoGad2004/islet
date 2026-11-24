@@ -14,6 +14,12 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Control the fans.** Turn on "Let me control the fans", install the small fan helper once, and the Fans page gets Automatic, Manual (one slider for both fans) and Full Speed. The fans always go back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts, or the CPU gets too hot.
 - **Every part can be switched off** on its own in Settings > Mac Stats, with how often it updates and whether it uses colour.
 
+### Fixes
+
+- **Much less CPU while idle.** Once the battery stats had been opened, their power-flow animation kept redrawing out of sight, keeping Dynamic Peninsula near 20% CPU. The menu bar panels now let go of their contents when they close.
+- **The menu bar stays still.** The Mac Stats item keeps the same width as its numbers change, so the icons beside it no longer shift.
+- **Switching fan modes quickly works.** The newest choice wins. Automatic can call off a takeover that's still starting, and a fan the system was still handing back is taken over again.
+
 ## 1.6.1 (unreleased)
 
 - **The new battery look.** The battery in the menu bar, on the battery page, in quick info and in the charging animation now matches Apple's 2027 design: no outline, just a pale battery that the charge fills from the left.

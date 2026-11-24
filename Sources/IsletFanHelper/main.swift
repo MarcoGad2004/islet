@@ -16,14 +16,17 @@ final class Service: NSObject, FanHelperProtocol {
     }
 
     func setSpeed(_ rpm: Double, reply: @escaping (Bool, String?) -> Void) {
-        controller.queue.async { let r = self.controller.set(rpm); reply(r.0, r.1) }
+        let request = controller.arrived()
+        controller.queue.async { let r = self.controller.set(rpm, request: request); reply(r.0, r.1) }
     }
 
     func setFullSpeed(reply: @escaping (Bool, String?) -> Void) {
-        controller.queue.async { let r = self.controller.set(nil); reply(r.0, r.1) }
+        let request = controller.arrived()
+        controller.queue.async { let r = self.controller.set(nil, request: request); reply(r.0, r.1) }
     }
 
     func setAutomatic(reply: @escaping (Bool) -> Void) {
+        _ = controller.arrived()
         controller.queue.async { self.controller.handBack(nil); reply(true) }
     }
 

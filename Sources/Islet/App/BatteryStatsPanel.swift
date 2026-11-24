@@ -77,6 +77,9 @@ final class MenuBarPanel {
         if self.panel != nil, builtGlass != glass { self.panel?.orderOut(nil); self.panel = nil; self.host = nil }
         let panel = self.panel ?? makePanel(glass: glass)
         willShow?()
+        // The content only lives while the panel shows: hidden, its animations (the power flow's) and readings would
+        // keep SwiftUI redrawing it every frame for nothing.
+        host?.rootView = root(glass: glass)
         fit(below: window)
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -87,6 +90,7 @@ final class MenuBarPanel {
     func close() {
         guard let panel, panel.isVisible else { return }
         panel.orderOut(nil)
+        host?.rootView = AnyView(EmptyView())
         didClose?()
         (anchor?.contentView?.subviews.first { $0 is NSStatusBarButton } as? NSStatusBarButton)?.highlight(false)
         for m in monitors { NSEvent.removeMonitor(m) }
@@ -104,12 +108,7 @@ final class MenuBarPanel {
         panel.hidesOnDeactivate = false
         panel.onCancel = { [weak self] in self?.close() }
 
-        let content = makeContent { [weak self] in self?.close() }
-        // Glass: the tiles and pills turn to glass too, and the text sits on the glass with a dark tint behind it.
-        .environment(\.isletGlass, glass)
-        .environment(\.isletAdaptiveInk, glass)
-        .background(glass ? Color.clear : Color.black.opacity(0.35))
-        let host = FittingHostingView(rootView: AnyView(content))
+        let host = FittingHostingView(rootView: AnyView(EmptyView()))
         host.onSizeChange = { [weak self] in
             guard let self, let w = self.anchor, self.isOpen else { return }
             self.fit(below: w)
@@ -163,6 +162,15 @@ final class MenuBarPanel {
         self.host = host
         self.panel = panel
         return panel
+    }
+
+    private func root(glass: Bool) -> AnyView {
+        let content = makeContent { [weak self] in self?.close() }
+        // Glass: the tiles and pills turn to glass too, and the text sits on the glass with a dark tint behind it.
+        .environment(\.isletGlass, glass)
+        .environment(\.isletAdaptiveInk, glass)
+        .background(glass ? Color.clear : Color.black.opacity(0.35))
+        return AnyView(content)
     }
 
     /// Under the icon with a small gap, its left edge at the icon's, kept on screen.

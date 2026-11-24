@@ -26,6 +26,12 @@ enum MacStatsSettings {
     static func on(_ key: String) -> Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? (key != enabled) }
 
     static var isEnabled: Bool { on(enabled) }
+    /// Every Mac Stats setting as it is now, to tell when one changed.
+    static var signature: String {
+        let d = UserDefaults.standard
+        return [enabled, meters, efficiency, performance, gpu, memory, readouts, temperature, power, fan, colourParts, warnings]
+            .map { on($0) ? "1" : "0" }.joined() + "\(d.string(forKey: temperatureSource) ?? "")\(intervalSeconds)"
+    }
     static var intervalSeconds: Int { [1, 2, 5].contains(UserDefaults.standard.integer(forKey: interval)) ? UserDefaults.standard.integer(forKey: interval) : 2 }
 }
 
@@ -176,20 +182,27 @@ enum MacStatsMenuBar {
     /// One image for the whole item: temperature over power, the fan speed over "rpm" ("manual" while held), then the bars. Colours resolve
     /// when it's drawn, in the menu bar's own appearance.
     static func image(_ c: MacStatsMenuBarContent, colourParts: Bool) -> NSImage {
-        var columns: [[Line]] = []
+        // Each column with the widest text it usually holds, so the item keeps its width as the numbers change: a
+        // change of width moves every menu bar icon to its left.
+        var columns: [(lines: [Line], room: [Line])] = []
         let pair = [c.temperature.map { Line(text: $0.text, font: valueFont, level: $0.level) },
                     c.power.map { Line(text: $0.text, font: valueFont, level: $0.level) }].compactMap { $0 }
-        if !pair.isEmpty { columns.append(pair) }
+        if !pair.isEmpty {
+            columns.append((pair, [Line(text: c.temperature != nil ? "188°" : "", font: valueFont),
+                                   Line(text: c.power != nil ? "88 W" : "", font: valueFont)]))
+        }
         if let f = c.fan {
-            columns.append([Line(text: f.text, font: valueFont), Line(text: f.unit ?? "", font: unitFont, dim: true)])
+            columns.append(([Line(text: f.text, font: valueFont), Line(text: f.unit ?? "", font: unitFont, dim: true)],
+                            [Line(text: "8.8k", font: valueFont), Line(text: "rpm", font: unitFont)]))
         }
 
         // Left to right.
         var x = pad
         var placed: [(lines: [Line], x: CGFloat, width: CGFloat)] = []
-        for (i, lines) in columns.enumerated() {
+        for (i, column) in columns.enumerated() {
+            let lines = column.lines
             if i > 0 { x += columnGap }
-            let w = lines.map(\.width).max() ?? 0
+            let w = (lines + column.room).map(\.width).max() ?? 0
             placed.append((lines, x, w))
             x += w
         }
@@ -272,11 +285,16 @@ final class MacStatsStatusItem {
     }
 
     private var applying = false
+    private var appliedSettings: String?
 
     /// Shows or hides the item and starts or stops the readings to match Settings.
     func apply() {
         // Creating the item writes its position to UserDefaults, which calls this again.
         guard !applying else { return }
+        // Islet writes other defaults all the time; only a change to Mac Stats' own does anything.
+        let settings = MacStatsSettings.signature
+        guard settings != appliedSettings else { return }
+        appliedSettings = settings
         applying = true
         defer { applying = false }
         let wanted = MacStatsSettings.isEnabled

@@ -466,12 +466,12 @@ private struct MacStatsFansPage: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(fans.busy)
+                // Automatic stays pressable while the fans are being taken over, to call it off.
+                .disabled(fans.busy && i != 0)
             }
         }
         .padding(3)
         .background(Capsule().fill(IsletInk.faint))
-        .opacity(fans.busy ? 0.6 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: current)
     }
 
