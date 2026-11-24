@@ -273,7 +273,7 @@ Writes (toggling, joining, connecting) are not yet tested; they change the user'
   settings: Options > "Connect to this Mac" > "When last connected to this Mac"
   (discussions.apple.com/thread/254640801, support.airbuddy.app). Nothing found for the Focus banner; check System Settings >
   Notifications and Focus on this Mac. Plan: show the island animation and tell the owner which system toggles remove the duplicate.
-  **AirPods card, verified (2026-11-23, `-IsletDebugShape bannerspike`, `Spike/BannerSpike.swift`):** it is not a
+  **AirPods card, verified (2026-11-23, with a spike since removed):** it is not a
   notification. `com.apple.MenuBarAgent` opens a layer-101 window, 367 x 154 pt at the top right, whose `AXWindow` has
   identifier `smart-routing-system-banner`; inside, `AXStaticText` values "Marco's AirPods Pro" and "Moved to iPhone" and
   an `AXButton` "Undo" (`arrow.uturn.backward`). A connect card's texts are the name, the battery ("41") and

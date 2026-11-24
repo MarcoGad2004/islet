@@ -161,7 +161,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? await Task.sleep(for: .seconds(2))
                 store.setControlDetail(.wifi)
             }
-        case "bannerspike": let s = BannerSpike(); bannerSpike = s; Task { await s.run() }
         case "spikewatch": let s = ControlSpike(); controlSpike = s; Task { await s.watch() }
         case "spikewrites": let s = ControlSpike(); controlSpike = s; Task { await s.runWrites() }
         case "focuson", "wificonnect", "eventchin":
@@ -517,7 +516,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     #if DEBUG
     private var controlSpike: ControlSpike?
-    private var bannerSpike: BannerSpike?
     private var messagesSpike: MessagesSpike?
     private var searchSpike: SearchSpike?
     @objc private func runSpike() {
