@@ -14,7 +14,7 @@ struct MacStatsSnapshot: Sendable, Equatable {
     var fans: [FanSample] = []
     /// The fans are being held by fan control (`Ftst` = 1).
     var fansHeld = false
-    /// Only while a page that lists them is open.
+    /// Only while a page that lists them is open: every process with some use, before `ProcessNames` groups them.
     var topCPU: [ProcessUse] = []
     var topMemory: [ProcessUse] = []
     var topGPU: [ProcessUse] = []
@@ -67,7 +67,7 @@ actor MacStatsSampler {
         (s.thermal, s.fans, s.fansHeld) = thermal.sample()
         if processes {
             (s.topCPU, s.topMemory) = ProcessReader.read()
-            s.topGPU = Array(gpu.processes().prefix(5))
+            s.topGPU = gpu.processes()
         }
         return s
     }
@@ -130,7 +130,7 @@ final class MacStats {
     }
 
     /// When the Mac started, for "Up 6 days, 10 hr".
-    static let bootDate: Date? = {
+    nonisolated static let bootDate: Date? = {
         var tv = timeval()
         var size = MemoryLayout<timeval>.size
         guard sysctlbyname("kern.boottime", &tv, &size, nil, 0) == 0, tv.tv_sec > 0 else { return nil }

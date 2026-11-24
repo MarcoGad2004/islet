@@ -967,8 +967,10 @@ while open (Settings: "Update every").
   - CPU: total %, and an E and a P row, each a small bar in its colour with its %.
   - GPU: %, GPU memory in use, a purple 10-minute sparkline.
   - Memory: %, "28.2 of 48 GB", a bar of apps / kept for macOS / compressed in cyan shades, "Pressure normal".
-  - Power: watts, "CPU 2.1 · GPU 0.8 W", a neutral sparkline. (What it opens is still to decide: see ROADMAP.)
-- Temperature: CPU, GPU, Memory, SSD.
+  - Power: watts, "CPU 2.1 · GPU 0.8 W", a neutral sparkline. It opens nothing yet (still to decide: see ROADMAP), so
+    it has no chevron; the others have a small one by their name.
+  - A tile's big number turns yellow or red with its warning level (the CPU tile with its busier core type).
+- Temperature: CPU, GPU, SSD (no memory sensor is known yet). CPU and GPU turn yellow or red like the menu bar.
 - Fans: the mode as a pill ("Automatic ›", opens the Fans page), then each fan, "Off" or its rpm.
 - Footer: "Updated every 2 s" and an "Activity Monitor…" pill.
 
@@ -979,8 +981,9 @@ the panel keeps its width.
   100% and 50% marked); "Cores", one 12 pt bar per core grouped Efficiency then Performance, each group's %; User ·
   System, Speed, Temperature (average · hottest); "Using the most", five apps with their icons and % (100% is one
   core, with a note saying so); Activity Monitor….
-- **Memory**: "28.2 of 48 GB"; 10 minutes of memory pressure in cyan, with the warning and critical bands marked and a
-  line saying pressure, not fullness, sets the colour; the breakdown bar and rows (Apps, Kept for macOS, Compressed,
+- **Memory**: "28.2 of 48 GB"; the pressure in words on the right (Normal, High, Critical); 10 minutes of how full it
+  was, a thin bar per reading in cyan, yellow or red by the pressure at the time, and a line saying full is fine and the
+  colour is pressure; the breakdown bar and rows (Apps, Kept for macOS, Compressed,
   Free, Swap used); the five apps using the most; Activity Monitor….
 - **GPU**: % on the right; 10 minutes of use in purple; Neural Engine, Memory in use, Power, Temperature (no frame
   rate: nothing readable gives it, RESEARCH.md);
@@ -993,6 +996,8 @@ the panel keeps its width.
   - Full Speed: both fans at their maximum.
   - A note: back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts; changing the fans needs a
     small helper installed once with the password. Manual and Full Speed only show with "Let me control the fans" on.
+  - Until fan control is built, the page shows "Control: Automatic" (or "Manual" while something else holds them) and
+    the Automatic line.
 
 ### App names in the lists (owner, 2026-11-24)
 

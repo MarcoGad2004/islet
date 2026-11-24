@@ -424,7 +424,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchStatusIcon()
 
         let stats = MacStatsStatusItem()
-        // Until the stats panel exists, both clicks give the app's menu.
         stats.onMenu = { [weak self] item in
             guard let menu = self?.statusMenu else { return }
             item.menu = menu

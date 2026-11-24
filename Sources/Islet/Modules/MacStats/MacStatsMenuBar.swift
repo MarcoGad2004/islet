@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import QuartzCore
 
 // Mac Stats' menu bar item (DESIGN.md "Mac Stats (1.7)", Menu bar): the temperature, power and fan readouts, then the
@@ -333,9 +334,7 @@ final class FanSpinView: NSView {
 /// The status item itself: shown while Mac Stats is on and has something to show, redrawn on every reading.
 @MainActor
 final class MacStatsStatusItem {
-    /// A plain click: the stats panel (until it exists, the app's menu).
-    var onClick: ((NSStatusBarButton) -> Void)?
-    /// Right-click or Control/Option-click: the app's menu.
+    /// Right-click or Control/Option-click: the app's menu. A plain click opens the stats panel.
     var onMenu: ((NSStatusItem) -> Void)?
 
     private var item: NSStatusItem?
@@ -344,6 +343,14 @@ final class MacStatsStatusItem {
     private var temperatureHold = LevelHold()
     private var fanRect: NSRect?
     private var defaultsObserver: NSObjectProtocol?
+    private let panelState = MacStatsPanelState()
+    private lazy var panel: MenuBarPanel = {
+        let panel = MenuBarPanel { [panelState] _ in AnyView(MacStatsView(stats: .shared, state: panelState)) }
+        // Each opening starts on the overview.
+        panel.willShow = { [weak self] in self?.panelState.page = .overview }
+        panel.didClose = { MacStats.shared.wantsProcesses = false }
+        return panel
+    }()
 
     /// Where the item starts, in points from the menu bar's right edge: left of Islet's own (`AppDelegate.startPosition`).
     private static let startPosition = 300
@@ -379,7 +386,10 @@ final class MacStatsStatusItem {
             }
             redraw()
         } else {
-            if let item { NSStatusBar.system.removeStatusItem(item) }
+            if let item {
+                panel.close()
+                NSStatusBar.system.removeStatusItem(item)
+            }
             item = nil
             if MacStatsSettings.isEnabled == false { stats.stop() }
         }
@@ -451,6 +461,11 @@ final class MacStatsStatusItem {
         guard let item, let button = item.button else { return }
         let e = NSApp.currentEvent
         let wantsMenu = e?.type == .rightMouseUp || e?.modifierFlags.contains(.control) == true || e?.modifierFlags.contains(.option) == true
-        if wantsMenu || onClick == nil { onMenu?(item) } else { onClick?(button) }
+        if wantsMenu {
+            panel.close()
+            onMenu?(item)
+        } else {
+            panel.toggle(under: button)
+        }
     }
 }

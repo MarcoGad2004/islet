@@ -1,18 +1,53 @@
 import AppKit
 import SwiftUI
 
-/// The battery icon's stats, dropped down under it like a menu bar extra's window. A click anywhere else, Esc, or
-/// another click on the icon closes it.
+/// The battery icon's stats (DESIGN.md "Menu bar battery").
 @MainActor
 final class BatteryStatsPanel {
     private let power: PowerMonitor
+    var openControls: (() -> Void)?
+    private lazy var panel: MenuBarPanel = {
+        let panel = MenuBarPanel { [weak self] close in
+            guard let self else { return AnyView(EmptyView()) }
+            return AnyView(BatteryStatsView(power: self.power, openControls: { [weak self] in
+                close()
+                self?.openControls?()
+            }))
+        }
+        panel.willShow = { [weak self] in
+            guard let power = self?.power else { return }
+            power.refresh()
+            power.watchDetails(true)
+            PowerModeController.shared.refresh()
+            power.history.backfillIfNeeded()
+        }
+        panel.didClose = { [weak self] in self?.power.watchDetails(false) }
+        return panel
+    }()
+
+    init(power: PowerMonitor) { self.power = power }
+
+    var isOpen: Bool { panel.isOpen }
+    func toggle(under button: NSStatusBarButton) { panel.toggle(under: button) }
+    func show(under button: NSStatusBarButton) { panel.show(under: button) }
+    func close() { panel.close() }
+}
+
+/// A window dropped down under a menu bar icon like a menu bar extra's, with the battery stats' look (glass or the dark
+/// panel). A click anywhere else, Esc, or another click on the icon closes it. Used by the battery stats and Mac Stats.
+@MainActor
+final class MenuBarPanel {
+    private let makeContent: (@escaping () -> Void) -> AnyView
+    /// Before it shows: start the readings it needs.
+    var willShow: (() -> Void)?
+    /// Once it's gone: stop them.
+    var didClose: (() -> Void)?
     private var panel: NSPanel?
     private var host: FittingHostingView<AnyView>?
     private var monitors: [Any] = []
     /// The icon's window: a click on the icon toggles, so the outside-click watcher leaves it alone.
     private weak var anchor: NSWindow?
     private var closedByOutsideClick: Date?
-    var openControls: (() -> Void)?
 
     var isOpen: Bool { panel?.isVisible == true }
     private var builtGlass: Bool?
@@ -23,7 +58,8 @@ final class BatteryStatsPanel {
         return UserDefaults.standard.object(forKey: GlassLook.key) as? Bool ?? true
     }
 
-    init(power: PowerMonitor) { self.power = power }
+    /// The content gets a way to close the panel.
+    init(content: @escaping (_ close: @escaping () -> Void) -> AnyView) { makeContent = content }
 
     func toggle(under button: NSStatusBarButton) {
         if isOpen { close(); return }
@@ -40,10 +76,7 @@ final class BatteryStatsPanel {
         let glass = Self.wantsGlass
         if self.panel != nil, builtGlass != glass { self.panel?.orderOut(nil); self.panel = nil; self.host = nil }
         let panel = self.panel ?? makePanel(glass: glass)
-        power.refresh()
-        power.watchDetails(true)
-        PowerModeController.shared.refresh()
-        power.history.backfillIfNeeded()
+        willShow?()
         fit(below: window)
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -54,7 +87,7 @@ final class BatteryStatsPanel {
     func close() {
         guard let panel, panel.isVisible else { return }
         panel.orderOut(nil)
-        power.watchDetails(false)
+        didClose?()
         (anchor?.contentView?.subviews.first { $0 is NSStatusBarButton } as? NSStatusBarButton)?.highlight(false)
         for m in monitors { NSEvent.removeMonitor(m) }
         monitors = []
@@ -71,10 +104,7 @@ final class BatteryStatsPanel {
         panel.hidesOnDeactivate = false
         panel.onCancel = { [weak self] in self?.close() }
 
-        let content = BatteryStatsView(power: power, openControls: { [weak self] in
-            self?.close()
-            self?.openControls?()
-        })
+        let content = makeContent { [weak self] in self?.close() }
         // Glass: the tiles and pills turn to glass too, and the text sits on the glass with a dark tint behind it.
         .environment(\.isletGlass, glass)
         .environment(\.isletAdaptiveInk, glass)

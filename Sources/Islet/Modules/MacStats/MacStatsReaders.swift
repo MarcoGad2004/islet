@@ -147,6 +147,8 @@ struct ProcessUse: Sendable, Equatable, Identifiable {
     var pid: pid_t
     var name: String
     var value: Double
+    /// The executable's path, to tell which app a helper belongs to (`ProcessNames`). Empty when unknown.
+    var path: String = ""
     var id: pid_t { pid }
 }
 
@@ -194,7 +196,7 @@ final class GPUReader {
         let span = now.timeIntervalSince(lastDate) * 1e9
         return times.compactMap { pid, ns in
             guard let before = lastTimes[pid], ns > before else { return nil }
-            return ProcessUse(pid: pid, name: names[pid] ?? "\(pid)", value: Double(ns - before) / span)
+            return ProcessUse(pid: pid, name: names[pid] ?? "\(pid)", value: Double(ns - before) / span, path: ProcessReader.path(pid) ?? "")
         }.sorted { $0.value > $1.value }
     }
 
@@ -351,15 +353,23 @@ final class ThermalReader {
 /// root's (WindowServer, launchd), so `ps` gives the CPU and the list, and the memory figure is the footprint (as
 /// Activity Monitor shows) where it can be read, else the resident size.
 enum ProcessReader {
-    struct Row: Equatable { var pid: pid_t; var cpu: Double; var residentKB: UInt64; var name: String }
+    struct Row: Equatable { var pid: pid_t; var cpu: Double; var residentKB: UInt64; var name: String; var path: String }
 
-    static func read(limit: Int = 5) -> (cpu: [ProcessUse], memory: [ProcessUse]) {
+    /// Every process using some CPU, and every one holding more than 10 MB: `ProcessNames` adds helpers up under their
+    /// app before taking the top few, so the small ones count too.
+    static func read() -> (cpu: [ProcessUse], memory: [ProcessUse]) {
         let rows = parse(runPS())
-        let cpu = rows.sorted { $0.cpu > $1.cpu }.prefix(limit)
-            .map { ProcessUse(pid: $0.pid, name: $0.name, value: $0.cpu / 100) }
-        let memory = rows.map { r in ProcessUse(pid: r.pid, name: r.name, value: Double(footprint(r.pid) ?? r.residentKB * 1024)) }
-            .sorted { $0.value > $1.value }.prefix(limit)
-        return (Array(cpu), Array(memory))
+        let cpu = rows.filter { $0.cpu > 0 }
+            .map { ProcessUse(pid: $0.pid, name: $0.name, value: $0.cpu / 100, path: $0.path) }
+        let memory = rows.filter { $0.residentKB > 10_240 }
+            .map { r in ProcessUse(pid: r.pid, name: r.name, value: Double(footprint(r.pid) ?? r.residentKB * 1024), path: r.path) }
+        return (cpu, memory)
+    }
+
+    static func path(_ pid: pid_t) -> String? {
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let n = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        return n > 0 ? String(decoding: buffer.prefix(Int(n)), as: UTF8.self) : nil
     }
 
     /// `ps -axo pid=,%cpu=,rss=,comm=` lines: the command is a path, possibly with spaces.
@@ -367,7 +377,8 @@ enum ProcessReader {
         text.split(separator: "\n").compactMap { line in
             let f = line.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
             guard f.count == 4, let pid = pid_t(f[0]), let cpu = Double(f[1]), let rss = UInt64(f[2]) else { return nil }
-            return Row(pid: pid, cpu: cpu, residentKB: rss, name: (String(f[3]) as NSString).lastPathComponent)
+            let path = String(f[3])
+            return Row(pid: pid, cpu: cpu, residentKB: rss, name: (path as NSString).lastPathComponent, path: path)
         }
     }
 

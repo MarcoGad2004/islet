@@ -56,8 +56,10 @@ final class MacStatsTests: XCTestCase {
         garbage
         """)
         XCTAssertEqual(rows, [
-            .init(pid: 616, cpu: 38.6, residentKB: 667_936, name: "WindowServer"),
-            .init(pid: 40607, cpu: 19.7, residentKB: 269_072, name: "Dynamic Peninsula"),
+            .init(pid: 616, cpu: 38.6, residentKB: 667_936, name: "WindowServer",
+                  path: "/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"),
+            .init(pid: 40607, cpu: 19.7, residentKB: 269_072, name: "Dynamic Peninsula",
+                  path: "/Applications/Dynamic Peninsula.app/Contents/MacOS/Dynamic Peninsula"),
         ])
     }
 
