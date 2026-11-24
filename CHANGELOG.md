@@ -28,6 +28,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Much less CPU while idle.** Once the battery stats had been opened, their power-flow animation kept redrawing out of sight, keeping Dynamic Peninsula near 20% CPU. The menu bar panels now let go of their contents when they close.
 - **The menu bar stays still.** The Mac Stats item keeps the same width as its numbers change, so the icons beside it no longer shift.
 - **Switching fan modes quickly works.** The newest choice wins. Automatic can call off a takeover that's still starting, and a fan the system was still handing back is taken over again.
+- **Clicks reach the top of the screen on Macs without a notch.** With "Bubble from the top edge" on, hovering the top strip (a full-screen browser's tab bar, say) used to block clicks across 260 pt, so a tab's close button didn't work. Now only the small pill itself takes clicks and the two-finger swipe down; the rest of the strip stays clickable.
 - **Typing a Wi-Fi password no longer opens search.** The first letter typed into the password (or username) box used to start a search over the Wi-Fi page; text fields now keep their own typing.
 
 ## 1.6.1 (unreleased)
