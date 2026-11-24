@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Compares live frames with the enrolled face. Two good frames in a row is a match; then it has to show it's live
 /// and isn't a photo or screen, as the security level says (`FaceSecurity`). About half a second of a visible face
@@ -40,6 +41,7 @@ final class ScanEngine: @unchecked Sendable {
         case light(Double)
     }
 
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
     static let challengeSeconds = 8.0
     /// The glow should end within this; if the service never answers, fall back to a challenge.
     static let pulseSeconds = 5.0
@@ -145,7 +147,13 @@ final class ScanEngine: @unchecked Sendable {
         let spoofVerdict = spoof.verdict(security)
         // In harsh light the spoof model can't be trusted to refuse a real face; the challenge decides instead.
         let fake = spoofVerdict == .spoof && !harsh
-        if fake, !doubted, !framed, security.usesGlow, !skipGlow, !fallback, case .idle = pulse { doubted = true }
+        // Also while a glow is already running: it often starts while the model is only unsure, and the model turns
+        // sure a few frames later. Refusing then cut the glow off before it could judge (2026-11-24).
+        let glowOpen: Bool = { if case .done = pulse { return false }; return true }()
+        if fake, !doubted, !framed, security.usesGlow, !skipGlow, !fallback, glowOpen {
+            doubted = true
+            Self.log.notice("doubted: spoof model \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1)")
+        }
         let refused = framed || (fake && !doubted)
 
         let score = FaceMatcher.score(e, enrolled: enrolled)

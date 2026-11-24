@@ -168,6 +168,13 @@ lock screen. Each question below can block it:
          threshold protects against other people, whose scores sit far lower; it does nothing against a photo of
          the owner, which matches anyway. Faster and Standard now stop at 1.5's ceiling (0.55 and 0.60); More secure
          keeps its 0.75.
+      4. **Doubting came too late (same day, after the first fix):** the owner's re-enrolment saved (consistency 0.86),
+         but every attempt logged "pulse lux=… share=…" and then "refused=true" ~0.25 s later, with no glow verdict.
+         The glow started on the "unsure" path (the model needs 12 frames to be unsure but 20 to be sure it's fake),
+         and the face could only be doubted while no glow was running, so when the model turned sure mid-glow the
+         face was refused and the glow cut off. A face can now be doubted while the glow runs. Test recognition read
+         the spoof model at 0.02 on the owner's real face at ~1000 lux, so the model is far from reliable on this
+         camera; the scan now logs "doubted: spoof model …".
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
