@@ -42,6 +42,9 @@ final class FaceUnlockCoordinator {
     private(set) var testLighting: FacePulse.Lighting?
     /// The light sensor's reading when Check Light last ran.
     private(set) var testLux: Double?
+    /// Test recognition: the light sensor says the room is too bright for the glow, so a scan asks for the challenge
+    /// and the spoof model's "fake" doesn't refuse.
+    private(set) var testBrightRoom = false
     private(set) var modelAvailable = false
 
     private let island: IslandStore
@@ -184,6 +187,7 @@ final class FaceUnlockCoordinator {
                     guard let self, self.testingFace else { return }
                     self.testScore = score; self.testFramed = framed; self.testLight = light; self.testLive = live
                     self.testLighting = lighting
+                    self.testBrightRoom = AmbientLight.lux().map { $0 > FacePulse.glowMaxLux } ?? false
                     self.testSeen.formUnion(seen)
                 }
             }

@@ -19,8 +19,9 @@ import os
 ///
 /// When the spoof model is sure the face is fake (`refuseLevel`), Faster refuses it. Standard and More secure doubt it
 /// instead, since the model also calls real faces fake (a hood around the face, a dim room): the glow has to vouch
-/// for the face's shape and then the challenge has to be done, both. Where the glow can't run (a bright room, no
-/// response earlier in the scan) or doesn't vouch, the face is refused as before.
+/// for the face's shape and then the challenge has to be done, both. Where the glow doesn't vouch, or got no response
+/// earlier in the scan, the face is refused as before. In a room too bright for the glow, as in harsh light on the
+/// face, the model's "fake" doesn't refuse: the challenge decides.
 /// Runs on the camera queue; `finishPulse` may come from any thread.
 final class ScanEngine: @unchecked Sendable {
     enum Event: Sendable {
@@ -82,6 +83,10 @@ final class ScanEngine: @unchecked Sendable {
     /// A glow got no response, or the room is too bright, in this scan: later attempts skip it. Kept across
     /// `resume()`.
     private var skipGlow = false
+    /// The light sensor says the room is too bright for the glow (FacePulse.glowMaxLux). Like harsh light on the face,
+    /// the spoof model can't be trusted to refuse a real face then (it read 0.02 on the owner at ~4000 lux,
+    /// 2026-11-24): the challenge decides. Kept across `resume()`.
+    private var brightRoom = false
     /// The spoof model called this attempt's face fake and it's getting the glow and the challenge instead of a refusal.
     private var doubted = false
 
@@ -146,7 +151,7 @@ final class ScanEngine: @unchecked Sendable {
         let harsh = harshHistory.count >= 3 && harshHistory.filter { $0 }.count * 2 > harshHistory.count
         let spoofVerdict = spoof.verdict(security)
         // In harsh light the spoof model can't be trusted to refuse a real face; the challenge decides instead.
-        let fake = spoofVerdict == .spoof && !harsh
+        let fake = spoofVerdict == .spoof && !harsh && !brightRoom
         // Also while a glow is already running: it often starts while the model is only unsure, and the model turns
         // sure a few frames later. Refusing then cut the glow off before it could judge (2026-11-24).
         let glowOpen: Bool = { if case .done = pulse { return false }; return true }()
@@ -240,9 +245,10 @@ final class ScanEngine: @unchecked Sendable {
     func skipPulse(_ why: String) {
         lock.lock(); defer { lock.unlock() }
         guard case .running = pulse, !paused else { return }
-        pulse = .done; fallback = true; skipGlow = true
+        pulse = .done; fallback = true; skipGlow = true; brightRoom = true
         onEvent(.pulseSkipped(why))
-        if doubted { refuse(); return }
+        // A doubted face gets the challenge too: in this light the model's "fake" isn't to be trusted.
+        doubted = false
         promptedAt = Date()
         prompt(detector.challenge)
     }

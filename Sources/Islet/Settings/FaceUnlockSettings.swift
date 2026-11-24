@@ -151,7 +151,7 @@ struct FaceUnlockSettings: View {
                 // In harsh light a fake-looking score asks for the challenge instead of refusing. Standard and More
                 // secure doubt a fake-looking face rather than refuse it: it needs the glow and the challenge.
                 let level = face.faces.security
-                let fake = (face.testLive.map { $0 < level.refuseLevel } ?? false) && !(face.testLighting?.harsh ?? false)
+                let fake = (face.testLive.map { $0 < level.refuseLevel } ?? false) && !(face.testLighting?.harsh ?? false) && !(face.testBrightRoom && level.usesGlow)
                 let refused = face.testFramed || (fake && !level.usesGlow)
                 let match = score >= face.faces.effectiveThreshold && !refused && !fake
                 Label(String(format: "%.2f  %@", score, face.testFramed ? "Photo edge" : refused ? "Fake"
@@ -164,7 +164,7 @@ struct FaceUnlockSettings: View {
             HStack(spacing: 14) {
                 if let live = face.testLive {
                     let level = face.faces.security
-                    let label = live >= level.liveLevel ? "Real" : live < level.refuseLevel ? (level.usesGlow ? "Fake: would doubt" : "Fake") : level.usesGlow ? "Unsure: would glow" : "Unsure: would ask"
+                    let label = live >= level.liveLevel ? "Real" : face.testBrightRoom && level.usesGlow ? "Bright room: would ask" : live < level.refuseLevel ? (level.usesGlow ? "Fake: would doubt" : "Fake") : level.usesGlow ? "Unsure: would glow" : "Unsure: would ask"
                     Label(String(format: "Spoof model: %@ %.2f", label, live), systemImage: "person.crop.square.badge.camera")
                         .foregroundStyle(live >= level.liveLevel ? .green : live < level.refuseLevel ? .red : .secondary)
                         .monospacedDigit()

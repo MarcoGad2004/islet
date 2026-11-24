@@ -211,7 +211,8 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
 
   When the spoof model is sure the face is fake, Faster refuses it; Standard and More secure doubt it instead (the
   model also calls real faces fake, a hood round the face for one; 2026-11-24): the glow has to vouch and then the
-  challenge has to be done, and where the glow can't run or doesn't vouch it's refused. There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
+  challenge has to be done, and where the glow doesn't vouch it's refused. In a room too bright for the glow (over 1500
+  lux), as with harsh light on the face, the model's "fake" doesn't refuse: the challenge decides. There's no Off (owner, 2026-11-23: Faster is for convenience). The old modes carry over: Random to More secure,
   Off to Faster, the rest to Standard. The match threshold is set by the level too, not by hand (owner, 2026-11-23:
   the slider is gone); Test recognition shows the one in use and how it was set.
 - **Light check** (Standard and More secure, when the spoof model isn't sure; owner request 2026-11-22): the label

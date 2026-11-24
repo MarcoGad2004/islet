@@ -175,6 +175,12 @@ lock screen. Each question below can block it:
          face was refused and the glow cut off. A face can now be doubted while the glow runs. Test recognition read
          the spoof model at 0.02 on the owner's real face at ~1000 lux, so the model is far from reliable on this
          camera; the scan now logs "doubted: spoof model …".
+      5. **A bright room (same day, after the second fix):** the light sensor read 3800-4200 lux, so the glow was
+         skipped and "Blink to unlock" shown, and ~0.6 s later every attempt was refused while the owner blinked: the
+         model turned sure the face was fake, and only harsh light on the face (`FacePulse.lighting`) stopped its
+         "fake" from refusing, not a room the sensor calls too bright for the glow. Now that counts too (Standard and
+         More secure: the challenge decides, as it already did in harsh light); Test recognition says "Bright room:
+         would ask". Not a broken install: there was one copy of the app, and the logs showed the code refusing.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;
