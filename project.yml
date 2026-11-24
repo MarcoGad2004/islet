@@ -35,8 +35,8 @@ targets:
       properties:
         CFBundleName: Dynamic Peninsula
         CFBundleDisplayName: Dynamic Peninsula
-        CFBundleShortVersionString: "1.6.1"
-        CFBundleVersion: "224"
+        CFBundleShortVersionString: "1.7"
+        CFBundleVersion: "251"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSLocationWhenInUseUsageDescription: "Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control."
         NSBluetoothAlwaysUsageDescription: "Dynamic Peninsula lists and connects your Bluetooth devices from the notch."
