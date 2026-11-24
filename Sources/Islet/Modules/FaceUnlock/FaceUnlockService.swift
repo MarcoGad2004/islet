@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import IOKit.pwr_mgt
 import os
 
 /// What the lock-screen scan is doing, for the island to draw.
@@ -71,6 +72,9 @@ final class FaceUnlockService {
     private let island: IslandStore
     private var locked = false
     private var screenAwake = true
+    /// Held from the scan's start to its end, so the display doesn't go to sleep from inactivity half way through
+    /// (the lock screen's timer is short after the power button locked the Mac). 0 when not held.
+    private var displayAssertion: IOPMAssertionID = 0
     private var attempts = 0
     /// Don't scan until Command+Shift is pressed (the Mac locked with the display on, or a scan gave up).
     /// Cleared when the display sleeps, so the next wake scans by itself.
@@ -227,6 +231,7 @@ final class FaceUnlockService {
         Task {
             guard await FaceCamera.requestAccess() else { Self.log.error("camera denied"); return }
             self.simulated = simulated
+            holdDisplayAwake()
             let model = ScanModel()
             self.model = model
             island.scan = model
@@ -235,7 +240,9 @@ final class FaceUnlockService {
 
             let faces = owner.faces
             // Too bright for the glow: say so up front, so a match goes straight to the blink.
-            let lux = AmbientLight.lux()
+            // The sensor often has no reading for its first few milliseconds (it showed -1 in bright rooms, so the scan
+            // went on to wait for the spoof model and start a glow before finding out the room was too bright).
+            let lux = await AmbientLight.settledLux()
             let bright = (lux ?? 0) > FacePulse.glowMaxLux
             Self.log.notice("scan lux=\(lux ?? -1) bright=\(bright)")
             let engine = ScanEngine(embedder: embedder, antiSpoof: owner.antiSpoof,
@@ -416,7 +423,20 @@ final class FaceUnlockService {
         }
     }
 
+    private func holdDisplayAwake() {
+        guard displayAssertion == 0 else { return }
+        IOPMAssertionCreateWithName(kIOPMAssertPreventUserIdleDisplaySleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                    "Dynamic Peninsula face unlock scan" as CFString, &displayAssertion)
+    }
+
+    private func releaseDisplay() {
+        guard displayAssertion != 0 else { return }
+        IOPMAssertionRelease(displayAssertion)
+        displayAssertion = 0
+    }
+
     private func stop(collapseAfter delay: Double) {
+        releaseDisplay()
         timeout?.cancel(); timeout = nil
         noFaceTimer?.cancel(); noFaceTimer = nil
         camera?.stop(); camera = nil

@@ -28,6 +28,17 @@ enum AmbientLight {
         return (client, service, unsafeBitCast(e, to: CopyEvent.self), unsafeBitCast(f, to: GetFloat.self))
     }()
 
+    /// `lux()`, giving the sensor up to ~120 ms for a first reading when it has one but hasn't answered yet. Returns at
+    /// once on a Mac with no sensor.
+    static func settledLux() async -> Double? {
+        guard reader != nil else { return nil }
+        for _ in 0..<5 {
+            if let lux = lux() { return lux }
+            try? await Task.sleep(for: .milliseconds(30))
+        }
+        return lux()
+    }
+
     /// The light falling on the screen's bezel now, in lux.
     static func lux() -> Double? {
         guard let r = reader, let event = r.copy(r.service, eventType, 0, 0)?.takeRetainedValue() else { return nil }
