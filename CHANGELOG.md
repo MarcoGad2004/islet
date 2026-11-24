@@ -3,6 +3,11 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.7.1 (unreleased)
+
+- **Smoother Mac Stats charts.** Only each chart's newest point eases to a new reading now, which takes less CPU while the panel is open.
+- **Longer swipes for skip and Shazam.** The two-finger swipe over media and the one that pulls Shazam in need more travel on the trackpad before they complete.
+
 ## 1.7 (unreleased)
 
 ### Extended brightness

@@ -289,8 +289,8 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   - On the peek the colour stays put: the peek deepens up to 18 pt and the icon is pulled in from that side under the
     camera. The colour changes with the song.
   - The fingers drive it directly, against resistance (owner, 2026-11-20: "you have to pull them in and out"): progress
-    = 1 - 1 / (1 + travel / 95 pt), so it trails the fingers more the further it goes and the commit point (half way)
-    takes 95 pt. The icon sits in a ring that fills as you pull; at the line it turns into a solid white disc with the
+    = 1 - 1 / (1 + travel / 135 pt), so it trails the fingers more the further it goes and the commit point (half way)
+    takes 135 pt (95 until 1.7.1; owner, 2026-11-24: a longer swipe before it completes). The icon sits in a ring that fills as you pull; at the line it turns into a solid white disc with the
     icon in black (with a pop and a trackpad tap). Only that counts: let go before it and it always springs back, however
     fast the fingers were going (owner, 2026-11-20). The names sit 110 pt apart in the wide bar, 100 in the chin. Half way lights the icon and taps the
     trackpad. The lift comes from the scroll event's phase (momentum never counts), and a spring takes over from where
@@ -888,7 +888,7 @@ Owner request, 2026-11-23: name the song playing nearby from the notch.
 - **Pulling it in** (owner, 2026-11-23: "drag Shazam in with some resistance"): two fingers sideways over the idle
   notch (quick info, the peek; not over media, where they skip). The mark follows the fingers in from the edge they
   move away from (fingers right: from the left), against a rubber band like the skip (progress = 1 − 1 / (1 + travel
-  / 85 pt); the commit point is half way, 85 pt of travel). It grows from half size, sharpens and fills in blue as it
+  / 120 pt); the commit point is half way, 120 pt of travel; 85 until 1.7.1, owner 2026-11-24). It grows from half size, sharpens and fills in blue as it
   comes; a ring round it fills toward the commit point. The island makes room: the closed notch grows its wings (or a
   chin), quick info stretches a little and fades and blurs out under it. At the commit point the ring closes, the mark
   turns full blue and pops (spring 0.22, 0.55) and the trackpad clicks firmly; going back over it, a light tick. A

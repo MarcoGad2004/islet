@@ -37,7 +37,7 @@ final class IslandStore {
     /// further it goes, like stretching a band: progress = 1 - 1 / (1 + travel / skipDistance), so the content leads
     /// the fingers a little at first and trails them more and more toward the commit point; it never gets all the way
     /// in under the fingers (the landing spring does that).
-    static let skipDistance: Double = 95
+    static let skipDistance: Double = 135
     /// Swiping hidden media back: the peek's colour gathers into the artwork (`PeekMorph`), so the real artwork
     /// waits until it has.
     private(set) var morphFromPeek: Date?
@@ -54,7 +54,7 @@ final class IslandStore {
     @ObservationIgnored private var pullSpring: ValueSpring?
     /// Finger travel that pulls the mark half way, its commit point. Like the skip, the pull resists more the further
     /// it goes: progress = 1 - 1 / (1 + travel / shazamPullDistance).
-    static let shazamPullDistance: Double = 85
+    static let shazamPullDistance: Double = 120
     /// Two fingers up or down over Shazam listening: stopping it follows them (DESIGN.md "Shazam", "Stopping it").
     private(set) var shazamDrag: ShazamDrag?
     @ObservationIgnored private var dragSpring: ValueSpring?
