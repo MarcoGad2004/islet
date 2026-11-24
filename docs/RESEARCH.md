@@ -181,6 +181,12 @@ lock screen. Each question below can block it:
          "fake" from refusing, not a room the sensor calls too bright for the glow. Now that counts too (Standard and
          More secure: the challenge decides, as it already did in harsh light); Test recognition says "Bright room:
          would ask". Not a broken install: there was one copy of the app, and the logs showed the code refusing.
+      6. **Straight to the blink in a bright room (owner, same day):** the scan only learned the room was too bright
+         when it asked the service for the glow, after waiting ~0.4 s for the spoof model's first verdict. The service
+         now reads the light sensor as the scan starts and tells the engine, which then skips the glow and the wait and
+         asks for the blink as soon as the face matches (Standard and More secure; Faster is unchanged). A refusal now
+         logs whether a photo edge or the spoof model did it: at 09:09 (1448 lux, just under the glow's limit) one
+         attempt was refused with no "doubted" line, so the photo-edge check, not the model.
 15a. **Instant Hotspot** (1.2): phones offering their hotspot aren't in a CoreWLAN scan until they start
     broadcasting. Sharing.framework's private `SFRemoteHotspotSession` (`setDelegate:`, `startBrowsing`,
     `stopBrowsing`, `enableHotspotForDevice:withCompletionHandler:`) lists them from sharingd with no entitlement;

@@ -220,9 +220,13 @@ final class FaceUnlockService {
             island.setBase(.scan)
 
             let faces = owner.faces
+            // Too bright for the glow: say so up front, so a match goes straight to the blink.
+            let lux = AmbientLight.lux()
+            let bright = (lux ?? 0) > FacePulse.glowMaxLux
+            Self.log.notice("scan lux=\(lux ?? -1) bright=\(bright)")
             let engine = ScanEngine(embedder: embedder, antiSpoof: owner.antiSpoof,
                                     enrolled: faces.allEmbeddings, threshold: faces.effectiveThreshold,
-                                    security: faces.security) { event in
+                                    security: faces.security, brightRoom: bright) { event in
                 Task { @MainActor [weak self] in self?.handle(event) }
             }
             self.engine = engine
@@ -238,7 +242,7 @@ final class FaceUnlockService {
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
             // The glow may be needed, and it takes ~1.3 s to reach full strength: start it now, unseen.
-            if faces.security.usesGlow { FaceGlow.shared.warm() }
+            if faces.security.usesGlow && !bright { FaceGlow.shared.warm() }
             Self.log.info("scan started simulated=\(simulated)")
             startNoFaceTimer()
             timeout = Task { [weak self] in

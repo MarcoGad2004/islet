@@ -90,14 +90,17 @@ final class ScanEngine: @unchecked Sendable {
     /// The spoof model called this attempt's face fake and it's getting the glow and the challenge instead of a refusal.
     private var doubted = false
 
+    /// `brightRoom`: the light sensor read more than the glow can work in when the scan started. Standard and More
+    /// secure then skip the glow and don't wait on the spoof model: the challenge is asked as soon as the face matches.
     init(embedder: FaceEmbedder, antiSpoof: AntiSpoofModel?, enrolled: [[Float]], threshold: Float, security: FaceSecurity,
-         onEvent: @escaping @Sendable (Event) -> Void) {
+         brightRoom: Bool = false, onEvent: @escaping @Sendable (Event) -> Void) {
         self.embedder = embedder
         self.antiSpoof = antiSpoof
         self.enrolled = enrolled
         self.threshold = threshold
         self.security = security
         self.onEvent = onEvent
+        if brightRoom && security.usesGlow { self.brightRoom = true; skipGlow = true }
         detector = ChallengeDetector(Self.pick(security))
     }
 
@@ -201,6 +204,9 @@ final class ScanEngine: @unchecked Sendable {
         }
         if let at = promptedAt, now.timeIntervalSince(at) > Self.challengeSeconds { misses = 8 }
         if misses >= 8 {
+            if refused {
+                Self.log.notice("refused by \(framed ? "a photo edge" : "the spoof model", privacy: .public) \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1)")
+            }
             paused = true; prompt(nil)
             onEvent(.noMatch(score: refused ? 0 : best, refused: refused)); best = 0
         }
@@ -221,15 +227,16 @@ final class ScanEngine: @unchecked Sendable {
             return
         }
         if spoofVerdict == .live { finish(score: score, embedding: e, via: "spoof model", pulse: nil); return }
-        // Still gathering the spoof model's frames (a fraction of a second): wait for them.
-        if spoofVerdict == .unknown, antiSpoof != nil { return }
+        // Still gathering the spoof model's frames (a fraction of a second): wait for them, unless the room is too
+        // bright to trust them anyway.
+        if spoofVerdict == .unknown, antiSpoof != nil, !brightRoom { return }
         if security.usesGlow, case .idle = pulse, !harsh, !skipGlow {
             pulse = .running(since: now, frames: [])
             onEvent(.pulse)
             return
         }
         if security.usesGlow, case .idle = pulse {
-            onEvent(.pulseSkipped(harsh ? "harsh light" : "no response earlier"))
+            onEvent(.pulseSkipped(harsh ? "harsh light" : brightRoom ? "bright room" : "no response earlier"))
         }
         pulse = .done
         fallback = true
