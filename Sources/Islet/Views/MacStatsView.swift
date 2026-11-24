@@ -17,6 +17,9 @@ struct MacStatsView: View {
     /// changes size once, while nothing shows.
     @State private var shown: MacStatsPage?
     @State private var opacity = 1.0
+    /// The sideways drift of a page changing (`Self.drift` at most).
+    @State private var offset: CGFloat = 0
+    private static let drift: CGFloat = 8
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -30,6 +33,7 @@ struct MacStatsView: View {
             }
         }
         .opacity(opacity)
+        .offset(x: offset)
         .padding(16)
         .frame(width: 300, alignment: .topLeading)
         // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
@@ -39,11 +43,17 @@ struct MacStatsView: View {
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
         }
         .onChange(of: state.page) { _, _ in
-            // A plain fade (DESIGN.md "Mac Stats (1.7)", Motion): out, swap, in. The new page fades in on the same
-            // curve and at the same time as the panel eases to its size, so the two read as one movement.
-            withAnimation(.easeIn(duration: 0.1)) { opacity = 0 } completion: {
+            // A fade (DESIGN.md "Mac Stats (1.7)", Motion): out, swap, in. The new page fades in on the same
+            // curve and at the same time as the panel eases to its size, so the two read as one movement. It drifts
+            // a few points as it goes: a page opened leaves to the left and the next comes in from the right, and
+            // Back the other way. Not with Reduce Motion.
+            let drift: CGFloat = reduceMotion ? 0 : (state.page == .overview ? 1 : -1) * Self.drift
+            withAnimation(.easeIn(duration: 0.1)) { opacity = 0; offset = drift } completion: {
                 shown = state.page
-                withAnimation(MacStatsMotion.settle) { opacity = 1 }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { offset = -drift }
+                withAnimation(MacStatsMotion.settle) { opacity = 1; offset = 0 }
             }
         }
     }

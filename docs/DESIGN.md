@@ -1073,7 +1073,8 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
   does the same.
 - Going between the overview and a page is a plain fade: the old page fades out (0.1 s), the new one fades in (0.28 s)
   as the panel eases to the new page's size, on the same curve (fast, then a long settle), so the two read as one
-  movement. Nothing slides or grows in (owner, 2026-11-24: simpler is better here). The panel's top edge stays put
+  movement. Nothing grows in (owner, 2026-11-24: simpler is better here); from 1.7.1 the page also drifts 8 pt: opening one,
+  the overview leaves to the left and the page comes in from the right, and Back the other way (none with Reduce Motion). The panel's top edge stays put
   and the content keeps to the top. The battery stats panel resizes the same way when its content changes size.
 - Tiles, pills and the back button lighten a little under the pointer and press in slightly when clicked.
 - On the Fans page, what's under the mode switch fades as it changes, and the switch's selection slides to the new
