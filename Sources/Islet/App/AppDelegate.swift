@@ -32,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSources: [DispatchSourceSignal] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The AirPods card diagnostics 1.6's test builds wrote: nothing writes it any more.
+        try? FileManager.default.removeItem(at: FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Islet-airpods-card.log"))
         notch.menuBarAnchor = { [weak self] in self?.statusItemAnchor() }
         notch.start()
         // Search from the notch (DESIGN.md "Search").
