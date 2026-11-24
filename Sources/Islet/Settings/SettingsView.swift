@@ -290,7 +290,7 @@ struct SettingsView: View {
             if notificationsInNotch {
                 Section {
                     Toggle(isOn: $messagesInNotch) {
-                        SettingsLabel("Open conversations in the notch", "Click a message banner to read and reply from the notch.")
+                        SettingsLabel("Open conversations in the notch", "Click a message banner to read the conversation in the notch. Replying opens Messages.")
                     }
                     if messagesInNotch, !needs {
                         Label("Has what it needs: Full Disk Access, Contacts and Control Messages", systemImage: "checkmark.circle.fill")

@@ -20,14 +20,19 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
-                             styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            // Resizable, and never taller than the screen: the footer's buttons have to stay in reach.
+            let available = (NSScreen.main?.visibleFrame.height ?? 900) - 60
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: min(700, max(480, available))),
+                             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            w.contentMinSize = NSSize(width: 520, height: 480)
             w.title = "Welcome to Dynamic Peninsula"
             w.isReleasedWhenClosed = false
             w.delegate = self
-            w.contentView = NSHostingView(rootView: OnboardingView(face: face, levels: levels, media: media, focus: focus, wifi: wifi) { [weak self] in
+            let host = NSHostingView(rootView: OnboardingView(face: face, levels: levels, media: media, focus: focus, wifi: wifi) { [weak self] in
                 self?.window?.close()
             })
+            host.sizingOptions = [.minSize] // the window's size, not the view's ideal one
+            w.contentView = host
             w.center()
             window = w
         }

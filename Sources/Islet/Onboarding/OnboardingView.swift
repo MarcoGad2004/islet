@@ -62,7 +62,7 @@ struct OnboardingView: View {
             Divider()
             footer
         }
-        .frame(width: 520, height: 700)
+        .frame(minWidth: 520, idealWidth: 520, maxWidth: .infinity, minHeight: 480, idealHeight: 700, maxHeight: .infinity)
         .onReceive(tick) { _ in refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
         .onChange(of: face.enrolment?.phase) { _, phase in
@@ -98,6 +98,9 @@ struct OnboardingView: View {
     private var choose: some View {
         VStack(alignment: .leading, spacing: 16) {
             header("What should Dynamic Peninsula do?", "Pick what you want. You can change it any time in Settings, and Dynamic Peninsula only asks for what the ticked ones need.")
+            // Scrolls: with a larger text size the list is taller than the window, and the buttons below it were out
+            // of reach (owner, 2026-11-24).
+            ScrollView {
             card {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "checkmark.square.fill").font(.title3).foregroundStyle(.secondary)
@@ -112,7 +115,8 @@ struct OnboardingView: View {
                     pickRow(f)
                 }
             }
-            Spacer(minLength: 0)
+            .padding(.bottom, 16)
+            }
         }
     }
 

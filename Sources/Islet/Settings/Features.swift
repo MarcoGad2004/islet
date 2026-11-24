@@ -24,7 +24,7 @@ enum Feature: String, CaseIterable, Identifiable {
         switch self {
         case .levels: "The keys show their level in the notch instead of the middle of the screen."
         case .notifications: "Banners come out of the notch instead of the top-right corner."
-        case .messages: "Click a message to read the conversation and reply from the notch."
+        case .messages: "Click a message to read the conversation in the notch. Replying opens Messages."
         case .focus: "Shows which Focus is on when it changes."
         case .search: "Apps, files, people, Shortcuts and settings from the notch, and questions handed to Siri."
         case .shazam: "Names the song playing nearby: the button in the controls, or swipe sideways over the idle notch."

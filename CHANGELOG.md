@@ -46,6 +46,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 ### Fixes
 
 - **No dark lines around the notch.** With the glass look, the closed notch no longer has dark lines around it.
+- **Setup fits the screen.** The setup window can be resized, is never taller than the screen, and its feature list scrolls, so Continue is always in reach (with a larger text size the list ran past the bottom).
 - **Battery stats icon click.** Clicking the menu bar battery while its stats are open now closes them instead of opening them again. Clicking elsewhere to close them, then clicking the icon, no longer opens them straight back up.
 
 ## 1.5 (2026-11-23)
