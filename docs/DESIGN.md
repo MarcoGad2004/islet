@@ -1057,17 +1057,29 @@ The "Using the most" lists name things the way a person would, while still being
 
 Like the battery stats' power flow, everything in the panel moves rather than jumps:
 
-- Each reading glides in on the same spring: numbers roll to their new value, bars and the memory breakdown ease to it,
-  and the charts slide along as time passes.
+- Each reading glides in on the same spring: numbers roll to their new value (up as it rises, down as it falls), bars and
+  the memory breakdown ease to it, and the charts slide along as time passes.
 - The charts and tile sparklines show the 10 minutes in 5-second slots (120), each the average of its readings, the
-  newest at the right edge; the sparklines slide left a step as each new slot starts. Until there are 10 minutes of
-  readings the left stays empty.
+  newest at the right edge. Within a slot the newest point eases to each reading, and so does a sparkline's scale when
+  its peak changes; as each new slot starts, the whole plot slides left a step. The pages' charts move the same way
+  as the sparklines (owner, 2026-11-24; they were Swift Charts, which crept and rippled). Until there are 10 minutes
+  of readings the left stays empty.
 - The "Using the most" lists always take the room of five rows of one height, so a row with a second line, or a list
-  that grows or shrinks, never changes the page's height.
-- Going between the overview and a page is a plain fade: the old page fades out (0.12 s), the new one fades in (0.2 s).
-  Nothing slides or grows in (owner, 2026-11-24: simpler is better here).
-- The panel eases to the new page's size (0.25 s), its top edge staying put, the content kept to the top. The battery
-  stats panel does the same when its content changes size.
+  that grows or shrinks, never changes the page's height. A row only passes the one above it when it uses a tenth more
+  and a clear amount more (2 points of a core or the GPU, 50 MB), so apps using about the same don't swap places on
+  every reading (owner, 2026-11-24).
+- Small bars never squash: a nearly empty bar shows a sliver of its round end.
+- The panel fades in (0.2 s) as it drops the last 6 pt into place, and fades out (0.12 s); the battery stats panel
+  does the same.
+- Going between the overview and a page is a plain fade: the old page fades out (0.1 s), the new one fades in (0.28 s)
+  as the panel eases to the new page's size, on the same curve (fast, then a long settle), so the two read as one
+  movement. Nothing slides or grows in (owner, 2026-11-24: simpler is better here). The panel's top edge stays put
+  and the content keeps to the top. The battery stats panel resizes the same way when its content changes size.
+- Tiles, pills and the back button lighten a little under the pointer and press in slightly when clicked.
+- On the Fans page, what's under the mode switch fades as it changes, and the switch's selection slides to the new
+  mode.
+- With Reduce Motion, readings show without rolling or gliding, the plots step instead of sliding, and the panel
+  only fades.
 
 ### Settings > Mac Stats
 

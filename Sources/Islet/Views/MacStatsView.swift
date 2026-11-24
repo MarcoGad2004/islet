@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 /// Which page the Mac Stats panel shows. Kept outside the view so each opening starts on the overview.
@@ -18,6 +17,7 @@ struct MacStatsView: View {
     /// changes size once, while nothing shows.
     @State private var shown: MacStatsPage?
     @State private var opacity = 1.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,15 +33,17 @@ struct MacStatsView: View {
         .padding(16)
         .frame(width: 300, alignment: .topLeading)
         // Each reading glides in, like the battery stats' power flow: numbers roll, bars and charts ease to it.
-        .animation(MacStatsMotion.reading, value: stats.snapshot.date)
+        // Nothing rolls or glides with Reduce Motion: the new readings just show.
+        .animation(reduceMotion ? nil : MacStatsMotion.reading, value: stats.snapshot.date)
         .onChange(of: state.page, initial: true) { _, page in
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
         }
         .onChange(of: state.page) { _, _ in
-            // A plain fade (DESIGN.md "Mac Stats (1.7)", Motion): out, swap, in.
-            withAnimation(.easeIn(duration: 0.12)) { opacity = 0 } completion: {
+            // A plain fade (DESIGN.md "Mac Stats (1.7)", Motion): out, swap, in. The new page fades in on the same
+            // curve and at the same time as the panel eases to its size, so the two read as one movement.
+            withAnimation(.easeIn(duration: 0.1)) { opacity = 0 } completion: {
                 shown = state.page
-                withAnimation(.easeOut(duration: 0.2)) { opacity = 1 }
+                withAnimation(MacStatsMotion.settle) { opacity = 1 }
             }
         }
     }
@@ -52,8 +54,8 @@ struct MacStatsView: View {
 extension MacStatsView {
     @MainActor private static var warmed = false
 
-    /// Renders each page once off screen: the first showing of a page with a chart otherwise stalls a moment loading
-    /// Charts, which showed as a flicker on the first page opened.
+    /// Renders each page once off screen: the first showing of a page otherwise stalls a moment loading its fonts and
+    /// symbols, which showed as a flicker on the first page opened.
     @MainActor static func warmUp() {
         guard !warmed else { return }
         warmed = true
@@ -91,7 +93,7 @@ private struct MacStatsOverview: View {
 
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                 GridRow {
-                    Tile(title: "CPU", value: MacStatsFormat.percent(s.cpu?.total),
+                    Tile(title: "CPU", value: MacStatsFormat.percent(s.cpu?.total), number: s.cpu?.total,
                          level: StatLevel(load: max(s.cpu?.efficiency ?? 0, s.cpu?.performance ?? 0)), action: { open(.cpu) }) {
                         VStack(spacing: 6) {
                             CoreTypeRow(letter: "E", value: s.cpu?.efficiency, colour: MacStatsColour.efficiency)
@@ -99,7 +101,7 @@ private struct MacStatsOverview: View {
                         }
                         .padding(.top, 6)
                     }
-                    Tile(title: "GPU", value: MacStatsFormat.percent(s.gpu?.utilization),
+                    Tile(title: "GPU", value: MacStatsFormat.percent(s.gpu?.utilization), number: s.gpu?.utilization,
                          level: StatLevel(load: s.gpu?.utilization ?? 0), action: { open(.gpu) }) {
                         Caption(s.gpu.map { "\(MacStatsFormat.megabytes($0.memoryInUse)) in use" } ?? " ")
                         let gpu = ChartHistory.buckets(stats.history)
@@ -107,7 +109,7 @@ private struct MacStatsOverview: View {
                     }
                 }
                 GridRow {
-                    Tile(title: "Memory", value: MacStatsFormat.percent(s.memory?.fraction),
+                    Tile(title: "Memory", value: MacStatsFormat.percent(s.memory?.fraction), number: s.memory?.fraction,
                          level: StatLevel(s.memory?.pressure ?? .normal), action: { open(.memory) }) {
                         Caption(s.memory.map { "\(MacStatsFormat.gigabytes($0.used)) of \(MacStatsFormat.gigabytes($0.total, decimals: 0))" } ?? " ")
                         if let m = s.memory { MemoryBar(memory: m, height: 6).padding(.top, 8) }
@@ -116,7 +118,7 @@ private struct MacStatsOverview: View {
                             .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .tertiaryLabelColor))
                             .padding(.top, 6)
                     }
-                    Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), level: .normal, action: nil) {
+                    Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), number: s.systemWatts, level: .normal, action: nil) {
                         Caption(s.energy.map { "CPU \(MacStatsFormat.number($0.cpu)) · GPU \(MacStatsFormat.number($0.gpu)) W" } ?? " ")
                         let power = ChartHistory.buckets(stats.history).filter { $0.watts != nil }
                         let watts = power.compactMap(\.watts)
@@ -129,10 +131,10 @@ private struct MacStatsOverview: View {
             StatsSectionLabel("Temperature")
             VStack(spacing: 7) {
                 StatRow("CPU", MacStatsFormat.temperature(s.thermal.cpuAverage),
-                        colour: s.thermal.cpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) })
+                        colour: s.thermal.cpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) }, number: s.thermal.cpuAverage)
                 StatRow("GPU", MacStatsFormat.temperature(s.thermal.gpuAverage),
-                        colour: s.thermal.gpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) })
-                if s.thermal.ssd != nil { StatRow("SSD", MacStatsFormat.temperature(s.thermal.ssd)) }
+                        colour: s.thermal.gpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) }, number: s.thermal.gpuAverage)
+                if s.thermal.ssd != nil { StatRow("SSD", MacStatsFormat.temperature(s.thermal.ssd), number: s.thermal.ssd) }
             }
 
             if !s.fans.isEmpty {
@@ -145,7 +147,7 @@ private struct MacStatsOverview: View {
                 .padding(.bottom, 8)
                 VStack(spacing: 7) {
                     ForEach(Array(s.fans.enumerated()), id: \.offset) { i, fan in
-                        StatRow(MacStatsFormat.fanName(i, of: s.fans.count), MacStatsFormat.rpm(fan.rpm))
+                        StatRow(MacStatsFormat.fanName(i, of: s.fans.count), MacStatsFormat.rpm(fan.rpm), number: fan.rpm)
                     }
                 }
             }
@@ -159,11 +161,14 @@ private struct MacStatsOverview: View {
 private struct Tile<Content: View>: View {
     let title: String
     let value: String
+    /// What `value` shows, so its digits roll up as it rises and down as it falls.
+    let number: Double?
     let level: StatLevel
     let action: (() -> Void)?
     @ViewBuilder let content: Content
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         let body = VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 3) {
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(IsletInk.secondary)
@@ -173,15 +178,15 @@ private struct Tile<Content: View>: View {
             }
             Text(value).font(.system(size: 22, weight: .semibold)).monospacedDigit()
                 .foregroundStyle(MacStatsColour.level(level) ?? Color(nsColor: .labelColor))
-                .contentTransition(.numericText())
+                .rolls(number)
             content
         }
         .padding(EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10))
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(IsletCard(shape: shape))
+        .contentShape(shape)
         if let action {
-            Button(action: action) { body }.buttonStyle(.plain)
+            Button(action: action) { body }.buttonStyle(StatsPressStyle(shape: shape))
         } else {
             body
         }
@@ -199,7 +204,7 @@ private struct CoreTypeRow: View {
             MeterBar(fraction: value ?? 0, colour: colour)
             Text(MacStatsFormat.percent(value)).font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(IsletInk.primary).frame(width: 30, alignment: .trailing)
-                .contentTransition(.numericText())
+                .rolls(value)
         }
     }
 }
@@ -214,20 +219,20 @@ private struct MacStatsCPUPage: View {
         let s = stats.snapshot
         let cores = s.cpu?.cores.count ?? 1, eCount = s.cpu?.efficiencyCount ?? 0
         VStack(alignment: .leading, spacing: 0) {
-            PageHeader(title: "CPU", trailing: MacStatsFormat.percent(s.cpu?.total), back: back)
+            PageHeader(title: "CPU", trailing: MacStatsFormat.percent(s.cpu?.total), number: s.cpu?.total, back: back)
             HStack(spacing: 0) {
                 Text("Last 10 minutes").font(.system(size: 13)).foregroundStyle(IsletInk.secondary).fixedSize()
                 Spacer(minLength: 4)
                 if eCount > 0 { Legend(name: "Efficiency", colour: MacStatsColour.efficiency) }
                 Legend(name: "Performance", colour: MacStatsColour.performance)
             }
-            LoadChart(points: ChartHistory.buckets(stats.history).flatMap { p -> [LoadChart.Point] in
-                let e = p.efficiency * Double(eCount) / Double(cores)
-                let perf = p.performance * Double(cores - eCount) / Double(cores)
-                return (eCount > 0 ? [LoadChart.Point(date: p.date, series: "Efficiency", value: e)] : [])
-                    + [LoadChart.Point(date: p.date, series: "Performance", value: perf)]
-            }, colours: ["Efficiency": MacStatsColour.efficiency, "Performance": MacStatsColour.performance])
-            .padding(.top, 8)
+            let points = ChartHistory.buckets(stats.history)
+            let perf = (colour: MacStatsColour.performance,
+                        values: points.map { $0.performance * Double(cores - eCount) / Double(cores) })
+            let eff = (colour: MacStatsColour.efficiency,
+                       values: points.map { $0.efficiency * Double(eCount) / Double(cores) })
+            LoadChart(layers: (eCount > 0 ? [eff] : []) + [perf], newest: points.last?.date)
+                .padding(.top, 8)
 
             Rule()
             StatsSectionLabel("Cores")
@@ -249,7 +254,9 @@ private struct MacStatsCPUPage: View {
 
             Rule()
             StatsSectionLabel("Using the most")
-            ProcessList(groups: ProcessNames.group(s.topCPU), empty: "Reading…", format: MacStatsFormat.share, stoppable: true)
+            // A few more than are shown, so one just under the fifth doesn't push in on a small difference.
+            ProcessList(groups: ProcessNames.group(s.topCPU, limit: 8), empty: "Reading…", format: MacStatsFormat.share,
+                        gap: 0.02, stoppable: true)
             Caption("100% is one core: a busy app can pass it.").padding(.top, 8)
             Rule()
             Footer()
@@ -274,7 +281,7 @@ private struct CoreGroup: View {
             HStack(spacing: 3) {
                 Text(name).foregroundStyle(colour)
                 Text(MacStatsFormat.percent(total)).foregroundStyle(IsletInk.primary).monospacedDigit()
-                    .contentTransition(.numericText())
+                    .rolls(total)
             }
             .font(.system(size: 11))
         }
@@ -292,7 +299,7 @@ private struct MacStatsMemoryPage: View {
         VStack(alignment: .leading, spacing: 0) {
             PageHeader(title: "Memory",
                        trailing: s.memory.map { "\(MacStatsFormat.gigabytes($0.used)) of \(MacStatsFormat.gigabytes($0.total, decimals: 0))" } ?? "–",
-                       back: back)
+                       number: s.memory.map { Double($0.used) }, back: back)
             HStack {
                 Text("Last 10 minutes").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
                 Spacer()
@@ -300,15 +307,7 @@ private struct MacStatsMemoryPage: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .labelColor))
             }
-            Chart {
-                ForEach(ChartHistory.buckets(stats.history), id: \.date) { p in
-                    BarMark(x: .value("Time", p.date), y: .value("Used", p.memoryFraction), width: .fixed(1.2))
-                        .foregroundStyle(MacStatsColour.level(StatLevel(p.memoryPressure)) ?? MacStatsColour.memory)
-                }
-            }
-            .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
-            .percentAxes()
-            .frame(height: 64)
+            MemoryChart(points: ChartHistory.buckets(stats.history))
                 .padding(.top, 8)
             Caption("Full is fine: macOS keeps spare memory busy. The colour is pressure, how hard it's working to find room.")
                 .padding(.top, 8)
@@ -317,19 +316,20 @@ private struct MacStatsMemoryPage: View {
             if let m = s.memory {
                 MemoryBar(memory: m, height: 8)
                 VStack(spacing: 7) {
-                    KeyRow("Apps", MacStatsFormat.gigabytes(m.app), MacStatsColour.memory)
-                    KeyRow("Kept for macOS", MacStatsFormat.gigabytes(m.wired), MacStatsColour.memory.opacity(0.6))
-                    KeyRow("Compressed", MacStatsFormat.gigabytes(m.compressed), MacStatsColour.memory.opacity(0.35))
-                    KeyRow("Free", MacStatsFormat.gigabytes(m.free), Color(nsColor: .quaternaryLabelColor))
-                    KeyRow("Swap used", MacStatsFormat.megabytesOrGigabytes(Double(m.swapUsed)), nil)
+                    KeyRow("Apps", MacStatsFormat.gigabytes(m.app), MacStatsColour.memory, number: Double(m.app))
+                    KeyRow("Kept for macOS", MacStatsFormat.gigabytes(m.wired), MacStatsColour.memory.opacity(0.6), number: Double(m.wired))
+                    KeyRow("Compressed", MacStatsFormat.gigabytes(m.compressed), MacStatsColour.memory.opacity(0.35),
+                           number: Double(m.compressed))
+                    KeyRow("Free", MacStatsFormat.gigabytes(m.free), Color(nsColor: .quaternaryLabelColor), number: Double(m.free))
+                    KeyRow("Swap used", MacStatsFormat.megabytesOrGigabytes(Double(m.swapUsed)), nil, number: Double(m.swapUsed))
                 }
                 .padding(.top, 10)
             }
 
             Rule()
             StatsSectionLabel("Using the most")
-            ProcessList(groups: ProcessNames.group(s.topMemory), empty: "Reading…", format: MacStatsFormat.megabytesOrGigabytes,
-                        stoppable: true)
+            ProcessList(groups: ProcessNames.group(s.topMemory, limit: 8), empty: "Reading…",
+                        format: MacStatsFormat.megabytesOrGigabytes, gap: 50 * 1_048_576, stoppable: true)
             Rule()
             Footer()
         }
@@ -366,24 +366,25 @@ private struct MacStatsGPUPage: View {
     var body: some View {
         let s = stats.snapshot
         VStack(alignment: .leading, spacing: 0) {
-            PageHeader(title: "GPU", trailing: MacStatsFormat.percent(s.gpu?.utilization), back: back)
+            PageHeader(title: "GPU", trailing: MacStatsFormat.percent(s.gpu?.utilization), number: s.gpu?.utilization, back: back)
             Text("Last 10 minutes").font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
-            LoadChart(points: ChartHistory.buckets(stats.history).map { LoadChart.Point(date: $0.date, series: "GPU", value: $0.gpu) },
-                      colours: ["GPU": MacStatsColour.gpu])
+            let points = ChartHistory.buckets(stats.history)
+            LoadChart(layers: [(colour: MacStatsColour.gpu, values: points.map(\.gpu))], newest: points.last?.date)
                 .padding(.top, 8)
 
             Rule()
             VStack(spacing: 7) {
                 StatRow("Neural Engine", s.energy.map { $0.neuralEngine < 0.05 ? "Idle" : MacStatsFormat.watts($0.neuralEngine) } ?? "–")
-                StatRow("Memory in use", s.gpu.map { MacStatsFormat.megabytes($0.memoryInUse) } ?? "–")
-                StatRow("Power", MacStatsFormat.watts(s.energy?.gpu))
+                StatRow("Memory in use", s.gpu.map { MacStatsFormat.megabytes($0.memoryInUse) } ?? "–",
+                        number: s.gpu.map { Double($0.memoryInUse) })
+                StatRow("Power", MacStatsFormat.watts(s.energy?.gpu), number: s.energy?.gpu)
                 StatRow("Temperature", MacStatsFormat.temperatures(s.thermal.gpuAverage, hottest: s.thermal.gpuHottest))
             }
 
             Rule()
             StatsSectionLabel("Using the most")
-            ProcessList(groups: ProcessNames.group(s.topGPU), empty: "Nothing is using the GPU right now.",
-                        format: MacStatsFormat.share)
+            ProcessList(groups: ProcessNames.group(s.topGPU, limit: 8), empty: "Nothing is using the GPU right now.",
+                        format: MacStatsFormat.share, gap: 0.02)
             Caption("Only apps using the GPU right now.").padding(.top, 8)
             Rule()
             Footer()
@@ -399,6 +400,8 @@ private struct MacStatsFansPage: View {
     let fans = FanControl.shared
     /// The slider while it's being dragged; sent when it's let go.
     @State private var dragging: Double?
+    /// The mode picker's selection slides between the modes.
+    @Namespace private var picker
 
     var body: some View {
         let s = stats.snapshot
@@ -411,16 +414,21 @@ private struct MacStatsFansPage: View {
             VStack(spacing: 10) {
                 ForEach(Array(s.fans.enumerated()), id: \.offset) { i, fan in
                     VStack(spacing: 5) {
-                        StatRow(MacStatsFormat.fanName(i, of: s.fans.count), MacStatsFormat.rpm(fan.rpm))
+                        StatRow(MacStatsFormat.fanName(i, of: s.fans.count), MacStatsFormat.rpm(fan.rpm), number: fan.rpm)
                         MeterBar(fraction: fan.rpm / max(fan.max, 1), colour: Color(nsColor: .labelColor))
                     }
                 }
             }
-            .animation(.easeOut(duration: 0.5), value: s.fans)
 
             Rule()
             if FanControl.isEnabled {
+                // What's under the switch fades in and out with the mode, the takeover and any note, while the panel
+                // eases to its new size, rather than popping in.
                 control(s)
+                    .animation(.easeInOut(duration: 0.2), value: modeIndex)
+                    .animation(.easeInOut(duration: 0.2), value: fans.busy)
+                    .animation(.easeInOut(duration: 0.2), value: fans.note)
+                    .animation(.easeInOut(duration: 0.2), value: helperIndex)
             } else {
                 StatRow("Control", s.fansHeld ? "Manual" : "Automatic")
                 Caption(Self.automaticNote).padding(.top, 8)
@@ -431,29 +439,45 @@ private struct MacStatsFansPage: View {
 
     static let automaticNote = "macOS runs the fans. On this Mac they stay off until it gets warm, then speed up as it heats."
 
+    private var modeIndex: Int { switch fans.mode { case .automatic: 0; case .manual: 1; case .full: 2 } }
+
+    private var helperIndex: Int {
+        switch fans.helper { case .ready: 0; case .needsApproval: 1; case .notInstalled: 2; case .failed: 3 }
+    }
+
     @ViewBuilder private func control(_ s: MacStatsSnapshot) -> some View {
         StatsSectionLabel("Control")
         switch fans.helper {
         case .ready:
             modePicker
-            switch fans.mode {
-            case .automatic:
-                Caption(Self.automaticNote).padding(.top, 10)
-            case .manual(let rpm):
-                slider(rpm: rpm, range: range(s))
-            case .full:
-                Caption("Both fans at full speed, for cooling down fast. Loud.").padding(.top, 10)
+            // Overlapping while one fades into the other, so the two never stack up for a moment.
+            ZStack(alignment: .topLeading) {
+                Group {
+                    switch fans.mode {
+                    case .automatic:
+                        Caption(Self.automaticNote).padding(.top, 10)
+                    case .manual(let rpm):
+                        slider(rpm: rpm, range: range(s))
+                    case .full:
+                        Caption("Both fans at full speed, for cooling down fast. Loud.").padding(.top, 10)
+                    }
+                }
+                .id(modeIndex)
+                .transition(.opacity)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             if fans.busy {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
                     Caption("Taking over the fans…")
                 }
                 .padding(.top, 8)
+                .transition(.opacity)
             }
             if let note = fans.note {
                 Text(note).font(.system(size: 11)).foregroundStyle(Color.isletRedText).padding(.top, 8)
                     .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
             Rule()
             HStack(alignment: .top, spacing: 8) {
@@ -474,7 +498,7 @@ private struct MacStatsFansPage: View {
 
     /// Automatic / Manual / Full Speed, like the battery's Energy Mode switch.
     private var modePicker: some View {
-        let current: Int = switch fans.mode { case .automatic: 0; case .manual: 1; case .full: 2 }
+        let current = modeIndex
         let items: [(String, String)] = [("Automatic", "gauge.with.dots.needle.33percent"), ("Manual", "slider.horizontal.3"),
                                          ("Full Speed", "fanblades.fill")]
         return HStack(spacing: 2) {
@@ -495,10 +519,12 @@ private struct MacStatsFansPage: View {
                             .lineLimit(1).fixedSize()
                     }
                     .padding(.horizontal, 4).frame(maxWidth: .infinity).frame(height: 26)
-                    .background { if selected { IsletCard(shape: Capsule()) } }
+                    .background {
+                        if selected { IsletCard(shape: Capsule()).matchedGeometryEffect(id: "selection", in: picker) }
+                    }
                     .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StatsPressStyle(shape: Capsule(), scales: false))
                 // Automatic stays pressable while the fans are being taken over, to call it off.
                 .disabled(fans.busy && i != 0)
             }
@@ -522,7 +548,7 @@ private struct MacStatsFansPage: View {
 
     private func slider(rpm: Double, range: ClosedRange<Double>) -> some View {
         VStack(spacing: 6) {
-            StatRow("Both fans", MacStatsFormat.rpm(dragging ?? rpm))
+            StatRow("Both fans", MacStatsFormat.rpm(dragging ?? rpm), number: dragging ?? rpm)
             Slider(value: Binding(get: { dragging ?? rpm }, set: { dragging = $0 }), in: range, step: 100) { editing in
                 if !editing, let value = dragging {
                     dragging = nil
@@ -550,12 +576,15 @@ private struct MacStatsFansPage: View {
 private struct PageHeader<Trailing: View>: View {
     let title: String
     let trailing: String?
+    let number: Double?
     let back: () -> Void
     @ViewBuilder var extra: Trailing
 
-    init(title: String, trailing: String?, back: @escaping () -> Void, @ViewBuilder extra: () -> Trailing = { EmptyView() }) {
+    init(title: String, trailing: String?, number: Double? = nil, back: @escaping () -> Void,
+         @ViewBuilder extra: () -> Trailing = { EmptyView() }) {
         self.title = title
         self.trailing = trailing
+        self.number = number
         self.back = back
         self.extra = extra()
     }
@@ -569,16 +598,18 @@ private struct PageHeader<Trailing: View>: View {
                         .background(IsletCard(shape: Circle()))
                     Text(title).font(.system(size: 15, weight: .bold))
                 }
+                // Room round the name for the hover's pill.
+                .padding(.trailing, 10)
                 .foregroundStyle(IsletInk.primary)
-                .contentShape(Rectangle())
+                .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StatsPressStyle(shape: Capsule()))
             .keyboardShortcut(.leftArrow, modifiers: [.command])
             .help("Back")
             Spacer()
             if let trailing {
                 Text(trailing).font(.system(size: 15, weight: .bold)).monospacedDigit().foregroundStyle(IsletInk.primary)
-                    .contentTransition(.numericText())
+                    .rolls(number)
             }
             extra
         }
@@ -588,45 +619,87 @@ private struct PageHeader<Trailing: View>: View {
 
 /// Load over the last 10 minutes, stacked when there's more than one series.
 private struct LoadChart: View {
-    struct Point: Identifiable {
-        var date: Date; var series: String; var value: Double
-        var id: String { "\(series)\(date.timeIntervalSinceReferenceDate)" }
-    }
-    let points: [Point]
-    let colours: [String: Color]
+    /// Bottom to top.
+    let layers: [(colour: Color, values: [Double])]
+    let newest: Date?
 
     var body: some View {
-        Chart {
-            ForEach(points) { p in
-                AreaMark(x: .value("Time", p.date), y: .value("Load", p.value), stacking: .standard)
-                    .foregroundStyle(by: .value("Series", p.series))
-                    .interpolationMethod(.monotone)
+        // Each layer sits on the ones under it.
+        var stacked: [[Double]] = []
+        for layer in layers {
+            let below = stacked.last
+            stacked.append(layer.values.enumerated().map { i, v in v + (below.map { i < $0.count ? $0[i] : 0 } ?? 0) })
+        }
+        let colours = layers.map(\.colour)
+        return PercentFrame(height: 84) {
+            SlidingPlot(series: stacked, newest: newest, top: 1) { drawn, top in
+                ZStack {
+                    ForEach(drawn.indices, id: \.self) { i in
+                        SlotShape(kind: .area, upper: drawn[i], lower: i == 0 ? .zero : drawn[i - 1], top: top)
+                            .fill(colours[min(i, colours.count - 1)])
+                    }
+                }
             }
         }
-        .chartForegroundStyleScale(domain: Array(colours.keys).sorted(), range: Array(colours.keys).sorted().map { colours[$0]! })
-        .chartLegend(.hidden)
-        .chartXScale(domain: Date().addingTimeInterval(-MacStats.historySpan)...Date())
-        .percentAxes()
-        .frame(height: 84)
         .overlay {
-            if points.count < 2 {
+            if (layers.first?.values.count ?? 0) < 2 {
                 Text("Starting…").font(.system(size: 11)).foregroundStyle(IsletInk.tertiary)
             }
         }
     }
 }
 
-private extension View {
-    /// 0, 50 and 100% on the right; no time labels.
-    func percentAxes() -> some View {
-        chartYScale(domain: 0...1)
-            .chartYAxis {
-                AxisMarks(position: .trailing, values: [0, 0.5, 1]) { v in
-                    AxisGridLine().foregroundStyle(IsletInk.rule)
-                    AxisValueLabel { Text("\(Int((v.as(Double.self) ?? 0) * 100))%").font(.system(size: 9)).foregroundStyle(IsletInk.tertiary) }
+/// How full memory was over the last 10 minutes: a thin bar a slot, coloured by the pressure at the time.
+private struct MemoryChart: View {
+    let points: [MacStatsPoint]
+
+    var body: some View {
+        // One series a pressure level, each bar in the series of its own level and nothing in the others.
+        let levels: [StatLevel] = [.normal, .warning, .critical]
+        let series = levels.map { level in points.map { StatLevel($0.memoryPressure) == level ? $0.memoryFraction : 0 } }
+        let colours = levels.map { MacStatsColour.level($0) ?? MacStatsColour.memory }
+        return PercentFrame(height: 64) {
+            SlidingPlot(series: series, newest: points.last?.date, top: 1) { drawn, top in
+                ZStack {
+                    ForEach(drawn.indices, id: \.self) { i in
+                        SlotShape(kind: .bars, upper: drawn[i], lower: .zero, top: top).fill(colours[i])
+                    }
                 }
             }
-            .chartXAxis(.hidden)
+        }
+    }
+}
+
+/// A plot with 0, 50 and 100% marked across it and labelled on the right; no time labels.
+private struct PercentFrame<Plot: View>: View {
+    let height: CGFloat
+    @ViewBuilder let plot: Plot
+
+    var body: some View {
+        HStack(spacing: 5) {
+            plot
+                .background {
+                    GeometryReader { g in
+                        Path { p in
+                            for f in [0.0, 0.5, 1.0] {
+                                let y = min(max((g.size.height * (1 - f)).rounded() + 0.5, 0.5), g.size.height - 0.5)
+                                p.move(to: CGPoint(x: 0, y: y))
+                                p.addLine(to: CGPoint(x: g.size.width, y: y))
+                            }
+                        }
+                        .stroke(IsletInk.rule, lineWidth: 1)
+                    }
+                }
+            ZStack(alignment: .topLeading) {
+                ForEach([0.0, 0.5, 1.0], id: \.self) { f in
+                    Text("\(Int(f * 100))%").font(.system(size: 9)).foregroundStyle(IsletInk.tertiary)
+                        .fixedSize()
+                        .position(x: 12, y: min(max(height * (1 - f), 5), height - 5))
+                }
+            }
+            .frame(width: 24, height: height)
+        }
+        .frame(height: height)
     }
 }
 
@@ -637,59 +710,157 @@ private struct Sparkline: View {
     let top: Double
     /// nil: the label colour.
     let colour: Color?
-    /// What's drawn: set together with `shift`, so a new reading never shows a frame out of place.
-    @State private var drawn: [Double] = []
-    /// 1 when a reading has just come in, sitting one step off the right edge; it eases to 0 to slide it in.
-    @State private var shift: CGFloat = 0
-    @State private var slot: Date?
-
-    /// The newest readings across the width; fewer leave the left empty.
-    private static let slots = 120
 
     var body: some View {
         let ink = colour ?? Color(nsColor: .labelColor)
-        GeometryReader { geo in
-            let step = geo.size.width / CGFloat(Self.slots - 1)
-            let pts = points(in: geo.size, step: step)
-            if pts.count > 1 {
+        SlidingPlot(series: [values], newest: newest, top: top) { drawn, top in
+            if let line = drawn.first, line.values.count > 1 {
                 ZStack {
-                    Path { p in
-                        p.move(to: CGPoint(x: pts[0].x, y: geo.size.height))
-                        pts.forEach { p.addLine(to: $0) }
-                        p.addLine(to: CGPoint(x: pts.last!.x, y: geo.size.height))
-                    }
-                    .fill(ink.opacity(0.18))
-                    Path { p in p.addLines(pts) }
+                    SlotShape(kind: .area, upper: line, lower: .zero, top: top, inset: 0.75).fill(ink.opacity(0.18))
+                    SlotShape(kind: .line, upper: line, lower: .zero, top: top, inset: 0.75)
                         .stroke(ink, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                 }
-                .offset(x: shift * step)
             }
         }
-        .clipped()
         .frame(height: 26)
         .padding(.top, 6)
-        .onAppear { drawn = values; slot = newest }
-        .onChange(of: values) { old, now in
-            guard newest != slot || drawn.isEmpty else { drawn = now; return }
+    }
+}
+
+/// The 10 minutes in slots, the newest at the right edge (DESIGN.md "Mac Stats (1.7)", Motion), for the sparklines
+/// and the pages' charts alike. Within a slot, a new reading eases the newest point (and the scale) to its value; a
+/// new slot slides everything along a step, so the plot never jumps.
+private struct SlidingPlot<Content: View>: View {
+    let series: [[Double]]
+    let newest: Date?
+    let top: Double
+    @ViewBuilder let content: (_ drawn: [SlotValues], _ top: Double) -> Content
+
+    /// What's drawn: set together with `shift`, so a new slot never shows a frame out of place. Empty until the
+    /// first showing, which draws `series` as it is.
+    @State private var drawn: [SlotValues] = []
+    @State private var drawnTop: Double = 1
+    /// 1 when a slot has just started, the plot one step right of where it belongs; it eases to 0 to slide along.
+    @State private var shift: CGFloat = 0
+    @State private var slot: Date?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geo in
+            let step = geo.size.width / CGFloat(SlotShape.slots - 1)
+            let started = !drawn.isEmpty
+            content(started ? drawn : series.map(SlotValues.init), started ? drawnTop : top)
+                .offset(x: shift * step)
+        }
+        .clipped()
+        .onAppear {
+            drawn = series.map(SlotValues.init)
+            drawnTop = top
             slot = newest
-            var still = Transaction()
-            still.disablesAnimations = true
-            withTransaction(still) {
-                drawn = now
-                shift = 1
+        }
+        .onChange(of: series) { _, now in update(now) }
+    }
+
+    private func update(_ now: [[Double]]) {
+        let values = now.map(SlotValues.init)
+        let motion = reduceMotion ? nil : MacStatsMotion.reading
+        guard newest != slot, !drawn.isEmpty else {
+            // The same slot: the newest point and the scale ease to the reading.
+            withAnimation(motion) {
+                drawn = values
+                drawnTop = top
             }
-            withAnimation(.easeOut(duration: 0.6)) { shift = 0 }
+            slot = newest
+            return
+        }
+        slot = newest
+        // A new slot: drawn one step right, where the old points already are, then slid into place.
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            drawn = values
+            shift = 1
+        }
+        withAnimation(motion) {
+            shift = 0
+            drawnTop = top
+        }
+    }
+}
+
+/// A series' values in a form SwiftUI can animate between, so a plot's points ease to their new heights.
+struct SlotValues: VectorArithmetic {
+    var values: [Double]
+
+    static var zero: SlotValues { SlotValues(values: []) }
+    static func + (a: SlotValues, b: SlotValues) -> SlotValues { combine(a, b, +) }
+    static func - (a: SlotValues, b: SlotValues) -> SlotValues { combine(a, b, -) }
+    mutating func scale(by rhs: Double) { values = values.map { $0 * rhs } }
+    var magnitudeSquared: Double { values.reduce(0) { $0 + $1 * $1 } }
+
+    /// Element by element; a shorter one counts as 0 past its end (only `zero`: the plots never animate between
+    /// different lengths, a new slot is drawn without animation).
+    private static func combine(_ a: SlotValues, _ b: SlotValues, _ f: (Double, Double) -> Double) -> SlotValues {
+        let n = max(a.values.count, b.values.count)
+        return SlotValues(values: (0..<n).map { i in
+            f(i < a.values.count ? a.values[i] : 0, i < b.values.count ? b.values[i] : 0)
+        })
+    }
+}
+
+/// One series across the plot, one slot a step, the newest at the right edge.
+private struct SlotShape: Shape {
+    enum Kind { case area, line, bars }
+    static let slots = 120
+    static let barWidth: CGFloat = 1.2
+
+    var kind: Kind
+    var upper: SlotValues
+    /// What an area sits on (a stacked chart's layer below); `zero` for the baseline.
+    var lower: SlotValues
+    /// The value at the top edge.
+    var top: Double
+    /// Room kept at the top and bottom, for a stroke's width.
+    var inset: CGFloat = 0
+
+    var animatableData: AnimatablePair<AnimatablePair<SlotValues, SlotValues>, Double> {
+        get { AnimatablePair(AnimatablePair(upper, lower), top) }
+        set {
+            upper = newValue.first.first
+            lower = newValue.first.second
+            top = newValue.second
         }
     }
 
-    /// Newest at the right edge, one slot apart.
-    private func points(in size: CGSize, step: CGFloat) -> [CGPoint] {
-        let recent = Array(drawn.suffix(Self.slots))
-        guard recent.count > 1, top > 0 else { return [] }
-        return recent.enumerated().map { i, v in
-            CGPoint(x: size.width - CGFloat(recent.count - 1 - i) * step,
-                    y: size.height - CGFloat(min(max(v / top, 0), 1)) * (size.height - 1.5) - 0.75)
+    func path(in rect: CGRect) -> Path {
+        let up = Array(upper.values.suffix(Self.slots))
+        let n = up.count
+        guard n > 0, top > 0 else { return Path() }
+        let lo = Array(lower.values.suffix(n))
+        let r = rect.insetBy(dx: 0, dy: inset)
+        let step = rect.width / CGFloat(Self.slots - 1)
+        func x(_ i: Int) -> CGFloat { rect.maxX - CGFloat(n - 1 - i) * step }
+        func y(_ v: Double) -> CGFloat { r.maxY - CGFloat(min(max(v / top, 0), 1)) * r.height }
+        func below(_ i: Int) -> Double { lo.isEmpty ? 0 : lo[max(0, i - (n - lo.count))] }
+
+        var p = Path()
+        switch kind {
+        case .line:
+            guard n > 1 else { return p }
+            p.addLines((0..<n).map { CGPoint(x: x($0), y: y(up[$0])) })
+        case .area:
+            guard n > 1 else { return p }
+            p.move(to: CGPoint(x: x(0), y: y(below(0))))
+            for i in 0..<n { p.addLine(to: CGPoint(x: x(i), y: y(up[i]))) }
+            for i in (0..<n).reversed() { p.addLine(to: CGPoint(x: x(i), y: y(below(i)))) }
+            p.closeSubpath()
+        case .bars:
+            for i in 0..<n where up[i] > 0 {
+                let h = r.maxY - y(up[i])
+                p.addRect(CGRect(x: x(i) - Self.barWidth, y: r.maxY - h, width: Self.barWidth, height: h))
+            }
         }
+        return p
     }
 }
 
@@ -699,13 +870,18 @@ private struct MeterBar: View {
 
     var body: some View {
         GeometryReader { geo in
+            let h = geo.size.height, w = geo.size.width * min(max(fraction, 0), 1)
             Capsule().fill(IsletInk.faint)
                 .overlay(alignment: .leading) {
-                    Capsule().fill(colour).frame(width: geo.size.width * min(max(fraction, 0), 1))
+                    // Never narrower than it is tall, slid back under the track's rounded end instead: a small load
+                    // shows as a sliver of the bar's round end, not a squashed oval.
+                    Capsule().fill(colour).frame(width: max(w, h)).offset(x: min(w - h, 0))
+                        .opacity(w > 0 ? 1 : 0)
                 }
+                .clipShape(Capsule())
         }
         .frame(height: 5)
-        .animation(MacStatsMotion.reading, value: fraction)
+        .readingMotion(fraction)
     }
 }
 
@@ -721,7 +897,7 @@ private struct VBar: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         }
-        .animation(MacStatsMotion.reading, value: fraction)
+        .readingMotion(fraction)
     }
 }
 
@@ -729,6 +905,8 @@ private struct ProcessList: View {
     let groups: [ProcessGroup]
     let empty: String
     let format: (Double) -> String
+    /// How much more a row must use to pass the one above it (`ProcessOrder`).
+    let gap: Double
     /// Hovering a row offers to quit it (the CPU and Memory pages).
     var stoppable = false
 
@@ -738,13 +916,17 @@ private struct ProcessList: View {
     static let rowHeight: CGFloat = 30
     static let spacing: CGFloat = 4
 
+    /// The order shown last, so rows only change places for a clear difference (`ProcessOrder`).
+    @State private var order: [String] = []
+
     var body: some View {
+        let ranked = ProcessOrder.steady(groups, after: order, gap: gap)
         Group {
             if groups.isEmpty {
                 Text(empty).font(.system(size: 12)).foregroundStyle(IsletInk.tertiary)
             } else {
                 VStack(spacing: Self.spacing) {
-                    ForEach(groups.prefix(Self.rows)) { g in
+                    ForEach(ranked.prefix(Self.rows)) { g in
                         ProcessRow(group: g, value: format(g.value), stoppable: stoppable && ProcessStopper.canStop(g))
                             .frame(height: Self.rowHeight)
                             .transition(.opacity)
@@ -754,6 +936,35 @@ private struct ProcessList: View {
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: CGFloat(Self.rows) * Self.rowHeight + CGFloat(Self.rows - 1) * Self.spacing, alignment: .top)
+        .onChange(of: ranked.map(\.id), initial: true) { _, ids in order = ids }
+    }
+}
+
+/// Keeps the "Using the most" lists steady: two apps using about the same swapped places on nearly every reading,
+/// and the rows kept sliding past each other. A row now only passes the one above it when it uses clearly more.
+enum ProcessOrder {
+    /// `previous`: the ids in the order last shown. `gap`: how much more, besides a tenth more, a row needs to pass
+    /// the one above (in the list's own unit).
+    static func steady(_ groups: [ProcessGroup], after previous: [String], gap: Double) -> [ProcessGroup] {
+        let rank = Dictionary(previous.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        // The last order first, newcomers after it, biggest first.
+        var list = groups.sorted { a, b in
+            switch (rank[a.id], rank[b.id]) {
+            case let (x?, y?): x < y
+            case (.some, nil): true
+            case (nil, .some): false
+            case (nil, nil): a.value > b.value
+            }
+        }
+        // Then each row moves up past every row it clearly beats.
+        for i in list.indices.dropFirst() {
+            var j = i
+            while j > 0, list[j].value > list[j - 1].value * 1.1 + gap {
+                list.swapAt(j, j - 1)
+                j -= 1
+            }
+        }
+        return list
     }
 }
 
@@ -803,7 +1014,7 @@ private struct ProcessRow: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
                 Text(value).font(.system(size: 13)).monospacedDigit().foregroundStyle(IsletInk.primary)
-                    .contentTransition(.numericText())
+                    .rolls(g.value)
             }
         }
         .contentShape(Rectangle())
@@ -859,7 +1070,7 @@ private struct Pill: View {
             .background(IsletCard(shape: Capsule()))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StatsPressStyle(shape: Capsule()))
     }
 }
 
@@ -886,10 +1097,13 @@ private struct StatRow: View {
     let label: String
     let value: String
     var colour: Color?
-    init(_ label: String, _ value: String, colour: Color? = nil) {
+    /// What `value` shows, when it's one number, so its digits roll the right way.
+    var number: Double?
+    init(_ label: String, _ value: String, colour: Color? = nil, number: Double? = nil) {
         self.label = label
         self.value = value
         self.colour = colour
+        self.number = number
     }
 
     var body: some View {
@@ -898,7 +1112,7 @@ private struct StatRow: View {
             Spacer(minLength: 12)
             Text(value).monospacedDigit().lineLimit(1)
                 .foregroundStyle(colour.map { AnyShapeStyle($0) } ?? AnyShapeStyle(IsletInk.primary))
-                .contentTransition(.numericText())
+                .rolls(number)
         }
         .font(.system(size: 13))
     }
@@ -908,10 +1122,12 @@ private struct KeyRow: View {
     let label: String
     let value: String
     let key: Color?
-    init(_ label: String, _ value: String, _ key: Color?) {
+    let number: Double
+    init(_ label: String, _ value: String, _ key: Color?, number: Double) {
         self.label = label
         self.value = value
         self.key = key
+        self.number = number
     }
 
     var body: some View {
@@ -920,7 +1136,7 @@ private struct KeyRow: View {
             Text(label).foregroundStyle(IsletInk.secondary)
             Spacer(minLength: 12)
             Text(value).monospacedDigit().foregroundStyle(IsletInk.primary)
-                .contentTransition(.numericText())
+                .rolls(number)
         }
         .font(.system(size: 13))
     }
@@ -981,6 +1197,58 @@ enum ChartHistory {
 /// The panel's motion (DESIGN.md "Mac Stats (1.7)", Motion): the battery stats' spring for each reading.
 enum MacStatsMotion {
     static let reading = Animation.spring(response: 0.7, dampingFraction: 0.9)
+    /// A page fading in: the same curve and length as the panel easing to its size (`MenuBarPanel.settle`).
+    static let settle = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)
+}
+
+private struct ReadingMotion<Value: Equatable>: ViewModifier {
+    let value: Value
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : MacStatsMotion.reading, value: value)
+    }
+}
+
+private extension View {
+    /// Eases to each reading on the panel's spring; not with Reduce Motion.
+    func readingMotion<Value: Equatable>(_ value: Value) -> some View { modifier(ReadingMotion(value: value)) }
+
+    /// Digits roll up as `value` rises and down as it falls; text that isn't one number just rolls.
+    @ViewBuilder func rolls(_ value: Double?) -> some View {
+        if let value { contentTransition(.numericText(value: value)) } else { contentTransition(.numericText()) }
+    }
+}
+
+/// The tiles', pills' and back button's feedback: a faint veil while the pointer is over it, a little press.
+private struct StatsPressStyle<S: Shape>: ButtonStyle {
+    let shape: S
+    /// Whether a press shrinks it a little (not the mode switch's segments, which sit in a track).
+    var scales = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        StatsPressBody(configuration: configuration, shape: shape, scales: scales)
+    }
+}
+
+private struct StatsPressBody<S: Shape>: View {
+    let configuration: ButtonStyleConfiguration
+    let shape: S
+    let scales: Bool
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let pressed = configuration.isPressed
+        configuration.label
+            .overlay {
+                shape.fill(IsletInk.primary.opacity(pressed ? 0.1 : hovering && enabled ? 0.05 : 0))
+                    .allowsHitTesting(false)
+            }
+            .scaleEffect(pressed && scales && !reduceMotion ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: pressed)
+            .onHover { over in withAnimation(.easeOut(duration: 0.15)) { hovering = over } }
+    }
 }
 
 // MARK: - Colours and wording

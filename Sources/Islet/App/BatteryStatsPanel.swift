@@ -49,7 +49,12 @@ final class MenuBarPanel {
     private weak var anchor: NSWindow?
     private var closedByOutsideClick: Date?
 
-    var isOpen: Bool { panel?.isVisible == true }
+    /// Fading out: still on screen, but already closed as far as anyone asking is concerned.
+    private var closing = false
+    /// Bumped on each show and close, so a fade-out that ends after the panel was shown again leaves it alone.
+    private var generation = 0
+
+    var isOpen: Bool { panel?.isVisible == true && !closing }
     private var builtGlass: Bool?
 
     /// Liquid Glass (macOS 26 and later) when the island uses the glass look (DESIGN.md "Glass").
@@ -80,22 +85,66 @@ final class MenuBarPanel {
         // The content only lives while the panel shows: hidden, its animations (the power flow's) and readings would
         // keep SwiftUI redrawing it every frame for nothing.
         host?.rootView = root(glass: glass)
+        generation += 1
+        closing = false
+        panel.ignoresMouseEvents = false
+        // Shown again while it was still fading out: carry on from where the fade had got to.
+        let from = panel.isVisible ? panel.alphaValue : 0
         fit(below: window)
+        appear(panel, from: from)
         panel.orderFrontRegardless()
         panel.makeKey()
         button.highlight(true)
         watchOutside(button)
     }
 
+    /// Fades in while dropping the last few points into place, like Control Center's modules (only the fade with
+    /// Reduce Motion).
+    private func appear(_ panel: NSPanel, from alpha: CGFloat) {
+        let target = panel.frame
+        panel.alphaValue = alpha
+        let drops = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && alpha == 0
+        if drops { panel.setFrame(target.offsetBy(dx: 0, dy: Self.drop), display: false) }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = Self.settle
+            panel.animator().alphaValue = 1
+            if drops { panel.animator().setFrame(target, display: true) }
+        }
+    }
+
     func close() {
-        guard let panel, panel.isVisible else { return }
-        panel.orderOut(nil)
-        host?.rootView = AnyView(EmptyView())
+        guard let panel, panel.isVisible, !closing else { return }
+        closing = true
+        generation += 1
+        let fading = generation
+        // Gone at once as far as clicks go; the look fades out after.
+        panel.ignoresMouseEvents = true
         didClose?()
         (anchor?.contentView?.subviews.first { $0 is NSStatusBarButton } as? NSStatusBarButton)?.highlight(false)
         for m in monitors { NSEvent.removeMonitor(m) }
         monitors = []
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                // Shown again meanwhile: leave it.
+                guard let self, self.generation == fading, let panel = self.panel else { return }
+                panel.orderOut(nil)
+                panel.alphaValue = 1
+                self.closing = false
+                self.host?.rootView = AnyView(EmptyView())
+            }
+        })
     }
+
+    /// How far the panel drops as it appears, in points.
+    private static let drop: CGFloat = 6
+    /// Fast out, long settle: the panel's appearing and its size changes, matched by the pages' fade-in
+    /// (`MacStatsMotion.settle`).
+    static let settle = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
 
     private func makePanel(glass: Bool) -> NSPanel {
         let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -192,8 +241,8 @@ final class MenuBarPanel {
         guard frame != panel.frame else { return }
         if animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                context.duration = 0.28
+                context.timingFunction = Self.settle
                 panel.animator().setFrame(frame, display: true)
             }
         } else {

@@ -21,7 +21,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Control the fans.** Turn on "Let me control the fans", install the small fan helper once, and the Fans page gets Automatic, Manual (one slider for both fans) and Full Speed. The fans always go back to Automatic when Dynamic Peninsula quits, the Mac sleeps or restarts, or the CPU gets too hot.
 - **Every part can be switched off** on its own in Settings > Mac Stats, with how often it updates and whether it uses colour.
 - **Quit what's using the most.** On the CPU and Memory pages, hover a row and click ⓧ to quit it. If it won't quit, the row offers Force Quit.
-- **It all moves smoothly.** Numbers roll to each new reading, bars ease, and the graphs slide along and draw in as the panel opens.
+- **It all moves smoothly.** The panel fades in as it drops into place. Numbers roll up or down to each new reading, bars ease, and every graph glides to each reading and slides along as time passes. Pages fade in as the panel settles to their size, the app lists stay put unless one app clearly passes another, and tiles and buttons respond to the pointer. Reduce Motion keeps it still.
 
 ### Fixes
 
