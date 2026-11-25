@@ -63,14 +63,14 @@ struct MarqueeText: View {
     @State private var start = Date()
 
     /// Seconds resting at each end before it scrolls.
-    private static let rest = 1.2
+    fileprivate static let rest = 1.2
 
     var body: some View {
         GeometryReader { geo in
             let overflow = max(0, textWidth - geo.size.width)
             // Driven by the clock rather than a repeating animation: a never-ending animation inside a view keeps
             // SwiftUI from ever finishing its removal, which left the name behind under the notch after a swipe up.
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: overflow <= 0)) { ctx in
+            TimelineView(MarqueeSchedule(start: start, overflow: overflow)) { ctx in
                 Text(text).font(font).foregroundStyle(color).lineLimit(1).fixedSize()
                     .background(GeometryReader { p in Color.clear.preference(key: WidthKey.self, value: p.size.width) })
                     .offset(x: overflow > 0 ? Self.shift(overflow, at: ctx.date.timeIntervalSince(start)) : (geo.size.width - textWidth) / 2)
@@ -83,6 +83,41 @@ struct MarqueeText: View {
         .onChange(of: text) { start = Date() }
         .id(text)
         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
+    }
+
+    /// The clock for the scroll: ticks at 30 fps only while the text moves, once at the end of each rest, and not at all
+    /// when it fits (a plain `.animation` schedule kept the title redrawing 30 times a second through every rest).
+    fileprivate struct MarqueeSchedule: TimelineSchedule {
+        var start: Date
+        var overflow: CGFloat
+
+        func entries(from startDate: Date, mode: TimelineScheduleMode) -> Entries {
+            Entries(upcoming: startDate, start: start, overflow: overflow)
+        }
+
+        struct Entries: Sequence, IteratorProtocol {
+            var upcoming: Date?
+            let start: Date
+            let overflow: CGFloat
+
+            mutating func next() -> Date? {
+                guard let now = upcoming else { return nil }
+                defer { upcoming = overflow > 0 ? following(now) : nil }
+                return now
+            }
+
+            private func following(_ date: Date) -> Date {
+                let t = date.timeIntervalSince(start)
+                if t < 0 { return start }
+                let travel = Double(overflow) / 22 + 0.5
+                let leg = MarqueeText.rest + travel
+                let p = t.truncatingRemainder(dividingBy: 2 * leg)
+                // The next moment the picture changes: the end of the rest it is in, else one frame on.
+                if p < MarqueeText.rest { return date.addingTimeInterval(MarqueeText.rest - p + 0.002) }
+                if p >= leg && p < leg + MarqueeText.rest { return date.addingTimeInterval(leg + MarqueeText.rest - p + 0.002) }
+                return date.addingTimeInterval(1.0 / 30)
+            }
+        }
     }
 
     /// Rest, scroll to the end (22 pt a second, plus half a second), rest, scroll back, and again.
