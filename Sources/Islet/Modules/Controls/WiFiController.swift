@@ -201,8 +201,14 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
                 var last = "\(ssid) isn't in range."
                 for attempt in 0..<attempts {
                     if attempt > 0 { Thread.sleep(forTimeInterval: 1.5) }
-                    guard let iface = CWWiFiClient.shared().interface(),
-                          let target = ((try? iface.scanForNetworks(withSSID: ssidData)) ?? []).first else { continue }
+                    guard let iface = CWWiFiClient.shared().interface() else { continue }
+                    // The list is made by a scan for every network; this asked for this one by name, which comes back empty
+                    // for a network that doesn't answer a direct probe (guest networks, some 5 GHz channels) or when the
+                    // radio is busy with another scan. So when it finds nothing, look through a full scan and then what
+                    // macOS already saw: the list showed it, so it is in range.
+                    guard let target = ((try? iface.scanForNetworks(withSSID: ssidData)) ?? []).first
+                        ?? ((try? iface.scanForNetworks(withSSID: nil)) ?? []).first(where: { $0.ssid == ssid })
+                        ?? (iface.cachedScanResults() ?? []).first(where: { $0.ssid == ssid }) else { continue }
                     do {
                         if enterprise {
                             try iface.associate(toEnterpriseNetwork: target, identity: nil, username: username, password: password)
@@ -295,7 +301,7 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         defer { joining = nil }
         report(network.ssid, hotspot: network.hotspot, .working("Joining \(network.ssid)…"))
         var message = await associate(ssid: network.ssid, password: password, enterprise: network.enterprise,
-                                      username: username, attempts: 1)
+                                      username: username, attempts: 3)
         if message == nil, !(await connected(to: network.ssid)) { message = "\(network.ssid) didn't connect. Try again." }
         finish(network.ssid, hotspot: network.hotspot, message: message)
         return message

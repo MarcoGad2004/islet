@@ -15,6 +15,7 @@ Face Unlock's blink, smile or head-turn challenge now has to be done by your fac
 
 **Fixes**
 
+- **"Isn't in range" for a network that was in the list.** Joining asked macOS for the network by name, which comes back empty for some networks (a guest network, some 5 GHz channels) or while another scan is running. When that finds nothing it now looks through a full scan and what macOS had already seen, and tries three times before giving up.
 - **Forward 10 s in a browser reset the video to the start.** A browser sometimes sends an update without the elapsed time or length, and the skip took the missing time for 0. A missing time now keeps the last known one, and when the position is truly unknown the skip uses the player's own skip command instead.
 - **A photo could bring up the challenge for someone else to do.** The photo matched, the blink was asked, a different face blinked, and the photo went back in front of the camera to unlock. The challenge now only counts frames that match your face (a turned head is allowed a score up to 0.2 lower), and a few frames in a row that aren't you wipe its progress, so the same face has to match before, during and after.
 
