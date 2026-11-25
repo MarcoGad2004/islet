@@ -319,12 +319,18 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     tertiary after it) beside it; previous / play-pause / next at the right (play is a 38 pt white disc with a black
     glyph); the scrubber with elapsed and total time under the title, level with the artwork's bottom quarter.
     Clicking the artwork brings the playing app forward.
-  - **Media row** (y 122, 62 pt high, a card): shuffle, back 15 s, forward 15 s, repeat, each an icon over a 9.5 pt
-    caption in four equal columns. Shuffle and repeat light green when on (repeat shows a "1" for one track); they follow
-    the player's own state (the stream's `shuffleMode` and `repeatMode`); repeat cycles off, all, one. Like isn't here: the
-    vendored adapter can't send it (RESEARCH.md item 7).
-  - Where a player doesn't answer a control (Safari, a browser tab) its button still sends the command and simply does
-    nothing; nothing is hidden.
+  - **Media row** (y 122, 62 pt high, a card): each button an icon over a 9.5 pt caption, in equal columns. It adapts to
+    the player (owner's request, 2026-11-25; `MediaInfo.isBrowser` matches the bundle ID against the common browsers:
+    Safari, Chrome, Firefox, Zen, Arc, Edge, Brave, Opera, Vivaldi, Orion and the like):
+    - **A music or podcast app** (Music, Spotify, Podcasts...): shuffle, back 15 s, forward 15 s, repeat. Shuffle and repeat
+      light green when on (repeat shows a "1" for one track); they follow the player's own state (the stream's `shuffleMode`
+      and `repeatMode`); repeat cycles off, all, one.
+    - **A browser**: only back 10 s and forward 10 s (what a video's own skip does), centred. A browser's media session
+      doesn't take shuffle or repeat, so they aren't shown.
+    - Skips are seeks to the current position plus or minus the amount, like the scrubber, because players answer them more
+      often than the skip commands. The seeked position is held for 2 s until the player's own update agrees, as browsers
+      report it late.
+    - Like isn't here: the vendored adapter can't send it (RESEARCH.md item 7).
 
 ### Charging and battery
 

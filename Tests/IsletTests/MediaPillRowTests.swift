@@ -26,3 +26,25 @@ final class MediaPillRowTests: XCTestCase {
         XCTAssertEqual(w[0] + w[1] + w[2] + 10, 300, accuracy: 0.01)
     }
 }
+
+final class MediaKindTests: XCTestCase {
+    func testBrowsersAreRecognised() {
+        for id in ["com.apple.Safari", "com.google.Chrome", "com.google.Chrome.canary", "org.mozilla.firefox", "app.zen-browser.zen",
+                   "company.thebrowser.Browser", "com.brave.Browser", "com.microsoft.edgemac"] {
+            XCTAssertTrue(MediaInfo.isBrowser(id), id)
+        }
+    }
+
+    func testMusicAppsAreNot() {
+        for id in ["com.apple.Music", "com.spotify.client", "com.apple.podcasts", "com.apple.TV", "org.videolan.vlc"] {
+            XCTAssertFalse(MediaInfo.isBrowser(id), id)
+        }
+    }
+
+    func testSkipLength() {
+        let t = Date()
+        let web = MediaInfo(bundleID: "app.zen-browser.zen", title: "t", artist: "", album: "", playing: true, duration: 100, elapsed: 0, timestamp: t, rate: 1)
+        let music = MediaInfo(bundleID: "com.spotify.client", title: "t", artist: "", album: "", playing: true, duration: 100, elapsed: 0, timestamp: t, rate: 1)
+        XCTAssertEqual(web.skipSeconds, 10); XCTAssertEqual(music.skipSeconds, 15)
+    }
+}

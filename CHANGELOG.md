@@ -9,7 +9,7 @@ Face Unlock's blink, smile or head-turn challenge now has to be done by your fac
 
 **New**
 
-- **Now Playing redesign.** The cover and song take one short block, with the scrubber under the title, and the empty space at the bottom is used. Right under the header a strip of small pills shows what is on: Wi-Fi (the network's name), Bluetooth (the connected device), AirDrop (Contacts or Everyone), Mirroring (the iPad, when connected) and the battery. They're blue when on and grey when off, and a tap opens that control's page. Below the song a row of buttons adds shuffle, back 15 s, forward 15 s and repeat (off, all, one); shuffle and repeat light up with the player's own state. There is no Like button: the media adapter can't send it.
+- **Now Playing redesign.** The cover and song take one short block, with the scrubber under the title, and the empty space at the bottom is used. Right under the header a strip of small pills shows what is on: Wi-Fi (the network's name), Bluetooth (the connected device), AirDrop (Contacts or Everyone), Mirroring (the iPad, when connected) and the battery. They're blue when on and grey when off, and a tap opens that control's page. Below the song a row of buttons adds shuffle, back 15 s, forward 15 s and repeat (off, all, one); shuffle and repeat light up with the player's own state. In a browser (Safari, Chrome, Firefox, Zen, Arc and so on) the row is just back 10 s and forward 10 s, since a web player doesn't take shuffle or repeat. There is no Like button: the media adapter can't send it.
 
 **Fixes**
 
