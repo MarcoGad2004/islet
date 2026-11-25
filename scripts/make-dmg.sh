@@ -8,6 +8,8 @@
 # (it asks for an app-specific password from account.apple.com). `--app-only` stops at the signed app, for trying it
 # locally. Without the certificate the DMG is signed with the
 # Apple Development certificate as before, and other Macs need System Settings > Privacy & Security > Open Anyway.
+# With REQUIRE_NOTARIZED=1 (scripts/release.sh sets it) it stops instead of falling back: a release must be Developer ID
+# signed and notarized, or installed copies (which check the signing team) refuse it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,6 +25,9 @@ APP="$DERIVED/Build/Products/Release/Dynamic Peninsula.app"
 
 NOTARY_PROFILE="islet-notary"
 DEVID=$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+if [ -z "$DEVID" ] && [ "${REQUIRE_NOTARIZED:-}" = 1 ]; then
+  echo "No \"Developer ID Application\" certificate in the Keychain: a release can't be built."; exit 1
+fi
 if [ -n "$DEVID" ]; then
   # Inside out: the media adapter (loaded by perl from Resources), the fan helper (it and the app each check the other
   # is signed by the same team), then the app with its entitlements.
@@ -57,6 +62,8 @@ pack() {
       grep -q "status: Accepted" build/notary.log || { echo "Notarization failed; see: xcrun notarytool log <id> --keychain-profile $NOTARY_PROFILE"; exit 1; }
       xcrun stapler staple "$DMG"
       spctl -a -t open --context context:primary-signature -v "$DMG"
+    elif [ "${REQUIRE_NOTARIZED:-}" = 1 ]; then
+      echo "No \"$NOTARY_PROFILE\" Keychain profile (see the top of this script): a release can't be notarized."; exit 1
     else
       echo "Not notarized: no \"$NOTARY_PROFILE\" Keychain profile (see the top of this script)."
     fi
