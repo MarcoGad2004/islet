@@ -25,7 +25,7 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
   `Islet.xcodeproj`.
 - Build: `xcodegen generate && xcodebuild -scheme Islet -destination 'platform=macOS' build`.
 - No analytics. No network access except updates and Shazam (only while it listens, after a press or swipe: ShazamKit
-  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/release.sh <version>` publishes one, using the matching section of CHANGELOG.md as its notes; keep CHANGELOG.md up to date as features land).
+  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23) and the Wi-Fi panel's speed test (macOS's `networkQuality`, only when Run speed test is pressed). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/release.sh <version>` publishes one, using the matching section of CHANGELOG.md as its notes; keep CHANGELOG.md up to date as features land).
 
 ## Decisions already made
 
