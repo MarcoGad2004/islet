@@ -13,7 +13,7 @@ struct EarbudsView: View {
             Text(reading.name)
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
                 .padding(.top, 8)
-            HStack(spacing: 30) {
+            HStack(spacing: 8) {
                 budsColumn
                 podColumn(level: reading.caseLevel, charging: reading.caseCharging)
             }
@@ -98,5 +98,6 @@ struct EarbudsView: View {
             .animation(.easeOut(duration: 0.2), value: charging)
             Text("Case").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
         }
+        .frame(width: 132)
     }
 }
