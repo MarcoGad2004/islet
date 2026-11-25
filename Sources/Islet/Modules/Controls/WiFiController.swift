@@ -29,6 +29,8 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     private(set) var hotspot = false
     private(set) var networks: [WiFiNetwork] = []
     private(set) var scanning = false
+    /// When the list last came from a scan (not the quick cached one); nil before the first or with Wi-Fi off.
+    private(set) var lastScan: Date?
     private(set) var joining: String?
     /// Phones nearby offering Instant Hotspot (found over Bluetooth while the Wi-Fi panel is open).
     private(set) var instantHotspots: [InstantHotspot] = []
@@ -253,11 +255,11 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     /// Scans for nearby networks (about two seconds). Asks for Location access the first time.
     func scan() async {
         refresh()
-        guard powerOn else { networks = []; return }
+        guard powerOn else { networks = []; lastScan = nil; return }
         if locationStatus == .notDetermined { requestLocation(); return }
         guard locationAllowed else { return }
         // One scan at a time (a second one fails as busy), and none while a speed test measures the link.
-        guard !scanning, !SpeedTest.shared.running else { return }
+        guard !scanning, joining == nil, !SpeedTest.shared.running else { return }
         scanning = true; defer { scanning = false }
         let current = ssid
         // A full scan takes several seconds; show what macOS already knows straight away.
@@ -275,7 +277,7 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
                 cont.resume(returning: Self.convert(Array(found), known: known, hotspots: hotspots, current: current))
             }
         }
-        if let result { networks = result }
+        if let result { networks = result; lastScan = Date() }
     }
 
     nonisolated static func convert(_ found: [CWNetwork], known: Set<String>, hotspots: Set<String>, current: String?) -> [WiFiNetwork] {

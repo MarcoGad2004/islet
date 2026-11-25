@@ -89,6 +89,15 @@ struct ControlStage: View {
             }
         }
         .onDisappear { store.wifi?.stopBrowsingHotspots() }
+        // The Wi-Fi page keeps its list fresh: a scan every 15 s while it is open (the first one starts on opening).
+        .task(id: mode == .wifi) {
+            guard mode == .wifi else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                await store.wifi?.scan()
+            }
+        }
         #if DEBUG
         .onAppear {
             switch UserDefaults.standard.string(forKey: "IsletDebugDetail") {

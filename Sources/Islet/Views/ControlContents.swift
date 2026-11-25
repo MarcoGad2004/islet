@@ -202,10 +202,36 @@ struct WiFiContent: View {
                 else { list }
             }.frame(maxHeight: .infinity)
             DetailFooter(link: "Wi-Fi Settings…", pane: SystemSettings.wifi) {
+                // Bottom left: refresh, and how old the list is (it also refreshes itself every 15 s while the page is open).
+                if wifi.powerOn && wifi.locationAllowed {
+                    Button { Task { await wifi.scan() } } label: {
+                        Group {
+                            if wifi.scanning { ProgressView().controlSize(.mini) }
+                            else { Image(systemName: "arrow.clockwise").font(.system(size: 10, weight: .semibold)) }
+                        }
+                        .foregroundStyle(Color.isletSecondary).frame(width: 20, height: 20).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).disabled(wifi.scanning).help("Refresh the list")
+                }
                 if let e = wifi.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
-                if wifi.scanning && !wifi.networks.isEmpty { ProgressView().controlSize(.mini) }
+                else if wifi.powerOn && wifi.locationAllowed {
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        Text(Self.updated(wifi.lastScan, scanning: wifi.scanning, now: ctx.date))
+                            .font(.system(size: 11)).foregroundStyle(Color.isletTertiary).lineLimit(1)
+                    }
+                }
             }
         }
+    }
+
+    /// "Updated 12 s ago": how old the network list is.
+    static func updated(_ last: Date?, scanning: Bool, now: Date) -> String {
+        guard let last else { return scanning ? "Scanning…" : "" }
+        let s = max(Int(now.timeIntervalSince(last)), 0)
+        if s < 5 { return "Updated just now" }
+        if s < 60 { return "Updated \(s) s ago" }
+        if s < 3600 { return "Updated \(s / 60) min ago" }
+        return "Updated over an hour ago"
     }
 
     /// The pill beside Disconnect: Run speed test, Stop, Again or Retry. The output goes on its own line (`speedNote`).

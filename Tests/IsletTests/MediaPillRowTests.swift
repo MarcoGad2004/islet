@@ -107,3 +107,15 @@ final class PlayerControlsTests: XCTestCase {
         XCTAssertNil(PlayerControls.app("com.apple.podcasts")); XCTAssertNil(PlayerControls.app("app.zen-browser.zen"))
     }
 }
+
+final class WiFiUpdatedTests: XCTestCase {
+    func testAgeText() {
+        let t = Date(timeIntervalSinceReferenceDate: 5000)
+        XCTAssertEqual(WiFiContent.updated(nil, scanning: true, now: t), "Scanning…")
+        XCTAssertEqual(WiFiContent.updated(nil, scanning: false, now: t), "")
+        XCTAssertEqual(WiFiContent.updated(t, scanning: false, now: t.addingTimeInterval(2)), "Updated just now")
+        XCTAssertEqual(WiFiContent.updated(t, scanning: false, now: t.addingTimeInterval(12)), "Updated 12 s ago")
+        XCTAssertEqual(WiFiContent.updated(t, scanning: false, now: t.addingTimeInterval(130)), "Updated 2 min ago")
+        XCTAssertEqual(WiFiContent.updated(t, scanning: false, now: t.addingTimeInterval(7200)), "Updated over an hour ago")
+    }
+}
