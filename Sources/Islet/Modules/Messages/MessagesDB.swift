@@ -40,10 +40,16 @@ final class MessagesDB: @unchecked Sendable {
         var unreadChats: Int
         /// Unread messages from anyone, for the log.
         var allUnread: Int
+        /// The people in the listed chats, so the main thread never asks the database for them.
+        var handles: [Int64: [String]] = [:]
     }
 
-    private let queue = DispatchQueue(label: "com.marcogad.islet.messages.db", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.marcogad.islet.messages.db", qos: .utility)
     private var db: OpaquePointer?
+    /// Set when a statement failed (busy, locked, I/O): the caller keeps what it had instead of showing a partial read.
+    private var failed = false
+    /// The file `db` was opened on, to notice Messages replacing it.
+    private var openedFileID: UInt64?
     private var known: [Int64: Bool] = [:]
     private var handlesByChat: [Int64: [String]] = [:]
     private lazy var hasEmojiColumn: Bool =
@@ -78,25 +84,76 @@ final class MessagesDB: @unchecked Sendable {
         // inbox and the badge blinking to nothing).
         sqlite3_busy_timeout(handle, 100)
         db = handle
+        openedFileID = Self.fileID()
         return true
     }
 
+    private static func fileID() -> UInt64? {
+        var st = stat()
+        return stat(path, &st) == 0 ? UInt64(st.st_ino) : nil
+    }
+
+    /// Lets go of the connection (the file was replaced, or it broke) and what was remembered from it; the next read
+    /// opens it again.
+    private func disconnect() {
+        if let db { sqlite3_close_v2(db) } // v2: a statement may still be finishing
+        db = nil
+        openedFileID = nil
+        known = [:]
+        handlesByChat = [:]
+    }
+
+    /// Runs a read; a failed statement (database busy after the wait, I/O error) gives nil, never a partial result.
+    /// Tried once more, as a busy database usually clears at once.
+    private func attempt<T>(_ body: () -> T) -> T? {
+        if db != nil, let id = Self.fileID(), let opened = openedFileID, id != opened { disconnect() }
+        for _ in 0..<2 {
+            failed = false
+            let result = body()
+            if !failed { return result }
+        }
+        return nil
+    }
+
+    /// Forget who counts as a known sender (Contacts changed).
+    func forgetKnown() { known = [:] }
+
     // MARK: Lookups
 
-    /// The chat a Messages notification came from: the newest incoming message (in the last 10 minutes) whose text
-    /// matches the notification's, else the newest incoming one.
-    func chatID(forNotificationText body: String) -> Int64? {
+    /// The chat a Messages notification came from: a recent (last 10 minutes) incoming message whose text matches the
+    /// notification's body, in a chat whose name or sender matches its title. Short texts ("ok") repeat across chats, so
+    /// the title decides between them; with no clear answer, nil (the caller opens Messages itself) rather than a guess.
+    func chatID(forNotificationText body: String, title: String = "", subtitle: String? = nil, names: NameBook = NameBook()) -> Int64? {
         let since = Self.dbDate(Date().addingTimeInterval(-600))
         let recent = rows("""
-            select j.chat_id, m.text, m.attributedBody from message m join chat_message_join j on j.message_id = m.ROWID
-            where m.is_from_me = 0 and m.date > ? and m.associated_message_type = 0 order by m.date desc limit 30
+            select j.chat_id, m.text, m.attributedBody, h.id from message m join chat_message_join j on j.message_id = m.ROWID
+            left join handle h on h.ROWID = m.handle_id
+            where m.is_from_me = 0 and m.date > ? and m.associated_message_type = 0 order by m.date desc limit 40
             """, [since])
         let wanted = Self.clean(body)
+        func norm(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let labels = Set([title, subtitle ?? ""].map(norm).filter { !$0.isEmpty })
+        struct Candidate { var chat: Int64; var bodyMatch: Bool; var titleMatch: Bool }
+        var candidates: [Candidate] = []
         for r in recent {
+            guard let chat = r[0] as? Int64 else { continue }
             let text = Self.clean(Self.text(r[1] as? String, r[2] as? Data) ?? "")
-            if !wanted.isEmpty, !text.isEmpty, text == wanted || text.hasPrefix(wanted) || wanted.hasPrefix(text) { return r[0] as? Int64 }
+            let bodyMatch = !wanted.isEmpty && !text.isEmpty && (text == wanted || text.hasPrefix(wanted) || wanted.hasPrefix(text))
+            var names2 = [norm(names.name(r[3] as? String ?? ""))]
+            if let display = rows("select display_name from chat where ROWID = ?", [chat]).first?[0] as? String { names2.append(norm(display)) }
+            names2.append(contentsOf: handles(chat).map { norm(names.name($0)) })
+            let titleMatch = !labels.isEmpty && names2.contains { !$0.isEmpty && labels.contains($0) }
+            candidates.append(Candidate(chat: chat, bodyMatch: bodyMatch, titleMatch: titleMatch))
         }
-        return recent.first?[0] as? Int64
+        if let both = candidates.first(where: { $0.bodyMatch && $0.titleMatch }) { return both.chat }
+        // The body alone, when only one chat has it (or there was no title to check).
+        let byBody = candidates.filter(\.bodyMatch)
+        if Set(byBody.map(\.chat)).count == 1 { return byBody[0].chat }
+        if labels.isEmpty { return byBody.first?.chat }
+        // The title alone (a tapback, an attachment: the body isn't a message's text), when it points at one chat.
+        let byTitle = candidates.filter(\.titleMatch)
+        if wanted.isEmpty || byBody.isEmpty, Set(byTitle.map(\.chat)).count == 1 { return byTitle[0].chat }
+        return nil
     }
 
     /// The one-to-one chat with someone, by any of their numbers or emails (search's Message). The newest such chat when
@@ -155,19 +212,28 @@ final class MessagesDB: @unchecked Sendable {
     }
 
     /// The unread messages and the recent chats.
-    func inbox(_ names: NameBook) -> Inbox {
+    func inbox(_ names: NameBook) -> Inbox? { attempt { inboxOnce(names) } }
+
+    private func inboxOnce(_ names: NameBook) -> Inbox {
         // What Messages counts on its badge: chats with unread incoming messages, however old (reading on any device
         // clears them, as it syncs), from known senders only. A reply counts as reading what came before it (the island
         // can send but can't mark messages read in Messages). Like "Filter Unknown Senders", a chat is known when someone in it
         // is in Contacts or you've written in it; spam and deleted chats never count.
         var unread: [Int64: Int] = [:]
         var all = 0
+        // The last reply is worked out once per chat that has unread messages (a subquery per unread message was slow
+        // with thousands of old unread texts).
         for r in rows("""
+            with unread_chats as (
+                select distinct uj.chat_id as chat_id from message u join chat_message_join uj on uj.message_id = u.ROWID
+                where u.is_from_me = 0 and u.is_read = 0 and u.associated_message_type = 0 and u.item_type = 0),
+            last_reply as (
+                select rj.chat_id as chat_id, max(r.date) as d from message r join chat_message_join rj on rj.message_id = r.ROWID
+                where r.is_from_me = 1 and rj.chat_id in (select chat_id from unread_chats) group by rj.chat_id)
             select j.chat_id, count(*), \(chatFilterColumn) from message m join chat_message_join j on j.message_id = m.ROWID
-            join chat c on c.ROWID = j.chat_id
+            join chat c on c.ROWID = j.chat_id left join last_reply lr on lr.chat_id = j.chat_id
             where m.is_from_me = 0 and m.is_read = 0 and m.associated_message_type = 0 and m.item_type = 0
-              and m.date > coalesce((select max(r.date) from message r join chat_message_join rj on rj.message_id = r.ROWID
-                                     where rj.chat_id = j.chat_id and r.is_from_me = 1), 0)
+              and m.date > coalesce(lr.d, 0)
             group by j.chat_id
             """) {
             guard let chat = r[0] as? Int64, let n = r[1] as? Int64, n > 0 else { continue }
@@ -189,7 +255,9 @@ final class MessagesDB: @unchecked Sendable {
         }
         list.sort { ($0.unread > 0) != ($1.unread > 0) ? $0.unread > 0 : $0.date > $1.date }
         // Messages' badge counts chats, not messages.
-        return Inbox(chats: list, unreadChats: unread.count, allUnread: all)
+        var people: [Int64: [String]] = [:]
+        for c in list { people[c.chatID] = handles(c.chatID) }
+        return Inbox(chats: list, unreadChats: unread.count, allUnread: all, handles: people)
     }
 
     private func summary(_ chat: Int64, unread: Int, _ names: NameBook) -> ChatSummary? {
@@ -224,6 +292,10 @@ final class MessagesDB: @unchecked Sendable {
 
     /// The chat and its latest 50 messages, with their tapbacks, files and stickers.
     func conversation(_ chatID: Int64, _ names: NameBook) -> Conversation? {
+        (attempt { conversationOnce(chatID, names) }) ?? nil
+    }
+
+    private func conversationOnce(_ chatID: Int64, _ names: NameBook) -> Conversation? {
         guard let c = rows("select guid, display_name, style, service_name from chat where ROWID = ?", [chatID]).first,
               let guid = c[0] as? String else { return nil }
         let handles = handles(chatID)
@@ -258,7 +330,7 @@ final class MessagesDB: @unchecked Sendable {
         // Newer macOS keeps someone's iMessages and texts in one chat whose service isn't "iMessage": what the latest
         // message went as says how the next one will (as Messages shows it), else the chat's own service.
         let latest = raw.first { ($0[11] as? String).map { !$0.isEmpty } ?? false }?[11] as? String
-        return Conversation(chatID: chatID, guid: guid, title: title, isGroup: isGroup, people: handles.count + 1,
+        return Conversation(chatID: chatID, guid: guid, title: title, isGroup: isGroup, people: handles.count + 1, handles: handles,
                             iMessage: !Self.isText(latest ?? service), messages: messages)
     }
 
@@ -401,13 +473,16 @@ final class MessagesDB: @unchecked Sendable {
     }
 
     private func rows(_ sql: String, _ args: [Int64] = []) -> [[Any?]] {
-        guard connect(), let db else { return [] }
+        guard connect(), let db else { failed = true; return [] }
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        let prepared = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        guard prepared == SQLITE_OK else { noteError(prepared); return [] }
         defer { sqlite3_finalize(stmt) }
         for (i, a) in args.enumerated() { sqlite3_bind_int64(stmt, Int32(i + 1), a) }
         var result: [[Any?]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var step = sqlite3_step(stmt)
+        defer { if step != SQLITE_DONE { noteError(step) } }
+        while step == SQLITE_ROW {
             var row: [Any?] = []
             for i in 0..<sqlite3_column_count(stmt) {
                 switch sqlite3_column_type(stmt, i) {
@@ -420,7 +495,14 @@ final class MessagesDB: @unchecked Sendable {
                 }
             }
             result.append(row)
+            step = sqlite3_step(stmt)
         }
         return result
+    }
+
+    private func noteError(_ code: Int32) {
+        failed = true
+        // The connection itself is gone or the file isn't what it was: open it afresh next time.
+        if [SQLITE_NOTADB, SQLITE_IOERR, SQLITE_CANTOPEN, SQLITE_CORRUPT, SQLITE_READONLY].contains(code & 0xFF) { disconnect() }
     }
 }

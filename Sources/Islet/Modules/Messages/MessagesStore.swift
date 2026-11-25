@@ -75,6 +75,8 @@ final class MessagesStore {
         var title: String
         var isGroup: Bool
         var people: Int
+        /// The numbers and emails of the others in it.
+        var handles: [String] = []
         /// iMessage, or SMS / RCS (green bubbles).
         var iMessage: Bool
         var messages: [Message]
@@ -119,6 +121,7 @@ final class MessagesStore {
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private var names: ContactNames?
+    @ObservationIgnored private var inboxGeneration = 0
     @ObservationIgnored private var chatHandles: [Int64: [String]] = [:]
 
     /// Whether the history can be read (Full Disk Access). Once it can, this never waits.
@@ -129,7 +132,15 @@ final class MessagesStore {
     }
 
     private func loadNames() {
-        names = names ?? ContactNames()
+        if names == nil {
+            let n = ContactNames()
+            // Contacts finished loading or changed: names, photos and who counts as known are worked out again.
+            n.onChange = { [weak self] in
+                guard let self else { return }
+                Task { await self.db.read { $0.forgetKnown() }; self.refreshInbox() }
+            }
+            names = n
+        }
         names?.load()
     }
     private var book: NameBook { names?.book ?? NameBook() }
@@ -139,15 +150,17 @@ final class MessagesStore {
     /// The chat a Messages notification came from.
     func chatID(for item: NotificationItem) -> Int64? {
         guard available else { return nil }
-        let body = item.body
-        return db.sync { $0.chatID(forNotificationText: body) }
+        loadNames()
+        let (body, title, subtitle, book) = (item.body, item.title, item.subtitle, self.book)
+        return db.sync { $0.chatID(forNotificationText: body, title: title, subtitle: subtitle, names: book) }
     }
 
     /// The chat a Messages notification came from, looked up in the background (opening it from a click).
     func findChat(for item: NotificationItem) async -> Int64? {
         guard available else { return nil }
-        let body = item.body
-        return await db.read { $0.chatID(forNotificationText: body) }
+        loadNames()
+        let (body, title, subtitle, book) = (item.body, item.title, item.subtitle, self.book)
+        return await db.read { $0.chatID(forNotificationText: body, title: title, subtitle: subtitle, names: book) }
     }
 
     /// Where a Messages notification's chat opens in Messages: "sms:" at the person for a one-to-one chat (it opens
@@ -190,12 +203,8 @@ final class MessagesStore {
 
     /// The contact photo for a one-to-one chat, when the person has one in Contacts. Groups have none (their initial shows).
     func photo(forChat chatID: Int64) -> NSImage? {
-        let handles = chatHandles[chatID] ?? {
-            let h = db.sync { $0.handles(chatID) }
-            chatHandles[chatID] = h
-            return h
-        }()
-        guard handles.count == 1 else { return nil }
+        // The people come with the inbox and conversation reads; never a database wait on the main thread here.
+        guard let handles = chatHandles[chatID], handles.count == 1 else { return nil }
         return names?.photo(for: handles[0])
     }
 
@@ -240,8 +249,12 @@ final class MessagesStore {
         guard available else { inbox = []; unreadCount = 0; return }
         loadNames()
         let book = self.book
+        inboxGeneration += 1
+        let generation = inboxGeneration
         Task {
-            let result = await db.read { $0.inbox(book) }
+            // A read that failed (database busy) leaves the inbox as it was; so does a result a newer refresh overtook.
+            guard let result = await db.read({ $0.inbox(book) }), generation == inboxGeneration else { return }
+            for (chat, h) in result.handles { chatHandles[chat] = h }
             if result.allUnread != lastLoggedUnread {
                 lastLoggedUnread = result.allUnread
                 Self.log.notice("unread: \(result.allUnread) in all, \(result.chats.reduce(0) { $0 + $1.unread }) from known senders in \(result.unreadChats) chats")
@@ -260,6 +273,9 @@ final class MessagesStore {
         loadNames()
         let book = self.book
         guard let loaded = await db.read({ $0.conversation(chatID, book) }) else { return false }
+        // A newer request cancelled this one while it read: it must not leave a conversation (and its watcher) behind.
+        guard !Task.isCancelled else { return false }
+        chatHandles[chatID] = loaded.handles
         open = loaded
         watch()
         return true
@@ -317,57 +333,99 @@ final class MessagesStore {
 }
 
 /// Contact names for phone numbers and emails. Messages keeps numbers as "+15551234567" and contacts have them as typed,
-/// so numbers are compared by their last 10 digits.
+/// so numbers are compared by their last 10 digits. The address book is read in the background (names and numbers only);
+/// a contact's photo is fetched when first shown. It reloads when Contacts changes.
 @MainActor
 final class ContactNames {
     private var byPhone: [String: String] = [:]
     private var byEmail: [String: String] = [:]
-    /// Contact photo thumbnails, by contact, and which contact each number or email belongs to.
-    private var photoData: [String: Data] = [:]
-    private var photoByPhone: [String: String] = [:]
-    private var photoByEmail: [String: String] = [:]
+    /// Which contact each number or email belongs to, for their photo.
+    private var idByPhone: [String: String] = [:]
+    private var idByEmail: [String: String] = [:]
     private var photos: [String: NSImage] = [:]
+    private var noPhoto: Set<String> = []
     private var loaded = false
+    private var loading = false
+    private var observer: NSObjectProtocol?
+    /// Called when names have been (re)loaded.
+    var onChange: (() -> Void)?
+
+    static func allowed() -> Bool {
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        return status == .authorized || status.rawValue == 4 // .limited (macOS 15) also works
+    }
 
     func load() {
-        guard !loaded else { return }
+        guard !loaded, !loading else { return }
         let store = CNContactStore()
-        switch CNContactStore.authorizationStatus(for: .contacts) {
-        case .notDetermined:
+        if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
+            loading = true // one request at a time
             store.requestAccess(for: .contacts) { [weak self] granted, _ in
-                guard granted else { return }
-                Task { @MainActor in self?.load() }
+                Task { @MainActor in
+                    self?.loading = false
+                    if granted { self?.load() }
+                }
             }
             return
-        case .authorized: break
-        default:
-            if CNContactStore.authorizationStatus(for: .contacts).rawValue != 4 { return } // .limited (macOS 15) also works
         }
-        loaded = true
-        let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactNicknameKey, CNContactOrganizationNameKey,
-                    CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactThumbnailImageDataKey] as [CNKeyDescriptor]
+        guard Self.allowed() else { return }
+        loading = true
+        if observer == nil {
+            observer = NotificationCenter.default.addObserver(forName: .CNContactStoreDidChange, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.loaded = false
+                    self.photos = [:]; self.noPhoto = []
+                    self.load()
+                }
+            }
+        }
+        Task.detached(priority: .utility) {
+            let book = Self.read()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.byPhone = book.phones; self.byEmail = book.emails
+                self.idByPhone = book.idPhones; self.idByEmail = book.idEmails
+                self.loaded = true
+                self.loading = false
+                self.onChange?()
+            }
+        }
+    }
+
+    private struct Read: Sendable {
         var phones: [String: String] = [:], emails: [String: String] = [:]
-        var data: [String: Data] = [:], photoPhones: [String: String] = [:], photoEmails: [String: String] = [:]
-        try? store.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
+        var idPhones: [String: String] = [:], idEmails: [String: String] = [:]
+    }
+
+    nonisolated private static func read() -> Read {
+        let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactNicknameKey, CNContactOrganizationNameKey,
+                    CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactIdentifierKey] as [CNKeyDescriptor]
+        var out = Read()
+        try? CNContactStore().enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
             let full = [c.givenName, c.familyName].filter { !$0.isEmpty }.joined(separator: " ")
             let name = !c.nickname.isEmpty ? c.nickname : !full.isEmpty ? full : c.organizationName
             guard !name.isEmpty else { return }
-            for p in c.phoneNumbers { phones[String(p.value.stringValue.filter(\.isNumber).suffix(10))] = name }
-            for e in c.emailAddresses { emails[(e.value as String).lowercased()] = name }
-            guard let thumb = c.thumbnailImageData else { return }
-            data[c.identifier] = thumb
-            for p in c.phoneNumbers { photoPhones[String(p.value.stringValue.filter(\.isNumber).suffix(10))] = c.identifier }
-            for e in c.emailAddresses { photoEmails[(e.value as String).lowercased()] = c.identifier }
+            for p in c.phoneNumbers {
+                let k = String(p.value.stringValue.filter(\.isNumber).suffix(10))
+                out.phones[k] = name; out.idPhones[k] = c.identifier
+            }
+            for e in c.emailAddresses {
+                let k = (e.value as String).lowercased()
+                out.emails[k] = name; out.idEmails[k] = c.identifier
+            }
         }
-        byPhone = phones; byEmail = emails
-        photoData = data; photoByPhone = photoPhones; photoByEmail = photoEmails
+        return out
     }
 
+    /// Their photo, read from Contacts the first time it is asked for (a single contact, quick).
     func photo(for handle: String) -> NSImage? {
-        let id = handle.contains("@") ? photoByEmail[handle.lowercased()] : photoByPhone[String(handle.filter(\.isNumber).suffix(10))]
-        guard let id else { return nil }
+        let id = handle.contains("@") ? idByEmail[handle.lowercased()] : idByPhone[String(handle.filter(\.isNumber).suffix(10))]
+        guard let id, !noPhoto.contains(id) else { return nil }
         if let i = photos[id] { return i }
-        guard let d = photoData[id], let i = NSImage(data: d) else { return nil }
+        guard Self.allowed(),
+              let c = try? CNContactStore().unifiedContact(withIdentifier: id, keysToFetch: [CNContactThumbnailImageDataKey as CNKeyDescriptor]),
+              let d = c.thumbnailImageData, let i = NSImage(data: d) else { noPhoto.insert(id); return nil }
         photos[id] = i
         return i
     }
