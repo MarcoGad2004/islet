@@ -32,6 +32,8 @@ final class NotificationWatcher {
         }
     }
     private var banners: [UUID: Banner] = [:]
+    /// Where banner windows wait, far outside any display arrangement.
+    private static let parked = CGPoint(x: -20000, y: -20000)
     private var retryTask: Task<Void, Never>?
 
     var enabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
@@ -66,6 +68,8 @@ final class NotificationWatcher {
         var obs: AXObserver?
         guard AXObserverCreate(pid, notificationCallback, &obs) == .success, let obs else { return }
         let root = AXUIElementCreateApplication(pid)
+        // Every Accessibility call here waits on Notification Center from the main thread: never for the default ~6 s.
+        AXUIElementSetMessagingTimeout(root, 0.25)
         let me = Unmanaged.passUnretained(self).toOpaque()
         AXObserverAddNotification(obs, root, kAXCreatedNotification as CFString, me)
         AXObserverAddNotification(obs, root, kAXLayoutChangedNotification as CFString, me)
@@ -93,8 +97,18 @@ final class NotificationWatcher {
         // of the first, which may already be off screen): look for banners not seen yet.
         let created = note == kAXCreatedNotification as String && AX.role(element) == kAXWindowRole as String
         guard created || note == kAXLayoutChangedNotification as String else { return }
-        sweep(extra: created ? element : nil, attempt: 0)
+        if created { sweep(extra: element, attempt: 0); return }
+        // Layout changes come in bursts (widgets, animations): one sweep for the lot.
+        guard !layoutSweepPending else { return }
+        layoutSweepPending = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard let self else { return }
+            self.layoutSweepPending = false
+            self.sweep(extra: nil, attempt: 0)
+        }
     }
+    private var layoutSweepPending = false
 
     /// A banner, or several from one app that macOS has grouped (its texts are the newest one's).
     private static func isBanner(_ e: AXUIElement) -> Bool {
@@ -153,7 +167,7 @@ final class NotificationWatcher {
         // Where macOS put the window: kept from an earlier banner if this window is already off screen.
         let known = banners.values.first(where: { CFEqual($0.window, window) })?.origin
         let origin = known ?? AX.position(window)
-        AX.setPosition(window, CGPoint(x: -3000, y: -3000))
+        AX.setPosition(window, Self.parked)
         if !ownWindows.contains(where: { CFEqual($0, window) }) { ownWindows.append(window) }
         let b = Banner(window: window, element: banner, origin: origin)
         banners[item.id] = b
@@ -163,7 +177,7 @@ final class NotificationWatcher {
             Task { [weak self, weak b] in
                 try? await Task.sleep(for: .milliseconds(ms))
                 guard self != nil, let b, !b.restored else { return }
-                AX.setPosition(b.window, CGPoint(x: -3000, y: -3000))
+                AX.setPosition(b.window, Self.parked)
             }
         }
         onNotification?(item)
@@ -233,6 +247,15 @@ final class NotificationWatcher {
         AX.press(b.element, named: action)
     }
 
+    /// Islet is quitting: windows it parked go back where macOS put them, so an alert still waiting isn't left invisible.
+    func restoreAll() {
+        for b in banners.values where !b.restored {
+            b.restored = true
+            if let origin = b.origin { AX.setPosition(b.window, origin) }
+        }
+        banners.removeAll()
+    }
+
     /// Closed (Close, or swiped up).
     func close(_ item: NotificationItem) {
         guard let b = banners.removeValue(forKey: item.id), AX.alive(b.element) else { return }
@@ -247,6 +270,8 @@ final class NotificationWatcher {
             try? await Task.sleep(for: .seconds(1.5))
             guard let self else { return }
             self.banners[item.id] = nil
+            // Another banner macOS put into the same window is still on the notch: the window stays where it is.
+            guard !self.banners.values.contains(where: { CFEqual($0.window, b.window) }) else { return }
             guard AX.alive(b.window), let origin = b.origin else { return }
             b.restored = true
             AX.setPosition(b.window, origin)
