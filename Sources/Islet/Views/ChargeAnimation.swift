@@ -61,14 +61,18 @@ private struct ChargeClock<Content: View>: View {
     let event: ChargeEvent
     @ViewBuilder let content: (ChargeTimeline) -> Content
     @State private var start = Date()
+    /// Set once the motion has landed: the timeline then stops (it would otherwise tick every frame for as long as the
+    /// view lives).
+    @State private var finished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if reduceMotion {
             content(ChargeTimeline(event: event, t: 10))
         } else {
-            TimelineView(.animation(minimumInterval: nil, paused: ChargeTimeline(event: event, t: Date().timeIntervalSince(start)).done)) { ctx in
-                content(ChargeTimeline(event: event, t: ctx.date.timeIntervalSince(start)))
+            TimelineView(.animation(minimumInterval: nil, paused: finished)) { ctx in
+                let timeline = ChargeTimeline(event: event, t: ctx.date.timeIntervalSince(start))
+                content(timeline).onChange(of: timeline.done) { _, done in if done { finished = true } }
             }
         }
     }

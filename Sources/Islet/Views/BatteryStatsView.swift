@@ -112,20 +112,31 @@ struct BatteryStatsView: View {
 
     /// "3 hr, 7 min", as macOS writes it.
     static func duration(_ minutes: Int) -> String {
-        let f = DateComponentsFormatter()
-        f.allowedUnits = minutes >= 60 ? [.hour, .minute] : [.minute]
-        f.unitsStyle = .short
+        let f = minutes >= 60 ? durationHours : durationMinutes
         return f.string(from: TimeInterval(minutes * 60)) ?? "\(minutes) min"
+    }
+
+    private static let durationHours = durationFormatter([.hour, .minute])
+    private static let durationMinutes = durationFormatter([.minute])
+    private static func durationFormatter(_ units: NSCalendar.Unit) -> DateComponentsFormatter {
+        let f = DateComponentsFormatter()
+        f.allowedUnits = units
+        f.unitsStyle = .short
+        return f
     }
 
     /// In the units the Mac's region uses (°F in the US).
     static func temperature(_ celsius: Double) -> String {
+        temperatureFormatter.string(from: Measurement(value: celsius, unit: UnitTemperature.celsius))
+    }
+
+    private static let temperatureFormatter: MeasurementFormatter = {
         let f = MeasurementFormatter()
         f.unitOptions = .naturalScale
         f.numberFormatter.maximumFractionDigits = 1
         f.numberFormatter.minimumFractionDigits = 1
-        return f.string(from: Measurement(value: celsius, unit: UnitTemperature.celsius))
-    }
+        return f
+    }()
 }
 
 /// The charge over the last 12 hours: a green line over a faint fill, with the hours along the bottom.
@@ -215,6 +226,9 @@ struct PowerFlows: Equatable {
     }
 
     var total: Double { max(chargerToMac + chargerToBattery + batteryToMac, 1) }
+
+    /// Some flow is running, so its dashes drift.
+    var flowing: Bool { chargerToMac > Self.still || chargerToBattery > Self.still || batteryToMac > Self.still }
 }
 
 struct PowerFlow: View {
@@ -236,7 +250,8 @@ struct PowerFlow: View {
 
     var body: some View {
         let f = PowerFlows(state: state, details: details)
-        TimelineView(.animation(paused: reduceMotion)) { time in
+        // The dashes drift at 30 frames a second (they move 8 to 30 points a second), and not at all while nothing flows.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || !f.flowing)) { time in
             let phases = reduceMotion ? [0, 0, 0] : clock.tick(time.date, watts: [f.chargerToMac, f.chargerToBattery, f.batteryToMac])
             GeometryReader { geo in
                 let w = geo.size.width
