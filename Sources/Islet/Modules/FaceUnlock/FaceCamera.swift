@@ -87,10 +87,25 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         }
     }
 
+    /// The frame duration to ask for: `wanted` seconds, moved into what the camera's active format can do (each range is
+    /// its fastest and slowest frame duration, in seconds). The camera throws an Objective-C exception, which can't be
+    /// caught and ends the app, for a duration outside every range: the built-in cameras can't go slower than about
+    /// 15 frames a second, so a 5 fps cap crashed the app on locking the Mac. Nil when there are no ranges.
+    static func clampedFrameDuration(_ wanted: Double, ranges: [(min: Double, max: Double)]) -> Double? {
+        guard let lo = ranges.map(\.min).min(), let hi = ranges.map(\.max).max(), lo > 0, hi >= lo else { return nil }
+        return Swift.min(Swift.max(wanted, lo), hi)
+    }
+
     private static func setMinFrameDuration(_ device: AVCaptureDevice, _ d: CMTime) {
         guard (try? device.lockForConfiguration()) != nil else { return }
-        device.activeVideoMinFrameDuration = d
-        device.unlockForConfiguration()
+        defer { device.unlockForConfiguration() }
+        if d.isValid, d.seconds > 0 {
+            let ranges = device.activeFormat.videoSupportedFrameRateRanges.map { (min: $0.minFrameDuration.seconds, max: $0.maxFrameDuration.seconds) }
+            guard let secs = clampedFrameDuration(d.seconds, ranges: ranges) else { return }
+            device.activeVideoMinFrameDuration = CMTime(seconds: secs, preferredTimescale: 1_000_000)
+        } else {
+            device.activeVideoMinFrameDuration = .invalid   // back to the format's default
+        }
     }
 
     /// Holds exposure and white balance still (true) or hands them back to the camera (false), so the brightness

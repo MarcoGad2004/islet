@@ -3,6 +3,14 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.7.3 (2026-11-25)
+
+A crash fix.
+
+**Fixes**
+
+- **Locking with the power button crashed the app.** Getting the camera ready for Face Unlock asked it for a frame rate it can't do, and the camera ended the app. It now asks only for what the camera supports. Closing the lid was not affected.
+
 ## 1.7.2 (2026-11-25)
 
 A speed test in the Wi-Fi panel, a roomier header, a smarter updater, instant Face Unlock in the dark, and a stability and efficiency pass over the whole app.
