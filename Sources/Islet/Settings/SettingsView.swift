@@ -49,13 +49,18 @@ struct SettingsView: View {
     }
     private var current: SettingsPage { SettingsPage(rawValue: pageRaw) ?? .status }
 
-    private var checks: SettingsChecks {
+    private func makeChecks() -> SettingsChecks {
         SettingsChecks(face: face, levels: levels, media: media, focus: focus, wifi: wifi, messagesAccess: messagesAccess,
                        camera: camera, spotlightConflict: spotlightConflict, requestCamera: requestCamera)
     }
+    /// The checks body built for this pass: the pages below share them instead of each working them out again.
+    private final class ChecksCache { var value: SettingsChecks? }
+    @State private var checksCache = ChecksCache()
+    private var checks: SettingsChecks { checksCache.value ?? makeChecks() }
+    private func remember(_ c: SettingsChecks) -> SettingsChecks { checksCache.value = c; return c }
 
     var body: some View {
-        let issues = checks.issues
+        let issues = remember(makeChecks()).issues
         NavigationSplitView {
             sidebar(issues)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 260)
@@ -329,7 +334,8 @@ struct SettingsView: View {
             }
             if on {
                 Section {
-                    SearchShortcutChooser(shortcut: $searchShortcut)
+                    // The chooser notices Spotlight moving (one timer); the sidebar's count follows.
+                    SearchShortcutChooser(shortcut: $searchShortcut) { spotlightConflict = $0 }
                 } header: {
                     Text("Shortcut")
                 }
@@ -351,10 +357,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .onChange(of: searchShortcut) { refresh() }
-        // The chooser notices Spotlight moving; the sidebar's count follows.
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            spotlightConflict = SearchShortcut.spotlightConflict
-        }
     }
 
     private var battery: some View {

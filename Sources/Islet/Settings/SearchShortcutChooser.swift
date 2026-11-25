@@ -6,8 +6,12 @@ import SwiftUI
 /// Used by Settings > Search and by setup. Put it in a Form section.
 struct SearchShortcutChooser: View {
     @Binding var shortcut: String
-    @State private var spotlight = SearchShortcut.spotlightShortcut()
-    @State private var conflict = SearchShortcut.spotlightConflict
+    /// Told whenever Spotlight's shortcut is read again (the page's sidebar count follows it).
+    var conflictChanged: ((Bool) -> Void)?
+    // Read in `check()` as the view appears: an initial value written here would be read again every time a parent
+    // redraws and rebuilds this struct.
+    @State private var spotlight = SearchShortcut.SpotlightShortcut(enabled: true, keyCode: 49, flags: CGEventFlags.maskCommand.rawValue)
+    @State private var conflict = false
 
     private static let others: [SearchShortcutChoice] = [.optionSpace, .controlSpace, .commandShiftSpace]
 
@@ -35,8 +39,15 @@ struct SearchShortcutChooser: View {
     }
 
     private func check() {
-        spotlight = SearchShortcut.spotlightShortcut()
-        conflict = SearchShortcut.spotlightConflict
+        let now = SearchShortcut.spotlightShortcut()
+        spotlight = now
+        // The same reading (spotlightConflict would read the system's plist again).
+        let relevant: UInt64 = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskAlternate.rawValue
+            | CGEventFlags.maskControl.rawValue | CGEventFlags.maskShift.rawValue
+        let choice = SearchShortcutChoice.current
+        let clash = choice != .off && now.enabled && now.keyCode == 49 && (now.flags & relevant) == choice.eventFlags
+        conflict = clash
+        conflictChanged?(clash)
     }
 
     /// True: ⌘Space opens Islet. False: Spotlight keeps it.

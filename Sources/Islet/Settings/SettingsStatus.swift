@@ -93,27 +93,31 @@ struct SettingsChecks {
     let spotlightConflict: Bool
     let requestCamera: () -> Void
 
-    /// The features that are on (Face Unlock counts once it's switched on).
-    var on: Set<Feature> {
+    /// The features that are on (Face Unlock counts once it's switched on), and the permissions, worked out once per
+    /// `SettingsChecks` (each reads UserDefaults and asks the system), not on every use.
+    let on: Set<Feature>
+    let permissions: [SettingsPermission]
+
+    init(face: FaceUnlockCoordinator, levels: LevelsController, media: MediaMonitor, focus: FocusMonitor, wifi: WiFiController,
+         messagesAccess: MessagesAccess, camera: AVAuthorizationStatus, spotlightConflict: Bool, requestCamera: @escaping () -> Void) {
+        self.face = face; self.levels = levels; self.media = media; self.focus = focus; self.wifi = wifi
+        self.messagesAccess = messagesAccess; self.camera = camera; self.spotlightConflict = spotlightConflict
+        self.requestCamera = requestCamera
         var set = Set(Feature.allCases.filter { $0 != .faceUnlock && $0.isOn })
         if face.unlock.enabled { set.insert(.faceUnlock) }
-        return set
-    }
-
-    private func used(_ name: String) -> [Feature] { Feature.allCases.filter { on.contains($0) && $0.needs.contains(name) } }
-
-    var permissions: [SettingsPermission] {
-        let on = self.on
-        return [
+        on = set
+        let trusted = face.unlock.accessibilityTrusted
+        func used(_ name: String) -> [Feature] { Feature.allCases.filter { set.contains($0) && $0.needs.contains(name) } }
+        permissions = [
             SettingsPermission(name: "Accessibility", purpose: "Volume and brightness keys, notifications and typing your password for Face Unlock",
-                               allowed: face.unlock.accessibilityTrusted, usedBy: used("Accessibility"),
-                               optional: on.contains(.search) ? "Search: hand questions to Siri. The island: the wider layout when the menu bar has room."
+                               allowed: trusted, usedBy: used("Accessibility"),
+                               optional: set.contains(.search) ? "Search: hand questions to Siri. The island: the wider layout when the menu bar has room."
                                    : "The island: the wider layout when the menu bar has room.") { face.unlock.requestPermission() },
             SettingsPermission(name: "Full Disk Access", purpose: "Shows which Focus is on and reads your Messages conversations",
                                allowed: focus.accessGranted && !Self.debugIssues, usedBy: used("Full Disk Access")) { SystemSettings.open(SystemSettings.fullDisk) },
             SettingsPermission(name: "Contacts", purpose: "Names on messages, and people in search",
                                allowed: messagesAccess.contactsAllowed, usedBy: used("Contacts"),
-                               optional: on.contains(.notifications) || on.contains(.search) ? "Names instead of numbers, and people in search." : nil) { messagesAccess.requestContacts() },
+                               optional: set.contains(.notifications) || set.contains(.search) ? "Names instead of numbers, and people in search." : nil) { messagesAccess.requestContacts() },
             SettingsPermission(name: "Location", purpose: "Names of nearby Wi-Fi networks. Your location is never used.",
                                allowed: wifi.locationAllowed, usedBy: [], optional: "The island: names of nearby Wi-Fi networks.") {
                 if wifi.locationStatus == .notDetermined { wifi.requestLocation() } else { SystemSettings.open(SystemSettings.location) }
