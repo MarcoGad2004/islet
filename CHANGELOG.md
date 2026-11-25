@@ -9,7 +9,7 @@ A speed test in the Wi-Fi panel, a roomier header, a smarter updater, instant Fa
 
 **New**
 
-- **Wi-Fi speed test.** Run a speed test from the Wi-Fi panel and see download, upload and latency.
+- **Wi-Fi speed test.** Press Run speed test in the connected network's row to see download, upload and latency. Move the pointer away and the notch keeps showing that it's running, like it does while updating, then shows the results for a few seconds before it collapses.
 - **Face Unlock in dark rooms.** When the room is dark, the display glow turns on at once instead of after a delay.
 
 **Changed**
