@@ -519,6 +519,7 @@ final class IslandStore {
 
     func collapse() {
         guard expanded else { return }
+        chatOpening?.cancel(); chatOpening = nil // a conversation still being found doesn't open the panel again
         setExpanded(false)
     }
 
@@ -1136,7 +1137,7 @@ final class IslandStore {
 
     /// The messages pill: the inbox, unread chats first (DESIGN.md "Messages inbox").
     func openInbox() {
-        guard let m = messages, m.available else { return }
+        guard let m = messages, m.available, !locked, !lockScreen, !paused else { return }
         if expandedPage == .messages { m.close() }
         m.refreshInbox()
         controlDetail = nil
@@ -1166,6 +1167,8 @@ final class IslandStore {
             guard !Task.isCancelled, let self else { return }
             self.chatOpening = nil
             guard ok else { otherwise?(); return }
+            // Locked, paused or in a scan meanwhile: the panel stays shut.
+            guard !self.locked, !self.lockScreen, !self.paused else { return }
             if self.expandedPage == .search { self.search.end() } // from search's Message: the conversation takes its place
             self.expandedPage = .messages // first, so taking a notification off the list doesn't close the panel
             self.controlDetail = nil
@@ -1176,6 +1179,8 @@ final class IslandStore {
     @ObservationIgnored private var chatOpening: Task<Void, Never>?
 
     func setBase(_ p: Presentation?) {
+        // Enrolment and the scan take the whole island: an open panel closes first.
+        if p == .enrol || p == .scan { chatOpening?.cancel(); chatOpening = nil; collapse() }
         base = p
         refresh()
     }
@@ -1186,6 +1191,9 @@ final class IslandStore {
     func setLockScreen(_ value: Bool) {
         guard value != lockScreen else { return }
         lockScreen = value
+        // An open panel doesn't stay up over the lock screen (its conversation or search would be readable there), and a
+        // conversation still being found doesn't open it.
+        if value { chatOpening?.cancel(); chatOpening = nil; collapse() }
         // Locking stops Shazam: the microphone isn't left on behind the lock screen, and no stale song waits for the
         // unlock. A pull in progress lets go.
         if value { endShazam(); cancelShazamPull() }
@@ -1221,7 +1229,8 @@ final class IslandStore {
         // Paused from the menu: Shazam stops rather than listening unseen, or leaving a song that would never time out
         // (the pointer is taken out without the hover's timer).
         if value { endShazam(); cancelShazamPull() }
-        if value { expanded = false; pointerInside = false; base = nil; onExpandedChange?(false) }
+        if value { chatOpening?.cancel(); chatOpening = nil }
+        if value { collapse(); pointerInside = false; base = nil }
         refresh()
     }
 
