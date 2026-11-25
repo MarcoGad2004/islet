@@ -193,6 +193,8 @@ final class NotchController {
             MainActor.assumeIsolated { self?.screenChanged() }
         }
 
+        // The shape came to rest under a pointer that hasn't moved (the panel closed, a card went): hover is decided again.
+        store.animator.onSettled = { [weak self] in self?.pointerChanged(force: true) }
         installMonitors()
         screenChanged()
     }
@@ -252,6 +254,7 @@ final class NotchController {
     func screenChanged() {
         let g = NotchGeometry.current() ?? menuBarGeometry()
         if g != store.geometry { store.setGeometry(g) }
+        if g == nil { store.collapse() } // no island to show: an open panel doesn't wait for the next pointer move
         if let g { panel?.setFrame(g.panelFrame, display: true) }
         updatePanelVisibility()
     }
@@ -296,10 +299,11 @@ final class NotchController {
         // Global monitors see events going to other apps (the panel ignores the mouse outside the island). macOS only
         // sends pointer moves to them while the app in front asks for moves, which the desktop (Finder with no window)
         // doesn't: so a listen-only event tap watches them too. It never holds or changes an event.
-        if let m = NSEvent.addGlobalMonitorForEvents(matching: moveMask, handler: { [weak self] _ in
+        installPointerTap()
+        // With the tap running, a second route for the same moves only doubles the work.
+        if pointerTap == nil, let m = NSEvent.addGlobalMonitorForEvents(matching: moveMask, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.pointerChanged() }
         }) { monitors.append(m) }
-        installPointerTap()
         if let m = NSEvent.addGlobalMonitorForEvents(matching: clickMask, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.clickedElsewhere() }
         }) { monitors.append(m) }
@@ -336,16 +340,17 @@ final class NotchController {
         CGEvent.tapEnable(tap: t, enable: true)
     }
 
-    private func pointerChanged() {
+    private func pointerChanged(force: Bool = false) {
         // The tap and the monitors both report most moves: one look per position is enough.
         let at = NSEvent.mouseLocation
-        if at == lastPointer { return }
+        if at == lastPointer, !force { return }
         lastPointer = at
         var inside = store.isOverIsland(globalPoint: NSEvent.mouseLocation)
         // Mission Control's Spaces bar runs along the top: the island doesn't answer the pointer there, so the peek
         // (and, without a notch, the chevron) stays away and clicks reach the bar (DESIGN.md "Behaviour").
         if inside, !store.expanded, DockOverview.isOpen() { inside = false }
-        panel?.ignoresMouseEvents = !(inside && store.isInteractive(globalPoint: at))
+        let ignores = !(inside && store.isInteractive(globalPoint: at))
+        if panel?.ignoresMouseEvents != ignores { panel?.ignoresMouseEvents = ignores }
         store.pointerMoved(inside: inside)
     }
 

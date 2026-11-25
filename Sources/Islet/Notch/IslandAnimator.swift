@@ -24,6 +24,8 @@ final class IslandAnimator {
     /// no spring of its own; the gesture's own spring takes it back when they lift.
     private var extra = IslandMetrics.zero
     @ObservationIgnored private var timer: Timer?
+    /// Called when the motion has come to rest (the pointer is tested again then: the shape may have moved away from it).
+    @ObservationIgnored var onSettled: (() -> Void)?
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
     /// Closing into the notch runs in two legs: into a slightly swollen pill, then down to this.
     @ObservationIgnored private var then: IslandMetrics?
@@ -283,7 +285,7 @@ final class IslandAnimator {
             apply(final, Array(repeating: (settle, 0), count: IslandMetrics.channelCount))
             moving = true
         }
-        if !moving { timer?.invalidate(); timer = nil }
+        if !moving { timer?.invalidate(); timer = nil; onSettled?() }
     }
 
     /// Advances one channel by `dt`; true while it is still moving (or waiting out its delay).
