@@ -15,6 +15,9 @@ final class MediaMonitor {
     @ObservationIgnored private var state: [String: Any] = [:]
     @ObservationIgnored private var artworkKey = ""
     @ObservationIgnored private var artwork: NSImage?
+    /// Where the last seek put the playhead, for a couple of seconds. Browsers (Zen, Chrome...) report the new position
+    /// late or not at all, so until the stream agrees the page shows and builds on this, which keeps repeated skips adding up.
+    @ObservationIgnored private var seekHold: (position: Double, at: Date, until: Date)?
 
     private var resources: (script: String, framework: String)? {
         guard let dir = Bundle.main.resourceURL else { return nil }
@@ -85,11 +88,18 @@ final class MediaMonitor {
         // The encoded copy can be megabytes; the decoded cover is all that's used from here.
         state.removeValue(forKey: "artworkData")
         let ts = (state["timestamp"] as? String).flatMap { Self.iso.date(from: $0) ?? Self.isoPlain.date(from: $0) } ?? Date()
-        let m = MediaInfo(bundleID: bundle, title: title, artist: state["artist"] as? String ?? "",
+        var m = MediaInfo(bundleID: bundle, title: title, artist: state["artist"] as? String ?? "",
                           album: state["album"] as? String ?? "", playing: state["playing"] as? Bool ?? false,
                           duration: (state["duration"] as? Double) ?? 0, elapsed: (state["elapsedTime"] as? Double) ?? 0,
                           timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork,
                           shuffle: ((state["shuffleMode"] as? Int) ?? 1) > 1, repeatMode: (state["repeatMode"] as? Int) ?? 1)
+        if let h = seekHold {
+            let now = Date()
+            let expected = h.position + (m.playing ? now.timeIntervalSince(h.at) * max(m.rate, 1) : 0)
+            if now < h.until, m.title == info?.title, abs(m.position(at: now) - expected) > 1.5 {
+                m.elapsed = expected; m.timestamp = now // the player hasn't caught up with the seek yet
+            } else { seekHold = nil }
+        }
         update(m)
     }
 
@@ -112,7 +122,12 @@ final class MediaMonitor {
     func togglePlayPause() { run(["send", "2"]) }
     func next() { run(["send", "4"]) }
     func previous() { run(["send", "5"]) }
-    func seek(to seconds: Double) { run(["seek", String(Int(seconds * 1_000_000))]) }
+    func seek(to seconds: Double) {
+        run(["seek", String(Int(seconds * 1_000_000))])
+        let now = Date()
+        seekHold = (seconds, now, now.addingTimeInterval(2))
+        info?.elapsed = seconds; info?.timestamp = now; onChange?(info)
+    }
     /// Forward or back by seconds. A seek, like the scrubber's, because players answer it more often than they do the
     /// skip-15 commands.
     func skip(seconds: Double) {
