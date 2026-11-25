@@ -17,11 +17,11 @@ final class BatteryStatsPanel {
         panel.willShow = { [weak self] in
             guard let power = self?.power else { return }
             power.refresh()
-            power.watchDetails(true)
+            power.watchDetails(true, owner: "stats")
             PowerModeController.shared.refresh()
             power.history.backfillIfNeeded()
         }
-        panel.didClose = { [weak self] in self?.power.watchDetails(false) }
+        panel.didClose = { [weak self] in self?.power.watchDetails(false, owner: "stats") }
         return panel
     }()
 
@@ -45,6 +45,8 @@ final class MenuBarPanel {
     private var panel: NSPanel?
     private var host: FittingHostingView<AnyView>?
     private var monitors: [Any] = []
+    private var systemObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var shownAt = Date.distantPast
     /// The icon's window: a click on the icon toggles, so the outside-click watcher leaves it alone.
     private weak var anchor: NSWindow?
     private var closedByOutsideClick: Date?
@@ -96,6 +98,35 @@ final class MenuBarPanel {
         panel.makeKey()
         button.highlight(true)
         watchOutside(button)
+        watchSystem()
+    }
+
+    /// Another app coming forward, a change of Space, the display going to sleep or the screen locking: a menu closes
+    /// then, and so does this. Left open, its readings (the app lists, the one-second battery reads, the power
+    /// flow's animation) would run on for nothing, out of sight.
+    private func watchSystem() {
+        unwatchSystem()
+        shownAt = Date()
+        let close: @Sendable (Notification) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                // Not for one still being delivered as the panel opens (the click that opened it can activate us).
+                guard let self, Date().timeIntervalSince(self.shownAt) > 0.4 else { return }
+                self.close()
+            }
+        }
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification,
+                     NSWorkspace.screensDidSleepNotification] {
+            systemObservers.append((workspace, workspace.addObserver(forName: name, object: nil, queue: .main, using: close)))
+        }
+        let distributed = DistributedNotificationCenter.default()
+        systemObservers.append((distributed, distributed.addObserver(forName: Notification.Name("com.apple.screenIsLocked"),
+                                                                     object: nil, queue: .main, using: close)))
+    }
+
+    private func unwatchSystem() {
+        for (center, token) in systemObservers { center.removeObserver(token) }
+        systemObservers = []
     }
 
     /// Fades in while dropping the last few points into place, like Control Center's modules (only the fade with
@@ -124,6 +155,7 @@ final class MenuBarPanel {
         (anchor?.contentView?.subviews.first { $0 is NSStatusBarButton } as? NSStatusBarButton)?.highlight(false)
         for m in monitors { NSEvent.removeMonitor(m) }
         monitors = []
+        unwatchSystem()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.12
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
