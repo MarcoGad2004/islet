@@ -10,8 +10,13 @@ struct FocusMode: Equatable {
 
     /// The Focus's own colour, as macOS shows it; Do Not Disturb's indigo-purple when it has none.
     var color: Color {
-        if let tintName, let c = NSColor.perform(NSSelectorFromString(tintName))?.takeUnretainedValue() as? NSColor {
-            return Color(nsColor: c)
+        // The name comes from a private file: only a system colour accessor NSColor really has is performed (an
+        // unknown selector would raise an exception that can't be caught).
+        if let tintName, tintName.hasPrefix("system"), tintName.hasSuffix("Color") {
+            let sel = NSSelectorFromString(tintName)
+            if (NSColor.self as AnyObject).responds(to: sel), let c = NSColor.perform(sel)?.takeUnretainedValue() as? NSColor {
+                return Color(nsColor: c)
+            }
         }
         return Color(hex: 0xBF5AF2)
     }
