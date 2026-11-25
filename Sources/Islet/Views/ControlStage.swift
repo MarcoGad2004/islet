@@ -70,6 +70,7 @@ struct ControlStage: View {
                 BatteryPage(power: power).slot(below, visible: mode == .battery)
             }
             if Feature.shazam.isOn { shazamButton.slot(shazamSlot, visible: mode == .controls).opacity(rest * headerFade) }
+            if let f = activeFocus { focusIcon(f).slot(focusSlot, visible: mode == .controls).opacity(rest * headerFade) }
             if flush { notchSettings } else { gear }
         }
         .frame(width: W, height: H, alignment: .topLeading)
@@ -107,14 +108,9 @@ struct ControlStage: View {
     private func header(_ mode: Mode) -> some View {
         ZStack(alignment: .leading) {
             HStack(spacing: 8) {
-                if !flush {
-                    Text("CONTROLS").font(.system(size: 11, weight: .semibold)).tracking(0.8).foregroundStyle(Color.isletTertiary)
-                        .opacity(rest)
-                }
                 if let power = store.power, power.state.hasBattery { batteryChip(power.state) }
                 if Feature.messages.isOn, let m = store.messages, m.unreadCount > 0 { messagesChip(m.unreadCount).opacity(rest) }
                 if let u = store.updater, let tag = u.availableTag { updatePill(u, tag).opacity(rest) }
-                if Feature.focus.isOn, let f = store.focus?.active { focusIcon(f).opacity(rest) }
             }
             .opacity(mode == .controls ? 1 : 0)
             .allowsHitTesting(mode == .controls)
@@ -145,6 +141,15 @@ struct ControlStage: View {
     private var shazamSlot: CGRect {
         let x: CGFloat = store.media == nil ? (flush ? W - 22 : W - 26 - 8 - 22) : (flush ? W - 26 - 8 - 22 - 8 - 22 : 376)
         return CGRect(x: x, y: 2 + headerY, width: 22, height: 22)
+    }
+
+    /// The Focus on now (owner's request, 2026-11-25): a persistent pill at the right end of the header, left of Shazam,
+    /// so the battery and messages pills keep their room. It doesn't animate when the Focus changes.
+    private var activeFocus: FocusMode? { Feature.focus.isOn ? store.focus?.active : nil }
+
+    private var focusSlot: CGRect {
+        let s = shazamSlot
+        return CGRect(x: Feature.shazam.isOn ? s.minX - 8 - 22 : s.minX, y: s.minY, width: 22, height: 22)
     }
 
     /// A new version is out: click to close the panel and update, the progress playing out in the notch. Next to
@@ -195,8 +200,10 @@ struct ControlStage: View {
                 .font(.system(size: 10, weight: .semibold)).foregroundStyle(s.charging ? Color.isletGreen : Color.isletSecondary)
                 .quickInfoPiece(.batteryIcon, ns)
             Text("\(s.percent)%").font(.system(size: 11, weight: .semibold)).monospacedDigit().foregroundStyle(Color.isletText)
+                .lineLimit(1).fixedSize()
                 .quickInfoPiece(.batteryText, ns)
         }
+        .fixedSize()
         .padding(.horizontal, 8).frame(height: 22)
         .background(IsletCard(shape: Capsule()).opacity(rest))
         .contentShape(Capsule())
@@ -232,6 +239,13 @@ struct ControlStage: View {
         }
         .buttonStyle(.plain)
         .help("Shazam: name the song playing nearby")
+    }
+
+    /// The mini player's title in the header stops short of the leftmost pill on the right (it is drawn at 12/17 size).
+    private var titleWidth: CGFloat {
+        guard Feature.shazam.isOn || activeFocus != nil else { return 240 }
+        let stop = activeFocus != nil ? focusSlot.minX : shazamSlot.minX
+        return (stop - 8 - 228) / (12.0 / 17)
     }
 
     private func focusIcon(_ f: FocusMode) -> some View {
@@ -377,7 +391,7 @@ struct ControlStage: View {
                 .font(.system(size: 17, weight: .semibold)).lineLimit(1)
                 .foregroundStyle(isMedia ? Color.isletText : Color.isletSecondary)
                 // In the header row it stops short of Shazam (at x 376).
-                .frame(width: isMedia || !Feature.shazam.isOn ? 240 : 196, height: 22, alignment: .leading)
+                .frame(width: isMedia ? 240 : titleWidth, height: 22, alignment: .leading)
                 .scaleEffect(isMedia ? 1 : 12.0 / 17, anchor: .topLeading)
                 .offset(x: isMedia ? 94 : 228, y: isMedia ? 54 : 6 + headerY)
                 // Flush, there's no room for the name beside the camera: hovering the art shows it.

@@ -336,11 +336,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         store.focus = focus; store.wifi = wifi; store.bluetooth = bluetooth; store.display = display; store.airdrop = airdrop; store.sidecar = sidecar
 
-        focus.onChange = { [weak store] old, new in
-            guard Feature.focus.isOn else { return }
-            if let new { store?.showEvent(IslandEvent(kind: .focusOn, icon: new.symbol, title: new.name, detail: "On", tint: new.color)) }
-            else if let old { store?.showEvent(IslandEvent(kind: .focusOff, icon: old.symbol, title: old.name, detail: "Off")) }
-        }
         focus.start()
         wifi.onConnected = { [weak store] ssid, hotspot in
             store?.showEvent(hotspot ? IslandEvent(kind: .hotspot, icon: "personalhotspot", title: ssid, detail: "Hotspot")
