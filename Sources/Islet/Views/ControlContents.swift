@@ -219,7 +219,6 @@ struct WiFiContent: View {
             DetailFooter(link: "Wi-Fi Settings…", pane: SystemSettings.wifi) {
                 if let e = wifi.error { Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1) }
                 if wifi.scanning && !wifi.networks.isEmpty { ProgressView().controlSize(.mini) }
-                if wifi.powerOn && wifi.isConnected { speedTest }
             }
         }
     }
@@ -237,8 +236,8 @@ struct WiFiContent: View {
             }
         case .done(let r):
             HStack(spacing: 8) {
-                Text("↓ \(Self.mbps(r.download))  ↑ \(Self.mbps(r.upload))  \(Int(r.latency.rounded())) ms")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(Color.isletText).lineLimit(1)
+                Text(SpeedTest.summary(r))
+                    .font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(Color.isletText).lineLimit(1)
                 speedButton("Again")
             }
         case .failed(let e):
@@ -255,7 +254,6 @@ struct WiFiContent: View {
             .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
     }
 
-    private static func mbps(_ v: Double) -> String { (v >= 100 ? "\(Int(v.rounded()))" : String(format: "%.1f", v)) + " Mbps" }
 
     /// "Off", "Not connected", the network, "Connected · name needs Location", or "Personal Hotspot · Marco's iPhone".
     static func status(_ wifi: WiFiController) -> String {
@@ -317,6 +315,7 @@ struct WiFiContent: View {
                 if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
                 if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                 else if connected {
+                    speedTest
                     Button("Disconnect") { Task { await wifi.disconnect() } }
                         .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
                         .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))

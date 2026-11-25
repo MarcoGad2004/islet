@@ -344,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                      : IslandEvent(kind: .wifi, icon: "wifi", title: ssid, detail: "Connected"))
         }
         wifi.onProgress = { [weak store] in store?.showProgress($0) }
+        SpeedTest.showInIsland = { [weak store] p in if let p { store?.showProgress(p) } else { store?.clearProgress() } }
         Updater.showInIsland = { [weak store] p, action in store?.showProgress(p, action: action) }
         Updater.clearIsland = { [weak store] in store?.clearProgress() }
         Updater.revealIsland = { [weak self] in self?.notch.setIslandVisible(true) }

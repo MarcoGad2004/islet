@@ -1,5 +1,6 @@
 import CoreWLAN
 import Foundation
+import SwiftUI
 
 /// A speed test run with macOS's own `networkQuality` tool (no account, no third party). It touches the network only
 /// when the user presses Run speed test in the Wi-Fi panel.
@@ -17,7 +18,11 @@ final class SpeedTest {
 
     enum State: Equatable { case idle, running, done(Result), failed(String) }
 
-    private(set) var state = State.idle
+    private(set) var state = State.idle {
+        didSet { if state != oldValue { Self.showInIsland?(Self.progress(state)) } }
+    }
+    /// The notch's compact state while the panel is closed (nil takes it away). Set by the app delegate.
+    static var showInIsland: ((ConnectionProgress?) -> Void)?
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var cancelled = false
     @ObservationIgnored private var timedOut = false
@@ -27,6 +32,23 @@ final class SpeedTest {
     private static let limit: Double = 30
 
     var running: Bool { state == .running }
+
+    static func mbps(_ v: Double) -> String { (v >= 100 ? "\(Int(v.rounded()))" : String(format: "%.1f", v)) + " Mbps" }
+    static func summary(_ r: Result) -> String { "↓ \(mbps(r.download))  ↑ \(mbps(r.upload))  \(Int(r.latency.rounded())) ms" }
+
+    private static func progress(_ s: State) -> ConnectionProgress? {
+        let tint = Color(hex: 0x0A84FF)
+        switch s {
+        case .idle: return nil
+        case .running:
+            return ConnectionProgress(name: "Speed test", hotspot: false, state: .working("Testing speed…"), icon: "speedometer", tint: tint)
+        case .done(let r):
+            return ConnectionProgress(name: "Speed test", hotspot: false, state: .done, icon: "speedometer", tint: .isletGreen,
+                                      doneText: summary(r), hold: 5)
+        case .failed(let e):
+            return ConnectionProgress(name: "Speed test", hotspot: false, state: .failed(e), icon: "speedometer", tint: tint)
+        }
+    }
 
     func run() {
         guard !running else { return }
