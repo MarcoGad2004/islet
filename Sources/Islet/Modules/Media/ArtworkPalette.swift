@@ -7,15 +7,17 @@ enum ArtworkPalette {
     /// No artwork: the glass look's own glow colours.
     static let fallback: [Color] = [.isletCyan, Color(hex: 0x5E5CE6), Color(hex: 0xFF5EA8)]
 
-    @MainActor private static var cache: [ObjectIdentifier: [Color]] = [:]
+    /// Holds the image itself: an `ObjectIdentifier` alone is reused by the next image allocated at that address, which
+    /// would hand a new cover the previous song's colours.
+    @MainActor private static var cache: [ObjectIdentifier: (image: NSImage, colors: [Color])] = [:]
 
     @MainActor static func colors(_ image: NSImage?) -> [Color] {
         guard let image else { return fallback }
         let id = ObjectIdentifier(image)
-        if let c = cache[id] { return c }
+        if let c = cache[id], c.image === image { return c.colors }
         let c = compute(image) ?? fallback
-        if cache.count > 32 { cache.removeAll() }
-        cache[id] = c
+        if cache.count >= 4 { cache.removeAll() }
+        cache[id] = (image, c)
         return c
     }
 

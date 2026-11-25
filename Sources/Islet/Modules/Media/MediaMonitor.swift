@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 
 /// Now playing for any app, through the vendored mediaremote-adapter (BSD-3): Apple's own /usr/bin/perl is
 /// allowed to use MediaRemote, and it loads our helper framework that prints updates as JSON lines.
@@ -80,13 +81,24 @@ final class MediaMonitor {
             artworkKey = key
             artwork = nil
         }
-        if artwork == nil, let b64 = state["artworkData"] as? String, let d = Data(base64Encoded: b64) { artwork = NSImage(data: d) }
+        if artwork == nil, let b64 = state["artworkData"] as? String, let d = Data(base64Encoded: b64) { artwork = Self.downsampled(d) }
+        // The encoded copy can be megabytes; the decoded cover is all that's used from here.
+        state.removeValue(forKey: "artworkData")
         let ts = (state["timestamp"] as? String).flatMap { Self.iso.date(from: $0) ?? Self.isoPlain.date(from: $0) } ?? Date()
         let m = MediaInfo(bundleID: bundle, title: title, artist: state["artist"] as? String ?? "",
                           album: state["album"] as? String ?? "", playing: state["playing"] as? Bool ?? false,
                           duration: (state["duration"] as? Double) ?? 0, elapsed: (state["elapsedTime"] as? Double) ?? 0,
                           timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork)
         update(m)
+    }
+
+    /// The cover at up to 512 px (it is drawn at 22-80 pt): Apple Music's originals decode to tens of megabytes.
+    private static func downsampled(_ data: Data) -> NSImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return NSImage(data: data) }
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                                        kCGImageSourceThumbnailMaxPixelSize: 512]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return NSImage(data: data) }
+        return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
     }
 
     private func update(_ new: MediaInfo?) {
