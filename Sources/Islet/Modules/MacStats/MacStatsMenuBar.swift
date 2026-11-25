@@ -399,7 +399,11 @@ final class MacStatsStatusItem {
                 NSStatusBar.system.removeStatusItem(item)
             }
             item = nil
+            lastImage = nil
             if MacStatsSettings.isEnabled == false { stats.stop() }
+            // With no item (and no panel) there is nowhere to see or change the fans: give them back to macOS, rather
+            // than leaving them held, with the heartbeat keeping the helper from doing it, until the app quits.
+            if FanControl.shared.mode != .automatic { FanControl.shared.setAutomatic() }
         }
     }
 
@@ -417,11 +421,19 @@ final class MacStatsStatusItem {
         self.item = item
     }
 
+    /// Whether an observation is registered: one at a time, however often Mac Stats is switched off and on (each
+    /// leftover one would redraw the item again on every reading).
+    private var watching = false
+
     /// Observation fires once per registration, so each change registers again.
     private func watch() {
+        guard !watching else { return }
+        watching = true
         withObservationTracking { _ = MacStats.shared.snapshot } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self, MacStats.shared.running else { return }
+                guard let self else { return }
+                self.watching = false
+                guard MacStats.shared.running else { return }
                 self.redraw()
                 self.watch()
             }
@@ -441,10 +453,24 @@ final class MacStatsStatusItem {
         let tempLevel = MacStatsSettings.warns(.temperature) ? temperatureHold.update(celsius.map { StatLevel(celsius: $0) } ?? .normal, at: s.date) : .normal
         let content = MacStatsMenuBarContent.make(s, levels: levels, temperatureLevel: tempLevel,
                                                   fahrenheit: Locale.current.measurementSystem == .us)
-        button.image = MacStatsMenuBar.image(content, colourParts: MacStatsSettings.on(MacStatsSettings.colourParts))
+        // Most readings at rest give the same picture: building it (measuring the text, drawing) is the cost.
+        let colourParts = MacStatsSettings.on(MacStatsSettings.colourParts)
+        let signature = MacStatsSettings.signature
+        let image = LastImage(content: content, colourParts: colourParts, settings: signature)
+        guard image != lastImage || button.image == nil else { return }
+        lastImage = image
+        button.image = MacStatsMenuBar.image(content, colourParts: colourParts)
         button.toolTip = content.spoken
         button.setAccessibilityLabel(content.spoken)
     }
+
+    /// What the item's picture was built from, to skip building it again when nothing changed.
+    private struct LastImage: Equatable {
+        var content: MacStatsMenuBarContent
+        var colourParts: Bool
+        var settings: String
+    }
+    private var lastImage: LastImage?
 
     @objc private func clicked() {
         guard let item, let button = item.button else { return }
