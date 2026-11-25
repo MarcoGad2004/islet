@@ -108,24 +108,78 @@ final class PowerMonitor {
 
     func refresh() { state = Self.read() }
 
+    /// Who wants the live numbers now (the stats panel, the island's battery page): they run while any does, so one
+    /// closing doesn't freeze the other's.
+    @ObservationIgnored private var detailOwners: Set<String> = []
+    @ObservationIgnored private var healthTask: Task<Void, Never>?
+    @ObservationIgnored private var healthAttempt = Date.distantPast
+    @ObservationIgnored private var healthRead = Date.distantPast
+    /// System Settings' Maximum Capacity moves over weeks: read it again after this long.
+    private static let healthMaxAge: TimeInterval = 6 * 3600
+
     /// While the battery page or the stats are open, re-read everything every second so the power draw stays live.
-    func watchDetails(_ on: Bool) {
-        detailsTask?.cancel()
-        detailsTask = nil
-        guard on else { return }
-        details = Self.readDetails()
-        Task { [weak self] in
-            let h = await Self.readReportedHealth()
-            self?.reportedHealth = h ?? self?.reportedHealth
+    func watchDetails(_ on: Bool, owner: String = "island") {
+        let was = !detailOwners.isEmpty
+        if on { detailOwners.insert(owner) } else { detailOwners.remove(owner) }
+        let now = !detailOwners.isEmpty
+        if !now {
+            detailsTask?.cancel()
+            detailsTask = nil
+            return
         }
+        guard on else { return }
+        let fresh = Self.readDetails()
+        if fresh != details { details = fresh }
+        readHealthIfStale()
+        guard !was || detailsTask == nil else { return }
+        detailsTask?.cancel()
         detailsTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, let self else { return }
-                self.details = Self.readDetails()
-                self.state = Self.read()
+                // Set only what changed: an equal value still wakes everything that watches it.
+                let d = Self.readDetails()
+                if d != self.details { self.details = d }
+                let s = Self.read()
+                if s != self.state { self.state = s }
             }
         }
+    }
+
+    /// `system_profiler` takes a second or two of CPU: not on every opening, and not twice at once.
+    private func readHealthIfStale() {
+        let now = Date()
+        guard healthTask == nil, now.timeIntervalSince(healthAttempt) > 600,
+              reportedHealth == nil || now.timeIntervalSince(healthRead) > Self.healthMaxAge else { return }
+        healthAttempt = now
+        healthTask = Task { [weak self] in
+            let h = await Self.readReportedHealth()
+            guard let self else { return }
+            healthTask = nil
+            if let h {
+                reportedHealth = h
+                healthRead = Date()
+            }
+        }
+    }
+
+    /// The charge limit changes only when the owner edits it in System Settings: read the file now and then, not
+    /// every second.
+    private static var chargeLimitCache: (at: Date, value: Int?)?
+    private static func cachedChargeLimit() -> Int? {
+        if let c = chargeLimitCache, Date().timeIntervalSince(c.at) < 20 { return c.value }
+        let v = readChargeLimit()
+        chargeLimitCache = (Date(), v)
+        return v
+    }
+
+    /// The battery's temperature moves over minutes: read it every so often.
+    private static var temperatureCache: (at: Date, value: Double?)?
+    private static func cachedTemperature() -> Double? {
+        if let c = temperatureCache, Date().timeIntervalSince(c.at) < 15 { return c.value }
+        let v = SMCSensors.temperature()
+        temperatureCache = (Date(), v)
+        return v
     }
 
     /// powerd keeps the charging policies in a world-readable file: an archived list whose `manualChargeLimit` entry
@@ -183,8 +237,8 @@ final class PowerMonitor {
     private static func readDetails() -> Details {
         var d = Details()
         d.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-        d.chargeLimit = readChargeLimit()
-        d.temperature = SMCSensors.temperature()
+        d.chargeLimit = cachedChargeLimit()
+        d.temperature = cachedTemperature()
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return d }
         defer { IOObjectRelease(service) }
@@ -224,9 +278,12 @@ final class PowerMonitor {
     private func changed() {
         let old = state
         let new = Self.read()
-        state = new
+        if new != state { state = new }
         // A charger in or out changes where the power goes at once, not on the next tick.
-        if detailsTask != nil { details = Self.readDetails() }
+        if detailsTask != nil {
+            let d = Self.readDetails()
+            if d != details { details = d }
+        }
         guard started, new.hasBattery else { return }
 
         // A charger in or out: nothing announces the moment charging actually starts (or stops), so look again every

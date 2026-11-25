@@ -53,7 +53,8 @@ final class BatteryHistory {
                 || now.timeIntervalSince(last!.time) >= Self.interval else { return }
         samples.append(sample)
         trim(now)
-        save(force: last?.onAC != sample.onAC)
+        // A few hundred samples a day: written each time, so little is lost to a quit or a crash.
+        save(force: true)
     }
 
     /// The last `hours` of samples, with the charge now at the end so the line reaches the right edge.
