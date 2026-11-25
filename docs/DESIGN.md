@@ -1089,6 +1089,9 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
   movement. Nothing grows in (owner, 2026-11-24: simpler is better here); from 1.7.1 the page also drifts 8 pt: opening one,
   the overview leaves to the left and the page comes in from the right, and Back the other way (none with Reduce Motion). The panel's top edge stays put
   and the content keeps to the top. The battery stats panel resizes the same way when its content changes size.
+- Calm (1.7.1, owner request 2026-11-24): an open panel redraws on the CPU every animation frame, so once the pointer has
+  been still over it for 8 s the readings just step, with no easing (checked at each reading). Moving the pointer over it
+  brings the easing back. A panel that is only being looked at then costs about 4% of a core instead of 25-30%.
 - Tiles, pills and the back button lighten a little under the pointer and press in slightly when clicked.
 - On the Fans page, what's under the mode switch fades as it changes, and the switch's selection slides to the new
   mode.

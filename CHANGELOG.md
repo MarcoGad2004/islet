@@ -10,6 +10,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Face unlock works from further away.** The camera now captures at 720p instead of 640 x 480, and a face counts from 11% of the frame's width instead of 14%. It also logs the face's width and match score while scanning, to tune the range.
 - **Faster face unlock in bright light.** The light sensor gets a moment to answer before a scan starts, so a bright room goes straight to the blink instead of waiting on the spoof check and the glow first.
 - **The display stays awake while a scan runs,** so it no longer goes to sleep from inactivity half way through an unlock.
+- **The Mac Stats panel goes calm when you're not using it.** After about 8 seconds without moving the pointer over it, readings step instead of easing, which takes an open panel from 25-30% of a core to about 4%. Moving the pointer brings the animation back.
+- **Photo edge logging.** Face scans and the face test log what rectangle the photo-edge check found round the face, to tune it.
 - **"Open in Messages" on message notifications.** A message in the notch now has Open in Messages and View, instead of Mark as Read.
 - **Pick each part's colour.** In Settings > Mac Stats, click the colour square beside Efficiency cores, Performance cores, GPU or Memory to choose from 16 colours across the rainbow. It applies in the menu bar and the panel.
 - **Clearer Glass look wording.** It now says the battery and Mac Stats panels follow it too.

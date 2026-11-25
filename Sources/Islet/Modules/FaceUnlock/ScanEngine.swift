@@ -149,6 +149,7 @@ final class ScanEngine: @unchecked Sendable {
         if fallback && promptedAt != nil {
             detector.add(openness: a.eyeOpenness, mouth: a.mouthWidth, yaw: a.proxyX)
         }
+        FramedLog.note(a, source: "scan")
         framedHistory.append(a.framed)
         if framedHistory.count > 10 { framedHistory.removeFirst() }
         let framed = framedHistory.filter { $0 }.count >= 4

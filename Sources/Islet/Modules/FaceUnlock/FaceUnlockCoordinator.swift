@@ -179,6 +179,7 @@ final class FaceUnlockCoordinator {
                 if let a, a.boxWidth > FaceAnalysis.minimumWidth, let img = a.alignedImage(), let e = embedder.embed(img) {
                     score = FaceMatcher.score(e, enrolled: enrolled)
                     framed = a.framed
+                    FramedLog.note(a, source: "test")
                     if recording {
                         let m = FacePulse.measure(pb, points: a.points, face: a.box)
                         recorder.add(FacePulse.Frame(time: FaceCamera.captured(pb), face: m.face, background: m.background,

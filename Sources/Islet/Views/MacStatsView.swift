@@ -39,6 +39,14 @@ struct MacStatsView: View {
         // Each reading glides in: bars and charts ease to it (the numbers just change: rolling digits cost too much CPU,
         // see `MacStatsMotion.reading`). Nothing glides with Reduce Motion: the new readings just show.
         .animation(reduceMotion ? nil : MacStatsMotion.reading, value: stats.snapshot.date)
+        // Pointer moving over the panel: lively again. Still for `calmAfter`: calm (checked at each reading).
+        .onContinuousHover { phase in
+            if case .active = phase { MacStatsMotion.lastActive = Date(); MacStatsMotion.calm = false }
+        }
+        .onChange(of: stats.snapshot.date) { _, now in
+            if now.timeIntervalSince(MacStatsMotion.lastActive) > MacStatsMotion.calmAfter { MacStatsMotion.calm = true }
+        }
+        .onAppear { MacStatsMotion.lastActive = Date(); MacStatsMotion.calm = false }
         .onChange(of: state.page, initial: true) { _, page in
             stats.wantsProcesses = [.cpu, .memory, .gpu].contains(page)
         }
@@ -1252,7 +1260,15 @@ enum MacStatsMotion {
     /// 0.45 s, not 0.7 (1.7.1). Every frame of an animation redraws the panel's layers on the CPU, so the time spent
     /// animating is what the panel costs: measured with the CPU page open and 2 s readings, 0.7 s with rolling digits
     /// used about 50% of a core, this about 25%, and no animation at all about 4%.
-    static let reading = Animation.spring(response: 0.45, dampingFraction: 0.9)
+    static let lively = Animation.spring(response: 0.45, dampingFraction: 0.9)
+    /// Set by the panel (`MacStatsView`) once the pointer has been still over it for a while: the readings then just
+    /// step (1.7.1). An open panel redraws on the CPU every animation frame, so a panel that's only being looked at
+    /// stops animating and costs about as little as a closed one.
+    @MainActor static var calm = false
+    @MainActor static var lastActive = Date()
+    /// Seconds without the pointer moving over the panel before it goes calm.
+    static let calmAfter: TimeInterval = 8
+    @MainActor static var reading: Animation { calm ? .linear(duration: 0.01) : lively }
     /// A page fading in: the same curve and length as the panel easing to its size (`MenuBarPanel.settle`).
     static let settle = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)
 }

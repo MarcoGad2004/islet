@@ -1,4 +1,5 @@
 import CoreImage
+import os
 import Vision
 
 /// What we learn about a face in one frame.
@@ -23,6 +24,8 @@ struct FaceAnalysis: @unchecked Sendable {
     var mouthWidth: Double
     /// The face sits inside a rectangle that hugs it: the edge of a held-up photo, phone or tablet.
     var framed: Bool
+    /// The rectangle `framed` found (normalized, bottom-left origin) and Vision's confidence in it, for the log.
+    var framedBy: (rect: CGRect, confidence: Float)?
     var pixelBuffer: CVPixelBuffer
 
     /// The 112x112 ArcFace-aligned crop, rendered on demand.
@@ -73,7 +76,8 @@ struct FaceAnalyzer: Sendable {
         let eyes = [openness(pts(lm.leftEye)), openness(pts(lm.rightEye))].compactMap { $0 }
         let eyeOpenness = eyes.isEmpty ? 0 : eyes.reduce(0, +) / Double(eyes.count)
 
-        let framed = (rects.results ?? []).contains { PhotoCheck.hugs(face.boundingBox, $0.boundingBox) }
+        let hugging = (rects.results ?? []).first { PhotoCheck.hugs(face.boundingBox, $0.boundingBox) }
+        let framed = hugging != nil
 
         return FaceAnalysis(proxyX: Double((nose.x - eyeMid.x) / eyeDist),
                             proxyY: Double((nose.y - baseline) / eyeDist),
@@ -82,7 +86,28 @@ struct FaceAnalyzer: Sendable {
                             eyeOpenness: eyeOpenness,
                             mouthWidth: Double(hypot(m2.x - m1.x, m2.y - m1.y) / eyeDist),
                             framed: framed,
+                            framedBy: hugging.map { ($0.boundingBox, $0.confidence) },
                             pixelBuffer: pb)
+    }
+}
+
+/// For tuning the photo-edge check (1.7.1): what rectangle it found round the face, at most twice a second.
+enum FramedLog {
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
+    private static let last = OSAllocatedUnfairLock(initialState: Date.distantPast)
+
+    static func note(_ a: FaceAnalysis, source: String) {
+        guard let by = a.framedBy else { return }
+        let now = Date()
+        let go = last.withLock { t in
+            guard now.timeIntervalSince(t) >= 0.5 else { return false }
+            t = now
+            return true
+        }
+        guard go else { return }
+        let r = by.rect, f = a.box
+        let w = CVPixelBufferGetWidth(a.pixelBuffer), h = CVPixelBufferGetHeight(a.pixelBuffer)
+        log.notice("photo edge (\(source, privacy: .public)): frame \(w)x\(h) rect x \(r.minX, format: .fixed(precision: 2)) y \(r.minY, format: .fixed(precision: 2)) w \(r.width, format: .fixed(precision: 2)) h \(r.height, format: .fixed(precision: 2)) conf \(by.confidence, format: .fixed(precision: 2)) face w \(f.width, format: .fixed(precision: 2)) h \(f.height, format: .fixed(precision: 2)) face/rect w \(f.width / r.width, format: .fixed(precision: 2)) h \(f.height / r.height, format: .fixed(precision: 2))")
     }
 }
 
