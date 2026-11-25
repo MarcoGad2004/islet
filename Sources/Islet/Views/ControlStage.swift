@@ -76,7 +76,7 @@ struct ControlStage: View {
         .frame(width: W, height: H, alignment: .topLeading)
         .animation(glide, value: mode)
         .onChange(of: mode) { old, now in
-            if old == .wifi { store.wifi?.stopBrowsingHotspots(); SpeedTest.shared.reset() }
+            if old == .wifi { store.wifi?.stopBrowsingHotspots() } // a running speed test carries on in the notch
             if old == .battery { store.power?.watchDetails(false) }
             switch now {
             case .wifi: store.wifi?.refresh(); store.wifi?.browseHotspots(); Task { await store.wifi?.scan() }
@@ -88,7 +88,7 @@ struct ControlStage: View {
             default: break
             }
         }
-        .onDisappear { store.wifi?.stopBrowsingHotspots(); SpeedTest.shared.reset() }
+        .onDisappear { store.wifi?.stopBrowsingHotspots() }
         #if DEBUG
         .onAppear {
             switch UserDefaults.standard.string(forKey: "IsletDebugDetail") {

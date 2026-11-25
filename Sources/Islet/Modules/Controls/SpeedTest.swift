@@ -8,6 +8,11 @@ import SwiftUI
 final class SpeedTest {
     static let shared = SpeedTest()
 
+    /// The tool and its arguments; tests point it at something harmless.
+    @ObservationIgnored private let tool: String
+    @ObservationIgnored private let toolArguments: [String]?
+    init(tool: String = "/usr/bin/networkQuality", arguments: [String]? = nil) { self.tool = tool; toolArguments = arguments }
+
     struct Result: Equatable {
         /// Megabits per second.
         var download: Double
@@ -52,13 +57,12 @@ final class SpeedTest {
 
     func run() {
         guard !running else { return }
-        let tool = "/usr/bin/networkQuality"
         guard FileManager.default.isExecutableFile(atPath: tool) else {
             state = .failed("Speed test needs macOS 12 or later."); return
         }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: tool)
-        p.arguments = ["-c", "-M", "15"] + Self.interfaceArguments()
+        p.arguments = toolArguments ?? (["-c", "-M", "15"] + Self.interfaceArguments())
         let out = Pipe()
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
@@ -66,13 +70,14 @@ final class SpeedTest {
         do { try p.run() } catch { state = .failed("Couldn't run the speed test."); return }
         state = .running
         process = p; cancelled = false; timedOut = false
+        observeEnds()
         let handle = out.fileHandleForReading
         nonisolated(unsafe) let proc = p
         // A plain thread reads it: the wait would otherwise hold one of Swift concurrency's few threads for the whole test.
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             let data = handle.readDataToEndOfFile()
             proc.waitUntilExit()
-            Task { @MainActor in SpeedTest.shared.finish(proc, data) }
+            Task { @MainActor in self.finish(proc, data) }
         }
         watchdog?.cancel()
         watchdog = Task { [weak self] in
@@ -81,6 +86,22 @@ final class SpeedTest {
             self.timedOut = true
             p.terminate()
         }
+    }
+
+    /// While a test runs, the Mac locking, sleeping or the app quitting ends it. (Closing the panel does not.)
+    @ObservationIgnored private var endObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    private func observeEnds() {
+        guard endObservers.isEmpty else { return }
+        let ws = NSWorkspace.shared.notificationCenter
+        for (center, name) in [(ws, NSWorkspace.willSleepNotification), (NotificationCenter.default, NSApplication.willTerminateNotification)] {
+            endObservers.append((center, center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.cancel() }
+            }))
+        }
+        let dist = DistributedNotificationCenter.default()
+        endObservers.append((dist, dist.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancel() }
+        }))
     }
 
     func cancel() {
@@ -105,6 +126,7 @@ final class SpeedTest {
         guard process === p else { return }
         process = nil
         watchdog?.cancel(); watchdog = nil
+        endObservers.forEach { $0.0.removeObserver($0.1) }; endObservers = []
         if cancelled { state = .idle; return }
         if timedOut { state = .failed("The speed test timed out."); return }
         state = Self.parse(data)
