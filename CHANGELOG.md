@@ -9,7 +9,7 @@ Face Unlock's blink, smile or head-turn challenge now has to be done by your fac
 
 **Fixes**
 
-- **A photo could bring up the challenge for someone else to do.** The photo matched, the blink was asked, a different face blinked, and the photo went back in front of the camera to unlock. The challenge now only counts frames that match your face (a turned head is allowed a slightly lower score), and a few frames in a row that aren't you wipe its progress, so the same face has to match before, during and after.
+- **A photo could bring up the challenge for someone else to do.** The photo matched, the blink was asked, a different face blinked, and the photo went back in front of the camera to unlock. The challenge now only counts frames that match your face (a turned head is allowed a score up to 0.2 lower), and a few frames in a row that aren't you wipe its progress, so the same face has to match before, during and after.
 
 ## 1.7.3 (2026-11-25)
 

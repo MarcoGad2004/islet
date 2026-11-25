@@ -48,7 +48,7 @@ final class ScanEngine: @unchecked Sendable {
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
     static let challengeSeconds = 8.0
     /// How far below the match threshold a frame may score and still count towards the challenge (a turned head).
-    static let challengeIdentitySlack: Float = 0.1
+    static let challengeIdentitySlack: Float = 0.2
     /// This many frames in a row below that floor discard the challenge's progress.
     static let strangerFramesToReset = 3
     /// The glow should end within this; if the service never answers, fall back to a challenge.
