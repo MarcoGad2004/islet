@@ -120,7 +120,11 @@ enum PhotoCheck {
     static func hugs(_ face: CGRect, _ rect: CGRect) -> Bool {
         guard rect.width < 0.95 || rect.height < 0.95 else { return false } // the whole frame isn't a photo edge
         guard rect.insetBy(dx: -0.02, dy: -0.02).contains(face) else { return false }
-        return face.width / rect.width >= 0.25 && face.height / rect.height >= 0.18
+        // The face is some of the picture, not nearly all of it: a photo or screen shows the head with room above
+        // and below (the face box was at most half the rectangle's height). Without this, the owner's own head, hair
+        // and beard made a tall rectangle that hugged the face, and real scans were refused as "photo edge"
+        // (1.7.1 log: face 0.27 of a rectangle 0.42 high, confidence 1.00, with the spoof model at Real 1.00).
+        return face.width / rect.width >= 0.25 && face.height / rect.height >= 0.18 && face.height / rect.height <= 0.5
     }
 }
 

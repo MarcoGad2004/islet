@@ -194,6 +194,12 @@ lock screen. Each question below can block it:
          "fake" from refusing, not a room the sensor calls too bright for the glow. Now that counts too (Standard and
          More secure: the challenge decides, as it already did in harsh light); Test recognition says "Bright room:
          would ask". Not a broken install: there was one copy of the app, and the logs showed the code refusing.
+      7. **Photo edge on the owner's own head (2026-11-24, logged by 1.7.1):** the test and real scans logged a rectangle
+         at x 0.42 y 0.07, 0.16 x 0.42 of a 1920 x 1080 frame, confidence 1.00, the face box 0.15 x 0.27 inside it (face
+         0.9 of its width, 0.63 of its height) while the spoof model said Real 1.00: the head's outline, not a photo. Seven
+         scans were refused that way at 17:42. `PhotoCheck.hugs` now also needs the face to be at most half the rectangle's
+         height, as in a photo or screen with room round the head. A tightly cropped photo no longer trips it; the spoof
+         model and the glow are what judge those.
       6. **Straight to the blink in a bright room (owner, same day):** the scan only learned the room was too bright
          when it asked the service for the glow, after waiting ~0.4 s for the spoof model's first verdict. The service
          now reads the light sensor as the scan starts and tells the engine, which then skips the glow and the wait and

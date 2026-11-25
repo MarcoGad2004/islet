@@ -55,6 +55,12 @@ final class FaceProtectionTests: XCTestCase {
         XCTAssertFalse(PhotoCheck.hugs(face, CGRect(x: 0.65, y: 0.3, width: 0.3, height: 0.4)))
     }
 
+    func testOwnHeadIsNotAPhotoEdge() {
+        // From the log: a real head's outline (hair, beard) as a tall rectangle just round the face box.
+        let face = CGRect(x: 0.425, y: 0.15, width: 0.15, height: 0.27)
+        XCTAssertFalse(PhotoCheck.hugs(face, CGRect(x: 0.42, y: 0.07, width: 0.16, height: 0.42)))
+    }
+
     func testLearningIsAnchoredToEnrolment() {
         let me = [unit([1, 0, 0, 0]), unit([1, 0.1, 0, 0]), unit([1, 0, 0.1, 0])]
         // Clearly me but in new light: kept.
