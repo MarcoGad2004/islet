@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    private var closeObserver: NSObjectProtocol?
     var runSetup: (() -> Void)?
     private let face: FaceUnlockCoordinator
     private let levels: LevelsController
@@ -30,6 +31,21 @@ final class SettingsWindowController {
             if !w.setFrameUsingName("IsletSettings") { w.center() }
             w.setFrameAutosaveName("IsletSettings")
             window = w
+            // Closing the window must not leave Test recognition or an enrolment holding the camera.
+            closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.face.stopTest()
+                    if self?.face.isEnrolling == true { self?.face.cancelEnrolment() }
+                    // Let go of the window and its SwiftUI tree: a closed Settings must not keep refreshing permissions
+                    // on every app activation. The page and frame are remembered, so it opens as it was.
+                    DispatchQueue.main.async {
+                        guard let self, let w = self.window, !w.isVisible else { return }
+                        w.contentViewController = nil
+                        self.window = nil
+                        if let o = self.closeObserver { NotificationCenter.default.removeObserver(o); self.closeObserver = nil }
+                    }
+                }
+            }
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
