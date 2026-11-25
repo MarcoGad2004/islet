@@ -400,12 +400,19 @@ enum ProcessReader {
 
     /// Every process using some CPU, and every one holding more than 10 MB: `ProcessNames` adds helpers up under their
     /// app before taking the top few, so the small ones count too.
+    /// How many of the biggest processes get their footprint looked up.
+    static let footprintLimit = 120
+
     static func read() -> (cpu: [ProcessUse], memory: [ProcessUse]) {
         let rows = parse(runPS())
         let cpu = rows.filter { $0.cpu > 0 }
             .map { ProcessUse(pid: $0.pid, name: $0.name, value: $0.cpu / 100, path: $0.path) }
-        let memory = rows.filter { $0.residentKB > 10_240 }
-            .map { r in ProcessUse(pid: r.pid, name: r.name, value: Double(footprint(r.pid) ?? r.residentKB * 1024), path: r.path) }
+        // The footprint (one system call a process) only for the biggest: below them the resident size will do, and
+        // none of those reaches the top few.
+        let big = rows.filter { $0.residentKB > 10_240 }.sorted { $0.residentKB > $1.residentKB }
+        let memory = big.enumerated().map { i, r in
+            ProcessUse(pid: r.pid, name: r.name, value: Double((i < footprintLimit ? footprint(r.pid) : nil) ?? r.residentKB * 1024), path: r.path)
+        }
         return (cpu, memory)
     }
 

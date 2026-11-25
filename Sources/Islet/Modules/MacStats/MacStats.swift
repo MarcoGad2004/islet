@@ -117,6 +117,9 @@ final class MacStats {
     var menuNeedsThermal = false
 
     static let historySpan: TimeInterval = 10 * 60
+    /// The app lists are read no more often than this (seconds).
+    static let processEvery: TimeInterval = 2
+    @ObservationIgnored private var lastProcessRead = Date.distantPast
 
     @ObservationIgnored private let sampler = MacStatsSampler()
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -173,7 +176,11 @@ final class MacStats {
     }
 
     private func read(processes: Bool? = nil) async {
-        let processes = processes ?? wantsProcesses
+        var processes = processes ?? wantsProcesses
+        // `ps` and the lookups behind it cost more than the rest of a reading together: at the 1 s setting the app
+        // lists update every other reading.
+        if processes, !snapshot.topCPU.isEmpty, Date().timeIntervalSince(lastProcessRead) < Self.processEvery - 0.2 { processes = false }
+        if processes { lastProcessRead = Date() }
         let needs = MacStatsNeeds(thermal: menuNeedsThermal || panelOpen, energy: panelOpen)
         var s = await sampler.sample(processes: processes, needs: needs)
         guard task != nil else { return }
