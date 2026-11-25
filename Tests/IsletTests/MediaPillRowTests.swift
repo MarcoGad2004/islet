@@ -70,3 +70,12 @@ final class BrowserSiteTests: XCTestCase {
         XCTAssertNil(site("I've Been Keeping This A Secret - Private Browsing", app: "Firefox"))
     }
 }
+
+final class MediaPositionTests: XCTestCase {
+    func testUnknownPositionIsFlagged() {
+        var m = MediaInfo(bundleID: "app.zen-browser.zen", title: "t", artist: "", album: "", playing: true, duration: 0, elapsed: 0, timestamp: Date(), rate: 1)
+        XCTAssertTrue(m.positionKnown)
+        m.positionKnown = false
+        XCTAssertFalse(m.positionKnown)
+    }
+}

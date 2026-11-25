@@ -98,6 +98,14 @@ final class MediaMonitor {
                           duration: (state["duration"] as? Double) ?? 0, elapsed: (state["elapsedTime"] as? Double) ?? 0,
                           timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork,
                           shuffle: ((state["shuffleMode"] as? Int) ?? 1) > 1, repeatMode: (state["repeatMode"] as? Int) ?? 1)
+        // A browser's update can leave out the elapsed time or the length (a seek, a pause, a buffering moment). Missing
+        // is not zero: keep what was known for the same track, and mark the position unknown when nothing was.
+        let sameTrack = info.map { $0.bundleID == bundle && $0.title == title } ?? false
+        if state["duration"] as? Double == nil { if sameTrack, let prev = info { m.duration = prev.duration } }
+        if state["elapsedTime"] as? Double == nil {
+            if sameTrack, let prev = info { m.elapsed = prev.position(); m.timestamp = Date(); m.positionKnown = prev.positionKnown }
+            else { m.positionKnown = false }
+        }
         if let h = seekHold {
             let now = Date()
             let expected = h.position + (m.playing ? now.timeIntervalSince(h.at) * max(m.rate, 1) : 0)
@@ -133,12 +141,14 @@ final class MediaMonitor {
         seekHold = (seconds, now, now.addingTimeInterval(2))
         info?.elapsed = seconds; info?.timestamp = now; onChange?(info)
     }
-    /// Forward or back by seconds. A seek, like the scrubber's, because players answer it more often than they do the
-    /// skip-15 commands.
+    /// Forward or back by seconds. A seek to the position plus or minus the amount, like the scrubber's, because players
+    /// answer it more often than the skip commands. When the player hasn't said where it is (a browser can leave it out),
+    /// a seek would land at the start, so the player's own skip-15 command is sent instead.
     func skip(seconds: Double) {
         guard let m = info else { return }
+        guard m.positionKnown, m.duration > 0 else { run(["send", seconds < 0 ? "12" : "13"]); return }
         let target = m.position() + seconds
-        seek(to: m.duration > 0 ? min(max(target, 0), m.duration) : max(target, 0))
+        seek(to: min(max(target, 0), m.duration))
     }
 
     /// Shuffle on (tracks) or off. The button shows the new state at once; the player's own update confirms it.

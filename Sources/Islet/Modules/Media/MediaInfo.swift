@@ -15,6 +15,8 @@ struct MediaInfo: Equatable {
     /// The player's shuffle (any mode but off) and repeat (1 off, 2 one track, 3 all) as it reports them.
     var shuffle = false
     var repeatMode = 1
+    /// False when the player has said nothing about where it is (a browser's update can leave out the time and length).
+    var positionKnown = true
 
     /// The player is a web browser (Safari, Chrome, Firefox, Zen, Arc...): it plays video and web audio through the
     /// browser's media session, which answers play, pause, skip and seek but not shuffle or repeat.
