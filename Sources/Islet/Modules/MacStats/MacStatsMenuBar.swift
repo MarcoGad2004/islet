@@ -19,6 +19,23 @@ enum MacStatsSettings {
     static let temperatureSource = "macStatsTemperatureSource"
     static let colourParts = "macStatsColourParts"
     static let warnings = "macStatsWarnings"
+    /// Which stats may warn (each on by default, once `warnings` is on): the switches under "Warn in yellow and red".
+    enum WarnPart: CaseIterable {
+        case efficiency, performance, gpu, memory, temperature
+        var key: String {
+            switch self {
+            case .efficiency: "macStatsWarnEfficiency"
+            case .performance: "macStatsWarnPerformance"
+            case .gpu: "macStatsWarnGPU"
+            case .memory: "macStatsWarnMemory"
+            case .temperature: "macStatsWarnTemperature"
+            }
+        }
+    }
+    /// Whether this stat shows yellow and red: warnings on, and this one's switch on.
+    static func warns(_ part: WarnPart) -> Bool { on(warnings) && on(part.key) }
+    /// `level`, or `.normal` where this stat doesn't warn.
+    static func gated(_ level: StatLevel, _ part: WarnPart) -> StatLevel { warns(part) ? level : .normal }
     /// Seconds between readings: 1, 2 or 5.
     static let interval = "macStatsInterval"
 
@@ -29,8 +46,8 @@ enum MacStatsSettings {
     /// Every Mac Stats setting as it is now, to tell when one changed.
     static var signature: String {
         let d = UserDefaults.standard
-        return [enabled, meters, efficiency, performance, gpu, memory, readouts, temperature, power, fan, colourParts, warnings]
-            .map { on($0) ? "1" : "0" }.joined() + "\(d.string(forKey: temperatureSource) ?? "")\(intervalSeconds)"
+        let keys = [enabled, meters, efficiency, performance, gpu, memory, readouts, temperature, power, fan, colourParts, warnings] + WarnPart.allCases.map(\.key)
+        return keys.map { on($0) ? "1" : "0" }.joined() + "\(d.string(forKey: temperatureSource) ?? "")\(intervalSeconds)"
     }
     static var intervalSeconds: Int { [1, 2, 5].contains(UserDefaults.standard.integer(forKey: interval)) ? UserDefaults.standard.integer(forKey: interval) : 2 }
 }
@@ -44,7 +61,17 @@ enum TemperatureSource: String, CaseIterable {
 
 /// What the item shows, worked out from a reading and the settings: kept apart from the drawing so it can be tested.
 struct MacStatsMenuBarContent: Equatable {
-    enum Part: CaseIterable { case efficiency, performance, gpu, memory }
+    enum Part: CaseIterable {
+        case efficiency, performance, gpu, memory
+        var warnPart: MacStatsSettings.WarnPart {
+            switch self {
+            case .efficiency: .efficiency
+            case .performance: .performance
+            case .gpu: .gpu
+            case .memory: .memory
+            }
+        }
+    }
     struct Bar: Equatable { var part: Part; var value: Double; var level: StatLevel }
     struct Readout: Equatable {
         var text: String
@@ -357,15 +384,14 @@ final class MacStatsStatusItem {
     private func redraw() {
         guard let button = item?.button else { return }
         let s = MacStats.shared.snapshot
-        let warn = MacStatsSettings.on(MacStatsSettings.warnings)
         var levels: [MacStatsMenuBarContent.Part: StatLevel] = [:]
         for part in MacStatsMenuBarContent.Part.allCases {
             var hold = holds[part] ?? LevelHold()
-            levels[part] = warn ? hold.update(MacStatsMenuBarContent.rawLevel(part, s), at: s.date) : .normal
+            levels[part] = MacStatsSettings.warns(part.warnPart) ? hold.update(MacStatsMenuBarContent.rawLevel(part, s), at: s.date) : .normal
             holds[part] = hold
         }
         let celsius = MacStatsMenuBarContent.celsius(s, .current)
-        let tempLevel = warn ? temperatureHold.update(celsius.map { StatLevel(celsius: $0) } ?? .normal, at: s.date) : .normal
+        let tempLevel = MacStatsSettings.warns(.temperature) ? temperatureHold.update(celsius.map { StatLevel(celsius: $0) } ?? .normal, at: s.date) : .normal
         let content = MacStatsMenuBarContent.make(s, levels: levels, temperatureLevel: tempLevel,
                                                   fahrenheit: Locale.current.measurementSystem == .us)
         button.image = MacStatsMenuBar.image(content, colourParts: MacStatsSettings.on(MacStatsSettings.colourParts))

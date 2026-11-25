@@ -956,7 +956,9 @@ ever mean a warning.
   spike doesn't flash). Memory turns yellow at memory pressure "warning" and red at "critical"; how full it is never
   colours it (macOS fills spare memory with cache).
 - Settings "Colour each part" off: the bars use the menu bar's colour, like the battery. "Warn in yellow and red" off:
-  no warning colours.
+  no warning colours. Under it, a switch for each stat that can warn (1.7.1, owner 2026-11-24): efficiency cores,
+  performance cores, GPU, memory, temperature; all on by default. A stat whose switch is off never turns yellow or red,
+  in the menu bar, the overview or its page (the CPU tile warns for whichever core type is still on).
 
 ### Menu bar
 
@@ -1096,7 +1098,8 @@ A page between Battery and Face Unlock, in the usual grouped form:
   choice: CPU average, Hottest CPU core, GPU). Child rows sit indented behind a turn-down-right arrow, greyed while
   their parent is off. With nothing on, an orange line: "Nothing is on in the menu bar, so there's nowhere to open the
   stats from."
-- **Look**: "Colour each part", "Warn in yellow and red", "Update every" (1, 2 or 5 seconds).
+- **Look**: "Colour each part", "Warn in yellow and red" with a switch under it for each stat (efficiency cores, performance
+  cores, GPU, memory, temperature), "Update every" (1, 2 or 5 seconds).
 - **Fan Control**: "Let me control the fans" (off by default; turning it off gives the fans back); while on, "Fan
   helper" with its state and Install…, Open Login Items… or Remove….
 - The Features list (status page and setup) has one row, "Mac Stats", with its switch; the parts are on this page.

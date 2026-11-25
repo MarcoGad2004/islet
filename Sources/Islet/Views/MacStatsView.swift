@@ -108,7 +108,8 @@ private struct MacStatsOverview: View {
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                 GridRow {
                     Tile(title: "CPU", value: MacStatsFormat.percent(s.cpu?.total), number: s.cpu?.total,
-                         level: StatLevel(load: max(s.cpu?.efficiency ?? 0, s.cpu?.performance ?? 0)), action: { open(.cpu) }) {
+                         level: StatLevel(load: max(MacStatsSettings.warns(.efficiency) ? s.cpu?.efficiency ?? 0 : 0,
+                                                    MacStatsSettings.warns(.performance) ? s.cpu?.performance ?? 0 : 0)), action: { open(.cpu) }) {
                         VStack(spacing: 6) {
                             CoreTypeRow(letter: "E", value: s.cpu?.efficiency, colour: MacStatsColour.efficiency, reveal: intro)
                             CoreTypeRow(letter: "P", value: s.cpu?.performance, colour: MacStatsColour.performance, reveal: intro)
@@ -116,7 +117,7 @@ private struct MacStatsOverview: View {
                         .padding(.top, 6)
                     }
                     Tile(title: "GPU", value: MacStatsFormat.percent(s.gpu?.utilization), number: s.gpu?.utilization,
-                         level: StatLevel(load: s.gpu?.utilization ?? 0), action: { open(.gpu) }) {
+                         level: MacStatsSettings.gated(StatLevel(load: s.gpu?.utilization ?? 0), .gpu), action: { open(.gpu) }) {
                         Caption(s.gpu.map { "\(MacStatsFormat.megabytes($0.memoryInUse)) in use" } ?? " ")
                         let gpu = stats.buckets
                         Sparkline(values: gpu.map(\.gpu), newest: gpu.last?.date, top: 1, colour: MacStatsColour.gpu)
@@ -125,12 +126,12 @@ private struct MacStatsOverview: View {
                 }
                 GridRow {
                     Tile(title: "Memory", value: MacStatsFormat.percent(s.memory?.fraction), number: s.memory?.fraction,
-                         level: StatLevel(s.memory?.pressure ?? .normal), action: { open(.memory) }) {
+                         level: MacStatsSettings.gated(StatLevel(s.memory?.pressure ?? .normal), .memory), action: { open(.memory) }) {
                         Caption(s.memory.map { "\(MacStatsFormat.gigabytes($0.used)) of \(MacStatsFormat.gigabytes($0.total, decimals: 0))" } ?? " ")
                         if let m = s.memory { MemoryBar(memory: m, height: 6, reveal: intro).padding(.top, 8) }
                         Text("Pressure \(MacStatsFormat.pressure(s.memory?.pressure ?? .normal))")
                             .font(.system(size: 11))
-                            .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .tertiaryLabelColor))
+                            .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal), for: .memory) ?? Color(nsColor: .tertiaryLabelColor))
                             .padding(.top, 6)
                     }
                     Tile(title: "Power", value: MacStatsFormat.watts(s.systemWatts), number: s.systemWatts, level: .normal, action: nil) {
@@ -150,9 +151,9 @@ private struct MacStatsOverview: View {
             StatsSectionLabel("Temperature")
             VStack(spacing: 7) {
                 StatRow("CPU", MacStatsFormat.temperature(s.thermal.cpuAverage),
-                        colour: s.thermal.cpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) }, number: s.thermal.cpuAverage)
+                        colour: s.thermal.cpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0), for: .temperature) }, number: s.thermal.cpuAverage)
                 StatRow("GPU", MacStatsFormat.temperature(s.thermal.gpuAverage),
-                        colour: s.thermal.gpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0)) }, number: s.thermal.gpuAverage)
+                        colour: s.thermal.gpuAverage.flatMap { MacStatsColour.level(StatLevel(celsius: $0), for: .temperature) }, number: s.thermal.gpuAverage)
                 if s.thermal.ssd != nil { StatRow("SSD", MacStatsFormat.temperature(s.thermal.ssd), number: s.thermal.ssd) }
             }
 
@@ -264,10 +265,10 @@ private struct MacStatsCPUPage: View {
                 HStack(alignment: .bottom, spacing: 14) {
                     if cpu.efficiencyCount > 0 {
                         CoreGroup(name: "Efficiency", cores: Array(cpu.cores.prefix(cpu.efficiencyCount)), total: cpu.efficiency,
-                                  colour: MacStatsColour.efficiency)
+                                  colour: MacStatsColour.efficiency, part: .efficiency)
                     }
                     CoreGroup(name: "Performance", cores: Array(cpu.cores.dropFirst(cpu.efficiencyCount)), total: cpu.performance,
-                              colour: MacStatsColour.performance)
+                              colour: MacStatsColour.performance, part: .performance)
                 }
             }
             VStack(spacing: 7) {
@@ -293,12 +294,13 @@ private struct CoreGroup: View {
     let cores: [Double]
     let total: Double
     let colour: Color
+    let part: MacStatsSettings.WarnPart
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .bottom, spacing: 4) {
                 ForEach(Array(cores.enumerated()), id: \.offset) { _, load in
-                    VBar(fraction: load, colour: MacStatsColour.level(StatLevel(load: load)) ?? colour)
+                    VBar(fraction: load, colour: MacStatsColour.level(StatLevel(load: load), for: part) ?? colour)
                         .frame(width: 12, height: 36)
                 }
             }
@@ -328,7 +330,7 @@ private struct MacStatsMemoryPage: View {
                 Spacer()
                 Text(MacStatsFormat.pressure(s.memory?.pressure ?? .normal).capitalized)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .labelColor))
+                    .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal), for: .memory) ?? Color(nsColor: .labelColor))
             }
             MemoryChart(points: stats.buckets)
                 .padding(.top, 8)
@@ -681,7 +683,7 @@ private struct MemoryChart: View {
         // One series a pressure level, each bar in the series of its own level and nothing in the others.
         let levels: [StatLevel] = [.normal, .warning, .critical]
         let series = levels.map { level in points.map { StatLevel($0.memoryPressure) == level ? $0.memoryFraction : 0 } }
-        let colours = levels.map { MacStatsColour.level($0) ?? MacStatsColour.memory }
+        let colours = levels.map { MacStatsColour.level($0, for: .memory) ?? MacStatsColour.memory }
         return PercentFrame(height: 64) {
             SlidingPlot(series: series, newest: points.last?.date, top: 1) { drawn, top in
                 ZStack {
@@ -1311,6 +1313,12 @@ enum MacStatsColour {
     /// Yellow or red, or nil for the usual colour; nothing while "Warn in yellow and red" is off.
     static func level(_ level: StatLevel) -> Color? {
         guard MacStatsSettings.on(MacStatsSettings.warnings) else { return nil }
+        return MacStatsMenuBar.colour(level).map { Color(nsColor: $0) }
+    }
+
+    /// `level(_:)` for one stat: nothing where that stat's own warning switch is off.
+    static func level(_ level: StatLevel, for part: MacStatsSettings.WarnPart) -> Color? {
+        guard MacStatsSettings.warns(part) else { return nil }
         return MacStatsMenuBar.colour(level).map { Color(nsColor: $0) }
     }
 }

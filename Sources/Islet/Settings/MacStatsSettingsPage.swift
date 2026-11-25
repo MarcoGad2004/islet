@@ -16,6 +16,11 @@ struct MacStatsSettingsPage: View {
     @AppStorage(MacStatsSettings.temperatureSource) private var source = TemperatureSource.cpuAverage.rawValue
     @AppStorage(MacStatsSettings.colourParts) private var colourParts = true
     @AppStorage(MacStatsSettings.warnings) private var warnings = true
+    @AppStorage(MacStatsSettings.WarnPart.efficiency.key) private var warnEfficiency = true
+    @AppStorage(MacStatsSettings.WarnPart.performance.key) private var warnPerformance = true
+    @AppStorage(MacStatsSettings.WarnPart.gpu.key) private var warnGPU = true
+    @AppStorage(MacStatsSettings.WarnPart.memory.key) private var warnMemory = true
+    @AppStorage(MacStatsSettings.WarnPart.temperature.key) private var warnTemperature = true
     @AppStorage(MacStatsSettings.interval) private var interval = 2
     @AppStorage(FanControl.enabledKey) private var fanControl = false
     private let fans = FanControl.shared
@@ -73,6 +78,11 @@ struct MacStatsSettingsPage: View {
                 Toggle(isOn: $warnings) {
                     SettingsLabel("Warn in yellow and red", "When a part works hard, memory is under pressure, or it's hot.")
                 }
+                part("Efficiency cores", .efficiency, $warnEfficiency, parent: warnings)
+                part("Performance cores", .performance, $warnPerformance, parent: warnings)
+                part("GPU", .gpu, $warnGPU, parent: warnings)
+                part("Memory", .memory, $warnMemory, parent: warnings)
+                child("Temperature", $warnTemperature, parent: warnings)
                 Picker("Update every", selection: $interval) {
                     Text("Second").tag(1)
                     Text("2 seconds").tag(2)
