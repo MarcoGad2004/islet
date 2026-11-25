@@ -10,6 +10,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 - **Face unlock works from further away.** The camera now captures at 720p instead of 640 x 480, and a face counts from 11% of the frame's width instead of 14%. It also logs the face's width and match score while scanning, to tune the range.
 - **Faster face unlock in bright light.** The light sensor gets a moment to answer before a scan starts, so a bright room goes straight to the blink instead of waiting on the spoof check and the glow first.
 - **The display stays awake while a scan runs,** so it no longer goes to sleep from inactivity half way through an unlock.
+- **Glass look and Extended brightness are on the General settings page.** They were under Notch.
 - **Choose which stats warn.** Under "Warn in yellow and red" in Settings > Mac Stats, each stat (efficiency cores, performance cores, GPU, memory, temperature) has its own switch, so a part you don't care about never turns yellow or red, in the menu bar or the panel.
 - **The overview's bars and graphs grow in.** Each time the Mac Stats overview is shown, the CPU and memory bars grow to their readings and the two sparklines rise from their baselines. The captions under the numbers just change now, without a text effect, which takes the overview from about 50% of a core to about 30%.
 - **"CPU 0.0 W" in the Power tile is fixed.** The CPU's energy counter only moves about once a second, so a reading taken soon after another showed 0 W. Readings now cover at least 1.8 s.

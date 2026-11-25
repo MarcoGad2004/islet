@@ -386,7 +386,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
   takes the red off first, step by step, and at 100 it's off; then the white bar drops as usual. Moving the brightness
   slider also turns it off. It turns itself off when the screen sleeps or locks, the lid closes or the display
   changes, below 20% battery on battery power, or at serious thermal pressure, and it never survives a restart.
-  Settings > Notch > Brightness has its switch (on by default, shown only on an XDR Mac).
+  Settings > General > Brightness has its switch (on by default, shown only on an XDR Mac; it was on the Notch page until 1.7.1).
   - **Nudge** (owner, 2026-11-24): reaching 100 with brightness-up, the bar gives a small bump against its end (scale
     1.04 from the left and back), and 0.7 s later "Hold ☀ for XDR brightness" ("XDR" in red) cross-fades into the
     bar's place; the level then stays 2.8 s instead of 1.5 s. A tap at 100 that lets go too soon brings the hint
