@@ -18,7 +18,8 @@ final class Updater {
 
     nonisolated static let repo = "MarcoGad2004/islet"
     private(set) var state = State.idle
-    /// Release notes of the release found by `check()` (Markdown from CHANGELOG.md).
+    /// Release notes of everything newer than the running version up to the release found by `check()` (Markdown from
+    /// CHANGELOG.md; one section per version, newest first, when an update skips versions).
     private(set) var notes = ""
     /// The DMG of the release found by `check()`.
     @ObservationIgnored private var dmgURL: URL?
@@ -73,7 +74,7 @@ final class Updater {
             do {
                 let latest = try await Self.latestRelease()
                 dmgURL = latest.dmg
-                notes = latest.notes
+                notes = Self.combinedNotes(latest.releases, after: currentVersion, upTo: latest.tag)
                 UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
                 state = Self.isNewer(latest.tag, than: currentVersion) ? .available(latest.tag) : .upToDate
             } catch {
@@ -281,22 +282,47 @@ final class Updater {
 
     struct UpdateError: Error { let message: String }
 
+    struct ReleaseInfo: Equatable { let tag: String; let notes: String; let dmg: URL? }
+
     private struct Release: Decodable {
         struct Asset: Decodable { let name: String; let browser_download_url: URL }
         let tag_name: String
         let body: String?
+        let draft: Bool?
+        let prerelease: Bool?
         let assets: [Asset]
     }
 
-    nonisolated private static func latestRelease() async throws -> (tag: String, dmg: URL?, notes: String) {
+    /// The release to install: the highest version that has a download, whatever order GitHub lists them in, so an
+    /// older or skipped release is never picked and 1.4 goes straight to 1.6 when 1.6 is out. Nil when none has one.
+    nonisolated static func newest(of releases: [ReleaseInfo]) -> ReleaseInfo? {
+        releases.filter { $0.dmg != nil }.max { isNewer($1.tag, than: $0.tag) }
+    }
+
+    /// Notes for every release after `current` up to `latest`, newest first. A single release's notes come back as they
+    /// are; several get a version heading each. Versions GitHub doesn't list, or that have no notes, are left out.
+    nonisolated static func combinedNotes(_ releases: [ReleaseInfo], after current: String, upTo latest: String) -> String {
+        var seen = Set<String>()
+        let range = releases
+            .filter { isNewer($0.tag, than: current) && !isNewer($0.tag, than: latest) }
+            .filter { seen.insert(plain($0.tag)).inserted }
+            .sorted { isNewer($0.tag, than: $1.tag) }
+            .filter { !$0.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if range.count == 1 { return range[0].notes }
+        return range.map { "## \(plain($0.tag))\n\n\($0.notes.trimmingCharacters(in: .whitespacesAndNewlines))" }.joined(separator: "\n\n")
+    }
+
+    nonisolated private static func latestRelease() async throws -> (tag: String, dmg: URL?, releases: [ReleaseInfo]) {
         #if DEBUG
         // Testing the whole update without GitHub: a local DMG and the version it holds.
         if let dmg = UserDefaults.standard.string(forKey: "IsletDebugUpdateDMG") {
             let v = UserDefaults.standard.string(forKey: "IsletDebugUpdateVersion") ?? "9.9.9"
-            return ("v\(v)", URL(fileURLWithPath: dmg), "- A test update, installed from a local DMG.")
+            let info = ReleaseInfo(tag: "v\(v)", notes: "- A test update, installed from a local DMG.", dmg: URL(fileURLWithPath: dmg))
+            return (info.tag, info.dmg, [info])
         }
         #endif
-        var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
+        // The whole list (not /releases/latest, which is the most recently created release, not the highest version).
+        var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=100")!)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Islet-updater", forHTTPHeaderField: "User-Agent")
         req.cachePolicy = .reloadIgnoringLocalCacheData
@@ -309,10 +335,15 @@ final class Updater {
         case 403, 429: throw UpdateError(message: "GitHub is limiting requests right now; try again in a while.")
         default: throw UpdateError(message: "Couldn't reach GitHub (HTTP \(status)).")
         }
-        let r = try JSONDecoder().decode(Release.self, from: data)
+        let all = try JSONDecoder().decode([Release].self, from: data)
         // Releases since 1.5 carry "Dynamic Peninsula.dmg", and "Islet.dmg" for copies from before the rename.
-        let asset = r.assets.first { $0.name == dmgFile } ?? r.assets.first { $0.name == legacyDmgFile }
-        return (r.tag_name, asset?.browser_download_url, r.body ?? "")
+        let releases = all.filter { $0.draft != true && $0.prerelease != true }.map { r in
+            let asset = r.assets.first { $0.name == dmgFile } ?? r.assets.first { $0.name == legacyDmgFile }
+            return ReleaseInfo(tag: r.tag_name, notes: r.body ?? "", dmg: asset?.browser_download_url)
+        }
+        let top = newest(of: releases) ?? releases.max { isNewer($1.tag, than: $0.tag) }
+        guard let top else { throw UpdateError(message: "No release found on GitHub.") }
+        return (top.tag, top.dmg, releases)
     }
 
     /// Downloads into a fresh folder, reporting 0...1 as it goes.
