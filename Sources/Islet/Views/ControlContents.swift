@@ -21,7 +21,7 @@ struct SettingsLink: View {
 /// The top of a detail page: the control's icon in a circle (blue when on), its name and state, and its switch.
 private struct SwitchRow<Icon: View>: View {
     var title: String
-    var subtitle: String
+    var subtitle: String?
     var on: Bool
     var set: (Bool) -> Void
     @ViewBuilder var icon: () -> Icon
@@ -33,7 +33,7 @@ private struct SwitchRow<Icon: View>: View {
             }.frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1)
+                if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1) }
             }
             Spacer()
             Toggle("", isOn: Binding(get: { on }, set: set)).labelsHidden().toggleStyle(.switch).controlSize(.small).tint(.green)
@@ -216,11 +216,12 @@ struct WiFiContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SwitchRow(title: "Wi-Fi", subtitle: Self.status(wifi), on: wifi.powerOn, set: { on in
+            SwitchRow(title: "Wi-Fi", subtitle: connectedRowShown ? nil : Self.status(wifi), on: wifi.powerOn, set: { on in
                 wifi.setPower(on)
                 if on { Task { try? await Task.sleep(for: .seconds(2)); await wifi.scan() } }
             }) { Image(systemName: wifi.powerOn ? "wifi" : "wifi.slash").font(.system(size: 13, weight: .semibold)) }
             .padding(.top, 6)
+            .animation(.easeOut(duration: 0.2), value: connectedRowShown)
             Group {
                 if !wifi.powerOn { message("Turn Wi-Fi on to see networks.") }
                 else if let net = asking { passwordPrompt(net) }
@@ -267,6 +268,11 @@ struct WiFiContent: View {
             .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
     }
 
+
+    /// The list below shows the connected network as its own row, so the header needn't repeat its name.
+    private var connectedRowShown: Bool {
+        wifi.powerOn && asking == nil && wifi.locationAllowed && wifi.ssid != nil && wifi.networks.contains { $0.ssid == wifi.ssid }
+    }
 
     /// "Off", "Not connected", the network, "Connected · name needs Location", or "Personal Hotspot · Marco's iPhone".
     static func status(_ wifi: WiFiController) -> String {
