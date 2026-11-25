@@ -436,14 +436,17 @@ struct ControlStage: View {
             }.buttonStyle(.plain).slot(CGRect(x: flush ? W - 26 : 406, y: 2 + headerY, width: 26, height: 22), visible: !isMedia)
                 .opacity(headerFade)
 
+            // A browser's next and previous track are the page's own (a playlist, up next); only play and pause stay there.
             HStack(spacing: 4) {
-                transport("backward.fill", 17) { monitor.previous() }
+                if !m.isBrowser { transport("backward.fill", 17) { monitor.previous() } }
                 Button { monitor.togglePlayPause() } label: {
                     Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 17)).foregroundStyle(Color.black)
                         .frame(width: 38, height: 38).background(Circle().fill(Color.white))
                 }.buttonStyle(.plain)
-                transport("forward.fill", 17) { monitor.next() }
-            }.slot(CGRect(x: W - 132, y: 54, width: 132, height: 40), visible: isMedia)
+                if !m.isBrowser { transport("forward.fill", 17) { monitor.next() } }
+            }
+            .frame(width: 132, height: 40)
+            .slot(CGRect(x: W - 132, y: 54, width: 132, height: 40), visible: isMedia)
 
             // A browser's reported position can't be trusted, so there the scrubber gives way to the website it plays from.
             Scrubber(media: m) { monitor.seek(to: $0) }

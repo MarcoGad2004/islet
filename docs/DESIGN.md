@@ -319,7 +319,8 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     tertiary after it) beside it; previous / play-pause / next at the right (play is a 38 pt white disc with a black
     glyph); the scrubber with elapsed and total time under the title, level with the artwork's bottom quarter.
     Clicking the artwork brings the playing app forward.
-    - **A browser** has no scrubber (owner's request, 2026-11-25: its reported position was wildly wrong, and a seek built on
+    - **A browser** has only the play / pause disc beside the title (owner's request, 2026-11-25): no previous or next track,
+      since those belong to the page. It also has no scrubber (owner's request, 2026-11-25: its reported position was wildly wrong, and a seek built on
       it landed in the wrong place). The line shows a globe and the website it plays from, then the browser: YouTube,
       Zen, or just the browser's name when the site isn't known. The site comes from the browser's window titles through
       Accessibility (`BrowserSite`): the title that holds the playing track's name, minus the browser's own name, split at
