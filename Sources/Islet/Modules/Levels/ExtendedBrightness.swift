@@ -34,7 +34,8 @@ final class ExtendedBrightness {
     /// Called when it turns itself off (sleep, lock, low battery, heat), so the island's level can follow.
     var onEnded: (() -> Void)?
 
-    private let device = MTLCreateSystemDefaultDevice()
+    /// Made on first use: Metal isn't loaded at launch, nor at all on Macs without an XDR panel.
+    private lazy var device = MTLCreateSystemDefaultDevice()
     private lazy var queue = device?.makeCommandQueue()
     private var panel: NSPanel?
     private var layer: CAMetalLayer?
@@ -61,7 +62,7 @@ final class ExtendedBrightness {
 
     /// The built-in screen is an XDR panel (it can show EDR well past SDR white) and Metal is there.
     static var isSupported: Bool {
-        guard MTLCreateSystemDefaultDevice() != nil, let b = builtIn else { return false }
+        guard let b = builtIn else { return false }
         return b.screen.maximumPotentialExtendedDynamicRangeColorComponentValue >= 2
     }
 
