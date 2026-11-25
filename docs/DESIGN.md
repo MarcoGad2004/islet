@@ -488,7 +488,7 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   the tile opens its detail in place. The AirDrop tile is the exception: it only shows the receiving mode (No One,
   Contacts, Everyone) and opens Finder's AirDrop window, because the mode cannot be changed without restarting sharingd.
   - Wi-Fi detail: on/off, the connected network (always first, with a Disconnect button), nearby networks (join; saved networks join directly; password
-    prompt for new secured ones, username and password for Enterprise ones), a link to Wi-Fi settings. A Personal
+    prompt for new secured ones, with an eye button beside the field that shows what is typed (owner's request, 2026-11-25; hidden again for each network), username and password for Enterprise ones), a link to Wi-Fi settings. A Personal
     Hotspot shows as one: the tile reads "Hotspot" with the hotspot icon, the network gets a green "Hotspot" tag.
   - Bluetooth detail: on/off and only the accessories one connects on purpose (headphones, speakers, keyboards, mice,
     controllers; not phones, tablets, watches or Macs), tap to connect or disconnect, a link to Bluetooth settings.

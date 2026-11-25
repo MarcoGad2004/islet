@@ -189,6 +189,9 @@ struct WiFiContent: View {
     @State private var asking: WiFiNetwork?
     @State private var username = ""
     @State private var password = ""
+    /// The eye button: the password in plain text, to check what was typed.
+    @State private var showPassword = false
+    @FocusState private var passwordFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -344,7 +347,7 @@ struct WiFiContent: View {
         }
     }
 
-    private func ask(_ n: WiFiNetwork) { asking = n; username = ""; password = ""; wifi.error = nil }
+    private func ask(_ n: WiFiNetwork) { asking = n; username = ""; password = ""; showPassword = false; wifi.error = nil }
 
     private func passwordPrompt(_ n: WiFiNetwork) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -355,10 +358,19 @@ struct WiFiContent: View {
                     .textContentType(.username).autocorrectionDisabled()
             }
             HStack {
-                SecureField("Password", text: $password).textFieldStyle(.roundedBorder).controlSize(.small)
-                    .textContentType(.password).onSubmit { join(n) }
+                Group {
+                    if showPassword { TextField("Password", text: $password).autocorrectionDisabled() }
+                    else { SecureField("Password", text: $password) }
+                }
+                .textFieldStyle(.roundedBorder).controlSize(.small).focused($passwordFocused)
+                .textContentType(.password).onSubmit { join(n) }
+                Button { showPassword.toggle(); passwordFocused = true } label: {
+                    Image(systemName: showPassword ? "eye.slash" : "eye").font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.isletSecondary).frame(width: 22, height: 20).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help(showPassword ? "Hide the password" : "Show the password")
                 Button("Join") { join(n) }.controlSize(.small).disabled(!ready(n) || wifi.joining != nil)
-                Button("Cancel") { asking = nil; wifi.error = nil }.controlSize(.small)
+                Button("Cancel") { asking = nil; showPassword = false; wifi.error = nil }.controlSize(.small)
             }
         }.padding(.horizontal, 8).frame(maxHeight: .infinity)
     }
@@ -370,7 +382,7 @@ struct WiFiContent: View {
         let user = n.enterprise ? username : nil, pw = password
         Task {
             if await wifi.join(n, username: user, password: pw) == nil {
-                asking = nil; username = ""; password = ""; await wifi.scan()
+                asking = nil; username = ""; password = ""; showPassword = false; await wifi.scan()
             }
         }
     }
