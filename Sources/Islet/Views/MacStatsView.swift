@@ -1305,10 +1305,11 @@ private struct StatsPressBody<S: Shape>: View {
 // MARK: - Colours and wording
 
 enum MacStatsColour {
-    static let efficiency = Color(nsColor: MacStatsMenuBar.colour(.efficiency))
-    static let performance = Color(nsColor: MacStatsMenuBar.colour(.performance))
-    static let gpu = Color(nsColor: MacStatsMenuBar.colour(.gpu))
-    static let memory = Color(nsColor: MacStatsMenuBar.colour(.memory))
+    // Read each time: the colours can be changed in Settings.
+    static var efficiency: Color { Color(nsColor: MacStatsMenuBar.colour(.efficiency)) }
+    static var performance: Color { Color(nsColor: MacStatsMenuBar.colour(.performance)) }
+    static var gpu: Color { Color(nsColor: MacStatsMenuBar.colour(.gpu)) }
+    static var memory: Color { Color(nsColor: MacStatsMenuBar.colour(.memory)) }
 
     /// Yellow or red, or nil for the usual colour; nothing while "Warn in yellow and red" is off.
     static func level(_ level: StatLevel) -> Color? {

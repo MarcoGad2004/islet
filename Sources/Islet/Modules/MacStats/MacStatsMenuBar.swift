@@ -47,9 +47,59 @@ enum MacStatsSettings {
     static var signature: String {
         let d = UserDefaults.standard
         let keys = [enabled, meters, efficiency, performance, gpu, memory, readouts, temperature, power, fan, colourParts, warnings] + WarnPart.allCases.map(\.key)
-        return keys.map { on($0) ? "1" : "0" }.joined() + "\(d.string(forKey: temperatureSource) ?? "")\(intervalSeconds)"
+        return keys.map { on($0) ? "1" : "0" }.joined() + MacStatsMenuBarContent.Part.allCases.map { "\(MacStatsPalette.index($0))" }.joined(separator: ",")
+            + "\(d.string(forKey: temperatureSource) ?? "")\(intervalSeconds)"
     }
     static var intervalSeconds: Int { [1, 2, 5].contains(UserDefaults.standard.integer(forKey: interval)) ? UserDefaults.standard.integer(forKey: interval) : 2 }
+}
+
+/// The colours a part can take (1.7.1, owner 2026-11-24): sixteen across the rainbow, each a bright one for a dark
+/// menu bar and a deeper one for a light one. Each part's own colour is one of them, so nothing changes until a
+/// different one is picked. Red and yellow are in it too, though the warnings use them.
+enum MacStatsPalette {
+    struct Swatch { let name: String; let dark: UInt32; let light: UInt32 }
+    static let all: [Swatch] = [
+        Swatch(name: "Red", dark: 0xFF453A, light: 0xD70015),
+        Swatch(name: "Vermilion", dark: 0xFF6A3D, light: 0xC23B10),
+        Swatch(name: "Orange", dark: 0xFF9F0A, light: 0xC93400),
+        Swatch(name: "Amber", dark: 0xFFC20A, light: 0xA36A00),
+        Swatch(name: "Yellow", dark: 0xFFE14D, light: 0x9A7B00),
+        Swatch(name: "Lime", dark: 0xB6E34A, light: 0x5F8A00),
+        Swatch(name: "Green", dark: 0x32D74B, light: 0x248A3D),
+        Swatch(name: "Emerald", dark: 0x3DDC97, light: 0x0C8A5A),
+        Swatch(name: "Teal", dark: 0x40D0C8, light: 0x007C80),
+        Swatch(name: "Cyan", dark: 0x64D2FF, light: 0x0071A4),
+        Swatch(name: "Sky", dark: 0x5AB4FF, light: 0x0A64C8),
+        Swatch(name: "Blue", dark: 0x0A84FF, light: 0x0040DD),
+        Swatch(name: "Indigo", dark: 0x5E5CE6, light: 0x3634A3),
+        Swatch(name: "Purple", dark: 0xBF5AF2, light: 0x8944AB),
+        Swatch(name: "Magenta", dark: 0xE85AD8, light: 0xA8189B),
+        Swatch(name: "Pink", dark: 0xFF5E8A, light: 0xC20F4B),
+    ]
+
+    static func key(_ part: MacStatsMenuBarContent.Part) -> String {
+        switch part {
+        case .efficiency: "macStatsColourEfficiency"
+        case .performance: "macStatsColourPerformance"
+        case .gpu: "macStatsColourGPU"
+        case .memory: "macStatsColourMemory"
+        }
+    }
+
+    /// Where each part starts: its colour before there was a choice.
+    static func defaultIndex(_ part: MacStatsMenuBarContent.Part) -> Int {
+        switch part {
+        case .efficiency: 6
+        case .performance: 11
+        case .gpu: 13
+        case .memory: 9
+        }
+    }
+
+    static func index(_ part: MacStatsMenuBarContent.Part) -> Int {
+        guard let i = UserDefaults.standard.object(forKey: key(part)) as? Int, all.indices.contains(i) else { return defaultIndex(part) }
+        return i
+    }
 }
 
 enum TemperatureSource: String, CaseIterable {
@@ -167,13 +217,10 @@ enum MacStatsMenuBar {
     static let sectionGap: CGFloat = 6
     static let pad: CGFloat = 2
 
+    /// A part's colour: the one chosen in Settings > Mac Stats, else its own (`MacStatsPalette`).
     static func colour(_ part: MacStatsMenuBarContent.Part) -> NSColor {
-        switch part {
-        case .efficiency: dynamic(0x32D74B, 0x248A3D)
-        case .performance: dynamic(0x0A84FF, 0x0040DD)
-        case .gpu: dynamic(0xBF5AF2, 0x8944AB)
-        case .memory: dynamic(0x64D2FF, 0x0071A4)
-        }
+        let swatch = MacStatsPalette.all[MacStatsPalette.index(part)]
+        return dynamic(swatch.dark, swatch.light)
     }
 
     static let warning = dynamic(0xFFD60A, 0xB25000)
@@ -187,7 +234,7 @@ enum MacStatsMenuBar {
         }
     }
 
-    private static func dynamic(_ dark: UInt32, _ light: UInt32) -> NSColor {
+    fileprivate static func dynamic(_ dark: UInt32, _ light: UInt32) -> NSColor {
         NSColor(name: nil) { a in
             let hex = a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
             return NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255,

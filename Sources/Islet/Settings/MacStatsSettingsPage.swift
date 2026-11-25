@@ -129,14 +129,12 @@ struct MacStatsSettingsPage: View {
         }
     }
 
-    /// A meter's switch, tied to the row above it, with its colour.
+    /// A meter's switch, tied to the row above it, with its colour: click the colour to pick another.
     private func part(_ title: String, _ part: MacStatsMenuBarContent.Part, _ on: Binding<Bool>, parent: Bool) -> some View {
         Toggle(isOn: on) {
             indented {
                 HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                        .fill(Color(nsColor: MacStatsMenuBar.colour(part)))
-                        .frame(width: 9, height: 9)
+                    ColourSwatch(part: part, title: title)
                         .opacity(colourParts ? 1 : 0.35)
                     Text(title)
                 }
@@ -156,5 +154,66 @@ struct MacStatsSettingsPage: View {
                 .accessibilityHidden(true)
             label()
         }
+    }
+}
+
+/// A part's colour as a small square; clicking it opens the sixteen to choose from (`MacStatsPalette`).
+private struct ColourSwatch: View {
+    let part: MacStatsMenuBarContent.Part
+    let title: String
+    @AppStorage private var chosen: Int
+    @State private var open = false
+
+    init(part: MacStatsMenuBarContent.Part, title: String) {
+        self.part = part
+        self.title = title
+        _chosen = AppStorage(wrappedValue: MacStatsPalette.defaultIndex(part), MacStatsPalette.key(part))
+    }
+
+    private var index: Int { MacStatsPalette.all.indices.contains(chosen) ? chosen : MacStatsPalette.defaultIndex(part) }
+
+    var body: some View {
+        Button { open = true } label: {
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .fill(colour(MacStatsPalette.all[index]))
+                .frame(width: 9, height: 9)
+                .padding(4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Change the colour")
+        .accessibilityLabel("\(title) colour, \(MacStatsPalette.all[index].name)")
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(24), spacing: 8), count: 4), spacing: 8) {
+                ForEach(Array(MacStatsPalette.all.enumerated()), id: \.offset) { i, swatch in
+                    Button {
+                        chosen = i
+                        open = false
+                    } label: {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(colour(swatch))
+                            .frame(width: 24, height: 24)
+                            .overlay {
+                                if i == index {
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.primary, lineWidth: 2)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .help(swatch.name)
+                    .accessibilityLabel(swatch.name)
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    /// As it looks in the menu bar now: the bright one on dark, the deep one on light.
+    private func colour(_ s: MacStatsPalette.Swatch) -> Color {
+        Color(nsColor: NSColor(name: nil) { a in
+            let hex = a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? s.dark : s.light
+            return NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255,
+                           blue: CGFloat(hex & 255) / 255, alpha: 1)
+        })
     }
 }

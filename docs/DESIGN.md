@@ -726,7 +726,7 @@ island stays mostly black, and only a strip along its bottom edge is glass. To t
   rows, a soft highlight under the pointer); the selected one (current network, output, connected device) sits on a
   glass pill with its icon in a blue circle. Small caps section labels instead of dividers; the Settings… links are
   small glass buttons.
-- Settings > General > "Glass look" (on by default) switches back to solid black. Bezel mode's floating card stays
+- Settings > General > "Glass look" (on by default; app-wide since the battery and Mac Stats panels follow it, 1.7.1) switches back to solid black. Bezel mode's floating card stays
   black for now.
 
 ## Search
@@ -955,6 +955,10 @@ ever mean a warning.
 - CPU core groups and the GPU turn yellow above 70% and red above 90%, once they've stayed there about 5 s (so a
   spike doesn't flash). Memory turns yellow at memory pressure "warning" and red at "critical"; how full it is never
   colours it (macOS fills spare memory with cache).
+- Each part's colour can be changed (1.7.1, owner 2026-11-24): in Settings > Mac Stats, clicking a part's colour square opens
+  a grid of 16 colours across the rainbow (red, vermilion, orange, amber, yellow, lime, green, emerald, teal, cyan, sky,
+  blue, indigo, purple, magenta, pink), each with a bright variant for a dark menu bar and a deeper one for a light one.
+  The choice applies in the menu bar, the overview and the pages. The defaults are green, blue, purple and cyan.
 - Settings "Colour each part" off: the bars use the menu bar's colour, like the battery. "Warn in yellow and red" off:
   no warning colours. Under it, a switch for each stat that can warn (1.7.1, owner 2026-11-24): efficiency cores,
   performance cores, GPU, memory, temperature; all on by default. A stat whose switch is off never turns yellow or red,

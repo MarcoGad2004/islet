@@ -236,7 +236,7 @@ struct SettingsView: View {
             }
             Section {
                 Toggle(isOn: $glassLook) {
-                    SettingsLabel("Glass look", "Below the notch the island fades from black into glass. Off, it stays solid black.")
+                    SettingsLabel("Glass look", "Below the notch the island fades from black into glass, and the battery and Mac Stats panels use Liquid Glass (macOS 26 and later). Off, the island stays solid black and the panels use a dark material.")
                 }
             }
             if levelsInNotch, ExtendedBrightness.isSupported {
