@@ -3,7 +3,7 @@ import Foundation
 /// What Islet does that you can turn off (DESIGN.md "Features"). The island itself (now playing, charging, the controls)
 /// is always on. A feature that's off is never asked permissions for, and nothing it needs shows as a problem.
 enum Feature: String, CaseIterable, Identifiable {
-    case levels, notifications, messages, focus, search, shazam, menuBarBattery, macStats, faceUnlock
+    case levels, notifications, messages, focus, search, shazam, earbuds, menuBarBattery, macStats, faceUnlock
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .focus: "Focus"
         case .search: "Search"
         case .shazam: "Shazam"
+        case .earbuds: "AirPods case"
         case .menuBarBattery: "Battery in the menu bar"
         case .macStats: "Mac Stats"
         case .faceUnlock: "Face Unlock"
@@ -29,6 +30,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .focus: "Shows which Focus is on when it changes."
         case .search: "Apps, files, people, Shortcuts and settings from the notch, and questions handed to Siri."
         case .shazam: "Names the song playing nearby: the button in the controls, or swipe sideways over the idle notch."
+        case .earbuds: "Opening an AirPods case beside the Mac shows the earbuds and the case with their charge."
         case .menuBarBattery: "Dynamic Peninsula's menu bar icon becomes a battery, so it can replace the macOS one. Click it for battery stats."
         case .macStats: "CPU, GPU, memory, temperature, power and fans in the menu bar. Click for the details."
         case .faceUnlock: "Unlocks the lock screen when it sees you. Weaker than Touch ID."
@@ -43,6 +45,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .focus: ["Full Disk Access"]
         case .search, .menuBarBattery, .macStats: []
         case .shazam: [] // the microphone is asked the first time it listens
+        case .earbuds: []
         case .faceUnlock: ["Camera", "Accessibility"]
         }
     }
@@ -53,6 +56,7 @@ enum Feature: String, CaseIterable, Identifiable {
     static let levelsKey = "levelsInNotch"
     static let focusKey = "focusInNotch"
     static let shazamKey = "shazamInNotch"
+    static let earbudsKey = "earbudsInNotch"
     /// The search shortcut before search was turned off, to come back to.
     static let lastSearchShortcutKey = "searchShortcutLast"
 
@@ -66,6 +70,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .focus: return d.object(forKey: Self.focusKey) as? Bool ?? true
         case .search: return SearchShortcutChoice.current != .off
         case .shazam: return d.object(forKey: Self.shazamKey) as? Bool ?? true
+        case .earbuds: return d.object(forKey: Self.earbudsKey) as? Bool ?? true
         case .menuBarBattery: return MenuBarIconStyle.current == .battery
         case .macStats: return MacStatsSettings.isEnabled
         case .faceUnlock: return d.bool(forKey: "faceUnlockEnabled")
@@ -82,6 +87,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .messages: d.set(on, forKey: MessagesStore.enabledKey)
         case .focus: d.set(on, forKey: Self.focusKey)
         case .shazam: d.set(on, forKey: Self.shazamKey)
+        case .earbuds: d.set(on, forKey: Self.earbudsKey)
         case .search:
             let now = SearchShortcutChoice.current
             if on, now == .off {

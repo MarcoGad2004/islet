@@ -43,6 +43,9 @@ enum IslandLayout {
     /// Shazam's card with the song: artwork, title and artist under the stem.
     static let shazamCardWidth: Double = 360
     static let shazamCardHeight: Double = 76
+    /// The AirPods case card: the earbuds and the case, their charge underneath.
+    static let earbudsCardWidth: Double = 330
+    static let earbudsCardHeight: Double = 124
     /// Quick info's chin: two rows under the notch.
     static let quickChinWidth: Double = 340
     static let quickChinHeight: Double = 60
@@ -73,6 +76,8 @@ enum Presentation: Equatable {
     /// Shazam (DESIGN.md "Shazam"): the wide bar with a body while listening, the card with the song after; the store
     /// sizes it for the chin and the card.
     case shazam
+    /// An AirPods case opened beside the Mac (DESIGN.md "AirPods case"): a card under the notch.
+    case earbuds
 }
 
 /// Every dimension of the island shape. Each one is animated on its own channel.
@@ -156,6 +161,8 @@ extension Presentation {
             return IslandMetrics(sw: nw, sh: nh, bw: L.chinWidth, bh: L.chinHeight, tr: 16, br: 16, ic: 10) // all four corners 16
         case .notification:
             return IslandMetrics(sw: nw, sh: nh, bw: L.notificationWidth, bh: L.notificationHeight, tr: 16, br: 20, ic: 10)
+        case .earbuds:
+            return IslandMetrics(sw: nw, sh: nh, bw: L.earbudsCardWidth, bh: L.earbudsCardHeight, tr: 16, br: 26, ic: 10)
         case .scan:
             // The wide notch expanded downward, so the padlock in the wings stays visible above the scan.
             let w = nw + L.wingsExtra

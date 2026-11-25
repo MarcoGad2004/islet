@@ -14,6 +14,8 @@ enum IslandContent {
     case notification(NotificationItem)
     /// Shazam listening, then the song it found (DESIGN.md "Shazam").
     case shazam(ShazamState)
+    /// An AirPods case opened next to the Mac: the card with the earbuds and the case (DESIGN.md "AirPods case").
+    case earbuds(EarbudsReading)
     case media
 
     /// Identity for cross-fades: content of the same kind updates in place.
@@ -27,6 +29,7 @@ enum IslandContent {
         case .progress: "progress"
         case .notification: "notification" // a new one fades across inside the card, not by remounting
         case .shazam: "shazam" // listening turns into the result in place, so its pieces can move
+        case .earbuds: "earbuds"
         case .media: "media"
         }
     }

@@ -99,6 +99,11 @@ struct IslandView: View {
                             .id(key).transition(levelGlide(content) ? .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.1)))
                                                 : pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
                     }
+                case .earbuds:
+                    if case .earbuds(let e)? = content {
+                        EarbudsView(store: store, reading: e)
+                            .transition(.opacity.animation(.easeOut(duration: 0.22).delay(0.1)))
+                    }
                 case .shazam:
                     if case .shazam(let s)? = content {
                         // Pulled in, the mark is already where it listens: nothing fades in.

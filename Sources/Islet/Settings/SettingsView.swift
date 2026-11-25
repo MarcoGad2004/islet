@@ -35,6 +35,7 @@ struct SettingsView: View {
     @AppStorage(ExtendedBrightness.enabledKey) private var extendedBrightness = true
     @AppStorage(Feature.focusKey) private var focusInNotch = true
     @AppStorage(Feature.shazamKey) private var shazamInNotch = true
+    @AppStorage(Feature.earbudsKey) private var earbudsInNotch = true
     @AppStorage(SiriQuestion.enabledKey) private var askSiri = true
     @AppStorage(MacStatsSettings.enabled) private var macStatsEnabled = false
     @State private var spotlightConflict = SearchShortcut.spotlightConflict
@@ -209,6 +210,7 @@ struct SettingsView: View {
         case .messages: $messagesInNotch
         case .focus: $focusInNotch
         case .shazam: $shazamInNotch
+        case .earbuds: $earbudsInNotch
         case .faceUnlock: Binding(get: { face.unlock.enabled }, set: { face.unlock.enabled = $0 })
         case .macStats: $macStatsEnabled
         case .menuBarBattery: Binding(get: { menuBarIconStyle == MenuBarIconStyle.battery.rawValue },

@@ -45,6 +45,11 @@ final class IslandStore {
     private(set) var wingsFit = false
     private(set) var eventWingsFit = false
     private(set) var event: IslandEvent?
+    /// The AirPods case that's open beside the Mac, and whether its card was sent away for this opening.
+    private(set) var earbuds: EarbudsReading?
+    @ObservationIgnored private var earbudsDismissed = false
+    @ObservationIgnored private var earbudsTask: Task<Void, Never>?
+    static let earbudsSeconds: Double = 25
     /// Shazam listening or showing what it found (DESIGN.md "Shazam").
     private(set) var shazam: ShazamState?
     @ObservationIgnored private let shazamListener = ShazamListener()
@@ -197,6 +202,7 @@ final class IslandStore {
         if let level { return .level(level) }
         if let notification { return .notification(notification) }
         if let shazam { return .shazam(shazam) }
+        if let earbuds { return .earbuds(earbuds) }
         if let progress { return .progress(progress) }
         if let event { return .event(event) }
         if let charge { return .charge(charge) }
@@ -240,6 +246,7 @@ final class IslandStore {
             if case .progress = c { return wingsFit ? .levelWings : .chin } // the step goes in the body
             if case .event(let e) = c, e.kind == .hotspot { return wingsFit ? .levelWings : .chin } // the name goes in the body
             if case .event = c { return eventWingsFit ? .eventWings : .chin } // names need the wide bar or the chin
+            if case .earbuds = c { return .earbuds }
             if case .shazam = c { return .shazam } // sized in targetMetrics: the bar, the chin, or the song's card
             // Hovered: the card. Otherwise the wide bar with the text in its body, or the chin.
             if case .notification = c { return pointerInside ? .notification : (wingsFit ? .levelWings : .chin) }
@@ -401,7 +408,7 @@ final class IslandStore {
         case .shazam:
             return wingsFit && shazam?.song == nil ? IslandMetrics(sw: w, sh: 0, bw: w, bh: h, tr: 0, br: 2, ic: 0)
                 : IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
-        case .chin, .notification, .quickChin:
+        case .chin, .notification, .quickChin, .earbuds:
             return IslandMetrics(sw: 0, sh: 0, bw: w + 2, bh: h + 1, tr: 0, br: 2, ic: 0)
         default:
             return .zero
@@ -479,6 +486,7 @@ final class IslandStore {
     /// button (the update's "What's new") does that instead.
     func click() {
         if case .shazam? = content, !expanded { shazamClicked(); return }
+        if earbuds != nil, !expanded, notification == nil { dismissEarbuds(); return }
         if let n = notification, !expanded {
             // A Messages one opens as its conversation; if it can't be found, in Messages as usual.
             openConversation(n) { [weak self] in self?.removeNotification(n, .shown) }
@@ -651,6 +659,7 @@ final class IslandStore {
     func swipeUp() {
         if skip != nil { return }
         if case .shazam? = content, !expanded { endShazam(); return }
+        if earbuds != nil, !expanded, notifications.isEmpty { dismissEarbuds(); return }
         if !notifications.isEmpty, !expanded { endAllNotifications(.closed); return }
         if expanded { collapse(); return }
         if mediaVisible && charge == nil && level == nil && event == nil && unlockStart == nil {
@@ -1274,6 +1283,38 @@ final class IslandStore {
             self?.event = nil
             self?.refresh()
         }
+        refresh()
+    }
+
+    /// An AirPods case opened beside the Mac, or news of it (a charge, an earbud out): the card shows while the lid is open,
+    /// up to 25 s. nil is the lid closing. A card sent away (or timed out) stays away until the lid has closed.
+    func setEarbuds(_ reading: EarbudsReading?) {
+        guard let reading else {
+            earbudsDismissed = false
+            earbudsTask?.cancel()
+            if earbuds != nil { earbuds = nil; refresh() }
+            return
+        }
+        guard !earbudsDismissed else { return }
+        let fresh = earbuds == nil
+        guard fresh || earbuds != reading else { return }
+        if fresh {
+            recomputeLayout()
+            earbudsTask?.cancel()
+            earbudsTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(Self.earbudsSeconds))
+                guard !Task.isCancelled else { return }
+                self?.dismissEarbuds()
+            }
+        }
+        earbuds = reading
+        refresh()
+    }
+
+    func dismissEarbuds() {
+        earbudsDismissed = true
+        earbudsTask?.cancel()
+        earbuds = nil
         refresh()
     }
 

@@ -1121,6 +1121,17 @@ A page between Battery and Face Unlock, in the usual grouped form:
 - The Features list (status page and setup) has one row, "Mac Stats", with its switch; the parts are on this page.
 - Each meter's row has its colour as a small square (faded while "Colour each part" is off).
 
+## AirPods case (1.7.1, owner's request, 2026-11-24)
+
+- Opening an AirPods case within about two feet of the Mac shows a card under the notch (330 x 124 pt, like the
+  notification and Shazam cards): the AirPods' name from the paired list ("Marco's AirPods Pro", else the model) on top,
+  then the earbuds and the case drawn as Apple's SF Symbols for that model, each with its charge under it, a green bolt
+  beside it while it charges, and "Earbuds" or "Case" under that. A charge of 20% or less that is not charging is red.
+- It stays while the lid is open, up to 25 s, and goes when the lid closes. A click or a swipe up sends it away until the
+  lid has been closed. Notifications, volume and brightness outrank it.
+- It needs Bluetooth access and does nothing else with it. Off in Features, "AirPods case".
+- Later: a spinning 3D model of each generation, as on the iPhone.
+
 ## Features (1.4)
 
 Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/Dr9mECwP7ZuYuaacvnYXrr> (source

@@ -784,3 +784,21 @@ by Developer ID (X9Q5Y948RX), so a fixed team would have shut a release out of i
 helper before the app. Checked with `codesign -v -R` on both builds (and `/bin/ls` is refused). To check on the first run: that registration
 works from a Debug build in DerivedData, what Login Items shows for it, and that the 6 s take-over doesn't trip XPC
 timeouts.
+
+## AirPods case (1.7.1, 2026-11-24)
+
+Can the Mac tell the AirPods are in the case with its lid open? Yes. An open case advertises over Bluetooth LE (Apple
+company ID 0x004C, type 0x07, 29 bytes). CoreBluetooth delivers it (scan with duplicates allowed) with the app's existing
+Bluetooth permission; no connection is made. Captured with a Pro 2 case 6 to 14 inches from a MacBook Pro (M4 Pro,
+macOS 27.2) while the lid, the earbuds and the case were moved on a timer:
+
+- Byte 5-6: model, little-endian (`24 20` is 0x2024, AirPods Pro 2 USB-C). Nearby strangers also showed 0x2013 and 0x2027.
+- Byte 8: the earbuds' charge, a nibble each, tenths (0xF unknown). Byte 9: high nibble the charging flags (bits 0 and 1
+  the earbuds, bit 2 the case), low nibble the case's charge (0xF unknown). Taking an earbud out cleared a charging bit.
+- Byte 10, bit 3: the lid, clear while open, set in the burst as it closes. A closed case sends nothing.
+- Earbuds being worn send the same message with the case's charge unknown (0xF): not a case, so ignored.
+- Other people's cases are heard too (about -50 to -90 dBm; the owner's own was -25 to -42). Only the strongest source
+  above -58 dBm that was heard in the last 3 s counts.
+- Only checked on a Pro 2. The layout is shared by the AirPods generations, but the lid bit is unconfirmed on others.
+- The 3D models Apple draws for the iPhone are not on the Mac (HeadphoneAssets has flat images only); the card uses SF
+  Symbols (airpods, airpods.gen3, airpods.gen4, airpodspro, airpods.pro.gen3 and the matching charging cases).

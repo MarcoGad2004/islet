@@ -94,6 +94,22 @@ final class BluetoothController: NSObject {
         updateDetails()
     }
 
+    /// The name of the AirPods whose case just opened: "Marco's AirPods Pro", from the paired list. The broadcast is
+    /// anonymous, so with several pairs (a friend's too) the one in use most recently wins: a connected one, else
+    /// the latest used. Earbuds of the Pro kind are matched to a "Pro" name when there is one. nil if none is paired.
+    func earbudsName(pro: Bool) -> String? {
+        guard CBManager.authorization == .allowedAlways else { return nil }
+        refresh() // the names come with the next System Information read, a moment after this
+        let found = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).compactMap { d -> (name: String, connected: Bool, used: Date)? in
+            guard let address = d.addressString else { return nil }
+            let name = details[Self.key(address)]?.name ?? d.name ?? ""
+            guard name.localizedCaseInsensitiveContains("airpods"), !name.localizedCaseInsensitiveContains("max") else { return nil }
+            return (name, d.isConnected(), d.recentAccessDate() ?? .distantPast)
+        }
+        let kind = found.filter { $0.name.localizedCaseInsensitiveContains("pro") == pro }
+        return (kind.isEmpty ? found : kind).max { ($0.connected ? 1 : 0, $0.used) < ($1.connected ? 1 : 0, $1.used) }?.name
+    }
+
     // MARK: Names and charge
 
     struct Details: Sendable {

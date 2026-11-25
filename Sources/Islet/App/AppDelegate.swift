@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let focus = FocusMonitor()
     private let wifi = WiFiController()
     private let bluetooth = BluetoothController()
+    private let earbuds = EarbudsWatcher()
     private let display = DisplayToggles()
     private let airdrop = AirDropController()
     private let sidecar = SidecarController()
@@ -115,6 +116,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "locksequence": previewLockSequence()
         case "lockhint": notch.store.setLockScreen(true); notch.store.setLockHint(true)
         case "enrol": previewEnrolment()
+        case "earbuds":
+            var demo = EarbudsReading(model: 0x2024, name: "AirPods Pro 2", pro: true, earbuds: 90, caseLevel: 50,
+                                      earbudsCharging: true, caseCharging: false)
+            if let name = bluetooth.earbudsName(pro: true) { demo.name = name }
+            notch.store.setEarbuds(demo)
         case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
         case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
@@ -341,6 +347,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wifi.start()
         // Devices connecting are left to macOS, which shows its own card for them (owner, 2026-11-24).
         bluetooth.start()
+        // An AirPods case opened beside the Mac (RESEARCH.md Q28). Listens only while the feature is on.
+        earbuds.onChange = { [weak store, weak bluetooth] reading in
+            guard Feature.earbuds.isOn || reading == nil else { return }
+            // Named like the Bluetooth list names them, when the paired list has it.
+            var named = reading
+            if let r = reading, let name = bluetooth?.earbudsName(pro: r.pro) { named?.name = name }
+            store?.setEarbuds(named)
+        }
+        earbuds.start()
         display.refresh()
         airdrop.refresh()
         sidecar.start()
