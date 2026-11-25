@@ -1125,8 +1125,9 @@ A page between Battery and Face Unlock, in the usual grouped form:
 
 - Opening an AirPods case within about two feet of the Mac shows a card under the notch (330 x 124 pt, like the
   notification and Shazam cards): the AirPods' name from the paired list ("Marco's AirPods Pro", else the model) on top,
-  then the earbuds and the case drawn as Apple's SF Symbols for that model, each with its charge under it, a green bolt
+  then the earbuds (each its own symbol, lit while it sits in the case and faint once it is out, as on the iPhone) and the case drawn as Apple's SF Symbols for that model, each with its charge under it, a green bolt
   beside it while it charges, and "Earbuds" or "Case" under that. A charge of 20% or less that is not charging is red.
+- With an earbud out, each earbud shows its own charge: the one still in the case with a bolt, the one out without. Both in (or both out) show one figure, the lower.
 - It stays while the lid is open, up to 25 s, and goes when the lid closes. A click or a swipe up sends it away until the
   lid has been closed. Notifications, volume and brightness outrank it.
 - It needs Bluetooth access and does nothing else with it. Off in Features, "AirPods case".

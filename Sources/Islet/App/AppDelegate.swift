@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "enrol": previewEnrolment()
         case "earbuds":
             var demo = EarbudsReading(model: 0x2024, name: "AirPods Pro 2", pro: true, earbuds: 90, caseLevel: 50,
-                                      earbudsCharging: true, caseCharging: false)
+                                      earbudsCharging: true, caseCharging: false, leftIn: false, leftLevel: 70, rightLevel: 90)
             if let name = bluetooth.earbudsName(pro: true) { demo.name = name }
             notch.store.setEarbuds(demo)
         case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))

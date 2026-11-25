@@ -21,6 +21,27 @@ final class EarbudsTests: XCTestCase {
         XCTAssertFalse(r.reading.caseCharging)
     }
 
+    func testEachEarbudInTheCase() throws {
+        // Both in: flags 0xb. Left out: the plain message (status bit 5 clear) drops bit 1, the mirrored one (bit 5 set) bit 0.
+        let both = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124205599b531000404e2e33639520216ffcd06100000"))).reading
+        XCTAssertTrue(both.leftIn && both.rightIn)
+        let leftOutPlain = try XCTUnwrap(EarbudsReading.decode(data("4c00071901242051999531000404e2e33639520216ffcd06100000"))).reading
+        XCTAssertFalse(leftOutPlain.leftIn); XCTAssertTrue(leftOutPlain.rightIn)
+        let leftOut = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124203199a531000404e2e33639520216ffcd06100000"))).reading
+        XCTAssertFalse(leftOut.leftIn); XCTAssertTrue(leftOut.rightIn)
+        let rightOut = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124202599953200040408e33639520216ffcd06100000"))).reading
+        XCTAssertTrue(rightOut.leftIn); XCTAssertFalse(rightOut.rightIn)
+    }
+
+    func testEachEarbudsOwnCharge() throws {
+        // Status bit 5 clear: the left earbud is the high nibble (70%), the right the low one (90%).
+        let plain = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124205179 95 31000404e2".replacingOccurrences(of: " ", with: "") + "e33639520216ffcd06100000"))).reading
+        XCTAssertEqual(plain.leftLevel, 70); XCTAssertEqual(plain.rightLevel, 90)
+        // Bit 5 set (the mirrored message): the other way round.
+        let mirrored = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124203179 95 31000404e2".replacingOccurrences(of: " ", with: "") + "e33639520216ffcd06100000"))).reading
+        XCTAssertEqual(mirrored.leftLevel, 90); XCTAssertEqual(mirrored.rightLevel, 70)
+    }
+
     func testClosingBurstIsNotOpen() throws {
         let r = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124205599b539000404e2e33639520216ffcd06100000")))
         XCTAssertFalse(r.open)

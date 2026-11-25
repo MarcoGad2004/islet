@@ -95,20 +95,27 @@ final class BluetoothController: NSObject {
     }
 
     /// The name of the AirPods whose case just opened: "Marco's AirPods Pro", from the paired list. The broadcast is
-    /// anonymous, so with several pairs (a friend's too) the one in use most recently wins: a connected one, else
-    /// the latest used. Earbuds of the Pro kind are matched to a "Pro" name when there is one. nil if none is paired.
+    /// anonymous and a friend's pair may be paired too, so: of the paired AirPods (Pro ones for a Pro case), the one
+    /// that is connected, else the one named for this Mac's user, else the only one; nil when that leaves a choice
+    /// (the card then names the model).
     func earbudsName(pro: Bool) -> String? {
         guard CBManager.authorization == .allowedAlways else { return nil }
         refresh() // the names come with the next System Information read, a moment after this
-        let found = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).compactMap { d -> (name: String, connected: Bool, used: Date)? in
+        let found = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).compactMap { d -> (name: String, connected: Bool)? in
             guard let address = d.addressString else { return nil }
             let name = details[Self.key(address)]?.name ?? d.name ?? ""
             guard name.localizedCaseInsensitiveContains("airpods"), !name.localizedCaseInsensitiveContains("max") else { return nil }
-            return (name, d.isConnected(), d.recentAccessDate() ?? .distantPast)
+            return (name, d.isConnected())
         }
         let kind = found.filter { $0.name.localizedCaseInsensitiveContains("pro") == pro }
-        return (kind.isEmpty ? found : kind).max { ($0.connected ? 1 : 0, $0.used) < ($1.connected ? 1 : 0, $1.used) }?.name
+        let pool = kind.isEmpty ? found : kind
+        if let one = Self.only(pool.filter(\.connected)) { return one.name }
+        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
+        if !first.isEmpty, let one = Self.only(pool.filter({ $0.name.range(of: first, options: [.caseInsensitive, .diacriticInsensitive]) != nil })) { return one.name }
+        return Self.only(pool)?.name
     }
+
+    private static func only<T>(_ list: [T]) -> T? { list.count == 1 ? list[0] : nil }
 
     // MARK: Names and charge
 

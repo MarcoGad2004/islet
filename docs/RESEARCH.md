@@ -795,10 +795,18 @@ macOS 27.2) while the lid, the earbuds and the case were moved on a timer:
 - Byte 5-6: model, little-endian (`24 20` is 0x2024, AirPods Pro 2 USB-C). Nearby strangers also showed 0x2013 and 0x2027.
 - Byte 8: the earbuds' charge, a nibble each, tenths (0xF unknown). Byte 9: high nibble the charging flags (bits 0 and 1
   the earbuds, bit 2 the case), low nibble the case's charge (0xF unknown). Taking an earbud out cleared a charging bit.
+- Each message is sent twice, mirrored: bit 5 of the status (byte 7) says which way round the two charging bits are.
+  Plain: bit 1 is the left earbud and bit 0 the right; with bit 5 set, bit 0 is the left and bit 1 the right. An
+  earbud taken out stops charging, so its bit clears (seen for each earbud, four observations). The earbuds' charge
+  nibbles flip the same way (bit 5 clear: left is the high nibble, as other readers of this message do; unchecked with
+  two different charges). Both in or both out, the card shows the lower of the two; one out, each its own. An earbud that is in the case
+  but full may read as out; unchecked.
 - Byte 10, bit 3: the lid, clear while open, set in the burst as it closes. A closed case sends nothing.
 - Earbuds being worn send the same message with the case's charge unknown (0xF): not a case, so ignored.
 - Other people's cases are heard too (about -50 to -90 dBm; the owner's own was -25 to -42). Only the strongest source
   above -58 dBm that was heard in the last 3 s counts.
+- The name: the broadcast has none, and IOBluetooth gives the same recent-use time for every paired device, so the card
+  uses the connected pair, else the one named for the Mac's user (a friend's pair can be paired too), else the only one.
 - Only checked on a Pro 2. The layout is shared by the AirPods generations, but the lid bit is unconfirmed on others.
 - The 3D models Apple draws for the iPhone are not on the Mac (HeadphoneAssets has flat images only); the card uses SF
   Symbols (airpods, airpods.gen3, airpods.gen4, airpodspro, airpods.pro.gen3 and the matching charging cases).

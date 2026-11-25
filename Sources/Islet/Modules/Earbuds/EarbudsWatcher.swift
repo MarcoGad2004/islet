@@ -13,6 +13,12 @@ struct EarbudsReading: Equatable, Sendable {
     var caseLevel: Int?
     var earbudsCharging: Bool
     var caseCharging: Bool
+    /// Each earbud sitting in the case (it charges there); an earbud taken out leaves its place empty.
+    var leftIn = true
+    var rightIn = true
+    /// Each earbud's own charge in percent (the same flip as the charging bits), for when one is out.
+    var leftLevel: Int?
+    var rightLevel: Int?
 
     /// The model codes seen in the broadcast (RESEARCH.md Q28). An unknown code still shows, as plain "AirPods".
     static let models: [UInt16: (name: String, pro: Bool)] = [
@@ -33,6 +39,17 @@ struct EarbudsReading: Equatable, Sendable {
         }
     }
 
+    /// The symbols for a single left or right earbud of this model, as Apple draws them.
+    var budSymbols: (left: String, right: String) {
+        let base: String = switch model {
+        case 0x2002, 0x200F: "airpod"
+        case 0x2013, 0x2019, 0x201B: "airpod.gen3"
+        case 0x2027: "airpods.pro.gen3"
+        default: pro ? "airpodpro" : "airpod"
+        }
+        return ("\(base).left", "\(base).right")
+    }
+
     /// Reads one Apple "proximity pairing" broadcast (company 0x004C, type 0x07, 29 bytes). `open` is the case's lid
     /// (bit 3 of byte 10: clear while open, set in the burst as it closes). Earbuds on their own, in the ears, send
     /// the same message with the case's charge unknown (nibble 0xF): not a case, so nil.
@@ -45,8 +62,17 @@ struct EarbudsReading: Equatable, Sendable {
         let left = Int(d[8] >> 4), right = Int(d[8] & 0x0F)
         let levels = [left, right].filter { $0 <= 10 }.map { $0 * 10 }
         let info = models[model] ?? ("AirPods", false)
+        // The case sends each message twice, mirrored: bit 5 of the status says which way round the two charging bits
+        // are (RESEARCH.md "AirPods case"). An earbud that is out stops charging.
+        let flipped = d[7] & 0x20 != 0
+        let leftBit: UInt8 = flipped ? 0x1 : 0x2, rightBit: UInt8 = flipped ? 0x2 : 0x1
+        // The charge nibbles flip with it (as other readers of this message do, unchecked here with two different
+        // charges): bit 5 clear, the left earbud is the high nibble.
+        let leftN = flipped ? right : left, rightN = flipped ? left : right
         let reading = EarbudsReading(model: model, name: info.name, pro: info.pro, earbuds: levels.min(), caseLevel: caseNibble * 10,
-                                     earbudsCharging: flags & 0x3 != 0, caseCharging: flags & 0x4 != 0)
+                                     earbudsCharging: flags & 0x3 != 0, caseCharging: flags & 0x4 != 0,
+                                     leftIn: flags & leftBit != 0, rightIn: flags & rightBit != 0,
+                                     leftLevel: leftN <= 10 ? leftN * 10 : nil, rightLevel: rightN <= 10 ? rightN * 10 : nil)
         return (reading, d[10] & 0x08 == 0)
     }
 }
