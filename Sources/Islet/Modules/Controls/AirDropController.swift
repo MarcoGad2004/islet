@@ -13,7 +13,9 @@ final class AirDropController {
     private(set) var mode = Mode.contacts
 
     func refresh() {
-        mode = Mode(rawValue: Self.run("/usr/bin/defaults", ["read", "com.apple.sharingd", "DiscoverableMode"])) ?? .contacts
+        // Read in-process: this runs on every panel open, and a `defaults` process there cost a visible hitch.
+        let raw = CFPreferencesCopyAppValue("DiscoverableMode" as CFString, "com.apple.sharingd" as CFString) as? String
+        mode = raw.flatMap(Mode.init(rawValue:)) ?? .contacts
     }
 
     /// Opens a Finder window on AirDrop (Finder's Go > AirDrop shortcut).
@@ -24,15 +26,6 @@ final class AirDropController {
         """
         var err: NSDictionary?
         NSAppleScript(source: script)?.executeAndReturnError(&err)
-    }
-
-    private static func run(_ path: String, _ args: [String]) -> String {
-        let p = Process(), pipe = Pipe()
-        p.executableURL = URL(fileURLWithPath: path); p.arguments = args
-        p.standardOutput = pipe; p.standardError = pipe
-        do { try p.run() } catch { return "" }
-        let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
-        return String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

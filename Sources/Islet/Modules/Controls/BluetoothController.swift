@@ -57,6 +57,7 @@ final class BluetoothController: NSObject {
     var powerAvailable: Bool { Self.getPower != nil && Self.setPower != nil }
 
     @ObservationIgnored private var waiting = false
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
     func start() {
         // Until Bluetooth access is decided, the first IOBluetooth call waits on the permission prompt; on the main
@@ -174,6 +175,9 @@ final class BluetoothController: NSObject {
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
         guard (try? p.run()) != nil else { return nil }
+        // A wedged Bluetooth daemon makes system_profiler hang; without this the read never ends and details stop for good.
+        nonisolated(unsafe) let proc = p
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 8) { if proc.isRunning { proc.terminate() } }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
         return parseDetails(data)
@@ -241,14 +245,21 @@ final class BluetoothController: NSObject {
 
     @objc nonisolated private func connectCallback(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         // The connection settles a moment after the notification (and it fires several times per device).
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            self.refresh()
-        }
+        Task { @MainActor in self.scheduleRefresh(after: 1.5) }
     }
 
     @objc nonisolated private func disconnectCallback(_ n: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        Task { @MainActor in self.refresh() }
+        Task { @MainActor in self.scheduleRefresh(after: 0) }
+    }
+
+    /// One refresh for a burst of notifications (a wake brings several per device), not one each.
+    private func scheduleRefresh(after seconds: Double) {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            if seconds > 0 { try? await Task.sleep(for: .seconds(seconds)) }
+            guard !Task.isCancelled else { return }
+            self?.refresh()
+        }
     }
 
     /// Devices one connects to a Mac on purpose: headphones, speakers, mice, keyboards, controllers. Phones, tablets,
