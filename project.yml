@@ -35,7 +35,7 @@ targets:
       properties:
         CFBundleName: Dynamic Peninsula
         CFBundleDisplayName: Dynamic Peninsula
-        CFBundleShortVersionString: "1.7.2"
+        CFBundleShortVersionString: "1.7.3"
         CFBundleVersion: "276"
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSLocationWhenInUseUsageDescription: "Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control."

@@ -3,6 +3,30 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.7.3 (2026-11-25)
+
+A stability and efficiency pass over the whole app, found by a full code audit.
+
+**Fixes**
+
+- **Face Unlock.** A second scan can no longer start on top of the first, closing Settings releases the camera, enrolment can't get stuck, and the dark-room check no longer misfires on a just-started camera.
+- **Lock screen.** An open panel now closes when the Mac locks or a scan starts.
+- **Fans.** Turning Mac Stats off hands the fans back to macOS.
+- **Updater.** Finds the release under GitHub's real file name, copies the new app beside the old one before swapping, verifies the download, and no longer lets a finished check overwrite an install in progress.
+- **Wi-Fi.** One scan at a time, the network list survives a failed scan, a hotspot join is no longer cut short, and the speed test cancels cleanly.
+- **Shazam.** A cancelled listen can no longer leave the next one's microphone open.
+- **Messages and notifications.** Notification Center calls time out instead of freezing the notch, a faster unread query, and a failed read keeps the last good state.
+- **Search.** Spotlight hand-off only types once Spotlight is up; file results are no longer lost past the cap.
+- **Brightness keys** pass through when the notch screen can't be driven, and Mute works on outputs without a mute switch.
+
+**Lighter**
+
+- The AirPods case watcher scans Bluetooth only while the feature is on.
+- The island animation follows the display's refresh instead of a free-running 120 Hz timer.
+- Mac Stats reads only what's on screen, pauses with the display, and its lists, formatters and graphs cost less.
+- Power flow, charge animation and the title marquee stop animating when nothing moves.
+- The Settings window is released when closed; the menu bar width check and Emoji watcher no longer poll constantly.
+
 ## 1.7.2 (2026-11-25)
 
 A speed test in the Wi-Fi panel, a roomier header, a smarter updater and instant Face Unlock in the dark.
