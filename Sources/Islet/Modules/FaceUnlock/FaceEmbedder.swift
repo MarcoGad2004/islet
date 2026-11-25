@@ -28,7 +28,12 @@ final class FaceEmbedder: @unchecked Sendable {
               let provider = try? MLDictionaryFeatureProvider(dictionary: [inputName: value]),
               let out = try? model.prediction(from: provider),
               let array = out.featureValue(for: outputName)?.multiArrayValue else { return nil }
-        var v = (0..<array.count).map { array[$0].floatValue }
+        var v: [Float]
+        if array.dataType == .float32 {
+            v = array.withUnsafeBufferPointer(ofType: Float.self) { Array($0) } // no NSNumber per element
+        } else {
+            v = (0..<array.count).map { array[$0].floatValue }
+        }
         var norm: Float = 0
         vDSP_svesq(v, 1, &norm, vDSP_Length(v.count))
         norm = norm.squareRoot()

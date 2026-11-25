@@ -48,6 +48,9 @@ final class EnrolmentEngine: @unchecked Sendable {
         self.onFinish = onFinish
     }
 
+    /// Stops it for good: later frames do nothing and `onFinish` never fires.
+    func cancel() { lock.lock(); finished = true; lock.unlock() }
+
     func handle(_ analysis: FaceAnalysis?) {
         lock.lock(); defer { lock.unlock() }
         guard !finished else { return }

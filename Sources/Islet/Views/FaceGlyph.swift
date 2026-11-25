@@ -17,7 +17,7 @@ struct FaceGlyph: View {
     var checked = false
 
     var body: some View {
-        TimelineView(.animation(paused: !breathing && !blinking)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !breathing && !blinking)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             // A blink every 1.6 s, the eyes shut for 0.22 s of it.
             let shut = blinking && !checked && t.truncatingRemainder(dividingBy: 1.6) < 0.22

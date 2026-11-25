@@ -128,11 +128,22 @@ final class ScanEngine: @unchecked Sendable {
 
     /// `light` is the frame's mean brightness when it was measured for this frame.
     func handle(_ analysis: FaceAnalysis?, light: Double? = nil) {
-        lock.lock(); defer { lock.unlock() }
+        // The model work (face embedding, spoof model, lighting) is done before taking the lock: the main thread calls
+        // `pause`, `isPulsing`, `pulseStarted` and the like, and must not wait out a frame's worth of Core ML.
         if let light { onEvent(.light(light)) }
+        lock.lock(); let isPaused = paused; lock.unlock()
+        guard !isPaused else { return }
+        var embedding: [Float]?, liveness: Float?, lit: FacePulse.Lighting?
+        if let a = analysis, a.boxWidth > FaceAnalysis.minimumWidth, let image = a.alignedImage(), let e = embedder.embed(image) {
+            embedding = e
+            // Every frame: the quiet check has to be quick to be worth it.
+            liveness = antiSpoof?.live(a.pixelBuffer, face: a.box)
+            lit = FacePulse.lighting(a.pixelBuffer, points: a.points, face: a.box)
+        }
+        lock.lock(); defer { lock.unlock() }
         guard !paused else { return }
         let now = Date()
-        guard let a = analysis, a.boxWidth > FaceAnalysis.minimumWidth, let image = a.alignedImage(), let e = embedder.embed(image) else {
+        guard let a = analysis, let e = embedding else {
             matches = 0; misses = 0
             faceLost += 1
             // A face gone for a moment (not one dropped frame) has to prove it's live again: no doing it, then
@@ -153,9 +164,8 @@ final class ScanEngine: @unchecked Sendable {
         framedHistory.append(a.framed)
         if framedHistory.count > 10 { framedHistory.removeFirst() }
         let framed = framedHistory.filter { $0 }.count >= 4
-        // Every frame: the quiet check has to be quick to be worth it.
-        if let antiSpoof, let live = antiSpoof.live(a.pixelBuffer, face: a.box) { spoof.add(live) }
-        if let l = FacePulse.lighting(a.pixelBuffer, points: a.points, face: a.box) {
+        if let live = liveness { spoof.add(live) }
+        if let l = lit {
             harshHistory.append(l.harsh)
             if harshHistory.count > 6 { harshHistory.removeFirst() }
         }
@@ -179,7 +189,7 @@ final class ScanEngine: @unchecked Sendable {
         frameCount += 1
         // For tuning the range (1.7.1): how wide the face was, how well it matched, what the spoof model made of it.
         if frameCount % 10 == 1 {
-            Self.log.notice("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2))")
+            Self.log.debug("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2))")
         }
         if score >= threshold { lastMatch = (score, e) }
         if case .running = pulse, harsh, pulseSchedule == nil {

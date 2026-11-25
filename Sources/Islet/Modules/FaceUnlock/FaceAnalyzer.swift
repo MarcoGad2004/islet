@@ -33,18 +33,39 @@ struct FaceAnalysis: @unchecked Sendable {
 }
 
 /// Finds the largest face and its five alignment points with Vision.
-struct FaceAnalyzer: Sendable {
+final class FaceAnalyzer: @unchecked Sendable {
+    /// The photo-edge check only counts how many of the last ten frames had a rectangle round the face, so the
+    /// rectangle search (the dearer of the two requests) runs on a third of the frames with a face and on none
+    /// without one; the frames between reuse the last rectangles, compared with their own face box.
+    private static let rectEvery = 3
+    private let lock = NSLock()
+    private var cachedRects: [(box: CGRect, confidence: Float)] = []
+    private var sinceRects = 0
+
     func analyze(_ pb: CVPixelBuffer) -> FaceAnalysis? {
         let request = VNDetectFaceLandmarksRequest()
-        let rects = VNDetectRectanglesRequest()
-        rects.minimumSize = 0.15
-        rects.maximumObservations = 6
-        rects.minimumConfidence = 0.6
-        rects.minimumAspectRatio = 0.3
-        rects.quadratureTolerance = 25
-        guard (try? VNImageRequestHandler(cvPixelBuffer: pb).perform([request, rects])) != nil,
+        let handler = VNImageRequestHandler(cvPixelBuffer: pb)
+        guard (try? handler.perform([request])) != nil,
               let face = request.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
-              let lm = face.landmarks else { return nil }
+              let lm = face.landmarks else {
+            lock.lock(); cachedRects = []; sinceRects = 0; lock.unlock()
+            return nil
+        }
+        lock.lock()
+        let refresh = sinceRects % Self.rectEvery == 0
+        sinceRects += 1
+        lock.unlock()
+        if refresh {
+            let rects = VNDetectRectanglesRequest()
+            rects.minimumSize = 0.15
+            rects.maximumObservations = 6
+            rects.minimumConfidence = 0.6
+            rects.minimumAspectRatio = 0.3
+            rects.quadratureTolerance = 25
+            let found = (try? handler.perform([rects])) != nil ? (rects.results ?? []).map { ($0.boundingBox, $0.confidence) } : []
+            lock.lock(); cachedRects = found; lock.unlock()
+        }
+        lock.lock(); let rectList = cachedRects; lock.unlock()
 
         let size = CGSize(width: CVPixelBufferGetWidth(pb), height: CVPixelBufferGetHeight(pb))
         func pts(_ r: VNFaceLandmarkRegion2D?) -> [CGPoint] { r?.pointsInImage(imageSize: size) ?? [] }
@@ -76,7 +97,7 @@ struct FaceAnalyzer: Sendable {
         let eyes = [openness(pts(lm.leftEye)), openness(pts(lm.rightEye))].compactMap { $0 }
         let eyeOpenness = eyes.isEmpty ? 0 : eyes.reduce(0, +) / Double(eyes.count)
 
-        let hugging = (rects.results ?? []).first { PhotoCheck.hugs(face.boundingBox, $0.boundingBox) }
+        let hugging = rectList.first { PhotoCheck.hugs(face.boundingBox, $0.box) }
         let framed = hugging != nil
 
         return FaceAnalysis(proxyX: Double((nose.x - eyeMid.x) / eyeDist),
@@ -86,7 +107,7 @@ struct FaceAnalyzer: Sendable {
                             eyeOpenness: eyeOpenness,
                             mouthWidth: Double(hypot(m2.x - m1.x, m2.y - m1.y) / eyeDist),
                             framed: framed,
-                            framedBy: hugging.map { ($0.boundingBox, $0.confidence) },
+                            framedBy: hugging.map { ($0.box, $0.confidence) },
                             pixelBuffer: pb)
     }
 }
@@ -107,7 +128,7 @@ enum FramedLog {
         guard go else { return }
         let r = by.rect, f = a.box
         let w = CVPixelBufferGetWidth(a.pixelBuffer), h = CVPixelBufferGetHeight(a.pixelBuffer)
-        log.notice("photo edge (\(source, privacy: .public)): frame \(w)x\(h) rect x \(r.minX, format: .fixed(precision: 2)) y \(r.minY, format: .fixed(precision: 2)) w \(r.width, format: .fixed(precision: 2)) h \(r.height, format: .fixed(precision: 2)) conf \(by.confidence, format: .fixed(precision: 2)) face w \(f.width, format: .fixed(precision: 2)) h \(f.height, format: .fixed(precision: 2)) face/rect w \(f.width / r.width, format: .fixed(precision: 2)) h \(f.height / r.height, format: .fixed(precision: 2))")
+        log.debug("photo edge (\(source, privacy: .public)): frame \(w)x\(h) rect x \(r.minX, format: .fixed(precision: 2)) y \(r.minY, format: .fixed(precision: 2)) w \(r.width, format: .fixed(precision: 2)) h \(r.height, format: .fixed(precision: 2)) conf \(by.confidence, format: .fixed(precision: 2)) face w \(f.width, format: .fixed(precision: 2)) h \(f.height, format: .fixed(precision: 2)) face/rect w \(f.width / r.width, format: .fixed(precision: 2)) h \(f.height / r.height, format: .fixed(precision: 2))")
     }
 }
 

@@ -104,7 +104,10 @@ final class FaceUnlockService {
     /// Dark-room decision from the camera's brightness (see DarkRoomGate); nil in a room the light sensor calls bright.
     private var darkGate: DarkRoomGate?
     /// The camera was already running (warm from the lock), so its exposure has settled.
-    private var cameraWarm = false
+    /// A scan is starting (waiting on the camera permission or the light sensor, before `model` exists), and a counter
+    /// that `stop` bumps so such a scan notices it was cancelled and doesn't open the camera afterwards.
+    private var scanStarting = false
+    private var scanGeneration = 0
     private var brightened = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var keyMonitor: Any?
@@ -121,6 +124,7 @@ final class FaceUnlockService {
 
     func start() {
         locked = Self.sessionIsLocked()
+        FaceCamera.prefetch()
         let dnc = DistributedNotificationCenter.default(), ws = NSWorkspace.shared.notificationCenter
         func add(_ c: NotificationCenter, _ name: String, _ h: @escaping @MainActor (FaceUnlockService) -> Void) {
             observers.append((c, c.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
@@ -158,7 +162,7 @@ final class FaceUnlockService {
     }
 
     private func keysPressed() {
-        guard locked, screenAwake, !screensaverRunning, model == nil else { return }
+        guard locked, screenAwake, !screensaverRunning, model == nil, !scanStarting else { return }
         Self.log.info("command+shift: scanning")
         needsKey = false
         attempts = 0
@@ -226,7 +230,7 @@ final class FaceUnlockService {
 
     private func beginIfPossible() {
         refreshPermission()
-        guard locked, screenAwake, !needsKey, !screensaverRunning, model == nil, canScan else {
+        guard locked, screenAwake, !needsKey, !screensaverRunning, model == nil, !scanStarting, canScan else {
             Self.log.info("not scanning: enabled=\(self.enabled) locked=\(self.locked) awake=\(self.screenAwake) needsKey=\(self.needsKey) saver=\(self.screensaverRunning) ready=\(self.owner.faces.isReady) ax=\(self.accessibilityTrusted) rejected=\(self.passwordRejected)")
             syncLockScreen()
             return
@@ -238,9 +242,15 @@ final class FaceUnlockService {
     func simulate() { stop(collapseAfter: 0); scan(simulated: true) }
 
     private func scan(simulated: Bool) {
-        guard let embedder = owner.embedder, owner.faces.isEnrolled else { return }
+        guard let embedder = owner.embedder, owner.faces.isEnrolled, !scanStarting else { return }
+        scanStarting = true
+        scanGeneration += 1
+        let generation = scanGeneration
         Task {
+            defer { if generation == scanGeneration { scanStarting = false } }
             guard await FaceCamera.requestAccess() else { Self.log.error("camera denied"); return }
+            // Stopped (unlocked, display asleep, disabled) while the permission was checked: don't start.
+            guard generation == scanGeneration else { return }
             self.simulated = simulated
             holdDisplayAwake()
             scanStartedAt = Date()
@@ -255,6 +265,8 @@ final class FaceUnlockService {
             // The sensor often has no reading for its first few milliseconds (it showed -1 in bright rooms, so the scan
             // went on to wait for the spoof model and start a glow before finding out the room was too bright).
             let lux = await AmbientLight.settledLux()
+            // Stopped while the sensor was read (`stop` already tore down what was set up above): don't open the camera.
+            guard generation == scanGeneration else { return }
             let bright = (lux ?? 0) > FacePulse.glowMaxLux
             Self.log.notice("scan lux=\(lux ?? -1) bright=\(bright)")
             let engine = ScanEngine(embedder: embedder, antiSpoof: owner.antiSpoof,
@@ -270,12 +282,18 @@ final class FaceUnlockService {
             let ready = warmCamera
             warmCamera = nil; warmTask?.cancel(); warmTask = nil
             let camera = ready ?? FaceCamera()
-            cameraWarm = ready != nil
             let lightCounter = FrameCounter(every: 3)
             let timer = FrameTimer()
+            let gate = FrameGate()
             let frame: @Sendable (CVPixelBuffer) -> Void = { pb in
+                // No face in view: look at a third of the frames (the brightness reading still comes every third).
+                guard gate.shouldAnalyze() else {
+                    if lightCounter.shouldProcess() { engine.handle(nil, light: FrameLight.luma(pb)) }
+                    return
+                }
                 let t0 = CACurrentMediaTime()
                 let analysis = analyzer.analyze(pb)
+                gate.note(face: analysis != nil)
                 let t1 = CACurrentMediaTime()
                 engine.handle(analysis, light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
                 timer.add(analyze: t1 - t0, handle: CACurrentMediaTime() - t1)
@@ -404,7 +422,9 @@ final class FaceUnlockService {
     private func brightenIfDark(_ luma: Double) {
         guard var gate = darkGate else { return }
         // A fresh camera's first frames are dark in any room while its exposure settles.
-        let change = gate.feed(luma: luma, elapsed: Date().timeIntervalSince(scanStartedAt), settle: cameraWarm ? 0 : 0.6)
+        // Time since the camera's first frame, warm or not: its exposure starts dark and settles after that.
+        guard let sinceFirstFrame = camera?.secondsSinceFirstFrame else { return }
+        let change = gate.feed(luma: luma, elapsed: sinceFirstFrame, settle: 0.6)
         darkGate = gate
         if let dark = change {
             Self.log.notice("dark room \(dark) luma=\(luma)")
@@ -465,7 +485,7 @@ final class FaceUnlockService {
         guard needsKey, model == nil, warmCamera == nil, canScan, owner.faces.cameraReadyWhenLocked,
               AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         let camera = FaceCamera()
-        do { try camera.start { _ in } } catch { return }
+        do { try camera.start(fps: 5) { _ in } } catch { return }
         warmCamera = camera
         Self.log.notice("camera started at the lock, waiting for the keys")
         warmTask = Task { [weak self] in
@@ -494,7 +514,13 @@ final class FaceUnlockService {
         displayAssertion = 0
     }
 
-    private func stop(collapseAfter delay: Double) {
+    /// The app is quitting: stop everything now and put the brightness back at once (a ramp would never run).
+    func shutdown() {
+        stop(collapseAfter: 0, immediate: true)
+    }
+
+    private func stop(collapseAfter delay: Double, immediate: Bool = false) {
+        scanGeneration += 1; scanStarting = false
         releaseDisplay()
         coolCamera()
         timeout?.cancel(); timeout = nil
@@ -502,7 +528,7 @@ final class FaceUnlockService {
         camera?.stop(); camera = nil
         engine?.pause(); engine = nil
         FaceGlow.shared.cool()
-        if brightened { brightened = false; island.levels?.endFaceScanBoost() }
+        if brightened { brightened = false; island.levels?.endFaceScanBoost(immediately: immediate) }
         darkGate = nil
         let finished = model
         guard finished != nil else { return }
@@ -546,7 +572,7 @@ final class FrameTimer: @unchecked Sendable {
     func add(analyze a: Double, handle h: Double) {
         n += 1; analyze += a; handle += h
         guard n % 10 == 0 else { return }
-        Self.log.notice("timing: analyze \(Int(self.analyze * 100)) ms, handle \(Int(self.handle * 100)) ms a frame (frames \(self.n - 9)-\(self.n))")
+        Self.log.debug("timing: analyze \(Int(self.analyze * 100)) ms, handle \(Int(self.handle * 100)) ms a frame (frames \(self.n - 9)-\(self.n))")
         analyze = 0; handle = 0
     }
 }

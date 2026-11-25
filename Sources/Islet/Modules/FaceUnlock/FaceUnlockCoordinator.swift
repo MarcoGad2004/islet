@@ -60,6 +60,7 @@ final class FaceUnlockCoordinator {
     let antiSpoof = AntiSpoofModel()
     @ObservationIgnored private var testRecorder: PulseRecorder?
     private var camera: FaceCamera?
+    private var enrolmentEngine: EnrolmentEngine?
     private var timeout: Task<Void, Never>?
     let analyzer = FaceAnalyzer()
     @ObservationIgnored private(set) lazy var unlock = FaceUnlockService(owner: self, island: island)
@@ -99,9 +100,12 @@ final class FaceUnlockCoordinator {
             }
         } catch {
             island.setBase(nil)
+            island.enrolment = nil
+            enrolment = nil
             return Self.cameraMessage(error)
         }
         self.camera = camera
+        enrolmentEngine = engine
         timeout = Task { [weak self] in
             try? await Task.sleep(for: .seconds(120))
             guard !Task.isCancelled else { return }
@@ -111,6 +115,7 @@ final class FaceUnlockCoordinator {
     }
 
     func cancelEnrolment() {
+        enrolmentEngine?.cancel(); enrolmentEngine = nil
         timeout?.cancel()
         stopCamera()
         island.setBase(nil)
@@ -118,6 +123,8 @@ final class FaceUnlockCoordinator {
     }
 
     private func finishEnrolment(_ samples: [[Float]], model: EnrolmentModel) {
+        // Cancelled, or already failed (timeout), while this was in flight: don't replace the stored face.
+        guard enrolment === model, model.phase == .scanning else { return }
         timeout?.cancel()
         stopCamera()
         // A rough sanity check that the scan saw one consistent face.
@@ -141,6 +148,7 @@ final class FaceUnlockCoordinator {
     }
 
     private func fail(_ model: EnrolmentModel, _ message: String) {
+        enrolmentEngine?.cancel(); enrolmentEngine = nil
         stopCamera()
         model.phase = .failed(message)
         Task { [island] in
@@ -306,5 +314,24 @@ final class FrameCounter: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         n += 1
         return n % every == 0
+    }
+}
+
+/// Thins out the frames while no face is in view: after `after` frames in a row without one, only every `every`th is
+/// analysed (Vision is the scan's main cost) until a face appears again. Shared with the camera queue.
+final class FrameGate: @unchecked Sendable {
+    private let after: Int, every: Int
+    private var lost = 0, n = 0
+    private let lock = NSLock()
+    init(after: Int = 5, every: Int = 3) { self.after = after; self.every = every }
+    func shouldAnalyze() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard lost >= after else { return true }
+        n += 1
+        return n % every == 0
+    }
+    func note(face: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        lost = face ? 0 : lost + 1
     }
 }

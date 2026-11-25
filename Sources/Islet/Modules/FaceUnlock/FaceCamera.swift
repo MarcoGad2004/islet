@@ -37,29 +37,60 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         d.deviceType == .builtInWideAngleCamera && !d.isContinuityCamera && d.manufacturer == "Apple Inc."
     }
 
-    func start(handler: @escaping @Sendable (CVPixelBuffer) -> Void) throws {
+    private static let cachedDevice = OSAllocatedUnfairLock<AVCaptureDevice?>(initialState: nil)
+
+    /// `builtIn()`, remembered: the device discovery is slow and `start` runs on the main thread.
+    static func builtInCached() -> AVCaptureDevice? {
+        if let d = cachedDevice.withLock({ $0 }), d.isConnected { return d }
+        let d = builtIn()
+        cachedDevice.withLock { $0 = d }
+        return d
+    }
+
+    /// Looks the camera up off the main thread, so the first scan's `start` finds it cached.
+    static func prefetch() { DispatchQueue.global(qos: .utility).async { _ = builtInCached() } }
+
+    /// Seconds since this camera delivered its first frame (its exposure starts dark and settles after that), or nil
+    /// before one has arrived. Not reset by `attach`.
+    var secondsSinceFirstFrame: Double? { firstFrameTime.withLock { $0 }.map { CACurrentMediaTime() - $0 } }
+    private let firstFrameTime = OSAllocatedUnfairLock<Double?>(initialState: nil)
+
+    /// `fps` caps the frame rate (a camera that only warms up has no use for 30 a second); `attach` lifts it.
+    /// The session is configured and started on the camera's queue, off the main thread (it took tens of ms and ran
+    /// while the scan was animating in); a failure there shows as no frames.
+    func start(fps: Double? = nil, handler: @escaping @Sendable (CVPixelBuffer) -> Void) throws {
         guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { throw CameraError.denied }
-        guard let device = Self.builtIn(), let input = try? AVCaptureDeviceInput(device: device) else {
+        guard let device = Self.builtInCached() else {
             Self.log.error("no built-in camera")
             throw CameraError.noCamera
         }
         self.device = device
         self.handler = handler
         startedAt = CACurrentMediaTime(); firstFrameLogged = false
-        let output = AVCaptureVideoDataOutput()
-        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-        output.alwaysDiscardsLateVideoFrames = true
-        output.setSampleBufferDelegate(self, queue: queue)
-        session.beginConfiguration()
-        // 720p where the camera has it (all the built-in ones do; the older, notch-less Macs top out there): twice the
-        // pixels across a face, so it still reads at a greater distance. The 1080p ones aren't used: more to process
-        // for no gain the recogniser can use.
-        if session.canSetSessionPreset(.hd1280x720) { session.sessionPreset = .hd1280x720 }
-        else if session.canSetSessionPreset(.vga640x480) { session.sessionPreset = .vga640x480 }
-        if session.canAddInput(input) { session.addInput(input) }
-        if session.canAddOutput(output) { session.addOutput(output) }
-        session.commitConfiguration()
-        queue.async { [session] in session.startRunning() }
+        queue.async { [self, session] in
+            guard let input = try? AVCaptureDeviceInput(device: device) else { Self.log.error("camera input failed"); return }
+            let output = AVCaptureVideoDataOutput()
+            output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+            output.alwaysDiscardsLateVideoFrames = true
+            output.setSampleBufferDelegate(self, queue: queue)
+            session.beginConfiguration()
+            // 720p where the camera has it (all the built-in ones do; the older, notch-less Macs top out there): twice the
+            // pixels across a face, so it still reads at a greater distance. The 1080p ones aren't used: more to process
+            // for no gain the recogniser can use.
+            if session.canSetSessionPreset(.hd1280x720) { session.sessionPreset = .hd1280x720 }
+            else if session.canSetSessionPreset(.vga640x480) { session.sessionPreset = .vga640x480 }
+            if session.canAddInput(input) { session.addInput(input) }
+            if session.canAddOutput(output) { session.addOutput(output) }
+            session.commitConfiguration()
+            session.startRunning()
+            if let fps { Self.setMinFrameDuration(device, CMTime(value: 1, timescale: CMTimeScale(fps))) }
+        }
+    }
+
+    private static func setMinFrameDuration(_ device: AVCaptureDevice, _ d: CMTime) {
+        guard (try? device.lockForConfiguration()) != nil else { return }
+        device.activeVideoMinFrameDuration = d
+        device.unlockForConfiguration()
     }
 
     /// Holds exposure and white balance still (true) or hands them back to the camera (false), so the brightness
@@ -83,22 +114,26 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     /// to `handler`. Frames are only ever delivered on the camera's queue, so the swap is made there.
     func attach(handler: @escaping @Sendable (CVPixelBuffer) -> Void) {
         queue.async {
+            if let device = self.device { Self.setMinFrameDuration(device, .invalid) }
             self.handler = handler
             self.startedAt = CACurrentMediaTime(); self.firstFrameLogged = false
         }
     }
 
     func stop() {
-        handler = nil
         if device?.exposureMode == .locked { holdExposure(false) }
-        queue.async { [session] in session.stopRunning() }
+        queue.async { [self, session] in
+            handler = nil // on the queue that reads it
+            session.stopRunning()
+        }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        if firstFrameTime.withLock({ $0 }) == nil { firstFrameTime.withLock { $0 = CACurrentMediaTime() } }
         if !firstFrameLogged {
             firstFrameLogged = true
-            Self.log.notice("first camera frame \(Int((CACurrentMediaTime() - self.startedAt) * 1000)) ms after start, \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb))")
+            Self.log.debug("first camera frame \(Int((CACurrentMediaTime() - self.startedAt) * 1000)) ms after start, \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb))")
         }
         // When the frame was taken, on the wall clock: the light check compares it with when the screen changed, and a
         // frame can be handled 100 ms or more after it was taken (face model, spoof model).
