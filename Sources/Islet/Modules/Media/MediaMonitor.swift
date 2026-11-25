@@ -21,6 +21,9 @@ final class MediaMonitor {
     /// late or not at all, so until the stream agrees the page shows and builds on this, which keeps repeated skips adding up.
     /// Music's or Spotify's shuffle and repeat, as last read from the app or set here.
     @ObservationIgnored private var modes: (shuffle: Bool, repeatMode: Int) = (false, 1)
+    /// After a press, reads that disagree with what was just set are ignored until then: a read that began before the
+    /// press, or the app not having applied it yet, would put the old state back (the icon only changed on a second press).
+    @ObservationIgnored private var modesHold: Date?
     @ObservationIgnored private var siteCache: [String: String] = [:]
     @ObservationIgnored private var siteTask: Task<Void, Never>?
     @ObservationIgnored private var seekHold: (position: Double, at: Date, until: Date)?
@@ -157,16 +160,18 @@ final class MediaMonitor {
     func refreshModes() async {
         guard let id = info?.bundleID, PlayerControls.app(id) != nil, let read = await PlayerControls.read(id),
               info?.bundleID == id else { return }
+        if let hold = modesHold, Date() < hold, read.shuffle != modes.shuffle || read.repeatMode != modes.repeatMode { return }
         modes = read
         info?.shuffle = read.shuffle; info?.repeatMode = read.repeatMode
         onChange?(info)
     }
 
-    /// Shuffle on or off. The button changes at once; the app's own answer, read straight after, settles it.
+    /// Shuffle on or off. The button changes at once and holds; once the app has had a moment, its own answer settles it.
     func setShuffle(_ on: Bool) {
         guard let id = info?.bundleID, PlayerControls.app(id) != nil else { return }
         modes.shuffle = on; info?.shuffle = on; onChange?(info)
-        Task { await PlayerControls.setShuffle(id, on); await refreshModes() }
+        modesHold = Date().addingTimeInterval(2)
+        Task { await PlayerControls.setShuffle(id, on); await settleModes() }
     }
 
     /// Repeat: off, all, one track (Music) or off and on (Spotify).
@@ -174,7 +179,15 @@ final class MediaMonitor {
         guard let id = info?.bundleID, let app = PlayerControls.app(id) else { return }
         let next = PlayerControls.nextRepeat(app, from: info?.repeatMode ?? 1)
         modes.repeatMode = next; info?.repeatMode = next; onChange?(info)
-        Task { await PlayerControls.setRepeat(id, next); await refreshModes() }
+        modesHold = Date().addingTimeInterval(2)
+        Task { await PlayerControls.setRepeat(id, next); await settleModes() }
+    }
+
+    /// The app's answer after a press: a moment for it to apply the change, then what it says is the truth.
+    private func settleModes() async {
+        try? await Task.sleep(for: .milliseconds(700))
+        modesHold = nil
+        await refreshModes()
     }
 
     /// Looks up the website for a browser's track (cached per track). Called when the Now Playing page shows.
