@@ -63,9 +63,14 @@ final class LevelsController {
         tapActive = false
     }
 
-    func refresh() {
+    /// The notch screen, when there is one (else the display stays as it was).
+    private func resolveDisplay() {
         if let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }),
            let n = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID { displayID = n }
+    }
+
+    func refresh() {
+        resolveDisplay()
         volume = Double(Audio.volume() ?? 0.5)
         muted = Audio.muted() ?? false
         if let b = displayServices.get(displayID) { brightness = Double(b); brightnessAvailable = true } else { brightnessAvailable = false }
@@ -116,7 +121,9 @@ final class LevelsController {
             if isDown { volumeKey(key, fine: fine) }
             return true
         case 2, 3:
-            guard displayServices.available else { return false }
+            // No display DisplayServices can drive (lid closed with only an external screen): macOS keeps the key.
+            resolveDisplay()
+            guard displayServices.available, displayServices.get(displayID) != nil else { return false }
             if isDown { brightnessKey(up: key == 2, fine: fine, isRepeat: isRepeat) } else { brightnessKeyUp() }
             return true
         case 21, 22, 23:
@@ -130,13 +137,17 @@ final class LevelsController {
 
     private func volumeKey(_ key: Int, fine: Bool) {
         var v = Double(Audio.volume() ?? 0)
-        var m = Audio.muted() ?? false
+        // Outputs with no mute switch (many Bluetooth, HDMI and USB ones) are muted by taking the volume to 0.
+        let hardMute = Audio.muted() != nil
+        var m = Audio.muted() ?? muted
         let n = fine ? 64.0 : 16.0
         let step = (v * n).rounded()
         switch key {
         case 0: v = min(n, step + 1) / n; if m { m = false }
         case 1: v = max(0, step - 1) / n
-        default: m.toggle()
+        default:
+            m.toggle()
+            if !hardMute { v = softMute(m, current: v) }
         }
         Audio.setVolume(Float(v))
         Audio.setMuted(m)
@@ -230,7 +241,23 @@ final class LevelsController {
 
     func toggleMute() {
         let m = !muted
-        Audio.setMuted(m); muted = m
+        if Audio.muted() == nil {
+            let v = softMute(m, current: volume)
+            Audio.setVolume(Float(v)); volume = v
+        } else {
+            Audio.setMuted(m)
+        }
+        muted = m
+    }
+
+    /// The volume before a software mute (outputs without a mute switch), to come back to.
+    @ObservationIgnored private var volumeBeforeMute: Double?
+
+    /// Mutes by taking the volume to 0, or restores it. Returns the volume to set.
+    private func softMute(_ on: Bool, current v: Double) -> Double {
+        if on { volumeBeforeMute = v > 0 ? v : volumeBeforeMute; return 0 }
+        defer { volumeBeforeMute = nil }
+        return volumeBeforeMute ?? 0.5
     }
 
     func setBrightness(_ b: Double) {
@@ -262,9 +289,14 @@ final class LevelsController {
     }
 
     /// Ease back to the brightness from before the scan.
-    func endFaceScanBoost(over seconds: Double = 1.0) {
+    func endFaceScanBoost(over seconds: Double = 1.0, immediately: Bool = false) {
         guard let restore = boostRestore else { return }
         boostRestore = nil
+        if immediately {
+            rampTask?.cancel()
+            displayServices.set(displayID, Float(restore)); brightness = restore
+            return
+        }
         let now = displayServices.get(displayID).map(Double.init) ?? brightness
         ramp(from: now, to: restore, over: seconds)
     }
