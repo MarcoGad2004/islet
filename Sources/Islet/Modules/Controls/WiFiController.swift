@@ -34,6 +34,9 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     private(set) var instantHotspots: [InstantHotspot] = []
     @ObservationIgnored private let hotspotBrowser = InstantHotspotBrowser()
     @ObservationIgnored private var browseStop: Task<Void, Never>?
+    /// A stop that came while a join was asking the phone: the session must stay until the join is over.
+    @ObservationIgnored private var stopBrowsingAfterJoin = false
+    @ObservationIgnored private var hotspotJoin = false
     private(set) var locationStatus = CLAuthorizationStatus.notDetermined
     var error: String?
 
@@ -139,6 +142,9 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     }
 
     func stopBrowsingHotspots() {
+        // Letting go of the session mid-join drops sharingd's answer; do it once the join is over.
+        if joining != nil, hotspotJoin { stopBrowsingAfterJoin = true; return }
+        stopBrowsingAfterJoin = false
         browseStop?.cancel(); browseStop = nil
         hotspotBrowser.stop()
     }
@@ -146,8 +152,11 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     /// Asks the phone to turn on its hotspot, then joins it with the name and password it hands back.
     func join(_ h: InstantHotspot) async {
         guard joining == nil else { return }
-        error = nil; joining = h.name; requested = h.name
-        defer { joining = nil }
+        error = nil; joining = h.name; requested = h.name; hotspotJoin = true
+        defer {
+            joining = nil; hotspotJoin = false
+            if stopBrowsingAfterJoin { stopBrowsingHotspots() }
+        }
         report(h.name, hotspot: true, .working("Asking \(h.name)…"))
         switch await hotspotBrowser.enable(h) {
         case .failed(let message):
@@ -241,6 +250,8 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
         guard powerOn else { networks = []; return }
         if locationStatus == .notDetermined { requestLocation(); return }
         guard locationAllowed else { return }
+        // One scan at a time (a second one fails as busy), and none while a speed test measures the link.
+        guard !scanning, !SpeedTest.shared.running else { return }
         scanning = true; defer { scanning = false }
         let current = ssid
         // A full scan takes several seconds; show what macOS already knows straight away.
@@ -249,15 +260,16 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
             networks = Self.convert(Array(iface.cachedScanResults() ?? []), known: known, hotspots: knownHotspots, current: current)
         }
         let hotspots = knownHotspots
-        let result: [WiFiNetwork] = await withCheckedContinuation { cont in
+        let result: [WiFiNetwork]? = await withCheckedContinuation { cont in
             DispatchQueue.global(qos: .userInitiated).async {
                 let iface = CWWiFiClient.shared().interface()
                 let known = Set(iface?.configuration()?.networkProfiles.array.compactMap { ($0 as? CWNetworkProfile)?.ssid } ?? [])
-                let found = (try? iface?.scanForNetworks(withSSID: nil)) ?? []
+                // A failed scan (busy, radio changing) keeps the list that is showing instead of blanking it.
+                guard let found = try? iface?.scanForNetworks(withSSID: nil) else { cont.resume(returning: nil); return }
                 cont.resume(returning: Self.convert(Array(found), known: known, hotspots: hotspots, current: current))
             }
         }
-        networks = result
+        if let result { networks = result }
     }
 
     nonisolated static func convert(_ found: [CWNetwork], known: Set<String>, hotspots: Set<String>, current: String?) -> [WiFiNetwork] {
@@ -305,7 +317,10 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     }
 
     private func changed() {
+        let before = ssid
         refresh()
+        // A speed test (or its result) belongs to the network it ran on.
+        if ssid != before || !powerOn { SpeedTest.shared.reset() }
         settleTask?.cancel()
         settleTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
