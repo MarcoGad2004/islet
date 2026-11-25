@@ -35,3 +35,21 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
   this Mac's lock screen. Do the M2 feasibility spike before building any of its UI.
 - Volume and brightness always use the chin layout; other compact content uses wings only when the
   menu bar width check says they fit.
+
+## Running a test build on the owner's Mac (every session follows this)
+
+When the owner asks to run or rebuild the test copy so they can try a change, keep exactly ONE copy of the app on the
+Mac: `/Applications/Dynamic Peninsula.app`. Replace it in place so the permissions the owner already granted it
+(Accessibility, Camera, Microphone, Contacts, Full Disk Access, Location, Bluetooth...) carry over, and no copies pile up:
+
+1. Build the signed app: `./scripts/make-dmg.sh --app-only`. It builds Release and signs with the Developer ID
+   certificate, the same identity as the released app, which is what keeps macOS's permissions attached (a Debug or
+   Apple Development build is signed differently and would lose them). It doesn't notarize or upload anything.
+2. Quit the running app (`pkill -x "Dynamic Peninsula"`), then replace it:
+   `rm -rf "/Applications/Dynamic Peninsula.app" && ditto "build/dmg-derived/Build/Products/Release/Dynamic Peninsula.app" "/Applications/Dynamic Peninsula.app"`, and `open` it.
+3. Delete every other copy: `build/dmg-derived`, `build/dmg-stage`, and any `-derivedDataPath` build folders you made
+   (e.g. `/tmp/islet-dd-*`), and DerivedData for Islet. Never leave a built `.app` anywhere else.
+4. Say which version/commit is installed. Never launch a test build from a build folder.
+
+For your own build checks (compiling, running tests) use a throwaway `-derivedDataPath` and delete it afterwards.
+Releasing is separate: `scripts/release.sh <version>` only when the owner asks.
