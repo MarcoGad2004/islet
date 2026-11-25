@@ -130,6 +130,7 @@ final class Updater {
     func showNotes(_ tag: String) { ReleaseNotesWindow.show(version: Self.plain(tag), notes: notes) }
 
     func install(_ tag: String) {
+        if case .downloading = state { return }
         guard installable else {
             state = .failed("Move Dynamic Peninsula to the Applications folder to update it in place.")
             return
@@ -139,6 +140,7 @@ final class Updater {
         checkTask?.cancel(); checkTask = nil // a check still running must not overwrite the install's state
         state = .downloading(tag)
         Task {
+            var work: URL? // the download's folder; goes unless the new copy took over
             do {
                 island(.working("Downloading \(version)…"), 0.02)
                 shownPercent = -1
@@ -151,11 +153,13 @@ final class Updater {
                         self.island(.working("Downloading \(version) · \(pct)%"), Self.downloadShare * fraction)
                     }
                 }
+                work = file.deletingLastPathComponent()
                 island(.working("Verifying the update…"), 0.78)
-                let staged = try await Self.unpackAndVerify(file, against: Bundle.main.bundlePath)
+                let staged = try await Self.unpackAndVerify(file, against: Bundle.main.bundlePath, tag: tag)
                 island(.working("Installing \(version)…"), 0.88)
                 try await handOff(to: staged, version: version)
             } catch {
+                if let work { try? FileManager.default.removeItem(at: work) }
                 let message = (error as? UpdateError)?.message ?? error.localizedDescription
                 state = .failed(message)
                 island(.failed("Update failed"), lastFraction, hold: 4)
@@ -273,7 +277,7 @@ final class Updater {
     private static func removeOldCopies() {
         let dir = URL(fileURLWithPath: Bundle.main.bundlePath).deletingLastPathComponent()
         let fm = FileManager.default
-        for name in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where name.hasPrefix(".Islet-old-") && name.hasSuffix(".app") {
+        for name in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where (name.hasPrefix(".Islet-old-") || name.hasPrefix(".Islet-new-")) && name.hasSuffix(".app") {
             try? fm.removeItem(at: dir.appendingPathComponent(name))
         }
     }
@@ -382,12 +386,16 @@ final class Updater {
             let box = ObservationBox()
             let task = URLSession.shared.downloadTask(with: url) { tmp, response, error in
                 box.observation?.invalidate()
-                if let error { cont.resume(throwing: UpdateError(message: "Download failed: \(error.localizedDescription)")); return }
+                func fail(_ message: String) {
+                    try? FileManager.default.removeItem(at: work)
+                    cont.resume(throwing: UpdateError(message: message))
+                }
+                if let error { fail("Download failed: \(error.localizedDescription)"); return }
                 guard let tmp, url.isFileURL || (response as? HTTPURLResponse)?.statusCode == 200 else {
-                    cont.resume(throwing: UpdateError(message: "Download failed.")); return
+                    fail("Download failed."); return
                 }
                 do { try FileManager.default.moveItem(at: tmp, to: dest); cont.resume(returning: dest) }
-                catch { cont.resume(throwing: UpdateError(message: "Download failed: \(error.localizedDescription)")) }
+                catch { fail("Download failed: \(error.localizedDescription)") }
             }
             box.observation = task.progress.observe(\.fractionCompleted) { p, _ in progress(p.fractionCompleted) }
             task.resume()
@@ -397,8 +405,14 @@ final class Updater {
     private final class ObservationBox: @unchecked Sendable { var observation: NSKeyValueObservation? }
 
     /// Opens the DMG, copies the app out and checks it is intact and from the same developer as `current`.
-    nonisolated private static func unpackAndVerify(_ dmg: URL, against current: String) async throws -> URL {
+    nonisolated private static func unpackAndVerify(_ dmg: URL, against current: String, tag: String) async throws -> URL {
         let work = dmg.deletingLastPathComponent()
+        // The release DMGs are signed. Look at that before the image is opened: one signed by another developer is
+        // refused (an unsigned one still has to pass the app's own checks below).
+        let mine = await teamID(current)
+        if let mine, let theirs = await teamID(dmg.path), theirs != mine {
+            throw UpdateError(message: "The update isn't signed by the same developer, so it was not installed.")
+        }
         let mount = work.appendingPathComponent("mnt")
         let attach = await run("/usr/bin/hdiutil", ["attach", dmg.path, "-nobrowse", "-readonly", "-mountpoint", mount.path])
         guard attach.status == 0 else { throw UpdateError(message: "Couldn't open the download.") }
@@ -413,24 +427,48 @@ final class Updater {
         guard verify.status == 0 else { throw UpdateError(message: "The update's signature is invalid, so it was not installed.") }
         // Downloaded without a browser, the update gets no Gatekeeper check, so it must come from the same developer
         // as the copy that is running (when that copy is signed by one).
-        if let mine = await teamID(current) {
+        if let mine {
             guard await teamID(staged.path) == mine else {
                 throw UpdateError(message: "The update isn't signed by the same developer, so it was not installed.")
             }
         }
+        // It must be this app, at the version the release says (a stale build in the DMG would reinstall itself forever).
+        let info = NSDictionary(contentsOf: staged.appendingPathComponent("Contents/Info.plist"))
+        guard info?["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier else {
+            throw UpdateError(message: "The download isn't Dynamic Peninsula, so it was not installed.")
+        }
+        var skipVersionCheck = false
+        #if DEBUG
+        skipVersionCheck = UserDefaults.standard.string(forKey: "IsletDebugUpdateDMG") != nil
+        #endif
+        if !skipVersionCheck, let v = info?["CFBundleShortVersionString"] as? String, isNewer(tag, than: v) {
+            throw UpdateError(message: "The download is older than the release (\(v)), so it was not installed.")
+        }
         return staged
     }
 
-    /// Puts the new app where this one is. This copy's bundle is renamed aside, not deleted, so it keeps running
-    /// from it and can be put back if the new one never starts.
+    /// Puts the new app where this one is. The new copy is written beside it first, so the app is never missing while
+    /// a 130 MB copy runs; then this copy's bundle is renamed aside (not deleted: it keeps running from it and is put
+    /// back if the new one never starts) and the new one renamed into place, two renames a moment apart.
     nonisolated private static func swapIn(_ staged: URL, replacing current: URL, at dest: URL) async throws -> URL {
         let fm = FileManager.default
-        let backup = current.deletingLastPathComponent().appendingPathComponent(".Islet-old-\(UUID().uuidString.prefix(8)).app")
-        do { try fm.moveItem(at: current, to: backup) }
-        catch { throw UpdateError(message: "Couldn't replace Dynamic Peninsula in \(dest.deletingLastPathComponent().path).") }
-        let copy = await run("/usr/bin/ditto", [staged.path, dest.path])
+        let dir = current.deletingLastPathComponent()
+        let tag = UUID().uuidString.prefix(8)
+        let fresh = dir.appendingPathComponent(".Islet-new-\(tag).app")
+        let backup = dir.appendingPathComponent(".Islet-old-\(tag).app")
+        let copy = await run("/usr/bin/ditto", [staged.path, fresh.path])
         guard copy.status == 0 else {
-            try? fm.removeItem(at: dest)
+            try? fm.removeItem(at: fresh)
+            throw UpdateError(message: "Couldn't install the update in \(dir.path).")
+        }
+        do { try fm.moveItem(at: current, to: backup) }
+        catch {
+            try? fm.removeItem(at: fresh)
+            throw UpdateError(message: "Couldn't replace Dynamic Peninsula in \(dir.path).")
+        }
+        do { try fm.moveItem(at: fresh, to: dest) }
+        catch {
+            try? fm.removeItem(at: fresh)
             try? fm.moveItem(at: backup, to: current)
             throw UpdateError(message: "Couldn't install the update.")
         }
