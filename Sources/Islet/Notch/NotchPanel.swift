@@ -211,8 +211,12 @@ final class NotchController {
         paletteWatch = Task { [weak self] in
             var moved = false
             var seen = false
-            for _ in 0..<600 {
-                try? await Task.sleep(for: .milliseconds(seen ? 300 : 80))
+            // The picker shows within a second or two or not at all: look briefly (80 x 100 ms), then stop. Once it's
+            // open, look every half second for as long as it stays, so a picker left open isn't hidden after a while.
+            var looked = 0
+            while seen || looked < 80 {
+                looked += 1
+                try? await Task.sleep(for: .milliseconds(seen ? 500 : 100))
                 guard let self, !Task.isCancelled, let panel = self.panel else { return }
                 if let layer = Self.characterPaletteLayer() {
                     if !seen { Self.log.notice("emoji picker open at layer \(layer)") }
