@@ -268,6 +268,40 @@ final class FaceLivenessTests: XCTestCase {
         XCTAssertTrue(l.harsh)
     }
 
+    /// The test face box (and a margin) lit `face`, the rest of the frame `room`.
+    private func frame(face: Double, room: Double) -> CVPixelBuffer {
+        var pb: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 640, 480, kCVPixelFormatType_32BGRA, nil, &pb)
+        CVPixelBufferLockBaseAddress(pb!, [])
+        let base = CVPixelBufferGetBaseAddress(pb!)!.assumingMemoryBound(to: UInt8.self), row = CVPixelBufferGetBytesPerRow(pb!)
+        for y in 0..<480 {
+            for x in 0..<640 {
+                let inFace = x > 200 && x < 440 && y > 100 && y < 400
+                let v = UInt8(((inFace ? face : room) * 255).rounded())
+                let o = y * row + x * 4
+                base[o] = v; base[o + 1] = v; base[o + 2] = v; base[o + 3] = 255
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pb!, [])
+        return pb!
+    }
+
+    func testDarkFaceInFrontOfAWindowIsBacklit() {
+        let l = FacePulse.lighting(frame(face: 0.3, room: 0.85), points: facePoints, face: faceBox)!
+        XCTAssertTrue(l.backlit)
+        XCTAssertTrue(l.harsh, "a backlit face must not be refused on the spoof model's word")
+        XCTAssertEqual(l.faceLuma, 0.3, accuracy: 0.02)
+        XCTAssertEqual(l.backgroundLuma, 0.85, accuracy: 0.02)
+    }
+
+    func testEvenRoomAndDarkRoomAreNotBacklit() {
+        XCTAssertFalse(FacePulse.lighting(frame(face: 0.5, room: 0.55), points: facePoints, face: faceBox)!.backlit)
+        // A face lit by the screen in a dark room: brighter than what's behind it.
+        XCTAssertFalse(FacePulse.lighting(frame(face: 0.5, room: 0.1), points: facePoints, face: faceBox)!.harsh)
+        // Everything dim: nothing bright behind the face.
+        XCTAssertFalse(FacePulse.lighting(frame(face: 0.1, room: 0.3), points: facePoints, face: faceBox)!.backlit)
+    }
+
     // MARK: Spoof model
 
     func testCropMatchesTrainingCode() {

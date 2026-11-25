@@ -87,6 +87,7 @@ final class ScanEngine: @unchecked Sendable {
     private var pulseLearned: [[Double]] = []
     /// Recent frames lit harshly (direct sun).
     private var harshHistory: [Bool] = []
+    private var lastLit: FacePulse.Lighting?
     /// A glow got no response, or the room is too bright, in this scan: later attempts skip it. Kept across
     /// `resume()`.
     private var skipGlow = false
@@ -166,6 +167,7 @@ final class ScanEngine: @unchecked Sendable {
         let framed = framedHistory.filter { $0 }.count >= 4
         if let live = liveness { spoof.add(live) }
         if let l = lit {
+            lastLit = l
             harshHistory.append(l.harsh)
             if harshHistory.count > 6 { harshHistory.removeFirst() }
         }
@@ -189,7 +191,10 @@ final class ScanEngine: @unchecked Sendable {
         frameCount += 1
         // For tuning the range (1.7.1): how wide the face was, how well it matched, what the spoof model made of it.
         if frameCount % 10 == 1 {
-            Self.log.debug("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2))")
+            // Face and background brightness (gamma 0...1), the frame's mean and the spoof model's latest value and recent
+            // mean: for telling a backlit face from a bad model score (Console, category "unlock", `backlit` in the line).
+            let l = lastLit
+            Self.log.notice("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(liveness ?? -1, format: .fixed(precision: 2)) mean \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2)) faceLuma \(l?.faceLuma ?? -1, format: .fixed(precision: 2)) bgLuma \(l?.backgroundLuma ?? -1, format: .fixed(precision: 2)) ratio \(l?.backlightRatio ?? -1, format: .fixed(precision: 1)) backlit \(l?.backlit ?? false) harsh \(harsh)")
         }
         if score >= threshold { lastMatch = (score, e) }
         if case .running = pulse, harsh, pulseSchedule == nil {

@@ -306,9 +306,24 @@ enum FacePulse {
         /// Share of the face's pixels blown out to white.
         var clipped: Double
 
-        /// Sun on the face: one side far brighter than the other, or much of the skin blown out. The screen's light
-        /// is lost in it, and a texture model sees an unusual face.
-        var harsh: Bool { sideRatio >= Lighting.harshSideRatio || clipped >= Lighting.harshClipped }
+        /// Mean brightness (gamma, 0...1) of the face's middle and of the frame outside the face (the room behind it).
+        var faceLuma = 0.5
+        var backgroundLuma = 0.5
+        /// Brighter background over the face, in linear light (a window behind the face).
+        var backlightRatio: Double { pow(backgroundLuma, 2.2) / max(pow(faceLuma, 2.2), 0.0005) }
+
+        /// A bright window or lamp behind the face: auto-exposure sets for it and the face goes dark and flat. The spoof
+        /// model reads that as a print (owner, 2026-11-25: "fake" with the blinds open, 1.00 with them closed, same room).
+        var backlit: Bool {
+            backlightRatio >= Lighting.backlitRatio && faceLuma < Lighting.backlitFaceMax && backgroundLuma >= Lighting.backlitBackgroundMin
+        }
+        static let backlitRatio = 2.5
+        static let backlitFaceMax = 0.45
+        static let backlitBackgroundMin = 0.4
+
+        /// Sun on the face (one side far brighter than the other, or much of the skin blown out) or a backlit face.
+        /// The screen's light is lost in sun, and a texture model sees an unusual face in either.
+        var harsh: Bool { sideRatio >= Lighting.harshSideRatio || clipped >= Lighting.harshClipped || backlit }
         static let harshSideRatio = 3.0
         static let harshClipped = 0.06
     }
@@ -346,15 +361,27 @@ enum FacePulse {
 
         // A 12x12 grid over the middle of the face box (inset so hair and background stay out).
         let fx = box.minX * Double(w), fy = box.minY * Double(h), fw = box.width * Double(w), fh = box.height * Double(h)
-        var clipped = 0.0, n = 0.0
+        var clipped = 0.0, n = 0.0, faceSum = 0.0
         for j in 0..<12 {
             for i in 0..<12 {
                 guard let v = luma(fx + fw * (0.15 + 0.7 * Double(i) / 11), fy + fh * (0.1 + 0.75 * Double(j) / 11)) else { continue }
                 n += 1
+                faceSum += pow(v, 2.2)
                 if v > 0.96 { clipped += 1 }
             }
         }
-        return Lighting(sideRatio: min(ratio, 99), clipped: n > 0 ? clipped / n : 0)
+        // The room: a sparse grid over the frame, skipping the face and the hair and neck round it (1.6x the box).
+        var bgSum = 0.0, bgN = 0.0
+        for j in 0..<12 {
+            for i in 0..<16 {
+                let x = (Double(i) + 0.5) * Double(w) / 16, y = (Double(j) + 0.5) * Double(h) / 12
+                if abs(x - (fx + fw / 2)) < fw * 0.8 && abs(y - (fy + fh / 2)) < fh * 0.8 { continue }
+                if let v = luma(x, y) { bgSum += pow(v, 2.2); bgN += 1 }
+            }
+        }
+        let faceLin = n > 0 ? faceSum / n : 0.5, bgLin = bgN > 0 ? bgSum / bgN : faceLin
+        return Lighting(sideRatio: min(ratio, 99), clipped: n > 0 ? clipped / n : 0,
+                        faceLuma: pow(faceLin, 1 / 2.2), backgroundLuma: pow(bgLin, 1 / 2.2))
     }
 
     // MARK: Maths

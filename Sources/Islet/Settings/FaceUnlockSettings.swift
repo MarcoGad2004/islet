@@ -183,7 +183,7 @@ struct FaceUnlockSettings: View {
                         .foregroundStyle(seen ? .green : .secondary)
                 }
                 if let l = face.testLighting {
-                    Label(String(format: "%@ · sides %.1f× · %.0f%% blown out", l.harsh ? "Harsh light: asks at once" : "Even light", l.sideRatio, l.clipped * 100),
+                    Label(String(format: "%@ · sides %.1f× · %.0f%% blown out · face %.2f, room %.2f", l.backlit ? "Backlit: asks at once" : l.harsh ? "Harsh light: asks at once" : "Even light", l.sideRatio, l.clipped * 100, l.faceLuma, l.backgroundLuma),
                           systemImage: l.harsh ? "sun.max.fill" : "sun.min")
                         .foregroundStyle(l.harsh ? .orange : .secondary).monospacedDigit()
                 }
