@@ -293,6 +293,20 @@ final class Updater {
         let assets: [Asset]
     }
 
+    /// GitHub turns the spaces in an uploaded file's name into dots ("Dynamic Peninsula.dmg" is served as
+    /// "Dynamic.Peninsula.dmg"), so names are compared with spaces and dots treated alike.
+    nonisolated private static func assetKey(_ name: String) -> String {
+        name.lowercased().replacingOccurrences(of: " ", with: ".")
+    }
+
+    /// The download in a release's assets: `Dynamic Peninsula.dmg`, else `Islet.dmg` (for copies from before 1.5).
+    nonisolated static func downloadURL(in assets: [(name: String, url: URL)]) -> URL? {
+        for wanted in [dmgFile, legacyDmgFile] {
+            if let a = assets.first(where: { assetKey($0.name) == assetKey(wanted) }) { return a.url }
+        }
+        return nil
+    }
+
     /// The release to install: the highest version that has a download, whatever order GitHub lists them in, so an
     /// older or skipped release is never picked and 1.4 goes straight to 1.6 when 1.6 is out. Nil when none has one.
     nonisolated static func newest(of releases: [ReleaseInfo]) -> ReleaseInfo? {
@@ -338,8 +352,8 @@ final class Updater {
         let all = try JSONDecoder().decode([Release].self, from: data)
         // Releases since 1.5 carry "Dynamic Peninsula.dmg", and "Islet.dmg" for copies from before the rename.
         let releases = all.filter { $0.draft != true && $0.prerelease != true }.map { r in
-            let asset = r.assets.first { $0.name == dmgFile } ?? r.assets.first { $0.name == legacyDmgFile }
-            return ReleaseInfo(tag: r.tag_name, notes: r.body ?? "", dmg: asset?.browser_download_url)
+            let dmg = downloadURL(in: r.assets.map { ($0.name, $0.browser_download_url) })
+            return ReleaseInfo(tag: r.tag_name, notes: r.body ?? "", dmg: dmg)
         }
         let top = newest(of: releases) ?? releases.max { isNewer($1.tag, than: $0.tag) }
         guard let top else { throw UpdateError(message: "No release found on GitHub.") }

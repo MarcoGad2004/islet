@@ -34,4 +34,26 @@ final class UpdateVersionRangeTests: XCTestCase {
     func testReleasesAboveTheChosenOneAreNotIncluded() {
         XCTAssertEqual(Updater.combinedNotes([r("v1.7", "seven"), r("v1.6", "six")], after: "1.5", upTo: "v1.6"), "six")
     }
+
+    // MARK: Download name and version comparison
+
+    private func asset(_ name: String) -> (name: String, url: URL) { (name, URL(string: "https://example.com/\(name.replacingOccurrences(of: " ", with: "%20"))")!) }
+
+    func testGitHubDotNamedAssetIsFound() {
+        // GitHub serves "Dynamic Peninsula.dmg" as "Dynamic.Peninsula.dmg".
+        let url = Updater.downloadURL(in: [asset("Islet.dmg"), asset("Dynamic.Peninsula.dmg")])
+        XCTAssertEqual(url?.lastPathComponent, "Dynamic.Peninsula.dmg")
+    }
+
+    func testLegacyAssetIsTheFallback() {
+        XCTAssertEqual(Updater.downloadURL(in: [asset("Islet.dmg")])?.lastPathComponent, "Islet.dmg")
+        XCTAssertNil(Updater.downloadURL(in: [asset("notes.txt")]))
+    }
+
+    func testIsNewer() {
+        XCTAssertTrue(Updater.isNewer("v1.7.2", than: "1.7.1"))
+        XCTAssertTrue(Updater.isNewer("1.10", than: "1.9.9"))
+        XCTAssertFalse(Updater.isNewer("1.7", than: "1.7.0"))
+        XCTAssertFalse(Updater.isNewer("1.6", than: "1.7"))
+    }
 }
