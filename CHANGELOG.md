@@ -15,6 +15,7 @@ A speed test in the Wi-Fi panel, a roomier header, a smarter updater, instant Fa
 **Changed**
 
 - **Roomier header.** The Focus pill moves to the right, the battery is never cut off, the notch no longer animates when Focus changes (the pill still shows the active Focus), and the "Controls" label is gone from the chin.
+- **More room in Wi-Fi and Bluetooth.** The on/off switch now sits in the top bar beside the back arrow, so the big header row is gone and more networks and devices fit.
 - **Updates go straight to the latest version.** Skipped versions are no longer installed one at a time, and What's new shows the notes for every version you skipped.
 
 **Fixes**
