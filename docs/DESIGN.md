@@ -1060,6 +1060,9 @@ Like the battery stats' power flow, everything in the panel moves rather than ju
 - Each reading glides in on the same spring (0.45 s from 1.7.1): numbers change without rolling (1.7.1, owner 2026-11-24: rolling digits
   roughly doubled the panel's CPU use, about 50% of a core on the CPU page, 25% without them), bars and
   the memory breakdown ease to it, and the charts slide along as time passes.
+- Each time the overview is shown (1.7.1), the bars grow to their readings and the sparklines rise from their baselines
+  (a 0.6 s spring after 0.12 s; none with Reduce Motion), then it settles to the usual motion. The captions under the numbers
+  change without a text effect, for the CPU it saves.
 - The charts and tile sparklines show the 10 minutes in 5-second slots (120), each the average of its readings, the
   newest at the right edge. Within a slot the newest point eases to each reading, and so does a sparkline's scale when
   its peak changes; as each new slot starts, the whole plot slides left a step. The pages' charts move the same way

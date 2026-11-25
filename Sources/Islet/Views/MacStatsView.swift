@@ -88,6 +88,10 @@ extension MacStatsView {
 private struct MacStatsOverview: View {
     let stats: MacStats
     let open: (MacStatsPage) -> Void
+    /// 0 as the page appears, then 1: the bars grow to their readings and the sparklines rise from their baselines,
+    /// each time the overview is shown (1.7.1). Not with Reduce Motion.
+    @State private var intro = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let s = stats.snapshot
@@ -106,8 +110,8 @@ private struct MacStatsOverview: View {
                     Tile(title: "CPU", value: MacStatsFormat.percent(s.cpu?.total), number: s.cpu?.total,
                          level: StatLevel(load: max(s.cpu?.efficiency ?? 0, s.cpu?.performance ?? 0)), action: { open(.cpu) }) {
                         VStack(spacing: 6) {
-                            CoreTypeRow(letter: "E", value: s.cpu?.efficiency, colour: MacStatsColour.efficiency)
-                            CoreTypeRow(letter: "P", value: s.cpu?.performance, colour: MacStatsColour.performance)
+                            CoreTypeRow(letter: "E", value: s.cpu?.efficiency, colour: MacStatsColour.efficiency, reveal: intro)
+                            CoreTypeRow(letter: "P", value: s.cpu?.performance, colour: MacStatsColour.performance, reveal: intro)
                         }
                         .padding(.top, 6)
                     }
@@ -116,13 +120,14 @@ private struct MacStatsOverview: View {
                         Caption(s.gpu.map { "\(MacStatsFormat.megabytes($0.memoryInUse)) in use" } ?? " ")
                         let gpu = stats.buckets
                         Sparkline(values: gpu.map(\.gpu), newest: gpu.last?.date, top: 1, colour: MacStatsColour.gpu)
+                            .scaleEffect(y: intro, anchor: .bottom)
                     }
                 }
                 GridRow {
                     Tile(title: "Memory", value: MacStatsFormat.percent(s.memory?.fraction), number: s.memory?.fraction,
                          level: StatLevel(s.memory?.pressure ?? .normal), action: { open(.memory) }) {
                         Caption(s.memory.map { "\(MacStatsFormat.gigabytes($0.used)) of \(MacStatsFormat.gigabytes($0.total, decimals: 0))" } ?? " ")
-                        if let m = s.memory { MemoryBar(memory: m, height: 6).padding(.top, 8) }
+                        if let m = s.memory { MemoryBar(memory: m, height: 6, reveal: intro).padding(.top, 8) }
                         Text("Pressure \(MacStatsFormat.pressure(s.memory?.pressure ?? .normal))")
                             .font(.system(size: 11))
                             .foregroundStyle(MacStatsColour.level(StatLevel(s.memory?.pressure ?? .normal)) ?? Color(nsColor: .tertiaryLabelColor))
@@ -136,6 +141,7 @@ private struct MacStatsOverview: View {
                         let power = stats.buckets.filter { $0.watts != nil }
                         let watts = power.compactMap(\.watts)
                         Sparkline(values: watts, newest: power.last?.date, top: max(watts.max() ?? 1, 1) * 1.15, colour: nil)
+                            .scaleEffect(y: intro, anchor: .bottom)
                     }
                 }
             }
@@ -167,6 +173,9 @@ private struct MacStatsOverview: View {
 
             Rule()
             Footer()
+        }
+        .onAppear {
+            if reduceMotion { intro = 1 } else { withAnimation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.12)) { intro = 1 } }
         }
     }
 }
@@ -209,11 +218,13 @@ private struct CoreTypeRow: View {
     let letter: String
     let value: Double?
     let colour: Color
+    /// The share of the bar shown, for the page's intro (1: all of it).
+    var reveal = 1.0
 
     var body: some View {
         HStack(spacing: 6) {
             Text(letter).font(.system(size: 11, weight: .bold)).foregroundStyle(colour).frame(width: 9, alignment: .leading)
-            MeterBar(fraction: value ?? 0, colour: colour)
+            MeterBar(fraction: value ?? 0, colour: colour, reveal: reveal)
             // One line always: "100%" is wider than the 30 pt that "99%" fits in, and wrapped its % onto a second line.
             Text(MacStatsFormat.percent(value)).font(.system(size: 11)).monospacedDigit()
                 .foregroundStyle(IsletInk.primary).lineLimit(1).fixedSize()
@@ -352,10 +363,12 @@ private struct MacStatsMemoryPage: View {
 private struct MemoryBar: View {
     let memory: MemorySample
     let height: CGFloat
+    /// The share of the bar shown, for the page's intro (1: all of it).
+    var reveal = 1.0
 
     var body: some View {
         GeometryReader { geo in
-            let total = max(Double(memory.total), 1), w = geo.size.width
+            let total = max(Double(memory.total), 1), w = geo.size.width * reveal
             HStack(spacing: 1.5) {
                 Rectangle().fill(MacStatsColour.memory).frame(width: w * Double(memory.app) / total)
                 Rectangle().fill(MacStatsColour.memory.opacity(0.6)).frame(width: w * Double(memory.wired) / total)
@@ -903,10 +916,12 @@ private struct SlotShape: Shape {
 private struct MeterBar: View {
     let fraction: Double
     let colour: Color
+    /// The share of the bar shown, for the page's intro (1: all of it).
+    var reveal = 1.0
 
     var body: some View {
         GeometryReader { geo in
-            let h = geo.size.height, w = geo.size.width * min(max(fraction, 0), 1)
+            let h = geo.size.height, w = geo.size.width * min(max(fraction, 0), 1) * reveal
             Capsule().fill(IsletInk.faint)
                 .overlay(alignment: .leading) {
                     // Never narrower than it is tall, slid back under the track's rounded end instead: a small load
@@ -1123,8 +1138,9 @@ private struct Caption: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
+        // No text-change transition: the digits' blur effect, on four captions every reading, kept the overview at about
+        // 45% of a core (1.7.1).
         Text(text).font(.system(size: 11)).foregroundStyle(IsletInk.tertiary).fixedSize(horizontal: false, vertical: true)
-            .contentTransition(.numericText())
     }
 }
 

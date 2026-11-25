@@ -261,13 +261,22 @@ final class EnergyReader {
         channels = subscribed?.takeRetainedValue()
     }
 
+    /// A window shorter than this isn't measured: the CPU's energy counter only moves about once a second, so over
+    /// 0.6 s it read exactly 0 W most of the time (checked 2026-11-24: "CPU 0.0 W" next to a 14 W system), which is what
+    /// the extra readings (opening the panel, opening a page) and the 1 s setting produced.
+    private static let minimumWindow = 1.8
+    private var lastSample: EnergySample?
+
     func sample() -> EnergySample? {
-        guard let subscription, let channels,
-              let now = IOReportCreateSamples(subscription, channels, nil)?.takeRetainedValue() else { return nil }
+        guard let subscription, let channels else { return nil }
         let date = Date()
-        defer { last = (now, date) }
-        guard let (before, then) = last, date.timeIntervalSince(then) > 0.5,
-              let delta = IOReportCreateSamplesDelta(before, now, nil)?.takeRetainedValue() as? [String: Any],
+        // Too soon after the last one: keep its baseline and its figures, so the window keeps growing.
+        if let (_, then) = last, date.timeIntervalSince(then) < Self.minimumWindow { return lastSample }
+        guard let now = IOReportCreateSamples(subscription, channels, nil)?.takeRetainedValue() else { return nil }
+        let before = last
+        last = (now, date)
+        guard let (earlier, then) = before,
+              let delta = IOReportCreateSamplesDelta(earlier, now, nil)?.takeRetainedValue() as? [String: Any],
               let items = delta["IOReportChannels"] as? [CFDictionary] else { return nil }
         var joules: [String: Double] = [:]
         for item in items {
@@ -277,8 +286,10 @@ final class EnergyReader {
             joules[name] = Self.joules(IOReportSimpleGetIntegerValue(item, 0), unit: unit)
         }
         let seconds = date.timeIntervalSince(then)
-        return EnergySample(cpu: (joules["CPU Energy"] ?? 0) / seconds, gpu: (joules["GPU Energy"] ?? 0) / seconds,
-                            neuralEngine: (joules["ANE"] ?? 0) / seconds)
+        let result = EnergySample(cpu: (joules["CPU Energy"] ?? 0) / seconds, gpu: (joules["GPU Energy"] ?? 0) / seconds,
+                                  neuralEngine: (joules["ANE"] ?? 0) / seconds)
+        lastSample = result
+        return result
     }
 
     static func joules(_ value: Int64, unit: String) -> Double {
