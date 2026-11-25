@@ -146,7 +146,7 @@ struct MediaStatusStrip: View {
     }
 }
 
-/// The media buttons in a card of equal columns. Music and Spotify get shuffle, back, forward and repeat (read from and
+/// The media buttons in equal columns, straight on the island (no card). Music and Spotify get shuffle, back, forward and repeat (read from and
 /// set in the app); anything else, a browser or a player Islet can't script, gets back and forward only (10 s in a
 /// browser, like a video's own skip; 15 s elsewhere).
 struct MediaControlRow: View {
@@ -168,7 +168,6 @@ struct MediaControlRow: View {
         }
         .padding(.horizontal, modes ? 8 : 100)
         .frame(maxHeight: .infinity)
-        .background(IsletCard(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)))
         .animation(.easeOut(duration: 0.2), value: modes)
     }
 }

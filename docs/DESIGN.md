@@ -326,7 +326,7 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
       Accessibility (`BrowserSite`): the title that holds the playing track's name, minus the browser's own name, split at
       dashes and bars, first part after the track name (else before it). It only finds a tab that is showing in a window,
       so the answer is remembered per track. Music apps keep the scrubber.
-  - **Media row** (y 122, 62 pt high, a card): each button an icon over a 9.5 pt caption, in equal columns. It adapts to
+  - **Media row** (y 122, 62 pt high, straight on the island with no card: owner, 2026-11-25): each button an icon over a 9.5 pt caption, in equal columns. It adapts to
     the player (owner's request, 2026-11-25; `MediaInfo.isBrowser` matches the bundle ID against the common browsers, to pick the 10 s skip and the website line:
     Safari, Chrome, Firefox, Zen, Arc, Edge, Brave, Opera, Vivaldi, Orion and the like):
     - **Music and Spotify**: shuffle, back 15 s, forward 15 s, repeat. Shuffle and repeat light green when on (repeat
@@ -334,7 +334,7 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
       because the system's now-playing commands don't reach them (Spotify ignores the adapter's shuffle, repeat and toggle
       commands and reports neither state; checked 2026-11-25). The page re-reads them every 3 s while it is open, and a
       button press shows at once and is then settled by the app's own answer. Repeat cycles off, all, one track in Music,
-      and off and on in Spotify. macOS asks once per app for permission to control it (System Settings > Privacy &
+      and off and on in Spotify: Spotify's scripting only has repeat on or off, so it has no repeat-one-track (don't look for it). macOS asks once per app for permission to control it (System Settings > Privacy &
       Security > Automation); until it is given the buttons change and snap back.
     - **Anything else** (a browser, Podcasts, VLC...): only back and forward, centred, as below. A browser's are 10 s (what a
       video's own skip does) because a browser's media session doesn't take shuffle or repeat; other players' are 15 s.
