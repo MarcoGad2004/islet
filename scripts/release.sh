@@ -35,7 +35,7 @@ sed -i '' -E "s/(CFBundleShortVersionString: )\"[^\"]*\"/\1\"$V\"/; s/(CFBundleV
 # 3. Build, sign, notarize; then prove it before anything is uploaded.
 REQUIRE_NOTARIZED=1 ./scripts/make-dmg.sh
 for DMG in "dist/Dynamic Peninsula.dmg" dist/Islet.dmg; do
-  codesign -dv "$DMG" 2>&1 | grep -q "Authority=Developer ID Application" || { echo "$DMG isn't Developer ID signed"; exit 1; }
+  codesign -dvv "$DMG" 2>&1 | grep -q "Authority=Developer ID Application" || { echo "$DMG isn't Developer ID signed"; exit 1; }
   xcrun stapler validate "$DMG" >/dev/null || { echo "$DMG isn't notarized and stapled"; exit 1; }
   spctl -a -t open --context context:primary-signature "$DMG" 2>/dev/null || { echo "Gatekeeper rejects $DMG"; exit 1; }
 done
