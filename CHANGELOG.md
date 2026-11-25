@@ -3,9 +3,19 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.7.3 (2026-11-25)
+## 1.7.2 (2026-11-25)
 
-A stability and efficiency pass over the whole app, found by a full code audit.
+A speed test in the Wi-Fi panel, a roomier header, a smarter updater, instant Face Unlock in the dark, and a stability and efficiency pass over the whole app.
+
+**New**
+
+- **Wi-Fi speed test.** Run a speed test from the Wi-Fi panel and see download, upload and latency.
+- **Face Unlock in dark rooms.** When the room is dark, the display glow turns on at once instead of after a delay.
+
+**Changed**
+
+- **Roomier header.** The Focus pill moves to the right, the battery is never cut off, the notch no longer animates when Focus changes (the pill still shows the active Focus), and the "Controls" label is gone from the chin.
+- **Updates go straight to the latest version.** Skipped versions are no longer installed one at a time, and What's new shows the notes for every version you skipped.
 
 **Fixes**
 
@@ -26,20 +36,6 @@ A stability and efficiency pass over the whole app, found by a full code audit.
 - Mac Stats reads only what's on screen, pauses with the display, and its lists, formatters and graphs cost less.
 - Power flow, charge animation and the title marquee stop animating when nothing moves.
 - The Settings window is released when closed; the menu bar width check and Emoji watcher no longer poll constantly.
-
-## 1.7.2 (2026-11-25)
-
-A speed test in the Wi-Fi panel, a roomier header, a smarter updater and instant Face Unlock in the dark.
-
-**New**
-
-- **Wi-Fi speed test.** Run a speed test from the Wi-Fi panel and see download, upload and latency.
-- **Face Unlock in dark rooms.** When the room is dark, the display glow turns on at once instead of after a delay.
-
-**Changed**
-
-- **Roomier header.** The Focus pill moves to the right, the battery is never cut off, the notch no longer animates when Focus changes (the pill still shows the active Focus), and the "Controls" label is gone from the chin.
-- **Updates go straight to the latest version.** Skipped versions are no longer installed one at a time, and What's new shows the notes for every version you skipped.
 
 ## 1.7.1 (2026-11-24)
 
