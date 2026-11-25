@@ -113,13 +113,20 @@ struct IslandView: View {
                                 removal: .opacity.combined(with: .scale(scale: 0.85)).animation(.easeOut(duration: 0.14))))
                     }
                 case .quickBar, .quickChin:
-                    QuickInfoView(store: store, bar: pres == .quickBar)
-                        // Shazam being pulled in pushes quick info out of the way.
-                        .opacity(1 - (store.shazamPull?.reach ?? 0))
-                        .blur(radius: 3 * (store.shazamPull?.reach ?? 0))
-                        .transition(.asymmetric(
-                            insertion: .opacity.animation(.easeOut(duration: 0.2).delay(pres == .quickBar ? 0.06 : 0.12)),
-                            removal: .opacity.animation(.easeOut(duration: 0.1))))
+                    // Shazam being pulled in, or a skip swipe over hidden music, pushes quick info out of the way.
+                    let away = max(store.shazamPull?.reach ?? 0, store.skip.map { $0.dir == 0 ? 0 : SkipState.clamp($0.progress * 1.6) } ?? 0)
+                    ZStack(alignment: .top) {
+                        QuickInfoView(store: store, bar: pres == .quickBar)
+                            .opacity(1 - away)
+                            .blur(radius: 3 * away)
+                        // Music playing but swiped away: its glow sits along the bottom edge (DESIGN.md "Media peek").
+                        if store.showsMediaPeek {
+                            MediaPeekView(store: store, glass: glass, height: m.height, notchHeight: nh, glowWidth: 120)
+                        }
+                    }
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(pres == .quickBar ? 0.06 : 0.12)),
+                        removal: .opacity.animation(.easeOut(duration: 0.1))))
                 case .peek, .closed:
                     if floating && pres == .peek, let g = store.geometry {
                         // The orb: an arrow at the tip of the drop, for the swipe down.

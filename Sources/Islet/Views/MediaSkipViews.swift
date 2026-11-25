@@ -156,6 +156,8 @@ struct MediaPeekView: View {
     var glass: Bool
     var height: CGFloat
     var notchHeight: CGFloat
+    /// The glow line's length: 64 under the bare camera, longer along the bottom of quick info.
+    var glowWidth: CGFloat = 64
     @State private var breathe = false
 
     var body: some View {
@@ -164,7 +166,7 @@ struct MediaPeekView: View {
             if !glass {
                 Capsule()
                     .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
-                    .frame(width: 64, height: 2)
+                    .frame(width: glowWidth, height: 2)
                     .shadow(color: colors[colors.count / 2].opacity(0.7), radius: 4)
                     .saturation(1.2)
                     .brightness(breathe ? 0.08 : -0.18)

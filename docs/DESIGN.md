@@ -900,7 +900,7 @@ Owner approved, 2026-11-21. Mockup: <https://claude.ai/artifact/FHqTKpznAKMcB8YQ
 docs/mockups/quick-info.html).
 
 - **When**: the moment the pointer is over the notch while nothing is showing (no music, notification, level or
-  event; not hidden music's peek), with no delay (owner, 2026-11-21: it's a quick peek). It replaces the hover peek. Leaving folds it back. Settings > Notch "Quick
+  event; hidden music doesn't count, see below), with no delay (owner, 2026-11-21: it's a quick peek). It replaces the hover peek. Leaving folds it back. Settings > Notch "Quick
   info on hover" (on by default). Notch mode only (not menu bar or bezel mode).
 - **Wide bar** (menu bar has room): the volume wide bar's shape (wings 60 pt a side and a 26 pt body, bottom 18). Left
   wing: the time (13 semibold, no AM/PM) over the date (9.5, `secondary`, "Sat, Nov 21"). Right wing: the percentage
@@ -911,6 +911,10 @@ docs/mockups/quick-info.html).
 - **Chin** (no room): the notch as the stem, a 340 × 60 body (top 16, bottom 18, 10 pt curves). First row, 18 pt in:
   the time and date on the left, the battery and percentage on the right. Second row: Wi-Fi and Bluetooth centred.
 - **Motion**: the shape springs out like the wings, the text fading in at 0.06 s (0.12 s in the chin). The swell applies.
+- **With music swiped away** (owner, 2026-11-25): quick info shows as usual, and the media peek's glow joins it along the
+  bottom edge, in the album's colours: a 120 x 2 pt line that breathes (with the glass look, the glass strip's tint, as in
+  the peek). A two-finger swipe sideways still skips (the skip mark fades quick info out as it comes in) and a swipe down
+  brings the music back. With quick info turned off the bare peek shows as before.
 - **Opening the panel** (a click): the Wi-Fi icon and name glide into the Wi-Fi tile's round button and status line,
   the Bluetooth ones into its tile, and the percentage and battery into the header's battery chip, on the shape's
   spring (0.5, damping 0.82). The time and date fade (0.1 s). Everything else in the panel fades in a beat later

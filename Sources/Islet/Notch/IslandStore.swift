@@ -267,11 +267,12 @@ final class IslandStore {
     /// The panel opened from quick info: its pieces glide into their places instead of fading in.
     private(set) var expandedFromQuickInfo = false
 
-    /// Nothing else would show under the pointer: no content, no hidden music's peek, the notch itself.
+    /// Nothing else would show under the pointer: no content, the notch itself. Hidden music doesn't stop it (owner,
+    /// 2026-11-25): its peek glow shows at the bottom of quick info.
     private var quickInfoAllowed: Bool {
         guard UserDefaults.standard.object(forKey: Self.quickInfoKey) as? Bool ?? true else { return false }
         guard let g = geometry, g.mode == .notch, !paused, !expanded, base == nil, content == nil else { return false }
-        return !(mediaHidden && media != nil && mediaFresh)
+        return true
     }
 
     /// The pointer over an idle notch shows it at once, in place of the peek (owner, 2026-11-21: a quick peek).
