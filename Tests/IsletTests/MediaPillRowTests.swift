@@ -79,3 +79,31 @@ final class MediaPositionTests: XCTestCase {
         XCTAssertFalse(m.positionKnown)
     }
 }
+
+final class PlayerControlsTests: XCTestCase {
+    func testParsesSpotify() {
+        let a = PlayerControls.parse("true,false\n", app: .spotify)
+        XCTAssertEqual(a?.shuffle, true); XCTAssertEqual(a?.repeatMode, 1)
+        XCTAssertEqual(PlayerControls.parse("false,true", app: .spotify)?.repeatMode, 3)
+    }
+
+    func testParsesMusic() {
+        XCTAssertEqual(PlayerControls.parse("true,all", app: .music)?.repeatMode, 3)
+        XCTAssertEqual(PlayerControls.parse("false,one", app: .music)?.repeatMode, 2)
+        XCTAssertEqual(PlayerControls.parse("false,off", app: .music)?.repeatMode, 1)
+        XCTAssertNil(PlayerControls.parse("oops", app: .music))
+    }
+
+    func testRepeatCycles() {
+        XCTAssertEqual(PlayerControls.nextRepeat(.music, from: 1), 3)
+        XCTAssertEqual(PlayerControls.nextRepeat(.music, from: 3), 2)
+        XCTAssertEqual(PlayerControls.nextRepeat(.music, from: 2), 1)
+        XCTAssertEqual(PlayerControls.nextRepeat(.spotify, from: 1), 3)
+        XCTAssertEqual(PlayerControls.nextRepeat(.spotify, from: 3), 1)
+    }
+
+    func testOnlyMusicAndSpotifyScript() {
+        XCTAssertNotNil(PlayerControls.app("com.apple.Music")); XCTAssertNotNil(PlayerControls.app("com.spotify.client"))
+        XCTAssertNil(PlayerControls.app("com.apple.podcasts")); XCTAssertNil(PlayerControls.app("app.zen-browser.zen"))
+    }
+}

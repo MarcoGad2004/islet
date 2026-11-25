@@ -146,29 +146,30 @@ struct MediaStatusStrip: View {
     }
 }
 
-/// The media buttons in a card of equal columns. A music app gets shuffle, back, forward and repeat; a browser, whose
-/// media session answers neither shuffle nor repeat, gets back and forward (10 s, like a video's own skip) only.
+/// The media buttons in a card of equal columns. Music and Spotify get shuffle, back, forward and repeat (read from and
+/// set in the app); anything else, a browser or a player Islet can't script, gets back and forward only (10 s in a
+/// browser, like a video's own skip; 15 s elsewhere).
 struct MediaControlRow: View {
     let media: MediaInfo
     let monitor: MediaMonitor
 
     var body: some View {
-        let browser = media.isBrowser
+        let modes = media.hasShuffleRepeat
         let n = Int(media.skipSeconds)
         HStack(spacing: 0) {
-            if !browser {
+            if modes {
                 MediaRowButton(symbol: "shuffle", caption: "Shuffle", on: media.shuffle) { monitor.setShuffle(!media.shuffle) }
             }
             MediaRowButton(symbol: "gobackward.\(n)", caption: "Back \(n) s", on: false) { monitor.skip(seconds: -media.skipSeconds) }
             MediaRowButton(symbol: "goforward.\(n)", caption: "Forward \(n) s", on: false) { monitor.skip(seconds: media.skipSeconds) }
-            if !browser {
+            if modes {
                 MediaRowButton(symbol: media.repeatMode == 2 ? "repeat.1" : "repeat", caption: "Repeat", on: media.repeatMode > 1) { monitor.cycleRepeat() }
             }
         }
-        .padding(.horizontal, browser ? 100 : 8)
+        .padding(.horizontal, modes ? 8 : 100)
         .frame(maxHeight: .infinity)
         .background(IsletCard(shape: RoundedRectangle(cornerRadius: 22, style: .continuous)))
-        .animation(.easeOut(duration: 0.2), value: browser)
+        .animation(.easeOut(duration: 0.2), value: modes)
     }
 }
 

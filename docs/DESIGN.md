@@ -327,13 +327,17 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
       dashes and bars, first part after the track name (else before it). It only finds a tab that is showing in a window,
       so the answer is remembered per track. Music apps keep the scrubber.
   - **Media row** (y 122, 62 pt high, a card): each button an icon over a 9.5 pt caption, in equal columns. It adapts to
-    the player (owner's request, 2026-11-25; `MediaInfo.isBrowser` matches the bundle ID against the common browsers:
+    the player (owner's request, 2026-11-25; `MediaInfo.isBrowser` matches the bundle ID against the common browsers, to pick the 10 s skip and the website line:
     Safari, Chrome, Firefox, Zen, Arc, Edge, Brave, Opera, Vivaldi, Orion and the like):
-    - **A music or podcast app** (Music, Spotify, Podcasts...): shuffle, back 15 s, forward 15 s, repeat. Shuffle and repeat
-      light green when on (repeat shows a "1" for one track); they follow the player's own state (the stream's `shuffleMode`
-      and `repeatMode`); repeat cycles off, all, one.
-    - **A browser**: only back 10 s and forward 10 s (what a video's own skip does), centred. A browser's media session
-      doesn't take shuffle or repeat, so they aren't shown.
+    - **Music and Spotify**: shuffle, back 15 s, forward 15 s, repeat. Shuffle and repeat light green when on (repeat
+      shows a "1" for one track). They are read from and set in the app itself through AppleScript (`PlayerControls`),
+      because the system's now-playing commands don't reach them (Spotify ignores the adapter's shuffle, repeat and toggle
+      commands and reports neither state; checked 2026-11-25). The page re-reads them every 3 s while it is open, and a
+      button press shows at once and is then settled by the app's own answer. Repeat cycles off, all, one track in Music,
+      and off and on in Spotify. macOS asks once per app for permission to control it (System Settings > Privacy &
+      Security > Automation); until it is given the buttons change and snap back.
+    - **Anything else** (a browser, Podcasts, VLC...): only back and forward, centred, as below. A browser's are 10 s (what a
+      video's own skip does) because a browser's media session doesn't take shuffle or repeat; other players' are 15 s.
     - Skips are seeks to the current position plus or minus the amount, like the scrubber, because players answer them more
       often than the skip commands. The seeked position is held for 2 s until the player's own update agrees, as browsers
       report it late.

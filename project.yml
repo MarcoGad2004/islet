@@ -40,7 +40,7 @@ targets:
         LSUIElement: true   # menu-bar/agent app, no Dock icon
         NSLocationWhenInUseUsageDescription: "Dynamic Peninsula reads nearby Wi-Fi network names for the Wi-Fi control."
         NSBluetoothAlwaysUsageDescription: "Dynamic Peninsula lists and connects your Bluetooth devices from the notch."
-        NSAppleEventsUsageDescription: "Dynamic Peninsula toggles Dark Mode through System Events."
+        NSAppleEventsUsageDescription: "Dynamic Peninsula toggles Dark Mode through System Events, and sets shuffle and repeat in Music and Spotify."
         NSContactsUsageDescription: "Dynamic Peninsula shows the names of the people messaging you."
         NSCameraUsageDescription: "Dynamic Peninsula uses the camera to recognise you for face unlock."
         NSMicrophoneUsageDescription: "Dynamic Peninsula listens for a few seconds when you ask Shazam to name a song."

@@ -12,7 +12,7 @@ struct MediaInfo: Equatable {
     var timestamp: Date
     var rate: Double
     var artwork: NSImage?
-    /// The player's shuffle (any mode but off) and repeat (1 off, 2 one track, 3 all) as it reports them.
+    /// The app's shuffle and repeat (1 off, 2 one track, 3 all), read from the app itself (`PlayerControls`).
     var shuffle = false
     var repeatMode = 1
     /// False when the player has said nothing about where it is (a browser's update can leave out the time and length).
@@ -21,6 +21,8 @@ struct MediaInfo: Equatable {
     /// The player is a web browser (Safari, Chrome, Firefox, Zen, Arc...): it plays video and web audio through the
     /// browser's media session, which answers play, pause, skip and seek but not shuffle or repeat.
     var isBrowser: Bool { Self.isBrowser(bundleID) }
+    /// Music and Spotify, whose shuffle and repeat Islet can read and set (`PlayerControls`).
+    var hasShuffleRepeat: Bool { PlayerControls.app(bundleID) != nil }
     /// How far the skip buttons jump: 10 s in a browser (what a video's own skip does), 15 s in a music or podcast app.
     var skipSeconds: Double { isBrowser ? 10 : 15 }
 

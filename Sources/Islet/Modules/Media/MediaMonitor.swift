@@ -19,6 +19,8 @@ final class MediaMonitor {
     @ObservationIgnored private var artwork: NSImage?
     /// Where the last seek put the playhead, for a couple of seconds. Browsers (Zen, Chrome...) report the new position
     /// late or not at all, so until the stream agrees the page shows and builds on this, which keeps repeated skips adding up.
+    /// Music's or Spotify's shuffle and repeat, as last read from the app or set here.
+    @ObservationIgnored private var modes: (shuffle: Bool, repeatMode: Int) = (false, 1)
     @ObservationIgnored private var siteCache: [String: String] = [:]
     @ObservationIgnored private var siteTask: Task<Void, Never>?
     @ObservationIgnored private var seekHold: (position: Double, at: Date, until: Date)?
@@ -97,7 +99,7 @@ final class MediaMonitor {
                           album: state["album"] as? String ?? "", playing: state["playing"] as? Bool ?? false,
                           duration: (state["duration"] as? Double) ?? 0, elapsed: (state["elapsedTime"] as? Double) ?? 0,
                           timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork,
-                          shuffle: ((state["shuffleMode"] as? Int) ?? 1) > 1, repeatMode: (state["repeatMode"] as? Int) ?? 1)
+                          shuffle: modes.shuffle, repeatMode: modes.repeatMode)
         // A browser's update can leave out the elapsed time or the length (a seek, a pause, a buffering moment). Missing
         // is not zero: keep what was known for the same track, and mark the position unknown when nothing was.
         let sameTrack = info.map { $0.bundleID == bundle && $0.title == title } ?? false
@@ -151,17 +153,28 @@ final class MediaMonitor {
         seek(to: min(max(target, 0), m.duration))
     }
 
-    /// Shuffle on (tracks) or off. The button shows the new state at once; the player's own update confirms it.
-    func setShuffle(_ on: Bool) {
-        run(["shuffle", on ? "3" : "1"])
-        info?.shuffle = on; onChange?(info)
+    /// Reads shuffle and repeat from the playing app (Music, Spotify) and shows them. Called while the page is open.
+    func refreshModes() async {
+        guard let id = info?.bundleID, PlayerControls.app(id) != nil, let read = await PlayerControls.read(id),
+              info?.bundleID == id else { return }
+        modes = read
+        info?.shuffle = read.shuffle; info?.repeatMode = read.repeatMode
+        onChange?(info)
     }
 
-    /// Repeat: off, then all, then one track, then off again.
+    /// Shuffle on or off. The button changes at once; the app's own answer, read straight after, settles it.
+    func setShuffle(_ on: Bool) {
+        guard let id = info?.bundleID, PlayerControls.app(id) != nil else { return }
+        modes.shuffle = on; info?.shuffle = on; onChange?(info)
+        Task { await PlayerControls.setShuffle(id, on); await refreshModes() }
+    }
+
+    /// Repeat: off, all, one track (Music) or off and on (Spotify).
     func cycleRepeat() {
-        let next = [1: 3, 3: 2, 2: 1][info?.repeatMode ?? 1] ?? 3
-        run(["repeat", String(next)])
-        info?.repeatMode = next; onChange?(info)
+        guard let id = info?.bundleID, let app = PlayerControls.app(id) else { return }
+        let next = PlayerControls.nextRepeat(app, from: info?.repeatMode ?? 1)
+        modes.repeatMode = next; info?.repeatMode = next; onChange?(info)
+        Task { await PlayerControls.setRepeat(id, next); await refreshModes() }
     }
 
     /// Looks up the website for a browser's track (cached per track). Called when the Now Playing page shows.

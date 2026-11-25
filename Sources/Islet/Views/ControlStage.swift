@@ -411,7 +411,15 @@ struct ControlStage: View {
                 .opacity(isMedia ? 1 : headerFade)
                 .help(flush && !isMedia ? m.title : "")
                 .onTapGesture { if isMedia { monitor.activatePlayer(); store.collapse() } else { store.showMediaPage() } }
-                .task(id: "\(m.bundleID)|\(m.title)|\(isMedia)") { if isMedia { monitor.refreshSite() } }
+                .task(id: "\(m.bundleID)|\(m.title)|\(isMedia)") {
+                    guard isMedia else { return }
+                    monitor.refreshSite()
+                    // Music and Spotify: keep shuffle and repeat true to the app while the page is open.
+                    while m.hasShuffleRepeat, !Task.isCancelled {
+                        await monitor.refreshModes()
+                        try? await Task.sleep(for: .seconds(3))
+                    }
+                }
 
             Text(m.title)
                 .font(.system(size: 17, weight: .semibold)).lineLimit(1)
