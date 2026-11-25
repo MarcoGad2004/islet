@@ -24,6 +24,7 @@ final class Updater {
     /// The DMG of the release found by `check()`.
     @ObservationIgnored private var dmgURL: URL?
     @ObservationIgnored private var shownPercent = -1
+    @ObservationIgnored private var checkTask: Task<Void, Never>?
 
     /// Shows a step in the island, and takes it away. Set by the app delegate.
     static var showInIsland: ((ConnectionProgress, (() -> Void)?) -> Void)?
@@ -64,21 +65,32 @@ final class Updater {
     /// A tag the user can install now: what the panel's update pill offers.
     var availableTag: String? { if case .available(let t) = state { t } else { nil } }
 
-    /// `silent` is an automatic check: a failure leaves things as they were instead of showing an error in Settings.
+    /// `silent` is an automatic check: a failure leaves things as they were instead of showing an error in Settings,
+    /// and an update already on offer stays on offer while it looks again.
     func check(silent: Bool = false) {
         if case .downloading = state { return }
-        if silent, case .checking = state { return }
+        if silent, checkTask != nil { return }
+        checkTask?.cancel()
         let before = state
-        state = .checking
-        Task {
+        if !(silent && availableTag != nil) { state = .checking }
+        checkTask = Task {
+            defer { if !Task.isCancelled { checkTask = nil } }
             do {
                 let latest = try await Self.latestRelease()
+                // An install started meanwhile (or a newer check) owns the state now.
+                if Task.isCancelled { return }
+                if case .downloading = state { return }
                 dmgURL = latest.dmg
                 notes = Self.combinedNotes(latest.releases, after: currentVersion, upTo: latest.tag)
                 UserDefaults.standard.set(Date(), forKey: Self.lastCheckKey)
                 state = Self.isNewer(latest.tag, than: currentVersion) ? .available(latest.tag) : .upToDate
             } catch {
-                if silent { state = before == .checking ? .idle : before; return }
+                if Task.isCancelled { return }
+                if case .downloading = state { return }
+                if silent {
+                    if case .checking = state { state = before == .checking ? .idle : before }
+                    return
+                }
                 state = .failed((error as? UpdateError)?.message ?? "Couldn't reach GitHub: \(error.localizedDescription)")
             }
         }
@@ -124,6 +136,7 @@ final class Updater {
         }
         guard let dmg = dmgURL else { state = .failed("The release has no download for this Mac."); return }
         let version = Self.plain(tag)
+        checkTask?.cancel(); checkTask = nil // a check still running must not overwrite the install's state
         state = .downloading(tag)
         Task {
             do {
