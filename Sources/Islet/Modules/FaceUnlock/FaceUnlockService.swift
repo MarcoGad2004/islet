@@ -261,8 +261,13 @@ final class FaceUnlockService {
             let camera = FaceCamera()
             let lightCounter = FrameCounter(every: 6)
             do {
+                let timer = FrameTimer()
                 try camera.start { pb in
-                    engine.handle(analyzer.analyze(pb), light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
+                    let t0 = CACurrentMediaTime()
+                    let analysis = analyzer.analyze(pb)
+                    let t1 = CACurrentMediaTime()
+                    engine.handle(analysis, light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
+                    timer.add(analyze: t1 - t0, handle: CACurrentMediaTime() - t1)
                 }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
@@ -481,5 +486,20 @@ final class FaceUnlockService {
         for down in [true, false] {
             CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Return), keyDown: down)?.post(tap: .cghidEventTap)
         }
+    }
+}
+
+/// For tuning the speed of a scan (1.7.1): the average time a frame spends in Vision and in the engine (the face and spoof
+/// models), logged every 10 frames. Runs on the camera's queue only.
+final class FrameTimer: @unchecked Sendable {
+    private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
+    private var n = 0
+    private var analyze = 0.0, handle = 0.0
+
+    func add(analyze a: Double, handle h: Double) {
+        n += 1; analyze += a; handle += h
+        guard n % 10 == 0 else { return }
+        Self.log.notice("timing: analyze \(Int(self.analyze * 100)) ms, handle \(Int(self.handle * 100)) ms a frame (frames \(self.n - 9)-\(self.n))")
+        analyze = 0; handle = 0
     }
 }

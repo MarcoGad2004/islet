@@ -11,6 +11,9 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
     private var handler: (@Sendable (CVPixelBuffer) -> Void)?
     private var device: AVCaptureDevice?
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "camera")
+    /// For tuning the speed of a scan (1.7.1): when `start` was called, and whether the first frame has been logged.
+    private var startedAt = CACurrentMediaTime()
+    private var firstFrameLogged = false
 
     enum CameraError: Error { case denied, noCamera }
 
@@ -42,6 +45,7 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         }
         self.device = device
         self.handler = handler
+        startedAt = CACurrentMediaTime(); firstFrameLogged = false
         let output = AVCaptureVideoDataOutput()
         output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         output.alwaysDiscardsLateVideoFrames = true
@@ -83,6 +87,10 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        if !firstFrameLogged {
+            firstFrameLogged = true
+            Self.log.notice("first camera frame \(Int((CACurrentMediaTime() - self.startedAt) * 1000)) ms after start, \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb))")
+        }
         // When the frame was taken, on the wall clock: the light check compares it with when the screen changed, and a
         // frame can be handled 100 ms or more after it was taken (face model, spoof model).
         let age = CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) - CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
