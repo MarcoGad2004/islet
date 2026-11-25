@@ -3,32 +3,40 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.7.1 (unreleased)
+## 1.7.1 (2026-11-24)
 
-- **AirPods case card.** Opening an AirPods case beside the Mac shows the earbuds and the case in the notch, with each one's charge and a bolt while it charges, each earbud lit while it is in the case and faint once taken out, and with one out each showing its own charge (a bolt only on the one still charging), under the name of your AirPods. The charge is the exact figure macOS reports when the case is connected (the case's own broadcast only gives tens). It reads the Bluetooth message the case sends while its lid is open (nothing is connected to or sent), and only the case within about two feet counts, so someone else's doesn't show. Apple's own symbols for the model are used; 3D models of each generation are planned. It can be turned off on the Dynamic Peninsula page.
-- **Smoother Mac Stats charts.** Only each chart's newest point eases to a new reading now each reading settles in 0.45 s instead of 0.7 s, and the numbers change without rolling, which takes the CPU page from about 50% of a core to about 25% while it is open.
-- **Longer swipes for skip and Shazam.** The two-finger swipe over media and the one that pulls Shazam in need more travel on the trackpad before they complete.
-- **Face unlock works from further away.** The camera now captures at 720p instead of 640 x 480, and a face counts from 11% of the frame's width instead of 14%. It also logs the face's width and match score while scanning, to tune the range.
-- **Faster face unlock in bright light.** The light sensor gets a moment to answer before a scan starts, so a bright room goes straight to the blink instead of waiting on the spoof check and the glow first.
-- **The display stays awake while a scan runs,** so it no longer goes to sleep from inactivity half way through an unlock.
-- **The Mac Stats panel goes calm when you're not using it.** After about 8 seconds without moving the pointer over it, readings step instead of easing, which takes an open panel from 25-30% of a core to about 4%. Moving the pointer brings the animation back.
-- **No more "exec" icon on notifications.** A notification, such as an iPhone one from Apple Card, could pick up a generic executable icon when a background process shared the app's name. Only real apps are matched now; otherwise the iPhone glyph shows.
-- **Camera ready when locking (about half a second faster).** New in Settings > Face Unlock: "Get the camera ready when locking" starts the camera for up to 12 seconds as the Mac locks, so the scan begins the moment you press Command+Shift. The camera light shows while it waits, and nothing is looked at or kept until you scan. On by default at Faster; off at Standard and More secure, where you can turn it on.
-- **Face unlock no longer mistakes your head for a photo edge.** The check that looks for a held-up photo or screen was treating the outline of a head with hair and a beard as a rectangle round the face, and refused real scans. It now needs the rectangle to leave room above and below the face, as a photo or screen does. Scans also log what rectangle the check found.
-- **"Open in Messages" on message notifications.** A message in the notch now has Open in Messages and View, instead of Mark as Read.
-- **Pick each part's colour.** In Settings > Mac Stats, click the colour square beside Efficiency cores, Performance cores, GPU or Memory to choose from 16 colours across the rainbow. It applies in the menu bar and the panel.
-- **Clearer Glass look wording.** It now says the battery and Mac Stats panels follow it too.
-- **Glass look and Extended brightness are on the General settings page.** They were under Notch.
-- **Choose which stats warn.** Under "Warn in yellow and red" in Settings > Mac Stats, each stat (efficiency cores, performance cores, GPU, memory, temperature) has its own switch, so a part you don't care about never turns yellow or red, in the menu bar or the panel.
-- **The overview's bars and graphs grow in.** Each time the Mac Stats overview is shown, the CPU and memory bars grow to their readings and the two sparklines rise from their baselines. The captions under the numbers just change now, without a text effect, which takes the overview from about 50% of a core to about 30%.
-- **"CPU 0.0 W" in the Power tile is fixed.** The CPU's energy counter only moves about once a second, so a reading taken soon after another showed 0 W. Readings now cover at least 1.8 s.
-- **The Power tile no longer bounces between two heights.** CPU and GPU watts each have their own line, so the tile is always the same size.
-- **"100%" stays on one line** in the CPU tile on the Mac Stats overview.
-- **The screen no longer stays dim after opening the lid.** The face scan's dark-room boost now waits until the display has finished waking and the camera has settled, so it can't save a half-faded brightness and put the screen back to it.
-- **Smoother bubble on Macs without a notch.** The liquid neck that joins the card to the top edge is now drawn over a small area instead of the whole panel.
-- **Page transitions in Mac Stats.** Opening a page or going back now drifts a few points sideways as it fades, instead of a plain fade.
+Stability and polish: a new AirPods card, faster and longer-range Face Unlock, and a much lighter Mac Stats panel.
 
-## 1.7 (unreleased)
+**New**
+
+- **AirPods case card.** Open an AirPods case beside the Mac and the notch shows the earbuds and the case. Each has its charge (the exact figure macOS reports) and a bolt while it charges. Take an earbud out and it parts from the other, with its own charge. Your AirPods' name is shown, and only a case within about two feet counts. It can be turned off under Features.
+- **Open in Messages.** Message notifications now offer Open in Messages and View in place of Mark as Read.
+- **Pick each part's colour.** In Settings > Mac Stats, choose from 16 colours for the efficiency cores, performance cores, GPU and memory. They apply to the menu bar and the panel.
+- **Choose which stats warn.** Each stat has its own switch for turning yellow or red.
+- **Page transitions and an intro in Mac Stats.** Pages drift as they change, and the overview's bars and graphs grow in each time it opens.
+
+**Face Unlock**
+
+- Works from further away: 720p capture, and a face counts from 11% of the frame's width.
+- Faster in bright light, and the display stays awake while a scan runs.
+- New setting, "Get the camera ready when locking", about half a second faster. It's on by default at Faster, and off at Standard and More secure.
+- No longer mistakes your head for a photo edge.
+
+**Mac Stats**
+
+- Much lighter: the CPU page uses about 25% of a core (was about 50%), the overview about 30% (was 50%), and an idle open panel about 4% (was 25-30%) thanks to a calm mode when the pointer is still.
+- Fixed "CPU 0.0 W" in the Power tile, and the tile no longer bounces between two heights.
+- "100%" stays on one line in the CPU tile.
+
+**Fixes and polish**
+
+- The screen no longer stays dim after you open the lid.
+- Swipes for skip and Shazam need more travel to complete.
+- No more generic "exec" icon on notifications, such as iPhone ones from Apple Card.
+- Smoother bubble on Macs without a notch.
+- Glass look and Extended brightness moved to the General settings page, and the Glass look wording now says the battery and Mac Stats panels follow it.
+
+## 1.7 (2026-11-24)
 
 ### Extended brightness
 
