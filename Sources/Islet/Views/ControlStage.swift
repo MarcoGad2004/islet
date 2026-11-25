@@ -411,6 +411,7 @@ struct ControlStage: View {
                 .opacity(isMedia ? 1 : headerFade)
                 .help(flush && !isMedia ? m.title : "")
                 .onTapGesture { if isMedia { monitor.activatePlayer(); store.collapse() } else { store.showMediaPage() } }
+                .task(id: "\(m.bundleID)|\(m.title)|\(isMedia)") { if isMedia { monitor.refreshSite() } }
 
             Text(m.title)
                 .font(.system(size: 17, weight: .semibold)).lineLimit(1)
@@ -444,8 +445,11 @@ struct ControlStage: View {
                 transport("forward.fill", 17) { monitor.next() }
             }.slot(CGRect(x: W - 132, y: 54, width: 132, height: 40), visible: isMedia)
 
+            // A browser's reported position can't be trusted, so there the scrubber gives way to the website it plays from.
             Scrubber(media: m) { monitor.seek(to: $0) }
-                .slot(CGRect(x: 68, y: 96, width: W - 68, height: 18), visible: isMedia)
+                .slot(CGRect(x: 68, y: 96, width: W - 68, height: 18), visible: isMedia && !m.isBrowser)
+            siteLine(m, monitor)
+                .slot(CGRect(x: 68, y: 96, width: W - 68, height: 18), visible: isMedia && m.isBrowser)
 
             MediaStatusStrip(store: store).slot(CGRect(x: 0, y: 30, width: W, height: 22), visible: isMedia)
             MediaControlRow(media: m, monitor: monitor).slot(CGRect(x: 0, y: 122, width: W, height: 62), visible: isMedia)
@@ -454,6 +458,20 @@ struct ControlStage: View {
                 .slot(CGRect(x: flush ? W - 20 : W - 26 - 10 - 20, y: 3 + headerY, width: 20, height: 20), visible: isMedia)
                 .opacity(headerFade)
         }
+    }
+
+    /// The website, then the browser's name: "YouTube · Zen". Only the browser's name when the site isn't known.
+    private func siteLine(_ m: MediaInfo, _ monitor: MediaMonitor) -> some View {
+        let app = NSRunningApplication.runningApplications(withBundleIdentifier: m.bundleID).first?.localizedName ?? ""
+        let site = monitor.site
+        return HStack(spacing: 5) {
+            Image(systemName: "globe").font(.system(size: 10.5, weight: .medium)).foregroundStyle(Color.isletTertiary)
+            (Text(site ?? app).foregroundStyle(Color.isletSecondary)
+                + Text(site != nil && !app.isEmpty ? " · \(app)" : "").foregroundStyle(Color.isletTertiary))
+                .font(.system(size: 11.5, weight: .medium)).lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .help(site ?? app)
     }
 
     private func transport(_ name: String, _ size: CGFloat, action: @escaping () -> Void) -> some View {

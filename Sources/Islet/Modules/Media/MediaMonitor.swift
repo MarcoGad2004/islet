@@ -8,6 +8,8 @@ import ImageIO
 final class MediaMonitor {
     private(set) var info: MediaInfo?
     private(set) var available = true
+    /// A browser's website for the track playing (see BrowserSite); nil when it isn't known.
+    private(set) var site: String?
 
     @ObservationIgnored var onChange: ((MediaInfo?) -> Void)?
     @ObservationIgnored private var process: Process?
@@ -17,6 +19,8 @@ final class MediaMonitor {
     @ObservationIgnored private var artwork: NSImage?
     /// Where the last seek put the playhead, for a couple of seconds. Browsers (Zen, Chrome...) report the new position
     /// late or not at all, so until the stream agrees the page shows and builds on this, which keeps repeated skips adding up.
+    @ObservationIgnored private var siteCache: [String: String] = [:]
+    @ObservationIgnored private var siteTask: Task<Void, Never>?
     @ObservationIgnored private var seekHold: (position: Double, at: Date, until: Date)?
 
     private var resources: (script: String, framework: String)? {
@@ -83,6 +87,7 @@ final class MediaMonitor {
         if key != artworkKey {
             artworkKey = key
             artwork = nil
+            site = siteCache[key]
         }
         if artwork == nil, let b64 = state["artworkData"] as? String, let d = Data(base64Encoded: b64) { artwork = Self.downsampled(d) }
         // The encoded copy can be megabytes; the decoded cover is all that's used from here.
@@ -147,6 +152,21 @@ final class MediaMonitor {
         let next = [1: 3, 3: 2, 2: 1][info?.repeatMode ?? 1] ?? 3
         run(["repeat", String(next)])
         info?.repeatMode = next; onChange?(info)
+    }
+
+    /// Looks up the website for a browser's track (cached per track). Called when the Now Playing page shows.
+    func refreshSite() {
+        guard let m = info, m.isBrowser else { site = nil; return }
+        let key = "\(m.bundleID)|\(m.title)"
+        if let cached = siteCache[key] { site = cached; return }
+        siteTask?.cancel()
+        siteTask = Task { [weak self] in
+            let found = await Task.detached(priority: .utility) { BrowserSite.find(bundleID: m.bundleID, mediaTitle: m.title) }.value
+            guard !Task.isCancelled, let self, let found, self.info?.title == m.title else { return }
+            if self.siteCache.count > 40 { self.siteCache.removeAll() }
+            self.siteCache[key] = found
+            self.site = found
+        }
     }
 
     func activatePlayer() {

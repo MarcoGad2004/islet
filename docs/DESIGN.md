@@ -319,6 +319,12 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     tertiary after it) beside it; previous / play-pause / next at the right (play is a 38 pt white disc with a black
     glyph); the scrubber with elapsed and total time under the title, level with the artwork's bottom quarter.
     Clicking the artwork brings the playing app forward.
+    - **A browser** has no scrubber (owner's request, 2026-11-25: its reported position was wildly wrong, and a seek built on
+      it landed in the wrong place). The line shows a globe and the website it plays from, then the browser: YouTube,
+      Zen, or just the browser's name when the site isn't known. The site comes from the browser's window titles through
+      Accessibility (`BrowserSite`): the title that holds the playing track's name, minus the browser's own name, split at
+      dashes and bars, first part after the track name (else before it). It only finds a tab that is showing in a window,
+      so the answer is remembered per track. Music apps keep the scrubber.
   - **Media row** (y 122, 62 pt high, a card): each button an icon over a 9.5 pt caption, in equal columns. It adapts to
     the player (owner's request, 2026-11-25; `MediaInfo.isBrowser` matches the bundle ID against the common browsers:
     Safari, Chrome, Firefox, Zen, Arc, Edge, Brave, Opera, Vivaldi, Orion and the like):

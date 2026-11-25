@@ -48,3 +48,25 @@ final class MediaKindTests: XCTestCase {
         XCTAssertEqual(web.skipSeconds, 10); XCTAssertEqual(music.skipSeconds, 15)
     }
 }
+
+final class BrowserSiteTests: XCTestCase {
+    private func site(_ window: String, _ media: String = "I've Been Keeping This A Secret", app: String = "Zen") -> String? {
+        BrowserSite.site(windowTitle: window, mediaTitle: media, appName: app)
+    }
+
+    func testSiteAfterTheTitle() {
+        XCTAssertEqual(site("I've Been Keeping This A Secret - YouTube — Zen Browser"), "YouTube")
+        XCTAssertEqual(site("I've Been Keeping This A Secret - YouTube"), "YouTube")
+        XCTAssertEqual(site("(3) I've Been Keeping This A Secret - YouTube - Google Chrome", app: "Google Chrome"), "YouTube")
+    }
+
+    func testSiteBeforeTheTitle() {
+        XCTAssertEqual(site("Twitch | I've Been Keeping This A Secret"), "Twitch")
+    }
+
+    func testNoMatchOrNoSite() {
+        XCTAssertNil(site("Netflix"))
+        XCTAssertNil(site("I've Been Keeping This A Secret — Zen Browser"))
+        XCTAssertNil(site("I've Been Keeping This A Secret - Private Browsing", app: "Firefox"))
+    }
+}
