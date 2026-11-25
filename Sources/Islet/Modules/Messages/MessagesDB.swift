@@ -214,6 +214,12 @@ final class MessagesDB: @unchecked Sendable {
         return display ?? (handles.isEmpty ? "Messages" : handles.map(names.name).joined(separator: ", "))
     }
 
+    /// What opening the chat in Messages needs: its guid and whether it's a group.
+    func target(_ chatID: Int64) -> (guid: String, isGroup: Bool)? {
+        guard let c = rows("select guid, style from chat where ROWID = ?", [chatID]).first, let guid = c[0] as? String else { return nil }
+        return (guid, (c[1] as? Int64) == 43)
+    }
+
     // MARK: A conversation
 
     /// The chat and its latest 50 messages, with their tapbacks, files and stickers.

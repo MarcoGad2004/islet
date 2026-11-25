@@ -627,7 +627,10 @@ Simplified 2026-11-23 (owner's decision: stability over features): the notch is 
 conversations read only; replying happens in Messages. Sending, tapbacks, the emoji picker and marking chats read
 (which all had to drive Messages) are gone, and so is the Automation permission for Messages.
 
-- **Card**: Mark as Read (the banner's own) and **View**, white (Islet's own).
+- **Card**: **Open in Messages** and **View**, white (both Islet's own; 1.7.1, owner 2026-11-24: they replace the banner's
+  Mark as Read, so the card follows how the notch works with Messages). Open in Messages opens the conversation in the
+  Messages app (a one-to-one chat at that person, a group opens Messages; the notification stays in Notification
+  Center). Any other button the banner has still shows. Without Full Disk Access, Open in Messages is the white one.
 - **Click or View**: opens the conversation in the panel instead of the Messages app (Settings > General "Open
   Messages conversations in the notch", on by default; off, it opens Messages). It's found in Messages' history by the
   notification's text; if it can't be, Messages opens as before.

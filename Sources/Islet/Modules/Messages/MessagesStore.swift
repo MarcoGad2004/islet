@@ -150,6 +150,24 @@ final class MessagesStore {
         return await db.read { $0.chatID(forNotificationText: body) }
     }
 
+    /// Where a Messages notification's chat opens in Messages: "sms:" at the person for a one-to-one chat (it opens
+    /// Messages on that conversation), Messages itself for a group or when the chat can't be found.
+    func messagesURL(for item: NotificationItem) async -> URL {
+        if let chat = await findChat(for: item), let t = await db.read({ $0.target(chat) }) { return Self.messagesURL(guid: t.guid, isGroup: t.isGroup) }
+        return Self.appURL
+    }
+
+    static let appURL = URL(fileURLWithPath: "/System/Applications/Messages.app")
+
+    static func messagesURL(guid: String, isGroup: Bool) -> URL {
+        let parts = guid.components(separatedBy: ";")
+        if !isGroup, let handle = parts.last, !handle.isEmpty,
+           let url = URL(string: "sms:\(handle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? handle)") {
+            return url
+        }
+        return appURL
+    }
+
     /// The one-to-one chat with someone, by any of their numbers or emails (search's Message), in the background.
     func findChat(forHandles handles: [String]) async -> Int64? {
         guard available, !handles.isEmpty else { return nil }

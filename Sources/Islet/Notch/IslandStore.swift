@@ -1099,7 +1099,7 @@ final class IslandStore {
     // MARK: Messages
 
     /// The card shows buttons: the banner's own, or View for Messages (the conversation, in the notch).
-    func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || canReply(n) }
+    func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || n.isMessages }
     func canReply(_ n: NotificationItem) -> Bool { n.isMessages && messages?.available == true }
 
     /// A Messages notification opens as its conversation in the panel (DESIGN.md "Messages"). When it can't be (not
@@ -1111,6 +1111,18 @@ final class IslandStore {
         openChat(finding: { await m.findChat(for: n) }, opened: { [weak self] in
             self?.removeNotification(n, .expired) // it stays in Notification Center, like the others
         }, otherwise: otherwise)
+    }
+
+    /// A Messages notification's "Open in Messages": the conversation in Messages itself (Messages if it can't be found).
+    /// The notification stays in Notification Center, like the others.
+    func openInMessages(_ n: NotificationItem) {
+        notificationTask?.cancel()
+        Task { [weak self] in
+            var url = MessagesStore.appURL
+            if let m = self?.messages, m.available { url = await m.messagesURL(for: n) }
+            self?.removeNotification(n, .expired)
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// The messages pill: the inbox, unread chats first (DESIGN.md "Messages inbox").

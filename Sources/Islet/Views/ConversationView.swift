@@ -60,13 +60,7 @@ struct ConversationView: View {
     private func openInMessages() {
         store.collapse()
         // A one-to-one chat opens at that person ("sms:" goes to Messages); a group opens Messages.
-        let parts = conversation.guid.components(separatedBy: ";")
-        if !conversation.isGroup, let handle = parts.last, !handle.isEmpty,
-           let url = URL(string: "sms:\(handle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? handle)") {
-            NSWorkspace.shared.open(url)
-        } else {
-            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Messages.app"))
-        }
+        NSWorkspace.shared.open(MessagesStore.messagesURL(guid: conversation.guid, isGroup: conversation.isGroup))
     }
 
     // MARK: Messages

@@ -106,17 +106,28 @@ struct NotificationActions: View {
 
     var body: some View {
         let reply = store.canReply(item)
-        banner(primaryLast: !reply)
+        if item.isMessages {
+            // A message's banner has "Mark as Read"; here that gives way to Islet's own (DESIGN.md "Messages"): Open in
+            // Messages, and View, the conversation in the notch.
+            banner(Self.withoutMarkAsRead(item.actions), primaryLast: false)
+            Button { store.openInMessages(item) } label: { pillLabel("Open in Messages", primary: !reply) }.buttonStyle(.plain)
+        } else {
+            banner(item.actions, primaryLast: !reply)
+        }
         if reply {
             // Islet's own: the conversation, in the notch.
             Button { store.openConversation(item) } label: { pillLabel("View", primary: true) }.buttonStyle(.plain)
         }
     }
 
-    @ViewBuilder private func banner(primaryLast: Bool) -> some View {
-        if item.actions.count > 2 {
+    static func withoutMarkAsRead(_ actions: [String]) -> [String] {
+        actions.filter { $0.caseInsensitiveCompare("Mark as Read") != .orderedSame }
+    }
+
+    @ViewBuilder private func banner(_ actions: [String], primaryLast: Bool) -> some View {
+        if actions.count > 2 {
             Menu {
-                ForEach(item.actions, id: \.self) { name in
+                ForEach(actions, id: \.self) { name in
                     Button(name) { store.removeNotification(item, .action(name)) }
                 }
             } label: {
@@ -124,9 +135,9 @@ struct NotificationActions: View {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         } else {
-            ForEach(Array(item.actions.enumerated()), id: \.offset) { i, name in
+            ForEach(Array(actions.enumerated()), id: \.offset) { i, name in
                 Button { store.removeNotification(item, .action(name)) } label: {
-                    pillLabel(name, primary: primaryLast && i == item.actions.count - 1)
+                    pillLabel(name, primary: primaryLast && i == actions.count - 1)
                 }
                 .buttonStyle(.plain)
             }
