@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Islet Now Playing with control strip</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Mockups for the Now Playing page. Every panel is drawn at the real 468 x 216 pt size and zoomed with --z. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10; --panel: #15161a; --line: #24262c; --fg: #ececf0; --muted: #9a9ca6; --accent: #64d2ff;
+  --sans: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --z: 1.25;
+  /* the app's own colours */
+  --text: #fff; --sec: rgba(235,235,245,0.6); --ter: rgba(235,235,245,0.36); --card: rgba(255,255,255,0.09);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans); padding: 28px 16px 64px; }
+.wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 6px; }
+.lede { color: var(--muted); max-width: 72ch; margin: 0; }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+section.opt { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 14px; }
+section.opt h2 { margin: 0; font-size: 17px; }
+section.opt h2 small { font: 500 11px var(--mono); color: var(--accent); letter-spacing: .06em; margin-right: 8px; }
+section.opt p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 76ch; }
+section.opt p b { color: var(--fg); font-weight: 600; }
+.stagewrap { overflow-x: auto; padding-bottom: 4px; }
+.desk { width: calc(520px * var(--z)); height: calc(246px * var(--z)); border-radius: 12px; position: relative; overflow: hidden;
+  background: radial-gradient(120% 140% at 15% 110%, #5b3a8e 0%, transparent 55%), radial-gradient(90% 120% at 95% 120%, #1a7090 0%, transparent 60%), linear-gradient(180deg, #2a3866, #3a2c5c); }
+.panelbox { position: absolute; left: calc(26px * var(--z)); top: 0; width: 468px; height: 216px; transform: scale(var(--z)); transform-origin: 0 0; }
+.panel { position: absolute; inset: 0; background: #000; border-radius: 0 0 30px 30px; color: var(--text); font-family: var(--sans); overflow: hidden; }
+.panel > * { position: absolute; }
+.dim { position: absolute; inset: 0; pointer-events: none; }
+/* shared bits */
+.hdr-title { left: 38px; top: 6px; font: 600 12px/14px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--sec); }
+.back { left: 14px; top: 6px; width: 14px; height: 14px; color: var(--sec); }
+.gear, .src { width: 22px; height: 22px; border-radius: 7px; background: var(--card); display: grid; place-items: center; color: var(--sec); }
+.gear { right: 12px; top: 3px; } .src { right: 40px; top: 3px; }
+.art { border-radius: 12px; background: linear-gradient(135deg, #3b4a9a, #7a5cc0 55%, #c88a9a); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); display: grid; place-items: center; font-size: 0; }
+.art::after { content: ""; width: 38%; height: 56%; border-radius: 6px; background: rgba(0,0,0,.28); box-shadow: 8px 0 0 -1px rgba(0,0,0,.18); }
+.t { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a { color: var(--sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.al { color: var(--ter); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scrub { height: 20px; }
+.scrub .time { position: absolute; top: 3px; font: 500 11px/14px var(--sans); color: var(--ter); font-variant-numeric: tabular-nums; }
+.scrub .track { position: absolute; top: 8px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2); }
+.scrub .fill { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 2px; background: #fff; }
+.scrub .fill::after { content: ""; position: absolute; right: -4px; top: -2px; width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: 0; transition: opacity .15s; }
+.scrub:hover .fill::after { opacity: 1; }
+button.ic { all: unset; cursor: pointer; display: grid; place-items: center; color: var(--text); border-radius: 50%; transition: background .12s, transform .12s, opacity .12s; }
+button.ic:hover { background: var(--card); }
+button.ic:active { transform: scale(.92); }
+button.ic:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.ic svg { display: block; }
+button.ic.on { color: #32d74b; }
+button.ic.sec { color: var(--sec); } button.ic.sec:hover { color: var(--text); }
+.strip { border-radius: 22px; background: var(--card); }
+.strip.line { background: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.row { display: flex; align-items: center; justify-content: space-between; }
+.cap { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.legend b { color: var(--fg); font-weight: 600; }
+.note { background: #101116; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; color: var(--muted); font-size: 13.5px; }
+.note b { color: var(--fg); }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 760px) { :root { --z: 1; } }
+
+.chip { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; border-radius: 14px; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip .dot { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #3a3a3f; color: #fff; transition: background .15s, transform .12s; }
+.chip.on .dot { background: #0a84ff; }
+.chip:active .dot { transform: scale(.92); }
+.chip .n { font: 600 11px/13px var(--sans); color: var(--text); }
+.chip .s { font: 400 10px/12px var(--sans); color: var(--ter); }
+.tile { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; border-radius: 18px; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.tile .dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #3a3a3f; color: #fff; margin-bottom: 2px; transition: background .15s; }
+.tile.on .dot { background: #0a84ff; }
+.tile .n { font: 600 12.5px/15px var(--sans); color: var(--text); } .tile .s { font: 400 10.5px/12px var(--sans); color: var(--ter); }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pillt { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; height: 34px; border-radius: 17px; background: var(--card); display: flex; align-items: center; gap: 7px; padding: 0 9px 0 6px; font: 600 11.5px var(--sans); color: var(--text); }
+.pillt .dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #3a3a3f; flex: none; transition: background .15s; }
+.pillt.on .dot { background: #0a84ff; }
+.pillt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sl { position: absolute; height: 40px; border-radius: 20px; background: var(--card); display: flex; align-items: center; gap: 9px; padding: 0 14px; color: var(--sec); touch-action: none; cursor: pointer; }
+.sl .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); position: relative; }
+.sl .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: #fff; }
+.sl b { font: 600 12px var(--sans); color: var(--text); width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+.chipbat { position: absolute; display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--card); font: 600 11px var(--sans); }
+.chipmsg { position: absolute; display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--card); font: 600 11px var(--sans); }
+
+.mini { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--sec); border-radius: 12px; transition: color .12s, background .12s; }
+.mini:hover { color: var(--text); background: rgba(255,255,255,.07); }
+.mini.on { color: #32d74b; }
+.mini:active { transform: scale(.94); }
+.mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mini span { font: 500 9.5px/11px var(--sans); color: var(--ter); }
+.mini.on span { color: #32d74b; }
+.hair { position: absolute; height: 1px; background: rgba(255,255,255,.09); }
+.spill { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; height: 100%; padding: 0 7px; border-radius: 13px; background: var(--card); color: var(--ter); font: 600 10.5px/1 var(--sans); white-space: nowrap; transition: background .12s; }
+.spill:hover { background: rgba(255,255,255,.14); }
+.spill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.spill .pt { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.spill svg { flex: none; }
+.spill.on { background: rgba(10,132,255,.22); color: #fff; }
+.spill.on svg { color: #3d9bff; }
+.spill.batt { background: rgba(50,215,75,.2); color: #fff; }
+.spill.batt svg { color: #32d74b; }
+.seg-wrap { display: flex; gap: 10px; align-items: center; }
+.label { font: 500 11px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button { all: unset; cursor: pointer; font: 500 13px var(--sans); color: var(--muted); border-radius: 7px; padding: 6px 11px; }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { background: #2a2c33; color: var(--fg); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Islet · Now Playing page</div>
+    <h1>Now Playing, round five</h1>
+    <p class="lede">Your layout: the player block as before (cover, title, transport, scrubber), <b>a thin strip of small status pills</b> (Wi-Fi, Bluetooth, AirDrop, Mirroring, battery) right under the back arrow row, that only show whether each is on or off, then <b>the player block</b> (cover, title, transport, scrubber) and <b>the media row</b> (shuffle, back 15 s, forward 15 s, repeat, like) at the bottom. The cover is 60 pt here to make room. The pills now show names when something is connected. Use the State buttons to see it. Real size (468 x 216 pt).</p>
+  </header>
+
+  <section class="opt"><h2><small>A</small>Labelled pills, with names</h2>
+    <div class="group seg-wrap"><span class="label">State</span>
+      <div class="seg" role="group" aria-label="Example state">
+        <button data-s="connected" aria-pressed="true">Connected</button>
+        <button data-s="idle" aria-pressed="false">Nothing connected</button>
+        <button data-s="long" aria-pressed="false">Long names</button>
+      </div></div>
+    <div class="stagewrap"><div class="desk"><div class="panelbox"><div class="panel" id="pa"></div></div></div></div>
+    <p id="expl"></p></section>
+
+  <div class="note"><b>Notes</b>
+    <ul>
+      <li><b>Pill text.</b> Wi-Fi shows the network name, Bluetooth the connected device, AirDrop Contacts or Everyone, Mirroring the display it is connected to, and battery stays the percentage. With nothing connected a pill falls back to its own name. Names get the space they need and are cut with an ellipsis; the battery never shrinks.</li>
+      <li><b>Controls needing checks before code:</b> shuffle, repeat, like and skip by 15 s use other media commands than the three Islet sends today. I'd test each against Music, Spotify and a browser tab. A player that doesn't support one gets that button dimmed, and Like is the likeliest to be missing (I'd hide it where it can't work).</li>
+      <li><b>State:</b> shuffle, repeat and like should reflect the player's real state (green when on, as drawn). That needs the player to report it, which isn't read today either.</li>
+      <li>The pills are status only: a tap opens the control's page (Battery, Wi-Fi, Bluetooth), and toggling stays on the Controls page. Tell me if you'd rather a tap toggled.</li>
+    </ul></div>
+</div>
+
+<script>
+const sv = (inner, s=16, extra='') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${inner}</svg>`;
+const I = {
+  back: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 4 7l5 5"/></svg>',
+  gear: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+  src: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" opacity=".35"/><circle cx="12" cy="12" r="6" opacity=".6"/><circle cx="12" cy="12" r="2.4"/></svg>',
+  prev: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M11 6v12L2.5 12 11 6Zm10 0v12l-8.5-6L21 6Z"/></svg>`,
+  next: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M13 6v12l8.5-6L13 6ZM3 6v12l8.5-6L3 6Z"/></svg>`,
+  play: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg>`,
+  pause: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="4" width="4.6" height="16" rx="1.4"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"/></svg>`,
+  shuffle: s => sv('<path d="M3 7h3.5c5 0 5.5 10 11 10H21M3 17h3.5c1.8 0 3-.9 4-2.2M13.5 9.2C14.5 7.9 15.8 7 17.5 7H21M18.5 4 21 7l-2.5 3M18.5 14l2.5 3-2.5 3"/>', s),
+  repeat: s => sv('<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>', s),
+  back15: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4 3.5v4h4"/><text x="12" y="15.2" text-anchor="middle" font-size="7.4" font-weight="700" fill="currentColor" stroke="none" font-family="Inter,Arial">15</text></svg>`,
+  fwd15: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.4-5.5"/><path d="M20 3.5v4h-4"/><text x="12" y="15.2" text-anchor="middle" font-size="7.4" font-weight="700" fill="currentColor" stroke="none" font-family="Inter,Arial">15</text></svg>`,
+  heart: s => sv('<path d="M12 20.5S3.5 15 3.5 9A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8.5 2c0 6-8.5 11.5-8.5 11.5Z"/>', s),
+  wifi: s => sv('<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10.5 10.5 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/>', s, 'stroke-width="2.4"'),
+  bt: s => sv('<path d="m7 7 10 10-5 4.5V2.5L17 7 7 17"/>', s),
+  airdrop: s => sv('<circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M8.6 8.6a4.8 4.8 0 0 0 0 6.8M15.4 8.6a4.8 4.8 0 0 1 0 6.8M5.8 5.8a8.8 8.8 0 0 0 0 12.4M18.2 5.8a8.8 8.8 0 0 1 0 12.4"/>', s),
+  mirror: s => sv('<rect x="8" y="3.5" width="12.5" height="9.5" rx="2"/><path d="M4 8v8.5A2.5 2.5 0 0 0 6.5 19H16"/>', s),
+  bolt: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z"/></svg>`,
+};
+const btn = (icon, label, style='') => `<button class="ic" aria-label="${label}" title="${label}" style="${style}">${icon}</button>`;
+const hdr = `<div class="back">${I.back}</div><div class="hdr-title">Now playing</div><div class="src">${I.src}</div><div class="gear">${I.gear}</div>`;
+const title = 'iPhone Duo is Messier Than…', artist = 'Mrwhosetheboss';
+/* cover 64 pt (y 32-96). The scrubber sits level with its bottom quarter (y 80-96), right of the cover. */
+const player = `
+  <div class="art" style="left:14px;top:62px;width:60px;height:60px;border-radius:12px"></div>
+  <div class="t" style="left:86px;top:62px;width:228px;font-size:15px;line-height:20px">${title}</div>
+  <div class="a" style="left:86px;top:82px;width:228px;font-size:12.5px;line-height:16px">${artist}</div>
+  <div class="row" style="left:322px;top:56px;width:132px;gap:2px">${btn(I.prev(18),'Previous','width:36px;height:42px;border-radius:12px')}
+    <button class="ic play" aria-label="Play" style="width:42px;height:42px;background:#fff;color:#000">${I.play(19)}</button>${btn(I.next(18),'Next','width:36px;height:42px;border-radius:12px')}</div>
+  <div class="scrub" style="left:86px;top:102px;width:368px"><span class="time" style="left:0">7:02</span><div class="track" style="left:40px;right:40px"><div class="fill"></div></div><span class="time" style="right:0">20:30</span></div>`;
+const mini = (icon, n, on=false, w=48) => `<button class="mini ${on?'on':''}" aria-pressed="${on}" aria-label="${n}" title="${n}" style="width:${w}px;height:40px;justify-content:center">${icon}<span>${n}</span></button>`;
+const chip = (icon, n, st, on=true, w=80, d=32, fs=10.5) => `<button class="chip ${on?'on':''}" aria-pressed="${on}" aria-label="${n}" style="width:${w}px"><span class="dot" style="width:${d}px;height:${d}px">${icon}</span><span class="n" style="font-size:${fs}px;white-space:nowrap;letter-spacing:${fs<10?"-0.2px":"0"}">${n}</span>${st ? `<span class="s" style="font-size:9.5px">${st}</span>` : ''}</button>`;
+const batt = (w, d) => `<button class="chip" aria-label="Battery" style="width:${w}px"><span class="dot" style="background:#32d74b;width:${d}px;height:${d}px">${I.bolt(15)}</span><span class="n" style="font-size:10.5px">85%</span></button>`;
+
+const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const pill = (icon, text, on, tip, grow) => `<button class="spill ${on?'on':''}" aria-label="${esc(tip)}" title="${esc(tip)}" style="${grow}">${icon}<span class="pt">${esc(text)}</span></button>`;
+const battPill = `<button class="spill batt" aria-label="Battery 85%, charging" title="Battery: 85%, charging" style="flex:0 0 auto">${I.bolt(11)}<span>85%</span></button>`;
+const STATES = {
+  connected: { wifi:['NLDeco_MLO',true], bt:['AirPods Pro',true], air:['Contacts',true], mir:["Marco's iPad",true],
+    note:'<b>Connected:</b> the network, the headphones, the AirDrop setting and the Sidecar iPad each replace the generic name.' },
+  idle: { wifi:['Wi-Fi',false], bt:['Bluetooth',true], air:['Everyone',true], mir:['Mirroring',false],
+    note:'<b>Nothing connected:</b> Wi-Fi is off (grey, "Wi-Fi"), Bluetooth is on with nothing paired (blue, "Bluetooth"), AirDrop shows its audience, and Mirroring is grey.' },
+  long: { wifi:["Marco's Home Network 5GHz",true], bt:["Marco's AirPods Pro Max",true], air:['Everyone',true], mir:['Living Room Apple TV',true],
+    note:'<b>Long names:</b> every name is cut with an ellipsis and the hover text shows the whole thing. Wi-Fi, Bluetooth and Mirroring share the width; AirDrop and battery keep what they need.' },
+};
+function renderA(key) {
+  const st = STATES[key], g = 'flex:1 1 auto;min-width:0';
+  document.getElementById('pa').innerHTML = hdr + player + `
+    <div class="row" style="left:14px;top:30px;width:440px;height:24px;gap:5px">
+      ${pill(I.wifi(12), st.wifi[0], st.wifi[1], st.wifi[1] ? 'Wi-Fi: ' + st.wifi[0] : 'Wi-Fi: off', g)}
+      ${pill(I.bt(11), st.bt[0], st.bt[1], 'Bluetooth: ' + st.bt[0], g)}
+      ${pill(I.airdrop(12), st.air[0], st.air[1], 'AirDrop: ' + st.air[0], 'flex:0 0 auto')}
+      ${pill(I.mirror(11), st.mir[0], st.mir[1], st.mir[1] ? 'Mirroring: ' + st.mir[0] : 'Mirroring: not connected', g)}
+      ${battPill}
+    </div>
+    <div class="strip row" style="left:14px;top:132px;width:440px;height:68px;border-radius:24px;padding:0 12px">
+      ${mini(I.shuffle(20),'Shuffle',false,76)}${mini(I.back15(21),'Back 15 s',false,76)}${mini(I.fwd15(21),'Forward 15 s',false,76)}${mini(I.repeat(20),'Repeat',true,76)}${mini(I.heart(20),'Like',false,76)}
+    </div>`;
+  document.getElementById('expl').innerHTML = st.note;
+}
+renderA('connected');
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderA(b.dataset.s);
+}));
+
+document.querySelectorAll('.panel').forEach(p => {
+  p.addEventListener('click', e => {
+    const t = e.target.closest('.chip,.mini,.tg');
+    if (t && t.getAttribute('aria-label') !== 'Battery') {
+      const l = t.getAttribute('aria-label');
+      if (/^(Back 15 s|Forward 15 s|-15 s|\+15 s)$/.test(l)) return;
+      t.classList.toggle('on'); t.setAttribute('aria-pressed', t.classList.contains('on'));
+      if (t.classList.contains('tg')) t.style.color = t.classList.contains('on') ? '#32d74b' : 'var(--sec)'; return;
+    }
+    const b = e.target.closest('button.ic'); if (!b) return;
+    const label = b.getAttribute('aria-label');
+    if (label === 'Play' || label === 'Pause') {
+      const playing = label === 'Pause', size = b.querySelector('svg').getAttribute('width');
+      b.innerHTML = playing ? I.play(size) : I.pause(size);
+      b.setAttribute('aria-label', playing ? 'Play' : 'Pause'); b.title = playing ? 'Play' : 'Pause';
+    }
+  });
+});
+</script>
+</body>
+</html>

@@ -12,6 +12,9 @@ struct MediaInfo: Equatable {
     var timestamp: Date
     var rate: Double
     var artwork: NSImage?
+    /// The player's shuffle (any mode but off) and repeat (1 off, 2 one track, 3 all) as it reports them.
+    var shuffle = false
+    var repeatMode = 1
 
     /// Elapsed seconds now, advancing while playing.
     func position(at date: Date = Date()) -> Double {

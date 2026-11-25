@@ -304,10 +304,27 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
     the command goes at once and it lands (response 0.18-0.34 s by speed, damping 0.8); otherwise it snaps back out with
     a little elastic overshoot (0.3 s, damping 0.7).
     After landing the new name fades in over 0.24 s and the slot hands back from 0.33 s.
-- **Expanded (media playing)**: media only. Header "NOW PLAYING" and a collapse chevron. Artwork
-  80 pt (radius 14), title (17 semibold), artist, album, previous / play-pause / next on the right,
-  then a draggable scrubber with elapsed and total time. Clicking the artwork brings the playing
-  app forward.
+- **Expanded (media playing)**: media only (owner's redesign, 2026-11-25; mockup `docs/mockups/media-player.html`).
+  Top to bottom, in the stage's 468 x 184 pt:
+  - Header: collapse chevron, "NOW PLAYING", the app's icon and the gear, as before.
+  - **Status pills** (y 30, 22 pt high, full width, 5 pt apart): Wi-Fi, Bluetooth, AirDrop, Mirroring, battery. They only
+    show state: blue-tinted with white text when on, grey and dimmed when off. Wi-Fi shows the network's name when
+    connected ("Hotspot" for a hotspot; a grey "Wi-Fi" when off or not joined), Bluetooth the connected device ("2 devices" for several,
+    "Bluetooth" when on with none, "Bluetooth" greyed when off), AirDrop "Contacts" / "Everyone" / "No One", Mirroring the
+    connected Sidecar iPad's name or "Mirroring" greyed, and the battery its percentage in green with a bolt while
+    charging (no pill on a Mac without a battery). Names get the room they need, share what is left by length and are cut
+    with an ellipsis (the full text is the hover help); AirDrop and the battery never shrink. A tap opens that
+    control's page (Wi-Fi, Bluetooth, Mirroring, Battery; AirDrop opens AirDrop as the tile does); nothing toggles here.
+  - **Player block** (y 58 to 114): artwork 56 pt (radius 10), title (15 semibold) and artist (12.5, with " · album" in
+    tertiary after it) beside it; previous / play-pause / next at the right (play is a 38 pt white disc with a black
+    glyph); the scrubber with elapsed and total time under the title, level with the artwork's bottom quarter.
+    Clicking the artwork brings the playing app forward.
+  - **Media row** (y 122, 62 pt high, a card): shuffle, back 15 s, forward 15 s, repeat, each an icon over a 9.5 pt
+    caption in four equal columns. Shuffle and repeat light green when on (repeat shows a "1" for one track); they follow
+    the player's own state (the stream's `shuffleMode` and `repeatMode`); repeat cycles off, all, one. Like isn't here: the
+    vendored adapter can't send it (RESEARCH.md item 7).
+  - Where a player doesn't answer a control (Safari, a browser tab) its button still sends the command and simply does
+    nothing; nothing is hidden.
 
 ### Charging and battery
 

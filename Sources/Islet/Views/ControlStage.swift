@@ -403,10 +403,11 @@ struct ControlStage: View {
     @ViewBuilder private func mediaElements(_ mode: Mode) -> some View {
         if let m = store.media, let monitor = store.mediaMonitor {
             let isMedia = mode == .media
+            // The cover is drawn at 80 pt and scaled: 22 pt in the header row, 56 pt on the page.
             ArtworkView(image: m.artwork, size: 80, radius: 14, playing: m.playing)
                 .frame(width: 80, height: 80, alignment: .topLeading)
-                .scaleEffect(isMedia ? 1 : 22.0 / 80, anchor: .topLeading)
-                .offset(x: isMedia ? 0 : flush ? W - 26 - 8 - 22 : 198, y: isMedia ? 48 : 2 + headerY)
+                .scaleEffect(isMedia ? 56.0 / 80 : 22.0 / 80, anchor: .topLeading)
+                .offset(x: isMedia ? 0 : flush ? W - 26 - 8 - 22 : 198, y: isMedia ? 58 : 2 + headerY)
                 .opacity(isMedia ? 1 : headerFade)
                 .help(flush && !isMedia ? m.title : "")
                 .onTapGesture { if isMedia { monitor.activatePlayer(); store.collapse() } else { store.showMediaPage() } }
@@ -414,19 +415,19 @@ struct ControlStage: View {
             Text(m.title)
                 .font(.system(size: 17, weight: .semibold)).lineLimit(1)
                 .foregroundStyle(isMedia ? Color.isletText : Color.isletSecondary)
-                // In the header row it stops short of Shazam (at x 376).
-                .frame(width: isMedia ? 240 : titleWidth, height: 22, alignment: .leading)
-                .scaleEffect(isMedia ? 1 : 12.0 / 17, anchor: .topLeading)
-                .offset(x: isMedia ? 94 : 228, y: isMedia ? 54 : 6 + headerY)
+                // In the header row it stops short of Shazam (at x 376). On the page it is 15 pt, 254 pt wide.
+                .frame(width: isMedia ? 288 : titleWidth, height: 22, alignment: .leading)
+                .scaleEffect(isMedia ? 15.0 / 17 : 12.0 / 17, anchor: .topLeading)
+                .offset(x: isMedia ? 68 : 228, y: isMedia ? 58 : 6 + headerY)
                 // Flush, there's no room for the name beside the camera: hovering the art shows it.
                 .opacity(flush && !isMedia ? 0 : 1)
                 .allowsHitTesting(!(flush && !isMedia))
                 .onTapGesture { if !isMedia { store.showMediaPage() } }
 
-            Text(m.artist).font(.system(size: 14)).foregroundStyle(Color.isletSecondary).lineLimit(1)
-                .slot(CGRect(x: 94, y: 78, width: 240, height: 18), visible: isMedia)
-            Text(m.album).font(.system(size: 12)).foregroundStyle(Color.isletTertiary).lineLimit(1)
-                .slot(CGRect(x: 94, y: 98, width: 240, height: 16), visible: isMedia && !m.album.isEmpty)
+            (Text(m.artist).foregroundStyle(Color.isletSecondary)
+                + Text(m.album.isEmpty ? "" : (m.artist.isEmpty ? m.album : " · \(m.album)")).foregroundStyle(Color.isletTertiary))
+                .font(.system(size: 12.5)).lineLimit(1)
+                .slot(CGRect(x: 68, y: 79, width: 254, height: 17), visible: isMedia)
 
             Button { monitor.togglePlayPause() } label: {
                 Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText)
@@ -434,14 +435,20 @@ struct ControlStage: View {
             }.buttonStyle(.plain).slot(CGRect(x: flush ? W - 26 : 406, y: 2 + headerY, width: 26, height: 22), visible: !isMedia)
                 .opacity(headerFade)
 
-            HStack(spacing: 16) {
+            HStack(spacing: 4) {
                 transport("backward.fill", 17) { monitor.previous() }
-                transport(m.playing ? "pause.fill" : "play.fill", 24) { monitor.togglePlayPause() }
+                Button { monitor.togglePlayPause() } label: {
+                    Image(systemName: m.playing ? "pause.fill" : "play.fill").font(.system(size: 17)).foregroundStyle(Color.black)
+                        .frame(width: 38, height: 38).background(Circle().fill(Color.white))
+                }.buttonStyle(.plain)
                 transport("forward.fill", 17) { monitor.next() }
-            }.slot(CGRect(x: W - 118, y: 68, width: 118, height: 40), visible: isMedia)
+            }.slot(CGRect(x: W - 132, y: 54, width: 132, height: 40), visible: isMedia)
 
             Scrubber(media: m) { monitor.seek(to: $0) }
-                .slot(CGRect(x: 0, y: 148, width: W, height: 20), visible: isMedia)
+                .slot(CGRect(x: 68, y: 96, width: W - 68, height: 18), visible: isMedia)
+
+            MediaStatusStrip(store: store).slot(CGRect(x: 0, y: 30, width: W, height: 22), visible: isMedia)
+            MediaControlRow(media: m, monitor: monitor).slot(CGRect(x: 0, y: 122, width: W, height: 62), visible: isMedia)
 
             SourceIcon(bundleID: m.bundleID, size: 20, playing: m.playing)
                 .slot(CGRect(x: flush ? W - 20 : W - 26 - 10 - 20, y: 3 + headerY, width: 20, height: 20), visible: isMedia)
@@ -450,7 +457,7 @@ struct ControlStage: View {
     }
 
     private func transport(_ name: String, _ size: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: name).font(.system(size: size)).foregroundStyle(Color.isletText).frame(width: 30, height: 30) }
+        Button(action: action) { Image(systemName: name).font(.system(size: size)).foregroundStyle(Color.isletText).frame(width: 34, height: 38) }
             .buttonStyle(.plain)
     }
 }

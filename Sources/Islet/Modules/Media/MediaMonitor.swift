@@ -88,7 +88,8 @@ final class MediaMonitor {
         let m = MediaInfo(bundleID: bundle, title: title, artist: state["artist"] as? String ?? "",
                           album: state["album"] as? String ?? "", playing: state["playing"] as? Bool ?? false,
                           duration: (state["duration"] as? Double) ?? 0, elapsed: (state["elapsedTime"] as? Double) ?? 0,
-                          timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork)
+                          timestamp: ts, rate: (state["playbackRate"] as? Double) ?? 1, artwork: artwork,
+                          shuffle: ((state["shuffleMode"] as? Int) ?? 1) > 1, repeatMode: (state["repeatMode"] as? Int) ?? 1)
         update(m)
     }
 
@@ -112,6 +113,26 @@ final class MediaMonitor {
     func next() { run(["send", "4"]) }
     func previous() { run(["send", "5"]) }
     func seek(to seconds: Double) { run(["seek", String(Int(seconds * 1_000_000))]) }
+    /// Forward or back by seconds. A seek, like the scrubber's, because players answer it more often than they do the
+    /// skip-15 commands.
+    func skip(seconds: Double) {
+        guard let m = info else { return }
+        let target = m.position() + seconds
+        seek(to: m.duration > 0 ? min(max(target, 0), m.duration) : max(target, 0))
+    }
+
+    /// Shuffle on (tracks) or off. The button shows the new state at once; the player's own update confirms it.
+    func setShuffle(_ on: Bool) {
+        run(["shuffle", on ? "3" : "1"])
+        info?.shuffle = on; onChange?(info)
+    }
+
+    /// Repeat: off, then all, then one track, then off again.
+    func cycleRepeat() {
+        let next = [1: 3, 3: 2, 2: 1][info?.repeatMode ?? 1] ?? 3
+        run(["repeat", String(next)])
+        info?.repeatMode = next; onChange?(info)
+    }
 
     func activatePlayer() {
         guard let id = info?.bundleID else { return }
