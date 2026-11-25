@@ -29,6 +29,11 @@ final class FaceGlow {
     private var warmTask: Task<Void, Never>?
     private var playing = false
     private var cancelled = false
+    /// The steady fill light for a dark room (`setFill`): its level now (0 = off, 1 = `fillValue`) and its fade.
+    private var fill = 0.0
+    private var fillTask: Task<Void, Never>?
+    /// Pixel value of the fill (linear, 1 = SDR white): soft enough not to glare, bright enough to light a face.
+    static let fillValue = 0.7
     /// The last glow played and when it started (Check Light's record).
     private(set) var last: (glow: FacePulse.Glow, start: Date)?
 
@@ -44,14 +49,14 @@ final class FaceGlow {
     /// `warmSeconds`.
     func warm() {
         guard show() else { return }
-        if !playing { draw(0, 0) }
+        if !playing { drawRest() }
         warmTask?.cancel()
         warmTask = Task { [weak self] in
             let end = Date().addingTimeInterval(Self.warmSeconds)
             while Date() < end {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard let self, !Task.isCancelled else { return }
-                if !self.playing { self.draw(0, 0) }
+                if !self.playing { self.drawRest() }
             }
             self?.cool()
         }
@@ -60,10 +65,32 @@ final class FaceGlow {
     /// Takes it down, ending a glow that's playing.
     func cool() {
         warmTask?.cancel(); warmTask = nil
+        fillTask?.cancel(); fillTask = nil; fill = 0
         if playing { cancelled = true; return }
         draw(0, 0)
         panel?.orderOut(nil)
     }
+
+    /// A dark room: fades a steady light over the screen at once (`on`), or away. Face unlock's own glow pulse
+    /// plays over it and returns to it. `cool()` ends it.
+    func setFill(_ on: Bool) {
+        if on { guard show() else { return } }
+        fillTask?.cancel()
+        let target = on ? 1.0 : 0.0
+        fillTask = Task { [weak self] in
+            let from = self?.fill ?? 0, start = Date()
+            while let self, !Task.isCancelled {
+                let t = min(Date().timeIntervalSince(start) / 0.3, 1)
+                self.fill = from + (target - from) * t
+                if !self.playing { self.drawRest() }
+                if t >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            if let self, !Task.isCancelled, !on, !self.playing, self.warmTask == nil { self.panel?.orderOut(nil) }
+        }
+    }
+
+    private func drawRest() { draw(Self.fillValue, fill) }
 
     /// The levels for a share of the panel's peak (`FacePulse.glowShare`), from the display as it is now.
     func plan(share: Double) -> FacePulse.Glow? {
@@ -80,8 +107,8 @@ final class FaceGlow {
         playing = true; cancelled = false
         defer {
             playing = false
-            draw(0, 0)
-            if cancelled || warmTask == nil { panel?.orderOut(nil) }
+            drawRest()
+            if cancelled || (warmTask == nil && fill == 0) { panel?.orderOut(nil) }
         }
         let wanted = FacePulse.Glow(share: share, potential: Double(screen.maximumPotentialExtendedDynamicRangeColorComponentValue),
                                     headroom: .infinity).high

@@ -812,3 +812,16 @@ macOS 27.2) while the lid, the earbuds and the case were moved on a timer:
 - Only checked on a Pro 2. The layout is shared by the AirPods generations, but the lid bit is unconfirmed on others.
 - The 3D models Apple draws for the iPhone are not on the Mac (HeadphoneAssets has flat images only); the card uses SF
   Symbols (airpods, airpods.gen3, airpods.gen4, airpodspro, airpods.pro.gen3 and the matching charging cases).
+
+### Face unlock in a dark room (1.7.2)
+
+Before: the screen only brightened after ≥3 s since wake, 1.5 s since scan start, and 3 dark samples taken every
+6th frame (~3 s total), and only by raising the backlight. Now `DarkRoomGate` (pure, unit-tested) decides from the
+camera's mean luma (`FrameLight.luma`, every 3rd frame): dark on one reading under 0.12 or two under 0.25 in a row;
+readings are ignored for 0.6 s on a fresh camera (exposure settling), 0 s on the camera warmed at the lock. When it
+turns dark, `FaceGlow.setFill(true)` fades a steady white fill (0.7 SDR) over the screen at once; the glow pulse plays
+over it and returns to it. The backlight boost (`boostForFaceScan`) still waits for the display to settle after wake
+(otherwise it would "restore" a half-faded level). Hysteresis: off only after 3 readings above 0.65 and ≥3 s on; the
+exit level is high because the fill lights the scene itself. `stop()` cools the fill and restores the brightness.
+A room the light sensor calls bright skips the gate; the bright-room path is unchanged. Thresholds are unverified in
+a real dark room: the log line "dark room true/false luma=…" (category `unlock`) shows what the camera read.

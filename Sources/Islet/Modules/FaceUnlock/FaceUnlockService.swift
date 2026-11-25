@@ -59,8 +59,6 @@ final class FaceUnlockService {
     /// Match -> check flies at 0.65 s (the shape folds into the wide bar) -> hold ~2 s -> disappear.
     private static let sequenceLength = 0.65 + 0.5 + 2.0
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
-    /// Mean camera brightness below this (a few samples in a row) counts as a dark room.
-    private static let darkLuma = 0.25
     /// No face in front of the camera for this long: say so and stop.
     private static let noFaceSeconds = 10.0
 
@@ -103,7 +101,10 @@ final class FaceUnlockService {
     private var pendingPulse: [Double]?
     /// The last weak miss: if the password unlocks the Mac soon after, it was you.
     private var lastMiss: (score: Float, at: Date)?
-    private var darkSamples = 0
+    /// Dark-room decision from the camera's brightness (see DarkRoomGate); nil in a room the light sensor calls bright.
+    private var darkGate: DarkRoomGate?
+    /// The camera was already running (warm from the lock), so its exposure has settled.
+    private var cameraWarm = false
     private var brightened = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var keyMonitor: Any?
@@ -263,13 +264,14 @@ final class FaceUnlockService {
             }
             self.engine = engine
             pendingLearn = nil; pendingScore = nil; pendingPulse = nil
-            darkSamples = 0
+            darkGate = bright ? nil : DarkRoomGate()
             let analyzer = owner.analyzer
             // The camera that was started at the lock, if there is one: already warm, exposure settled.
             let ready = warmCamera
             warmCamera = nil; warmTask?.cancel(); warmTask = nil
             let camera = ready ?? FaceCamera()
-            let lightCounter = FrameCounter(every: 6)
+            cameraWarm = ready != nil
+            let lightCounter = FrameCounter(every: 3)
             let timer = FrameTimer()
             let frame: @Sendable (CVPixelBuffer) -> Void = { pb in
                 let t0 = CACurrentMediaTime()
@@ -397,18 +399,27 @@ final class FaceUnlockService {
         engine.finishPulse(schedule, exposureHeld: held, learned: learned)
     }
 
-    /// A dark room: ease the screen up so it lights the face, once per scan. `stop` eases it back.
+    /// A dark room: the glow lights the face at once (a steady fill, no waiting for failed attempts), and the
+    /// brightness eases up once the display has settled. Both are undone by `stop`. DarkRoomGate adds hysteresis.
     private func brightenIfDark(_ luma: Double) {
-        guard !brightened else { return }
-        // Not while the display is still fading up after waking (the backlight reads a fraction of its real level then,
-        // and the boost would "restore" the screen to that: very dim, for good), nor while the camera's exposure is
-        // still settling (its first frames are dark in any room).
-        guard Date().timeIntervalSince(wokeAt) > 3, Date().timeIntervalSince(scanStartedAt) > 1.5 else { darkSamples = 0; return }
-        darkSamples = luma < Self.darkLuma ? darkSamples + 1 : 0
-        guard darkSamples >= 3 else { return }
-        Self.log.notice("dark room luma=\(luma), brightening from \(self.island.levels?.brightness ?? -1)")
-        brightened = true
-        island.levels?.boostForFaceScan()
+        guard var gate = darkGate else { return }
+        // A fresh camera's first frames are dark in any room while its exposure settles.
+        let change = gate.feed(luma: luma, elapsed: Date().timeIntervalSince(scanStartedAt), settle: cameraWarm ? 0 : 0.6)
+        darkGate = gate
+        if let dark = change {
+            Self.log.notice("dark room \(dark) luma=\(luma)")
+            FaceGlow.shared.setFill(dark)
+        }
+        // The brightness boost: not while the display is still fading up after waking (the backlight reads a fraction
+        // of its real level then, and the boost would "restore" the screen to that: very dim, for good).
+        if gate.isDark, !brightened, Date().timeIntervalSince(wokeAt) > 3 {
+            Self.log.notice("dark room, brightening from \(self.island.levels?.brightness ?? -1)")
+            brightened = true
+            island.levels?.boostForFaceScan()
+        } else if !gate.isDark, brightened {
+            brightened = false
+            island.levels?.endFaceScanBoost()
+        }
     }
 
     private func completeMatch() async {
@@ -492,7 +503,7 @@ final class FaceUnlockService {
         engine?.pause(); engine = nil
         FaceGlow.shared.cool()
         if brightened { brightened = false; island.levels?.endFaceScanBoost() }
-        darkSamples = 0
+        darkGate = nil
         let finished = model
         guard finished != nil else { return }
         let collapse = { [weak self] in
