@@ -117,6 +117,10 @@ final class EarbudsWatcher: NSObject, CBCentralManagerDelegate, @unchecked Senda
     private static let nearest = -58.0
     private static let silence: TimeInterval = 3
 
+    /// The "AirPods case" switch in Settings. Read straight from the defaults (any queue), so turning it off stops the
+    /// scan at once instead of only hiding the card.
+    private var enabled: Bool { UserDefaults.standard.object(forKey: Feature.earbudsKey) as? Bool ?? true }
+
     func start() {
         queue.async { [self] in
             guard !wanted else { return }
@@ -129,12 +133,11 @@ final class EarbudsWatcher: NSObject, CBCentralManagerDelegate, @unchecked Senda
                 nc.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: nil) { [weak self] _ in
                     self?.queue.async { self?.screenOn = true; self?.update() }
                 },
+                // The Settings switch (and Bluetooth access being granted) change the defaults; update() is cheap.
+                NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: nil) { [weak self] _ in
+                    self?.queue.async { self?.update() }
+                },
             ]
-            let t = DispatchSource.makeTimerSource(queue: queue)
-            t.schedule(deadline: .now() + 1, repeating: 1)
-            t.setEventHandler { [weak self] in self?.tick() }
-            t.resume()
-            timer = t
             update()
         }
     }
@@ -142,30 +145,48 @@ final class EarbudsWatcher: NSObject, CBCentralManagerDelegate, @unchecked Senda
     func stop() {
         queue.async { [self] in
             wanted = false
-            observers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+            observers.forEach {
+                NSWorkspace.shared.notificationCenter.removeObserver($0)
+                NotificationCenter.default.removeObserver($0)
+            }
             observers = []
-            timer?.cancel(); timer = nil
             update()
         }
     }
 
+    /// The 1 s clock exists only while scanning (it ages out silent cases); idle, nothing wakes this queue.
+    private func setClock(_ on: Bool) {
+        if on, timer == nil {
+            let t = DispatchSource.makeTimerSource(queue: queue)
+            t.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(200))
+            t.setEventHandler { [weak self] in self?.tick() }
+            t.resume()
+            timer = t
+        } else if !on {
+            timer?.cancel(); timer = nil
+        }
+    }
+
     /// Bluetooth is only touched once its access is already allowed (the Bluetooth list asks for it), so this never
-    /// raises a prompt of its own.
+    /// raises a prompt of its own. Nothing is scanned unless the feature is on.
     private func update() {
         let allowed = CBManager.authorization == .allowedAlways
-        if wanted, allowed, central == nil { central = CBCentralManager(delegate: self, queue: queue) }
+        let want = wanted && enabled
+        if want, allowed, central == nil { central = CBCentralManager(delegate: self, queue: queue) }
         guard let central else { return }
-        let should = wanted && allowed && screenOn && central.state == .poweredOn
+        let should = want && allowed && screenOn && central.state == .poweredOn
         if should, !scanning {
             central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
             scanning = true
+            setClock(true)
         } else if !should, scanning {
             central.stopScan()
             scanning = false
+            setClock(false)
             seen = [:]
             publish(nil)
         }
-        if !wanted { self.central = nil }
+        if !want { self.central = nil }
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) { update() }
@@ -183,7 +204,7 @@ final class EarbudsWatcher: NSObject, CBCentralManagerDelegate, @unchecked Senda
     }
 
     private func tick() {
-        if !wanted || !scanning { update(); return }
+        if !wanted || !scanning || !enabled { update(); return }
         let now = Date()
         seen = seen.filter { now.timeIntervalSince($0.value.at) < 10 }
         evaluate()
