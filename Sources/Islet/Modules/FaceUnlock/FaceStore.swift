@@ -56,6 +56,7 @@ final class FaceStore {
     /// Before 1.6 liveness was a mode (off, automatic, blink, random); it's carried over to the nearest level.
     private static let livenessKey = "faceUnlockLiveness"
     private static let securityKey = "faceUnlockSecurity"
+    private static let readyCameraKey = "faceUnlockReadyCamera"
     private static let learnKey = "faceUnlockLearn"
     private static let scoresKey = "faceUnlockGenuineScores"
     private static let pulseKey = "faceUnlockPulseProfiles2" // v1 profiles were relative to the background
@@ -86,6 +87,20 @@ final class FaceStore {
 
     /// How hard it checks the face is live before unlocking.
     var security: FaceSecurity { didSet { UserDefaults.standard.set(security.rawValue, forKey: Self.securityKey) } }
+    /// What was chosen for "Get the camera ready when locking", nil until it is.
+    private var readyCameraChoice: Bool? {
+        didSet {
+            if let v = readyCameraChoice { UserDefaults.standard.set(v, forKey: Self.readyCameraKey) }
+            else { UserDefaults.standard.removeObject(forKey: Self.readyCameraKey) }
+        }
+    }
+    /// Start the camera as the Mac locks, so a scan can begin the moment Command+Shift is pressed (1.7.1, owner
+    /// 2026-11-24). Until it's chosen, on at Faster and off at Standard and More secure: the camera light shows while it
+    /// waits.
+    var cameraReadyWhenLocked: Bool {
+        get { readyCameraChoice ?? (security == .faster) }
+        set { readyCameraChoice = newValue }
+    }
     /// Learn from successful unlocks: new looks, your usual scores (which raise the threshold) and how your face
     /// answers the glow.
     var learnFromUnlocks: Bool { didSet { UserDefaults.standard.set(learnFromUnlocks, forKey: Self.learnKey) } }
@@ -102,6 +117,7 @@ final class FaceStore {
         security = d.string(forKey: Self.securityKey).flatMap(FaceSecurity.init(rawValue:))
             ?? Self.migratedSecurity(d.string(forKey: Self.livenessKey))
         learnFromUnlocks = d.bool(forKey: Self.learnKey)
+        readyCameraChoice = d.object(forKey: Self.readyCameraKey) as? Bool
         genuineScores = (d.array(forKey: Self.scoresKey) as? [NSNumber])?.map(\.floatValue) ?? []
         pulseProfiles = (d.array(forKey: Self.pulseKey) as? [[NSNumber]])?.map { $0.map(\.doubleValue) } ?? []
         reload()

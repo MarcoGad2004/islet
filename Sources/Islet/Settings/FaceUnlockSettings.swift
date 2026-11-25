@@ -233,6 +233,10 @@ struct FaceUnlockSettings: View {
             } label: {
                 SettingsLabel("Security", faces.security.summary)
             }
+            Toggle(isOn: Binding(get: { faces.cameraReadyWhenLocked }, set: { faces.cameraReadyWhenLocked = $0 })) {
+                SettingsLabel("Get the camera ready when locking",
+                              "Starts the camera for up to 12 seconds as the Mac locks, so a scan can begin the moment you press Command+Shift, about half a second sooner. The camera light shows while it waits; nothing is looked at or kept until you scan. On by default at Faster, off at Standard and More secure.")
+            }
             if face.antiSpoof == nil {
                 Text("The spoof model is missing from this build, so every unlock needs the glow or a challenge.")
                     .font(.callout).foregroundStyle(.secondary)

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Carbon.HIToolbox
 import IOKit.pwr_mgt
 import os
@@ -75,6 +76,11 @@ final class FaceUnlockService {
     /// Held from the scan's start to its end, so the display doesn't go to sleep from inactivity half way through
     /// (the lock screen's timer is short after the power button locked the Mac). 0 when not held.
     private var displayAssertion: IOPMAssertionID = 0
+    /// The camera started as the Mac locked, waiting for Command+Shift (Settings > Face Unlock, "Get the camera ready
+    /// when locking"): its frames are dropped until a scan takes it over. Stopped after `warmSeconds`.
+    private var warmCamera: FaceCamera?
+    private var warmTask: Task<Void, Never>?
+    private static let warmSeconds = 12.0
     /// When the display last woke, and when the scan started: the dark-room boost waits out both (see `brightenIfDark`).
     private var wokeAt = Date.distantPast
     private var scanStartedAt = Date.distantPast
@@ -178,6 +184,7 @@ final class FaceUnlockService {
         Self.log.info("needsKey=\(self.needsKey)")
         syncLockScreen()
         beginIfPossible()
+        warmCameraIfWanted()
     }
 
     private func didUnlock() {
@@ -258,17 +265,22 @@ final class FaceUnlockService {
             pendingLearn = nil; pendingScore = nil; pendingPulse = nil
             darkSamples = 0
             let analyzer = owner.analyzer
-            let camera = FaceCamera()
+            // The camera that was started at the lock, if there is one: already warm, exposure settled.
+            let ready = warmCamera
+            warmCamera = nil; warmTask?.cancel(); warmTask = nil
+            let camera = ready ?? FaceCamera()
             let lightCounter = FrameCounter(every: 6)
+            let timer = FrameTimer()
+            let frame: @Sendable (CVPixelBuffer) -> Void = { pb in
+                let t0 = CACurrentMediaTime()
+                let analysis = analyzer.analyze(pb)
+                let t1 = CACurrentMediaTime()
+                engine.handle(analysis, light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
+                timer.add(analyze: t1 - t0, handle: CACurrentMediaTime() - t1)
+            }
             do {
-                let timer = FrameTimer()
-                try camera.start { pb in
-                    let t0 = CACurrentMediaTime()
-                    let analysis = analyzer.analyze(pb)
-                    let t1 = CACurrentMediaTime()
-                    engine.handle(analysis, light: lightCounter.shouldProcess() ? FrameLight.luma(pb) : nil)
-                    timer.add(analyze: t1 - t0, handle: CACurrentMediaTime() - t1)
-                }
+                if ready != nil { camera.attach(handler: frame); Self.log.notice("took over the camera started at the lock") }
+                else { try camera.start(handler: frame) }
             } catch { Self.log.error("camera failed"); stop(collapseAfter: 0); return }
             self.camera = camera
             // The glow may be needed, and it takes ~1.3 s to reach full strength: start it now, unseen.
@@ -436,6 +448,29 @@ final class FaceUnlockService {
         }
     }
 
+    /// As the Mac locks with the display on, if "Get the camera ready when locking" is on: start the camera now, dropping
+    /// its frames, so a scan starts with it already running. Nothing is looked at or kept; it stops by itself.
+    private func warmCameraIfWanted() {
+        guard needsKey, model == nil, warmCamera == nil, canScan, owner.faces.cameraReadyWhenLocked,
+              AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        let camera = FaceCamera()
+        do { try camera.start { _ in } } catch { return }
+        warmCamera = camera
+        Self.log.notice("camera started at the lock, waiting for the keys")
+        warmTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.warmSeconds))
+            guard !Task.isCancelled else { return }
+            self?.coolCamera()
+        }
+    }
+
+    private func coolCamera() {
+        warmTask?.cancel(); warmTask = nil
+        guard let camera = warmCamera else { return }
+        warmCamera = nil
+        camera.stop()
+    }
+
     private func holdDisplayAwake() {
         guard displayAssertion == 0 else { return }
         IOPMAssertionCreateWithName(kIOPMAssertPreventUserIdleDisplaySleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
@@ -450,6 +485,7 @@ final class FaceUnlockService {
 
     private func stop(collapseAfter delay: Double) {
         releaseDisplay()
+        coolCamera()
         timeout?.cancel(); timeout = nil
         noFaceTimer?.cancel(); noFaceTimer = nil
         camera?.stop(); camera = nil

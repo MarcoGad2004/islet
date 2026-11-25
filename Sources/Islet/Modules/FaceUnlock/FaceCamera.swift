@@ -79,6 +79,15 @@ final class FaceCamera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, 
         return held
     }
 
+    /// Takes over a camera that's already running (`start` with a handler that ignored the frames): the frames then go
+    /// to `handler`. Frames are only ever delivered on the camera's queue, so the swap is made there.
+    func attach(handler: @escaping @Sendable (CVPixelBuffer) -> Void) {
+        queue.async {
+            self.handler = handler
+            self.startedAt = CACurrentMediaTime(); self.firstFrameLogged = false
+        }
+    }
+
     func stop() {
         handler = nil
         if device?.exposureMode == .locked { holdExposure(false) }

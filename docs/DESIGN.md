@@ -255,6 +255,12 @@ The scan shape flows down at notch width (no bubble-out; it stays notch-wide).
   at once.
 - **Locked with the display on** (power button, Ctrl-Cmd-Q, Apple menu → Lock Screen): don't scan, so the Mac
   doesn't unlock straight back. Wait for **Command+Shift** (Shift alone types capitals in the password).
+- **Camera ready** (1.7.1, owner 2026-11-24): while it waits for Command+Shift, the camera can already be running, its
+  frames dropped, so the scan starts with it warm and its exposure settled (about 0.5 s sooner: the camera takes that
+  long to produce a first frame). Settings > Face Unlock > "Get the camera ready when locking": on by default at Faster, off
+  at Standard and More secure (the choice, once made, stays when the level changes). It starts as the Mac locks with the
+  display on, stops after 12 s, at display sleep, or when the Mac unlocks. The camera light shows while it waits;
+  nothing is analysed or kept until a scan takes the camera over. The checks are unchanged.
 - After a scan gives up (no face, 3 misses, 60 s), it also waits for Command+Shift.
 - Any display sleep clears the wait, so the next wake scans at once. Command+Shift always starts a fresh scan
   (3 new tries) whenever the Mac is locked, the display is on and no scan is running.
