@@ -201,7 +201,10 @@ final class NotificationWatcher {
     /// The app by its shown name: running, or in the usual folders.
     private static func app(named name: String) -> (url: URL?, icon: NSImage?) {
         guard !name.isEmpty else { return (nil, nil) }
-        if let r = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == name && $0.bundleURL != nil }) {
+        // Only real apps: "running applications" also lists widget extensions, XPC services and daemons, some named like
+        // an app ("Messages", "Podcasts"), and a match on one of those gave the generic "exec" icon (1.7.1: an iPhone
+        // notification from "Apple Card" showed it). No app found means the iPhone glyph for iPhone notifications.
+        if let r = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == name && $0.bundleURL?.pathExtension == "app" }) {
             return (r.bundleURL, r.icon)
         }
         let dirs = ["/Applications", "/System/Applications", "/System/Applications/Utilities", "/Applications/Utilities",
