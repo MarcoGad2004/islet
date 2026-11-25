@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -49,6 +50,15 @@ struct MacStatsPoint: Sendable, Equatable {
     }
 }
 
+/// What a reading has to include beyond the basics: the menu bar needs only some of it, and the rest is read while the
+/// panel is open (every extra reading is wake-ups and system calls every few seconds, all day).
+struct MacStatsNeeds: Sendable, Equatable {
+    /// Temperatures and fan speeds (the SMC's other ~50 keys).
+    var thermal = false
+    /// CPU, GPU and Neural Engine watts (IOReport).
+    var energy = false
+}
+
 /// Owns the readers (they keep their last reading to work out rates) and reads them off the main thread.
 actor MacStatsSampler {
     private let cpu = CPUReader()
@@ -56,15 +66,22 @@ actor MacStatsSampler {
     private let energy = EnergyReader()
     private let thermal = ThermalReader()
 
-    func sample(processes: Bool) -> MacStatsSnapshot {
+    func sample(processes: Bool, needs: MacStatsNeeds = MacStatsNeeds(thermal: true, energy: true)) -> MacStatsSnapshot {
         var s = MacStatsSnapshot()
         s.date = Date()
         s.cpu = cpu.sample()
         s.gpu = GPUReader.read()
         s.memory = MemorySample.read()
-        s.systemWatts = SMCSensors.power()?.system
-        s.energy = energy.sample()
-        (s.thermal, s.fans, s.fansHeld) = thermal.sample()
+        // The power draw comes in the same SMC session as the temperatures and fans.
+        let smc = thermal.sample(full: needs.thermal)
+        s.systemWatts = smc.systemWatts
+        (s.thermal, s.fans, s.fansHeld) = (smc.thermal, smc.fans, smc.fansHeld)
+        if needs.energy {
+            s.energy = energy.sample()
+        } else {
+            // Not measured meanwhile, so the next window starts fresh instead of spanning the time it was off.
+            energy.reset()
+        }
         if processes {
             (s.topCPU, s.topMemory) = ProcessReader.read()
             s.topGPU = gpu.processes()
@@ -88,21 +105,61 @@ final class MacStats {
     var wantsProcesses = false {
         didSet { if wantsProcesses && !oldValue { refreshSoon() } }
     }
+    /// The stats panel is open: the readings only it shows (energy, and the temperatures and fans when the menu bar
+    /// doesn't show them) are taken, and the charts' slots are worked out.
+    var panelOpen = false {
+        didSet {
+            guard panelOpen != oldValue else { return }
+            buckets = panelOpen ? ChartHistory.buckets(history) : []
+        }
+    }
+    /// The menu bar item shows a temperature or the fan speed.
+    var menuNeedsThermal = false
 
     static let historySpan: TimeInterval = 10 * 60
 
     @ObservationIgnored private let sampler = MacStatsSampler()
     @ObservationIgnored private var task: Task<Void, Never>?
+    /// The display is asleep or the screen locked: nobody can see the readings, so none are taken.
+    @ObservationIgnored private var displayAsleep = false
+    @ObservationIgnored private var screenLocked = false
+    private var paused: Bool { displayAsleep || screenLocked }
 
     var running: Bool { task != nil }
+
+    init() {
+        // The singleton lives as long as the app: nothing to remove.
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        observe(workspace, NSWorkspace.screensDidSleepNotification) { $0.displayAsleep = true }
+        observe(workspace, NSWorkspace.screensDidWakeNotification) { $0.displayAsleep = false }
+        observe(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.screenLocked = true }
+        observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.screenLocked = false }
+    }
+
+    private func observe(_ center: NotificationCenter, _ name: Notification.Name,
+                         _ change: @escaping @MainActor (MacStats) -> Void) {
+        center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let was = self.paused
+                change(self)
+                // Waking: a reading at once, not at the end of the long wait.
+                if was && !self.paused { self.refreshSoon() }
+            }
+        }
+    }
 
     func start() {
         guard task == nil else { return }
         task = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.read()
-                try? await Task.sleep(for: self.interval)
+                if !self.paused { await self.read() }
+                // Asleep: look again rarely (waking up reads at once). Otherwise a little give lets the system run
+                // this together with other wake-ups.
+                let wait: Duration = self.paused ? .seconds(30) : self.interval
+                try? await Task.sleep(for: wait, tolerance: .milliseconds(250))
             }
         }
     }
@@ -117,7 +174,8 @@ final class MacStats {
 
     private func read(processes: Bool? = nil) async {
         let processes = processes ?? wantsProcesses
-        var s = await sampler.sample(processes: processes)
+        let needs = MacStatsNeeds(thermal: menuNeedsThermal || panelOpen, energy: panelOpen)
+        var s = await sampler.sample(processes: processes, needs: needs)
         guard task != nil else { return }
         if processes {
             // Names and icons are looked up once and kept: done here, a page's first showing doesn't stall on them.
@@ -135,7 +193,8 @@ final class MacStats {
             history.append(point)
             let cutoff = s.date.addingTimeInterval(-Self.historySpan)
             if let first = history.firstIndex(where: { $0.date >= cutoff }), first > 0 { history.removeFirst(first) }
-            buckets = ChartHistory.buckets(history)
+            // Only the open panel's charts use the slots.
+            if panelOpen { buckets = ChartHistory.buckets(history) }
         }
     }
 

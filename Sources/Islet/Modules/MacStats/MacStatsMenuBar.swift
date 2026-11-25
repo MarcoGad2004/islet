@@ -344,9 +344,13 @@ final class MacStatsStatusItem {
         // Each opening starts on the overview.
         panel.willShow = { [weak self] in
             self?.panelState.page = .overview
+            MacStats.shared.panelOpen = true
             MacStats.shared.prefetchProcesses()
         }
-        panel.didClose = { MacStats.shared.wantsProcesses = false }
+        panel.didClose = {
+            MacStats.shared.wantsProcesses = false
+            MacStats.shared.panelOpen = false
+        }
         return panel
     }()
 
@@ -381,6 +385,8 @@ final class MacStatsStatusItem {
                     && [MacStatsSettings.temperature, MacStatsSettings.power, MacStatsSettings.fan].contains(where: MacStatsSettings.on)))
         let stats = MacStats.shared
         stats.interval = .seconds(MacStatsSettings.intervalSeconds)
+        stats.menuNeedsThermal = MacStatsSettings.on(MacStatsSettings.readouts)
+            && (MacStatsSettings.on(MacStatsSettings.temperature) || MacStatsSettings.on(MacStatsSettings.fan))
         if wanted {
             if item == nil {
                 build()

@@ -267,6 +267,12 @@ final class EnergyReader {
     private static let minimumWindow = 1.8
     private var lastSample: EnergySample?
 
+    /// Forgets the last reading, so the next window starts now (after a stretch without readings).
+    func reset() {
+        last = nil
+        lastSample = nil
+    }
+
     func sample() -> EnergySample? {
         guard let subscription, let channels else { return nil }
         let date = Date()
@@ -321,20 +327,43 @@ struct FanSample: Sendable, Equatable {
     var fraction: Double { max > 0 ? Swift.min(Swift.max(rpm / max, 0), 1) : 0 }
 }
 
+/// What one SMC session gave: the temperatures and fans (only when asked for) and the Mac's draw.
+struct SMCReading {
+    var thermal = ThermalSample()
+    var fans: [FanSample] = []
+    var fansHeld = false
+    var systemWatts: Double?
+}
+
 final class ThermalReader {
     /// Which SMC keys are which: found once by listing them all (RESEARCH.md "Mac Stats"). Which CPU sensors make the
     /// fairest "CPU" figure is still to be compared with iStat Menus; for now every `Tp`/`Te` key that reads sensibly.
-    private lazy var keys: (cpu: [String], gpu: [String], ssd: [String]) = {
-        let all = SMCSensors.allKeys().filter { $0.hasPrefix("T") }
-        return (all.filter { $0.hasPrefix("Tp") || $0.hasPrefix("Te") }, all.filter { $0.hasPrefix("Tg") },
-                all.filter { $0 == "TH0x" })
-    }()
+    /// Kept only once the SMC answered: a failed first try (right after waking, say) is tried again, not remembered.
+    private var keys: (cpu: [String], gpu: [String], ssd: [String])?
+    private var fanCount: Int?
+    private var fanKeys: [String] = []
 
-    private lazy var fanCount: Int = Int(SMCSensors.values(["FNum"])["FNum"] ?? 0)
+    private func load() {
+        if keys == nil {
+            let all = SMCSensors.allKeys().filter { $0.hasPrefix("T") }
+            if !all.isEmpty {
+                keys = (all.filter { $0.hasPrefix("Tp") || $0.hasPrefix("Te") }, all.filter { $0.hasPrefix("Tg") },
+                        all.filter { $0 == "TH0x" })
+            }
+        }
+        if fanCount == nil, let n = SMCSensors.values(["FNum"])["FNum"] {
+            fanCount = Int(n)
+            fanKeys = (0..<Int(n)).flatMap { ["F\($0)Ac", "F\($0)Mn", "F\($0)Mx"] } + ["Ftst"]
+        }
+    }
 
-    func sample() -> (ThermalSample, [FanSample], fansHeld: Bool) {
-        let fanKeys = (0..<fanCount).flatMap { ["F\($0)Ac", "F\($0)Mn", "F\($0)Mx"] } + ["Ftst"]
-        let v = SMCSensors.values(keys.cpu + keys.gpu + keys.ssd + fanKeys)
+    /// `full` false: just the Mac's draw, for a menu bar that shows neither temperature nor fan.
+    func sample(full: Bool) -> SMCReading {
+        guard full else { return SMCReading(systemWatts: Self.watts(SMCSensors.values(["PSTR"]))) }
+        load()
+        let keys = keys ?? ([], [], [])
+        let fanCount = fanCount ?? 0
+        let v = SMCSensors.values(keys.cpu + keys.gpu + keys.ssd + fanKeys + ["PSTR"])
         let thermal = ThermalSample(cpuAverage: Self.mean(keys.cpu, v), cpuHottest: Self.hottest(keys.cpu, v),
                                     gpuAverage: Self.mean(keys.gpu, v), gpuHottest: Self.hottest(keys.gpu, v),
                                     ssd: Self.mean(keys.ssd, v))
@@ -342,8 +371,11 @@ final class ThermalReader {
             guard let rpm = v["F\(i)Ac"] else { return nil }
             return FanSample(rpm: max(rpm, 0), min: v["F\(i)Mn"] ?? 0, max: v["F\(i)Mx"] ?? 0)
         }
-        return (thermal, fans, (v["Ftst"] ?? 0) == 1)
+        return SMCReading(thermal: thermal, fans: fans, fansHeld: (v["Ftst"] ?? 0) == 1, systemWatts: Self.watts(v))
     }
+
+    /// `PSTR` as `SMCSensors.power()` reads it: not below 0.
+    private static func watts(_ v: [String: Double]) -> Double? { v["PSTR"].flatMap { $0 >= 0 ? $0 : nil } }
 
     /// Readings that make sense: some keys read a few degrees (unused) or nonsense.
     static func sensible(_ keys: [String], _ v: [String: Double]) -> [Double] {
