@@ -58,6 +58,9 @@ struct SectionLabel: View {
 struct DetailRow<Icon: View, Trailing: View>: View {
     var title: String
     var selected = false
+    /// A full-width line under the row (the speed test's progress and result); the row grows to hold it.
+    var note: String? = nil
+    var noteColor = Color.isletText
     var action: () -> Void
     @ViewBuilder var icon: () -> Icon
     @ViewBuilder var trailing: () -> Trailing
@@ -66,18 +69,26 @@ struct DetailRow<Icon: View, Trailing: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         Button(action: action) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(selected ? Color(hex: 0x0A84FF) : Color.white.opacity(0.1))
-                    icon().font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(selected ? Color.white : Color.isletSecondary)
-                }.frame(width: 24, height: 24)
-                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
-                Spacer(minLength: 6)
-                trailing()
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle().fill(selected ? Color(hex: 0x0A84FF) : Color.white.opacity(0.1))
+                        icon().font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(selected ? Color.white : Color.isletSecondary)
+                    }.frame(width: 24, height: 24)
+                    Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+                    Spacer(minLength: 6)
+                    trailing()
+                }
+                .frame(height: 34)
+                if let note {
+                    Text(note).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(noteColor)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                        .padding(.leading, 34).padding(.bottom, 8)
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, 8)
-            .frame(height: 34)
             .background {
                 if selected { IsletCard(shape: shape) }
                 else { shape.fill(Color.white.opacity(hover ? 0.07 : 0)) }
@@ -223,7 +234,7 @@ struct WiFiContent: View {
         }
     }
 
-    /// Run speed test, then download, upload and latency. Uses the network only when pressed.
+    /// The pill beside Disconnect: Run speed test, Stop, Again or Retry. The output goes on its own line (`speedNote`).
     @ViewBuilder private var speedTest: some View {
         let t = SpeedTest.shared
         switch t.state {
@@ -231,20 +242,22 @@ struct WiFiContent: View {
         case .running:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text("Testing…").font(.system(size: 11)).foregroundStyle(Color.isletSecondary)
-                Button("Stop") { t.cancel() }.buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletTertiary)
+                Button("Stop") { t.cancel() }
+                    .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
+                    .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
             }
-        case .done(let r):
-            HStack(spacing: 8) {
-                Text(SpeedTest.summary(r))
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(Color.isletText).lineLimit(1)
-                speedButton("Again")
-            }
-        case .failed(let e):
-            HStack(spacing: 8) {
-                Text(e).font(.system(size: 11)).foregroundStyle(Color.isletRedText).lineLimit(1)
-                speedButton("Retry")
-            }
+        case .done: speedButton("Again")
+        case .failed: speedButton("Retry")
+        }
+    }
+
+    /// Progress, then download, upload and latency, or the error.
+    private var speedNote: (text: String, color: Color)? {
+        switch SpeedTest.shared.state {
+        case .idle: nil
+        case .running: ("Testing… measuring download, upload and latency", .isletSecondary)
+        case .done(let r): (SpeedTest.summary(r), .isletText)
+        case .failed(let e): (e, .isletRedText)
         }
     }
 
@@ -299,6 +312,7 @@ struct WiFiContent: View {
                 }
                 ForEach(others) { n in row(n) }
             }
+            .animation(.easeOut(duration: 0.2), value: SpeedTest.shared.state)
         }
     }
 
@@ -307,7 +321,8 @@ struct WiFiContent: View {
         let phone = wifi.instantHotspots.first { $0.name == n.ssid }
         let connected = n.ssid == wifi.ssid
         let connectedHotspot = connected && wifi.hotspot
-        DetailRow(title: n.ssid, selected: connected, action: { tap(n) }) {
+        DetailRow(title: n.ssid, selected: connected, note: connected ? speedNote?.text : nil,
+                  noteColor: speedNote?.color ?? .isletText, action: { tap(n) }) {
             if n.hotspot || phone != nil || connectedHotspot { Image(systemName: "personalhotspot") }
             else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3) }
         } trailing: {
