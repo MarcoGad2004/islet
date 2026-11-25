@@ -97,7 +97,8 @@ final class FanController {
         var ok = true
         for i in 0..<fans {
             let lo = smc.number("F\(i)Mn") ?? 0, hi = smc.number("F\(i)Mx") ?? 0
-            let value = mode == .full ? hi : min(max(rpm, lo), hi)
+            let wanted = rpm.isFinite ? rpm : lo
+            let value = mode == .full ? hi : min(max(wanted, lo), hi)
             ok = smc.writeFloat("F\(i)Tg", value) && ok
         }
         return ok

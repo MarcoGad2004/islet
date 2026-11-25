@@ -16,6 +16,8 @@ final class Service: NSObject, FanHelperProtocol {
     }
 
     func setSpeed(_ rpm: Double, reply: @escaping (Bool, String?) -> Void) {
+        // Whatever the caller sends, only a real number goes near the SMC (NaN would be written as a fan target).
+        guard rpm.isFinite, rpm >= 0 else { reply(false, "That fan speed isn't valid."); return }
         let request = controller.arrived()
         controller.queue.async { let r = self.controller.set(rpm, request: request); reply(r.0, r.1) }
     }
