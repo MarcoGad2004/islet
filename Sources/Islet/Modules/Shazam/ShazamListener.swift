@@ -49,19 +49,24 @@ final class ShazamListener {
             guard !Task.isCancelled, let self else { return }
             let session = SHManagedSession()
             self.session = session
-            self.timeoutTask = Task { [weak self] in
+            // This run's own timeout, kept in a local: a cancelled earlier run that wakes up late must never touch
+            // the timeout (or session) of the run that replaced it, or the microphone would stay open with no limit.
+            let timeout = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(Self.timeout))
-                guard !Task.isCancelled, let self else { return }
+                guard !Task.isCancelled, let self, self.session === session else { return }
                 self.timedOut = true
-                self.session?.cancel()
+                session.cancel()
             }
+            self.timeoutTask = timeout
             await session.prepare()
             let result = await session.result()
             // It has answered: from here nothing may cancel it (that crashes inside ShazamKit), not the timeout and
             // not a cancel() while the cover downloads.
-            self.timeoutTask?.cancel(); self.timeoutTask = nil
-            if self.session === session { self.session = nil }
+            timeout.cancel()
+            // A cancelled run has already been cleaned up by cancel(); it owns nothing shared any more.
             guard !Task.isCancelled else { return }
+            if self.timeoutTask == timeout { self.timeoutTask = nil }
+            if self.session === session { self.session = nil }
             switch result {
             case .match(let match):
                 guard let item = match.mediaItems.first else { self.finish(.noMatch, done); return }
