@@ -1,5 +1,36 @@
-import Foundation
+import AppKit
 import QuartzCore
+
+/// Calls `tick` once per frame of the screen the island is on, in step with its refresh (60 or 120 Hz), instead of on a
+/// free-running timer that drifts against the display. Falls back to a 120 Hz timer when there is no screen to ask.
+/// `tick` gets the clock back, so a gone owner can stop it.
+@MainActor
+final class FrameClock: NSObject {
+    private var link: CADisplayLink?
+    private var timer: Timer?
+    private let tick: (FrameClock) -> Void
+
+    init(_ tick: @escaping (FrameClock) -> Void) {
+        self.tick = tick
+        super.init()
+        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens.first
+        if let screen {
+            let l = screen.displayLink(target: self, selector: #selector(fire))
+            l.add(to: .main, forMode: .common)
+            link = l
+        } else {
+            let t = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.fire() }
+            }
+            RunLoop.main.add(t, forMode: .common)
+            timer = t
+        }
+    }
+
+    @objc private func fire() { tick(self) }
+
+    func stop() { link?.invalidate(); link = nil; timer?.invalidate(); timer = nil }
+}
 
 /// Drives the island metrics with one spring per dimension, so each part of the motion can have its own
 /// timing (DESIGN.md "Flow down, then bubble out"). A single SwiftUI animation can't do that for one shape.
@@ -23,7 +54,7 @@ final class IslandAnimator {
     /// Set directly every frame by a gesture (the skip swipe deepening the peek): it follows the fingers exactly, with
     /// no spring of its own; the gesture's own spring takes it back when they lift.
     private var extra = IslandMetrics.zero
-    @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var timer: FrameClock?
     /// Called when the motion has come to rest (the pointer is tested again then: the shape may have moved away from it).
     @ObservationIgnored var onSettled: (() -> Void)?
     @ObservationIgnored private var lastTick = CACurrentMediaTime()
@@ -259,11 +290,10 @@ final class IslandAnimator {
     private func startTimer() {
         guard timer == nil else { return }
         lastTick = CACurrentMediaTime()
-        let t = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        timer = FrameClock { [weak self] clock in
+            guard let self else { clock.stop(); return }
+            self.tick()
         }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
     }
 
     private func tick() {
@@ -285,7 +315,7 @@ final class IslandAnimator {
             apply(final, Array(repeating: (settle, 0), count: IslandMetrics.channelCount))
             moving = true
         }
-        if !moving { timer?.invalidate(); timer = nil; onSettled?() }
+        if !moving { timer?.stop(); timer = nil; onSettled?() }
     }
 
     /// Advances one channel by `dt`; true while it is still moving (or waiting out its delay).

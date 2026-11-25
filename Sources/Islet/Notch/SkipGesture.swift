@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import QuartzCore
 
 /// A two-finger swipe left or right over playing media (DESIGN.md "Skip and previous").
@@ -49,7 +49,7 @@ struct SkipState: Equatable {
 final class ValueSpring {
     private var x: Double, v: Double, target: Double
     private let k: Double, c: Double
-    private var timer: Timer?
+    private var timer: FrameClock?
     private var last = CACurrentMediaTime()
     private let update: (Double) -> Void
     private let done: () -> Void
@@ -61,14 +61,13 @@ final class ValueSpring {
         let omega = 2 * Double.pi / response
         k = omega * omega; c = 2 * damping * omega
         self.update = update; self.done = done
-        let t = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        timer = FrameClock { [weak self] clock in
+            guard let self else { clock.stop(); return }
+            self.tick()
         }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() { timer?.stop(); timer = nil }
 
     private func tick() {
         let now = CACurrentMediaTime()
@@ -94,7 +93,7 @@ final class ValueSpring {
 /// A plain clock over a duration (0 to 1), for the landing's fades.
 @MainActor
 final class Tween {
-    private var timer: Timer?
+    private var timer: FrameClock?
     private let start = CACurrentMediaTime()
     private let duration: Double
     private let update: (Double) -> Void
@@ -102,14 +101,13 @@ final class Tween {
 
     init(duration: Double, update: @escaping (Double) -> Void, done: @escaping () -> Void) {
         self.duration = duration; self.update = update; self.done = done
-        let t = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        timer = FrameClock { [weak self] clock in
+            guard let self else { clock.stop(); return }
+            self.tick()
         }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() { timer?.stop(); timer = nil }
 
     private func tick() {
         let k = min((CACurrentMediaTime() - start) / duration, 1)
