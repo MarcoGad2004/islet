@@ -1381,11 +1381,16 @@ enum MacStatsFormat {
     /// Whole degrees, in the region's units (°F in the US).
     static func temperature(_ celsius: Double?) -> String {
         guard let celsius else { return "–" }
+        return temperatureFormatter.string(from: Measurement(value: celsius, unit: UnitTemperature.celsius))
+    }
+
+    /// Made once: building one takes longer than formatting with it, and a page formats several every reading.
+    private nonisolated(unsafe) static let temperatureFormatter: MeasurementFormatter = {
         let f = MeasurementFormatter()
         f.unitOptions = .naturalScale
         f.numberFormatter.maximumFractionDigits = 0
-        return f.string(from: Measurement(value: celsius, unit: UnitTemperature.celsius))
-    }
+        return f
+    }()
 
     static func temperatures(_ average: Double?, hottest: Double?) -> String {
         guard average != nil else { return "–" }
@@ -1395,10 +1400,17 @@ enum MacStatsFormat {
     /// "Up 6 days, 10 hr".
     static func uptime(now: Date = Date()) -> String? {
         guard let boot = MacStats.bootDate else { return nil }
+        let f = now.timeIntervalSince(boot) >= 86_400 ? uptimeDays : uptimeHours
+        return f.string(from: boot, to: now).map { "Up \($0)" }
+    }
+
+    private nonisolated(unsafe) static let uptimeDays = uptimeFormatter([.day, .hour])
+    private nonisolated(unsafe) static let uptimeHours = uptimeFormatter([.hour, .minute])
+    private static func uptimeFormatter(_ units: NSCalendar.Unit) -> DateComponentsFormatter {
         let f = DateComponentsFormatter()
-        f.allowedUnits = now.timeIntervalSince(boot) >= 86_400 ? [.day, .hour] : [.hour, .minute]
+        f.allowedUnits = units
         f.unitsStyle = .short
         f.maximumUnitCount = 2
-        return f.string(from: boot, to: now).map { "Up \($0)" }
+        return f
     }
 }
