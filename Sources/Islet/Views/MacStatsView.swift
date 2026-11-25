@@ -1267,7 +1267,7 @@ enum MacStatsMotion {
     @MainActor static var calm = false
     @MainActor static var lastActive = Date()
     /// Seconds without the pointer moving over the panel before it goes calm.
-    static let calmAfter: TimeInterval = 8
+    static let calmAfter: TimeInterval = 3
     @MainActor static var reading: Animation { calm ? .linear(duration: 0.01) : lively }
     /// A page fading in: the same curve and length as the panel easing to its size (`MenuBarPanel.settle`).
     static let settle = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)

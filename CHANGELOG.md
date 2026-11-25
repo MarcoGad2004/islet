@@ -5,12 +5,13 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 ## 1.7.3 (2026-11-25)
 
-A crash fix and a Face Unlock fix for backlit rooms.
+A crash fix, a Face Unlock fix for backlit rooms, and a Mac Stats panel that goes calm sooner.
 
 **Fixes**
 
 - **Locking with the power button crashed the app.** Getting the camera ready for Face Unlock asked it for a frame rate it can't do, and the camera ended the app. It now asks only for what the camera supports. Closing the lid was not affected.
 - **Face Unlock refused you with a bright window behind you.** The camera exposes for the window and your face goes dark, and the check for a photo or screen then took it for a fake. A face much darker than the room behind it now counts as harsh light: it isn't refused for that, and you're asked to blink instead.
+- **Mac Stats panel goes calm sooner.** With the pointer still, the panel stops animating after 3 seconds instead of 8, which lowers its cost further. Moving the pointer over it wakes it straight away.
 
 ## 1.7.2 (2026-11-25)
 
