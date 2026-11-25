@@ -47,6 +47,10 @@ final class ScanEngine: @unchecked Sendable {
 
     private static let log = Logger(subsystem: "com.marcogad.islet", category: "unlock")
     static let challengeSeconds = 8.0
+    /// How far below the match threshold a frame may score and still count towards the challenge (a turned head).
+    static let challengeIdentitySlack: Float = 0.1
+    /// This many frames in a row below that floor discard the challenge's progress.
+    static let strangerFramesToReset = 3
     /// The glow should end within this; if the service never answers, fall back to a challenge.
     static let pulseSeconds = 5.0
     /// Frames needed at each light level to judge the glow before the service reports it over.
@@ -69,6 +73,8 @@ final class ScanEngine: @unchecked Sendable {
     private var lightHarsh = false
     private var verifyingSent = false
     private var detector: ChallengeDetector
+    /// Frames in a row, during the challenge, that weren't the enrolled face.
+    private var strangerFrames = 0
     private var frameCount = 0
     /// When the challenge was shown in this attempt.
     private var promptedAt: Date?
@@ -123,7 +129,7 @@ final class ScanEngine: @unchecked Sendable {
         paused = false; matches = 0; misses = 0; best = 0; framedHistory = []
         detector = ChallengeDetector(Self.pick(security)); promptedAt = nil
         spoof.reset(); pulse = .idle; fallback = false; scores = []; lastMatch = nil
-        pulseSchedule = nil; harshHistory = []; doubted = false; verifyingSent = false; lastPrompt = nil
+        pulseSchedule = nil; strangerFrames = 0; harshHistory = []; doubted = false; verifyingSent = false; lastPrompt = nil
     }
     func pause() { lock.lock(); paused = true; lock.unlock() }
 
@@ -158,9 +164,6 @@ final class ScanEngine: @unchecked Sendable {
         }
         faceLost = 0
         report(face: true)
-        if fallback && promptedAt != nil {
-            detector.add(openness: a.eyeOpenness, mouth: a.mouthWidth, yaw: a.proxyX)
-        }
         FramedLog.note(a, source: "scan")
         framedHistory.append(a.framed)
         if framedHistory.count > 10 { framedHistory.removeFirst() }
@@ -197,6 +200,19 @@ final class ScanEngine: @unchecked Sendable {
             Self.log.notice("frame \(self.frameCount): width \(a.boxWidth, format: .fixed(precision: 3)) score \(score, format: .fixed(precision: 2)) spoof \(liveness ?? -1, format: .fixed(precision: 2)) mean \(self.spoof.mean(last: SpoofTracker.refuseFrames) ?? -1, format: .fixed(precision: 2)) faceLuma \(l?.faceLuma ?? -1, format: .fixed(precision: 2)) bgLuma \(l?.backgroundLuma ?? -1, format: .fixed(precision: 2)) ratio \(l?.backlightRatio ?? -1, format: .fixed(precision: 1)) backlit \(l?.backlit ?? false) harsh \(harsh)")
         }
         if score >= threshold { lastMatch = (score, e) }
+        if fallback && promptedAt != nil {
+            // The challenge has to be done by the enrolled face, start to finish (1.7.4): a photo can bring up the
+            // blink prompt, but then someone else's face doing it, and the photo coming back, mustn't unlock. Frames
+            // of a different face aren't counted, and a few in a row wipe the progress. The floor is below the match
+            // threshold so a turned head (which scores lower) still counts.
+            if score >= threshold - Self.challengeIdentitySlack {
+                strangerFrames = 0
+                detector.add(openness: a.eyeOpenness, mouth: a.mouthWidth, yaw: a.proxyX)
+            } else {
+                strangerFrames += 1
+                if strangerFrames >= Self.strangerFramesToReset { detector.reset() }
+            }
+        }
         if case .running = pulse, harsh, pulseSchedule == nil {
             // The sun came out before the glow started: don't bother with it.
             pulse = .done; fallback = true

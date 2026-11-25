@@ -3,6 +3,14 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.7.4 (2026-11-25)
+
+Face Unlock's blink, smile or head-turn challenge now has to be done by your face.
+
+**Fixes**
+
+- **A photo could bring up the challenge for someone else to do.** The photo matched, the blink was asked, a different face blinked, and the photo went back in front of the camera to unlock. The challenge now only counts frames that match your face (a turned head is allowed a slightly lower score), and a few frames in a row that aren't you wipe its progress, so the same face has to match before, during and after.
+
 ## 1.7.3 (2026-11-25)
 
 A crash fix, a Face Unlock fix for backlit rooms, and a Mac Stats panel that goes calm sooner.
