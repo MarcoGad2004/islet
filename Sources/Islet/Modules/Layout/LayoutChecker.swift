@@ -14,6 +14,9 @@ enum LayoutChecker {
     /// Free space left and right of the notch. Measured once per 0.25 s so asking for both layouts costs one pass.
     private static var cache: (time: CFTimeInterval, free: (CGFloat, CGFloat)?)?
 
+    /// Forgets the last measurement: the menu bar's owner changed, so what was measured is out of date.
+    static func invalidate() { cache = nil }
+
     static func free(_ g: NotchGeometry) -> (left: CGFloat, right: CGFloat)? {
         let now = CACurrentMediaTime()
         if let c = cache, now - c.time < 0.25 { return c.free }
@@ -55,6 +58,7 @@ enum LayoutChecker {
         AXUIElementSetMessagingTimeout(ax, 0.15)
         var bar: CFTypeRef?
         guard AXUIElementCopyAttributeValue(ax, kAXMenuBarAttribute as CFString, &bar) == .success, let bar else { return nil }
+        // (A stuck app answers each call only after the timeout, so one failure below ends the pass.)
         var kids: CFTypeRef?
         guard AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids) == .success,
               let items = kids as? [AXUIElement], !items.isEmpty else { return nil }
@@ -63,7 +67,7 @@ enum LayoutChecker {
         for item in items {
             var pos: CFTypeRef?, size: CFTypeRef?
             guard AXUIElementCopyAttributeValue(item, kAXPositionAttribute as CFString, &pos) == .success,
-                  AXUIElementCopyAttributeValue(item, kAXSizeAttribute as CFString, &size) == .success else { continue }
+                  AXUIElementCopyAttributeValue(item, kAXSizeAttribute as CFString, &size) == .success else { return nil }
             var p = CGPoint.zero, s = CGSize.zero
             AXValueGetValue(pos as! AXValue, .cgPoint, &p)
             AXValueGetValue(size as! AXValue, .cgSize, &s)

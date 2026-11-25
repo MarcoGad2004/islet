@@ -285,7 +285,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Wires each module to the island store. A failing module must not take down the others.
     func applicationWillTerminate(_ notification: Notification) {
+        notifications.restoreAll()
         media.stop()
+        faceUnlock.unlock.shutdown() // camera off, glow down, brightness back if a dark-room scan raised it
         // The helper also gives the fans back when the app's connection closes; this is the polite way.
         FanControl.shared.setAutomatic()
     }
@@ -399,13 +401,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.setFrontApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak store] note in
             let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
-            MainActor.assumeIsolated {
-                store?.setFrontApp(id)
-                store?.recomputeLayout()
-            }
+            MainActor.assumeIsolated { store?.appSwitched(id) }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak store] _ in
-            MainActor.assumeIsolated { store?.recomputeLayout() }
+            MainActor.assumeIsolated { store?.appSwitched(nil, space: true) }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.levels.retryTap(); self?.notifications.retry() }

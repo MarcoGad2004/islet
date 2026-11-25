@@ -303,8 +303,30 @@ final class IslandStore {
         if let m = targetMetrics() { animator.snap(to: m) }
     }
 
+    /// The front app or the Space changed. The menu bar width check (Accessibility calls into the new front app) only runs
+    /// while something is showing or hovered, and a moment later, once the new menu bar has been laid out; while the
+    /// island is idle it is only marked out of date and measured when something next needs it.
+    func appSwitched(_ bundleID: String?, space: Bool = false) {
+        LayoutChecker.invalidate()
+        if !space { setFrontApp(bundleID) }
+        layoutStale = true
+        layoutTask?.cancel()
+        guard content != nil || pointerInside || base != nil else { return }
+        layoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            self?.recomputeLayout()
+        }
+    }
+    @ObservationIgnored private var layoutTask: Task<Void, Never>?
+    /// An app switch left the width check unrun (nothing was showing).
+    @ObservationIgnored private var layoutStale = false
+
+    private func recomputeLayoutIfStale() { if layoutStale { recomputeLayout() } }
+
     /// Re-run the menu bar width check (app switch, event start, display change).
     func recomputeLayout(force: Bool = false) {
+        layoutStale = false
         let fits = layoutCheck?() ?? false
         let eventFits = eventLayoutCheck?() ?? false
         guard force || fits != wingsFit || eventFits != eventWingsFit else { return }
@@ -454,6 +476,7 @@ final class IslandStore {
 
     func pointerMoved(inside: Bool) {
         guard inside != pointerInside else { return }
+        if inside { recomputeLayoutIfStale() }
         pointerInside = inside
         updateQuickInfo()
         if let s = shazam, !s.listening, !expanded {
@@ -503,6 +526,7 @@ final class IslandStore {
 
     func expand() {
         guard !expanded, !locked else { return }
+        recomputeLayoutIfStale()
         // From quick info, its pieces glide into the panel (DESIGN.md "Quick info").
         expandedFromQuickInfo = presentation == .quickBar || presentation == .quickChin
         // Always the panel's own page; waiting notifications ride along as a pill at its top.
@@ -1020,6 +1044,7 @@ final class IslandStore {
     }
 
     func showNotification(_ n: NotificationItem) {
+        recomputeLayoutIfStale()
         if expanded && expandedPage == .messages { notificationExpired?(n); return } // it's in the open conversation
         notifications.insert(n, at: 0)
         if notifications.count > 30 { notificationExpired?(notifications.removeLast()) }
@@ -1329,6 +1354,7 @@ final class IslandStore {
 
     /// Volume and brightness hide 1.5 s after the last press.
     func showLevel(_ state: LevelState) {
+        recomputeLayoutIfStale()
         level = state
         levelTask?.cancel()
         levelTask = Task { [weak self] in
@@ -1359,7 +1385,11 @@ final class IslandStore {
         // A different app starting to play brings hidden media back.
         if let info, info.playing, media?.bundleID != info.bundleID || !wasPlaying, mediaHidden { mediaHidden = false }
         let before = mediaVisible
+        // More news of an item that is already paused inside its 30 s grace (artwork arriving, a seek): the countdown
+        // carries on instead of restarting or ending early.
+        let stillPaused = info != nil && info?.playing == false && !wasPlaying && mediaFresh && media?.bundleID == info?.bundleID
         media = info
+        if stillPaused { refresh(); return }
         mediaStaleTask?.cancel()
         if info?.playing == true {
             mediaFresh = true
