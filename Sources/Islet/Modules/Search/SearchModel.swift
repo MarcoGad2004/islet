@@ -25,6 +25,7 @@ final class SearchModel {
     @ObservationIgnored let index = SearchIndex()
     @ObservationIgnored private let files = SearchFiles()
     @ObservationIgnored private var fileResults: [SearchItem] = []
+    @ObservationIgnored private var fileTask: Task<Void, Never>?
     @ObservationIgnored private var remembered: [String: Date] = SearchModel.loadRemembered()
     /// Set by the store: closes the island (opening a result, Esc on an empty field).
     @ObservationIgnored var close: (() -> Void)?
@@ -60,11 +61,13 @@ final class SearchModel {
         remembered = Self.loadRemembered()
         fieldReady = false
         fileResults = []
+        SiriQuestion.refresh()
         if text == initial { update() } else { text = initial }
         focusRequest += 1
     }
 
     func end() {
+        fileTask?.cancel()
         files.stop()
         fieldReady = false
     }
@@ -74,8 +77,18 @@ final class SearchModel {
     private func update() {
         let t = text.trimmingCharacters(in: .whitespaces)
         // Keep the last files that still match while the index looks (about 0.2 s), so the list doesn't jump.
-        if t.count < 2 { fileResults = [] }
-        files.search(t)
+        fileTask?.cancel()
+        if t.count < 2 {
+            fileResults = []
+            files.stop()
+        } else {
+            // Each query makes Spotlight search the home folder: wait for the typing to pause.
+            fileTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(140))
+                guard !Task.isCancelled else { return }
+                self?.files.search(t)
+            }
+        }
         rebuild(keepSelection: false)
     }
 

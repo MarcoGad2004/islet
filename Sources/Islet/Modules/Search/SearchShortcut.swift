@@ -100,6 +100,7 @@ final class SearchShortcut {
                 return noErr
             }, 1, &spec, nil, &handler)
         }
+        SiriQuestion.refresh()
         if let hotKey { UnregisterEventHotKey(hotKey); self.hotKey = nil }
         guard let mods = SearchShortcutChoice.current.carbonModifiers else { return }
         RegisterEventHotKey(UInt32(kVK_Space), mods, EventHotKeyID(signature: OSType(0x49534c54), id: 1),
@@ -157,7 +158,8 @@ final class SearchShortcut {
             // Let the island close and the previous app take the keyboard back first.
             try? await Task.sleep(for: .milliseconds(250))
             Self.postKey(CGKeyCode(s.keyCode), flags: CGEventFlags(rawValue: s.flags))
-            try? await Task.sleep(for: .milliseconds(350))
+            // Typing goes only into Spotlight: if it didn't open, nothing is typed anywhere (a Finder search instead).
+            guard await Self.waitForSpotlight() else { NSWorkspace.shared.showSearchResults(forQueryString: text); return }
             Self.type(text)
         }
     }
@@ -171,12 +173,30 @@ final class SearchShortcut {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
             Self.postKey(CGKeyCode(s.keyCode), flags: CGEventFlags(rawValue: s.flags))
-            try? await Task.sleep(for: .milliseconds(350))
+            guard await Self.waitForSpotlight() else { return }
             Self.type(text)
             // Spotlight settles on "Ask Siri" as you type; give it a moment before Return.
             try? await Task.sleep(for: .milliseconds(450))
+            guard Self.spotlightIsUp() else { return }
             Self.postKey(CGKeyCode(kVK_Return), flags: [])
         }
+    }
+
+    /// Spotlight is the frontmost app or has a window on screen.
+    private static func spotlightIsUp() -> Bool {
+        if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.Spotlight" { return true }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        return windows.contains { ($0[kCGWindowOwnerName as String] as? String) == "Spotlight" }
+    }
+
+    /// Waits (at most 1.2 s, from 350 ms after the shortcut) for Spotlight to open.
+    private static func waitForSpotlight() async -> Bool {
+        try? await Task.sleep(for: .milliseconds(350))
+        for _ in 0..<9 {
+            if spotlightIsUp() { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return false
     }
 
     private static func postKey(_ key: CGKeyCode, flags: CGEventFlags) {
@@ -191,17 +211,23 @@ final class SearchShortcut {
     /// Types text without the clipboard, a few characters per event.
     private static func type(_ text: String) {
         let src = CGEventSource(stateID: .hidSystemState)
-        let units = Array(text.utf16)
-        var i = 0
-        while i < units.count {
-            let chunk = Array(units[i..<min(i + 16, units.count)])
+        // Whole characters per event: a chunk cut inside an emoji's surrogate pair would type nonsense.
+        var chunk: [UInt16] = []
+        func flush() {
+            guard !chunk.isEmpty else { return }
             for down in [true, false] {
                 let e = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: down)
                 e?.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
                 e?.post(tap: .cghidEventTap)
             }
-            i += 16
+            chunk = []
         }
+        for ch in text {
+            let units = Array(String(ch).utf16)
+            if chunk.count + units.count > 16 { flush() }
+            chunk.append(contentsOf: units)
+        }
+        flush()
     }
 }
 
@@ -212,6 +238,18 @@ enum SiriQuestion {
     /// Turned on, macOS 27 or later (Siri in Spotlight), Accessibility (to type into Spotlight), and Spotlight has a
     /// shortcut of its own to press.
     @MainActor static var offered: Bool {
+        // Worked out when search opens (and re-checked every few seconds), not on every keystroke: it reads the system's
+        // shortcut preferences.
+        if let c = cache, Date().timeIntervalSince(c.at) < 5 { return c.value }
+        let value = compute()
+        cache = (value, Date())
+        return value
+    }
+
+    @MainActor private static var cache: (value: Bool, at: Date)?
+    @MainActor static func refresh() { cache = nil }
+
+    @MainActor private static func compute() -> Bool {
         guard UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true else { return false }
         guard ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0)) else { return false }
         return AXIsProcessTrusted() && SearchShortcut.spotlightShortcut().enabled && !SearchShortcut.spotlightConflict

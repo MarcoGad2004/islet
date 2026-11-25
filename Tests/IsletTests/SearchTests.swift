@@ -91,4 +91,10 @@ final class SearchTests: XCTestCase {
         XCTAssertFalse(SiriQuestion.isQuestion("isle"))
         XCTAssertFalse(SiriQuestion.isQuestion("?"))
     }
+
+    func testCalculatorRefusesAWallOfBrackets() {
+        XCTAssertNil(SearchCalculator.evaluate("1+" + String(repeating: "(", count: 50_000) + "1"))
+        XCTAssertNil(SearchCalculator.evaluate("1+" + String(repeating: "-", count: 50_000) + "1"))
+        XCTAssertEqual(SearchCalculator.evaluate("(3+4)*2"), 14)
+    }
 }

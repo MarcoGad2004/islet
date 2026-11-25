@@ -58,8 +58,6 @@ struct SearchItem: Identifiable, Equatable {
     var lastUsed: Date?
     /// A contact's other names to match on (nickname, company).
     var aliases: [String] = []
-    /// A contact's photo.
-    var imageData: Data?
     /// A contact's number for calls and texts (their iPhone or mobile first) and email, and all of their numbers and
     /// emails (to find a conversation with them).
     var phone: String?
@@ -155,6 +153,8 @@ enum SearchCalculator {
             .replacingOccurrences(of: "x", with: "*").replacingOccurrences(of: ",", with: "")
             .filter { !$0.isWhitespace })
         let allowed = Set("0123456789.+-*/()^%")
+        // The parser recurses per bracket and sign: a pasted wall of "(" or "-" must not run out of stack.
+        guard src.count <= 200 else { return nil }
         guard !src.isEmpty, src.allSatisfy({ allowed.contains($0) }), src.contains(where: \.isNumber) else { return nil }
         // At least one operator between two numbers, so "12" or "-4" alone isn't a sum.
         let ops = Set("+-*/^")
@@ -218,7 +218,9 @@ final class SearchIndex {
     private(set) var shortcuts: [SearchItem] = []
     private var appsLoaded: Date?
     private var shortcutsLoaded: Date?
+    private var shortcutsRunning = false
     private var iconCache: [String: NSImage] = [:]
+    private var noPhoto: Set<String> = []
 
     // MARK: Apps
 
@@ -269,9 +271,12 @@ final class SearchIndex {
     /// `shortcuts list --show-identifiers` (about 60 ms), off the main thread, at most once a minute.
     func refreshShortcuts() {
         if let l = shortcutsLoaded, Date().timeIntervalSince(l) < 60 { return }
+        guard !shortcutsRunning else { return }
+        shortcutsRunning = true
         shortcutsLoaded = Date()
         Task.detached(priority: .userInitiated) {
-            let lines = Self.run("/usr/bin/shortcuts", ["list", "--show-identifiers"])
+            // A hung Shortcuts helper is stopped after 5 s instead of holding a thread for good.
+            let lines = Self.run("/usr/bin/shortcuts", ["list", "--show-identifiers"], timeout: 5)
             let items: [SearchItem] = lines.split(separator: "\n").compactMap { line in
                 // "Name (8C1D…-UUID)"
                 guard line.hasSuffix(")"), let open = line.range(of: " (", options: .backwards) else { return nil }
@@ -279,11 +284,11 @@ final class SearchIndex {
                 let id = String(line[open.upperBound..<line.index(before: line.endIndex)])
                 return SearchItem(id: "shortcut:" + id, kind: .shortcut, name: name, detail: id)
             }
-            await MainActor.run { [weak self] in self?.shortcuts = items; self?.onLoad?() }
+            await MainActor.run { [weak self] in self?.shortcutsRunning = false; self?.shortcuts = items; self?.onLoad?() }
         }
     }
 
-    nonisolated static func run(_ path: String, _ args: [String]) -> String {
+    nonisolated static func run(_ path: String, _ args: [String], timeout: TimeInterval? = nil) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
@@ -291,6 +296,7 @@ final class SearchIndex {
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { return "" }
+        if let timeout { DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { if p.isRunning { p.terminate() } } }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
         return String(decoding: data, as: UTF8.self)
@@ -304,7 +310,7 @@ final class SearchIndex {
     /// Your contacts (Islet already has Contacts access for Messages' names), off the main thread, at most once a minute.
     /// Nothing without that permission. Return opens the person in Contacts (`addressbook://<id>`).
     func refreshContacts() {
-        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { contacts = []; return }
+        guard ContactNames.allowed() else { contacts = []; return }
         if let l = contactsLoaded, Date().timeIntervalSince(l) < 60 { return }
         contactsLoaded = Date()
         Task.detached(priority: .userInitiated) {
@@ -316,7 +322,7 @@ final class SearchIndex {
     nonisolated private static func loadContacts() -> [SearchItem] {
         let keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
                                        CNContactNicknameKey as CNKeyDescriptor, CNContactOrganizationNameKey as CNKeyDescriptor,
-                                       CNContactThumbnailImageDataKey as CNKeyDescriptor, CNContactIdentifierKey as CNKeyDescriptor,
+                                       CNContactIdentifierKey as CNKeyDescriptor,
                                        CNContactPhoneNumbersKey as CNKeyDescriptor, CNContactEmailAddressesKey as CNKeyDescriptor]
         let preferred = [CNLabelPhoneNumberiPhone, CNLabelPhoneNumberMobile, CNLabelPhoneNumberMain]
         var out: [SearchItem] = []
@@ -330,7 +336,7 @@ final class SearchIndex {
             let emails = c.emailAddresses.map { $0.value as String }
             out.append(SearchItem(id: "contact:" + c.identifier, kind: .contact, name: name, detail: company,
                                   url: URL(string: "addressbook://" + c.identifier),
-                                  aliases: [c.nickname, company].filter { !$0.isEmpty }, imageData: c.thumbnailImageData,
+                                  aliases: [c.nickname, company].filter { !$0.isEmpty },
                                   phone: phone, email: emails.first, handles: phones.map { $0.value.stringValue } + emails))
         }
         return out
@@ -390,9 +396,13 @@ final class SearchIndex {
 
     func icon(for item: SearchItem) -> NSImage? {
         if item.kind == .contact {
-            guard let data = item.imageData else { return nil }
+            // Their photo is read from Contacts when first shown, not kept for everyone.
             if let i = iconCache[item.id] { return i }
-            let i = NSImage(data: data)
+            if noPhoto.contains(item.id) || !ContactNames.allowed() { return nil }
+            let id = String(item.id.dropFirst("contact:".count))
+            guard let c = try? CNContactStore().unifiedContact(withIdentifier: id, keysToFetch: [CNContactThumbnailImageDataKey as CNKeyDescriptor]),
+                  let d = c.thumbnailImageData, let i = NSImage(data: d) else { noPhoto.insert(item.id); return nil }
+            if iconCache.count > 400 { iconCache.removeAll() }
             iconCache[item.id] = i
             return i
         }
@@ -450,7 +460,8 @@ final class SearchFiles {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let library = home + "/Library/"
         var items: [SearchItem] = []
-        for i in 0..<min(q.resultCount, 600) {
+        // The filters below drop a lot (Library, build folders): look through up to 4000 until 200 are kept.
+        for i in 0..<min(q.resultCount, 4000) {
             guard let m = q.result(at: i) as? NSMetadataItem, let path = m.value(forAttribute: NSMetadataItemPathKey) as? String else { continue }
             if path.hasPrefix(library) || path.contains("/.") || Self.skipped.contains(where: path.contains) { continue }
             let url = URL(fileURLWithPath: path)
