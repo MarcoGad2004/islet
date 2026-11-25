@@ -117,10 +117,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "lockhint": notch.store.setLockScreen(true); notch.store.setLockHint(true)
         case "enrol": previewEnrolment()
         case "earbuds":
-            var demo = EarbudsReading(model: 0x2024, name: "AirPods Pro 2", pro: true, earbuds: 90, caseLevel: 50,
-                                      earbudsCharging: true, caseCharging: false, leftIn: false, leftLevel: 70, rightLevel: 90)
-            if let name = bluetooth.earbudsName(pro: true) { demo.name = name }
-            notch.store.setEarbuds(demo)
+            // Both earbuds in, then the left taken out and put back, to judge the glide between the two layouts.
+            let store = notch.store, bluetooth = bluetooth
+            Task { @MainActor in
+                var demo = EarbudsReading(model: 0x2024, name: "AirPods Pro 2", pro: true, earbuds: 90, caseLevel: 50,
+                                          earbudsCharging: true, caseCharging: false, leftLevel: 70, rightLevel: 90)
+                demo = demo.merged(with: bluetooth.earbudsDevice(pro: true))
+                store.setEarbuds(demo)
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(3))
+                    demo.leftIn = false
+                    store.setEarbuds(demo)
+                    try? await Task.sleep(for: .seconds(3))
+                    demo.leftIn = true
+                    store.setEarbuds(demo)
+                }
+            }
         case "charge": notch.store.showCharge(ChargeEvent(kind: .connected, percent: 69, minutesToFull: 72))
         case "full": notch.store.showCharge(ChargeEvent(kind: .full, percent: 100))
         case "low": notch.store.showCharge(ChargeEvent(kind: .low, percent: 20))
@@ -350,10 +362,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // An AirPods case opened beside the Mac (RESEARCH.md Q28). Listens only while the feature is on.
         earbuds.onChange = { [weak store, weak bluetooth] reading in
             guard Feature.earbuds.isOn || reading == nil else { return }
-            // Named like the Bluetooth list names them, when the paired list has it.
-            var named = reading
-            if let r = reading, let name = bluetooth?.earbudsName(pro: r.pro) { named?.name = name }
-            store?.setEarbuds(named)
+            // Named like the Bluetooth list names them, with macOS's exact charges when it has them. They arrive a moment
+            // after the case opens, so the card is made again once they have.
+            @MainActor func show(_ r: EarbudsReading?) { store?.setEarbuds(r.map { $0.merged(with: bluetooth?.earbudsDevice(pro: $0.pro)) }) }
+            show(reading)
+            guard let reading else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.2))
+                if store?.earbuds != nil { show(reading) }
+            }
         }
         earbuds.start()
         display.refresh()

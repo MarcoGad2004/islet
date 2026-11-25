@@ -805,6 +805,8 @@ macOS 27.2) while the lid, the earbuds and the case were moved on a timer:
 - Earbuds being worn send the same message with the case's charge unknown (0xF): not a case, so ignored.
 - Other people's cases are heard too (about -50 to -90 dBm; the owner's own was -25 to -42). Only the strongest source
   above -58 dBm that was heard in the last 3 s counts.
+- The broadcast's charges are in tens (it rounds down: 95% reads 90%, 53% reads 50%). While the case is connected macOS reports the exact
+  figures (System Information, as the Bluetooth page shows), so the card uses those, and the broadcast's as a fallback.
 - The name: the broadcast has none, and IOBluetooth gives the same recent-use time for every paired device, so the card
   uses the connected pair, else the one named for the Mac's user (a friend's pair can be paired too), else the only one.
 - Only checked on a Pro 2. The layout is shared by the AirPods generations, but the lid bit is unconfirmed on others.

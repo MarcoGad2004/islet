@@ -94,25 +94,27 @@ final class BluetoothController: NSObject {
         updateDetails()
     }
 
-    /// The name of the AirPods whose case just opened: "Marco's AirPods Pro", from the paired list. The broadcast is
-    /// anonymous and a friend's pair may be paired too, so: of the paired AirPods (Pro ones for a Pro case), the one
-    /// that is connected, else the one named for this Mac's user, else the only one; nil when that leaves a choice
-    /// (the card then names the model).
-    func earbudsName(pro: Bool) -> String? {
+    /// The paired AirPods whose case just opened, with the exact charge macOS reports while they are connected (the case's
+    /// own broadcast rounds down to tens). The broadcast is anonymous and a friend's pair may be paired too, so: of the
+    /// paired AirPods (Pro ones for a Pro case), the one that is connected, else the one named for this Mac's user, else
+    /// the only one; nil when that leaves a choice (the card then names the model).
+    func earbudsDevice(pro: Bool) -> (name: String, battery: BTBattery?)? {
         guard CBManager.authorization == .allowedAlways else { return nil }
-        refresh() // the names come with the next System Information read, a moment after this
-        let found = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).compactMap { d -> (name: String, connected: Bool)? in
+        refresh() // the names and charge come with the next System Information read, a moment after this
+        let found = ((IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []).compactMap { d -> (name: String, connected: Bool, battery: BTBattery?)? in
             guard let address = d.addressString else { return nil }
-            let name = details[Self.key(address)]?.name ?? d.name ?? ""
+            let info = details[Self.key(address)]
+            let name = info?.name ?? d.name ?? ""
             guard name.localizedCaseInsensitiveContains("airpods"), !name.localizedCaseInsensitiveContains("max") else { return nil }
-            return (name, d.isConnected())
+            let connected = d.isConnected()
+            return (name, connected, connected ? info?.battery : nil)
         }
         let kind = found.filter { $0.name.localizedCaseInsensitiveContains("pro") == pro }
         let pool = kind.isEmpty ? found : kind
-        if let one = Self.only(pool.filter(\.connected)) { return one.name }
+        if let one = Self.only(pool.filter(\.connected)) { return (one.name, one.battery) }
         let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
-        if !first.isEmpty, let one = Self.only(pool.filter({ $0.name.range(of: first, options: [.caseInsensitive, .diacriticInsensitive]) != nil })) { return one.name }
-        return Self.only(pool)?.name
+        if !first.isEmpty, let one = Self.only(pool.filter({ $0.name.range(of: first, options: [.caseInsensitive, .diacriticInsensitive]) != nil })) { return (one.name, one.battery) }
+        return Self.only(pool).map { ($0.name, $0.battery) }
     }
 
     private static func only<T>(_ list: [T]) -> T? { list.count == 1 ? list[0] : nil }

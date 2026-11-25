@@ -50,6 +50,23 @@ struct EarbudsReading: Equatable, Sendable {
         return ("\(base).left", "\(base).right")
     }
 
+    /// This reading with the paired device's name and, when macOS has them, its exact charges in place of the broadcast's
+    /// tens. macOS knows which earbud is which, so its left and right figures are used as they are.
+    func merged(with device: (name: String, battery: BTBattery?)?) -> EarbudsReading {
+        guard let device else { return self }
+        var r = self
+        r.name = device.name
+        if let b = device.battery {
+            if let c = b.caseLevel { r.caseLevel = c }
+            if b.left != nil || b.right != nil {
+                r.leftLevel = b.left ?? r.leftLevel
+                r.rightLevel = b.right ?? r.rightLevel
+                r.earbuds = [r.leftLevel, r.rightLevel].compactMap { $0 }.min() ?? r.earbuds
+            }
+        }
+        return r
+    }
+
     /// Reads one Apple "proximity pairing" broadcast (company 0x004C, type 0x07, 29 bytes). `open` is the case's lid
     /// (bit 3 of byte 10: clear while open, set in the burst as it closes). Earbuds on their own, in the ears, send
     /// the same message with the case's charge unknown (nibble 0xF): not a case, so nil.

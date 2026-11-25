@@ -13,9 +13,9 @@ struct EarbudsView: View {
             Text(reading.name)
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.isletSecondary)
                 .padding(.top, 8)
-            HStack(spacing: 44) {
+            HStack(spacing: 30) {
                 budsColumn
-                column(.pod, level: reading.caseLevel, charging: reading.caseCharging, label: "Case")
+                podColumn(level: reading.caseLevel, charging: reading.caseCharging)
             }
             .padding(.top, 6)
         }
@@ -25,8 +25,6 @@ struct EarbudsView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(reading.name): earbuds \(reading.earbuds.map { "\($0) percent" } ?? "unknown"), case \(reading.caseLevel.map { "\($0) percent" } ?? "unknown")")
     }
-
-    private enum Part { case buds, pod }
 
     /// An earbud's symbol, or the model's own earbuds if this macOS lacks the single one.
     private func bud(_ name: String) -> String {
@@ -48,46 +46,46 @@ struct EarbudsView: View {
         .animation(.easeOut(duration: 0.2), value: charging)
     }
 
-    private func oneBud(_ symbol: String, level n: Int?, inCase: Bool) -> some View {
-        VStack(spacing: 2) {
-            Image(systemName: bud(symbol)).font(.system(size: 30)).foregroundStyle(Color.isletText).opacity(inCase ? 1 : 0.6).frame(height: 44)
-            level(n, charging: inCase)
-        }
+    /// One earbud's picture: lit and seated while it is in the case, a little raised and fainter once it is out.
+    private func budPicture(_ symbol: String, inCase: Bool) -> some View {
+        Image(systemName: bud(symbol)).font(.system(size: 32)).foregroundStyle(Color.isletText)
+            .opacity(split && !inCase ? 0.55 : 1)
+            .offset(y: split && !inCase ? -5 : 0)
     }
 
-    @ViewBuilder private var budsColumn: some View {
-        if split {
-            VStack(spacing: 2) {
-                HStack(spacing: 14) {
-                    oneBud(reading.budSymbols.left, level: reading.leftLevel, inCase: reading.leftIn)
-                    oneBud(reading.budSymbols.right, level: reading.rightLevel, inCase: reading.rightIn)
-                }
-                Text("Earbuds").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
+    /// The earbuds' column. Together they sit side by side under one figure; with one out they part and each takes its
+    /// own figure. It is one set of pieces moving on a spring, so taking them out one at a time glides both ways.
+    private var budsColumn: some View {
+        let apart: CGFloat = split ? 34 : 9
+        return VStack(spacing: 2) {
+            ZStack {
+                budPicture(reading.budSymbols.left, inCase: reading.leftIn).offset(x: -apart)
+                budPicture(reading.budSymbols.right, inCase: reading.rightIn).offset(x: apart)
             }
-        } else {
-            column(.buds, level: reading.earbuds, charging: reading.earbudsCharging, label: "Earbuds")
-        }
-    }
-
-    @ViewBuilder private func picture(_ part: Part) -> some View {
-        switch part {
-        case .pod:
-            Image(systemName: reading.symbols.pod).font(.system(size: 38)).foregroundStyle(Color.isletText)
-        case .buds:
-            // Each earbud in its own place: lit while it sits in the case, faint once it is out.
-            HStack(spacing: 2) {
-                Image(systemName: bud(reading.budSymbols.left)).opacity(reading.leftIn ? 1 : 0.2)
-                Image(systemName: bud(reading.budSymbols.right)).opacity(reading.rightIn ? 1 : 0.2)
+            .frame(height: 44)
+            // The one figure fades out as the two part and each earbud's own fades in as it arrives under it, and back:
+            // never the three at once.
+            ZStack {
+                level(reading.earbuds, charging: reading.earbudsCharging)
+                    .opacity(split ? 0 : 1).animation(split ? .easeIn(duration: 0.1) : .easeOut(duration: 0.2).delay(0.14), value: split)
+                level(reading.leftLevel, charging: reading.leftIn)
+                    .opacity(split ? 1 : 0).animation(split ? .easeOut(duration: 0.2).delay(0.14) : .easeIn(duration: 0.1), value: split)
+                    .offset(x: split ? -34 : -9)
+                level(reading.rightLevel, charging: reading.rightIn)
+                    .opacity(split ? 1 : 0).animation(split ? .easeOut(duration: 0.2).delay(0.14) : .easeIn(duration: 0.1), value: split)
+                    .offset(x: split ? 34 : 9)
             }
-            .font(.system(size: 34)).foregroundStyle(Color.isletText)
-            .animation(.easeOut(duration: 0.25), value: reading.leftIn)
-            .animation(.easeOut(duration: 0.25), value: reading.rightIn)
+            Text("Earbuds").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
         }
+        .frame(width: 132)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78), value: split)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78), value: reading.leftIn)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78), value: reading.rightIn)
     }
 
-    private func column(_ part: Part, level: Int?, charging: Bool, label: String) -> some View {
+    private func podColumn(level: Int?, charging: Bool) -> some View {
         VStack(spacing: 2) {
-            picture(part).frame(height: 44)
+            Image(systemName: reading.symbols.pod).font(.system(size: 38)).foregroundStyle(Color.isletText).frame(height: 44)
             HStack(spacing: 3) {
                 if charging {
                     Image(systemName: "bolt.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(Color.green)
@@ -98,7 +96,7 @@ struct EarbudsView: View {
                     .foregroundStyle(!charging && (level ?? 100) <= 20 ? Color.isletRedText : Color.isletText)
             }
             .animation(.easeOut(duration: 0.2), value: charging)
-            Text(label).font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
+            Text("Case").font(.system(size: 11)).foregroundStyle(Color.isletTertiary)
         }
     }
 }

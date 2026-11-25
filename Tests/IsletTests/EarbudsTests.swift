@@ -42,6 +42,19 @@ final class EarbudsTests: XCTestCase {
         XCTAssertEqual(mirrored.leftLevel, 90); XCTAssertEqual(mirrored.rightLevel, 70)
     }
 
+    func testExactChargesFromMacOSReplaceTheBroadcastsTens() throws {
+        let r = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124205599b531000404e2e33639520216ffcd06100000"))).reading
+        XCTAssertEqual(r.earbuds, 90)
+        let merged = r.merged(with: ("Marco's AirPods Pro", BTBattery(left: 95, right: 96, caseLevel: 53)))
+        XCTAssertEqual(merged.name, "Marco's AirPods Pro")
+        XCTAssertEqual(merged.earbuds, 95)
+        XCTAssertEqual(merged.caseLevel, 53)
+        XCTAssertEqual(merged.leftLevel, 95)
+        XCTAssertEqual(merged.rightLevel, 96)
+        // Not connected (no figures): the broadcast's tens stay.
+        XCTAssertEqual(r.merged(with: ("Marco's AirPods Pro", nil)).caseLevel, 50)
+    }
+
     func testClosingBurstIsNotOpen() throws {
         let r = try XCTUnwrap(EarbudsReading.decode(data("4c0007190124205599b539000404e2e33639520216ffcd06100000")))
         XCTAssertFalse(r.open)
