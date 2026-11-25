@@ -18,30 +18,6 @@ struct SettingsLink: View {
 
 // MARK: - Detail page parts (no box: the page sits straight on the island)
 
-/// The top of a detail page: the control's icon in a circle (blue when on), its name and state, and its switch.
-private struct SwitchRow<Icon: View>: View {
-    var title: String
-    var subtitle: String?
-    var on: Bool
-    var set: (Bool) -> Void
-    @ViewBuilder var icon: () -> Icon
-    var body: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle().fill(on ? Color(hex: 0x0A84FF) : Color.white.opacity(0.12))
-                icon().foregroundStyle(.white)
-            }.frame(width: 30, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.isletText)
-                if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(Color.isletSecondary).lineLimit(1) }
-            }
-            Spacer()
-            Toggle("", isOn: Binding(get: { on }, set: set)).labelsHidden().toggleStyle(.switch).controlSize(.small).tint(.green)
-        }
-        .padding(.horizontal, 8)
-    }
-}
-
 /// A small caps label over a group of rows.
 struct SectionLabel: View {
     var text: String
@@ -216,12 +192,6 @@ struct WiFiContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SwitchRow(title: "Wi-Fi", subtitle: connectedRowShown ? nil : Self.status(wifi), on: wifi.powerOn, set: { on in
-                wifi.setPower(on)
-                if on { Task { try? await Task.sleep(for: .seconds(2)); await wifi.scan() } }
-            }) { Image(systemName: wifi.powerOn ? "wifi" : "wifi.slash").font(.system(size: 13, weight: .semibold)) }
-            .padding(.top, 6)
-            .animation(.easeOut(duration: 0.2), value: connectedRowShown)
             Group {
                 if !wifi.powerOn { message("Turn Wi-Fi on to see networks.") }
                 else if let net = asking { passwordPrompt(net) }
@@ -269,11 +239,6 @@ struct WiFiContent: View {
     }
 
 
-    /// The list below shows the connected network as its own row, so the header needn't repeat its name.
-    private var connectedRowShown: Bool {
-        wifi.powerOn && asking == nil && wifi.locationAllowed && wifi.ssid != nil && wifi.networks.contains { $0.ssid == wifi.ssid }
-    }
-
     /// "Off", "Not connected", the network, "Connected · name needs Location", or "Personal Hotspot · Marco's iPhone".
     static func status(_ wifi: WiFiController) -> String {
         guard wifi.powerOn else { return "Off" }
@@ -307,7 +272,7 @@ struct WiFiContent: View {
             VStack(spacing: 2) {
                 if wifi.scanning && wifi.networks.isEmpty && phones.isEmpty { ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 14) }
                 ForEach(current) { n in row(n) }
-                if !phones.isEmpty || !others.isEmpty { SectionLabel(text: current.isEmpty ? "NETWORKS" : "OTHER NETWORKS") }
+                if !phones.isEmpty || !others.isEmpty { SectionLabel(text: !current.isEmpty ? "OTHER NETWORKS" : wifi.ssid == nil && !wifi.nameHidden ? "NOT CONNECTED" : "NETWORKS") }
                 ForEach(phones) { h in
                     DetailRow(title: h.name, action: { Task { await wifi.join(h) } }) {
                         Image(systemName: "personalhotspot")
@@ -418,10 +383,6 @@ struct BluetoothContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SwitchRow(title: "Bluetooth", subtitle: bt.powerOn ? "On" : "Off", on: bt.powerOn, set: { bt.setPower($0) }) {
-                BluetoothGlyph().frame(width: 11, height: 16)
-            }
-            .padding(.top, 6)
             Group {
                 if !bt.powerOn {
                     Text("Turn Bluetooth on to see your devices.").font(.system(size: 12)).foregroundStyle(Color.isletSecondary)

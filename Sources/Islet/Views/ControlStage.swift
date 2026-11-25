@@ -116,14 +116,17 @@ struct ControlStage: View {
             .opacity(mode == .controls ? 1 : 0)
             .allowsHitTesting(mode == .controls)
 
-            Button { back(mode) } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold))
-                    Text(title(mode).uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.8)
-                        .contentTransition(.opacity)
-                }.foregroundStyle(Color.isletSecondary).frame(height: 26)
+            HStack(spacing: 8) {
+                Button { back(mode) } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold))
+                        Text(title(mode).uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.8)
+                            .contentTransition(.opacity)
+                    }.foregroundStyle(Color.isletSecondary).frame(height: 26)
+                }
+                .buttonStyle(.plain)
+                if mode == .wifi || mode == .bluetooth { detailSwitch(mode) }
             }
-            .buttonStyle(.plain)
             .opacity(mode == .controls ? 0 : 1)
             .allowsHitTesting(mode != .controls)
         }
@@ -132,6 +135,26 @@ struct ControlStage: View {
         .frame(width: flush ? leftBand : store.media != nil ? 196 : W - 40, height: 26, alignment: .leading)
         .offset(y: headerY)
         .opacity(headerFade)
+    }
+
+    /// The Wi-Fi and Bluetooth pages' on/off switch, beside the back title (it used to be a big row of its own), with
+    /// "Off" after it when the radio is off. Where it's connected, the list's first row says so.
+    @ViewBuilder private func detailSwitch(_ mode: Mode) -> some View {
+        let wifi = mode == .wifi
+        let on = wifi ? store.wifi?.powerOn ?? false : store.bluetooth?.powerOn ?? false
+        HStack(spacing: 6) {
+            Toggle("", isOn: Binding(get: { on }, set: { v in
+                if wifi {
+                    store.wifi?.setPower(v)
+                    if v { Task { try? await Task.sleep(for: .seconds(2)); await store.wifi?.scan() } }
+                } else { store.bluetooth?.setPower(v) }
+            })).labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(.green)
+            if !on && !flush {
+                Text("Off").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.isletTertiary).transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: on)
+        .transition(.opacity)
     }
 
     /// The header row's pieces, faded out while the pointer is behind the camera.
