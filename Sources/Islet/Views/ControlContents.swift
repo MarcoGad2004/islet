@@ -39,6 +39,8 @@ struct DetailRow<Icon: View, Trailing: View>: View {
     var noteColor = Color.isletText
     /// At the end of the note's line, under the row's trailing buttons (the speed test's button).
     var accessory: AnyView? = nil
+    /// Shown in place of `note` (the speed test's running figures, whose numbers roll on their own).
+    var noteView: AnyView? = nil
     var action: () -> Void
     @ViewBuilder var icon: () -> Icon
     @ViewBuilder var trailing: () -> Trailing
@@ -59,9 +61,12 @@ struct DetailRow<Icon: View, Trailing: View>: View {
                     trailing()
                 }
                 .frame(height: 34)
-                if note != nil || accessory != nil {
+                if note != nil || accessory != nil || noteView != nil {
                     HStack(spacing: 8) {
-                        if let note {
+                        if let noteView {
+                            noteView.font(.system(size: 11, weight: .semibold)).foregroundStyle(noteColor)
+                                .minimumScaleFactor(0.85)
+                        } else if let note {
                             Text(note).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(noteColor)
                                 .lineLimit(1).minimumScaleFactor(0.85)
                                 .contentTransition(.numericText())
@@ -291,6 +296,15 @@ struct WiFiContent: View {
         }
     }
 
+    /// While it runs, with figures: "Testing download…" and the figures, whose numbers roll on their own.
+    private var liveSpeedNote: AnyView? {
+        guard SpeedTest.shared.running, let l = SpeedTest.shared.live, l.download > 0 else { return nil }
+        return AnyView(HStack(spacing: 0) {
+            Text(l.uploading ? "Testing upload…  " : "Testing download…  ")
+            SpeedFiguresText(download: l.download, upload: l.upload, uploading: l.uploading, ping: l.ping)
+        })
+    }
+
     /// Progress, then download, upload and latency, or the error.
     private var speedNote: (text: String, color: Color)? {
         switch SpeedTest.shared.state {
@@ -368,7 +382,8 @@ struct WiFiContent: View {
         let connected = n.ssid == wifi.ssid
         let connectedHotspot = connected && wifi.hotspot
         DetailRow(title: n.ssid, selected: connected, note: connected ? speedNote?.text : nil,
-                  noteColor: speedNote?.color ?? .isletText, accessory: connected ? AnyView(speedTest) : nil, action: { tap(n) }) {
+                  noteColor: speedNote?.color ?? .isletText, accessory: connected ? AnyView(speedTest) : nil,
+                  noteView: connected ? liveSpeedNote : nil, action: { tap(n) }) {
             if n.hotspot || phone != nil || connectedHotspot { Image(systemName: "personalhotspot") }
             else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3) }
         } trailing: {

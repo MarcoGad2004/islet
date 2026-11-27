@@ -211,6 +211,10 @@ struct ShazamDrag: Equatable {
 struct SpeedPhase: Equatable {
     var uploading: Bool
     var since: Date
+    /// The figures so far (Mbps, and the loaded ping in ms), for the line where only the numbers roll.
+    var download: Double = 0
+    var upload: Double = 0
+    var ping: Double?
 }
 
 /// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.

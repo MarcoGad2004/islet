@@ -64,7 +64,9 @@ final class SpeedTest {
 
     var running: Bool { state == .running }
 
-    static func mbps(_ v: Double) -> String { (v >= 100 ? "\(Int(v.rounded()))" : String(format: "%.1f", v)) + " Mbps" }
+    static func mbps(_ v: Double) -> String { mbpsNumber(v) + " Mbps" }
+    /// "71.9", or "212" from 100 up.
+    static func mbpsNumber(_ v: Double) -> String { v >= 100 ? "\(Int(v.rounded()))" : String(format: "%.1f", v) }
     static func summary(_ r: Result) -> String { "↓ \(mbps(r.download))  ↑ \(mbps(r.upload))  \(Int(r.latency.rounded())) ms" }
 
     /// What the notch says while it runs: the download climbing, then the upload beside the final download.
@@ -82,7 +84,8 @@ final class SpeedTest {
             let l = live ?? Live()
             return ConnectionProgress(name: "Speed test", hotspot: false, state: .working(liveText(l)), icon: "speedometer",
                                       tint: l.uploading ? .speedUpload : .speedDownload,
-                                      speed: SpeedPhase(uploading: l.uploading, since: l.since))
+                                      speed: SpeedPhase(uploading: l.uploading, since: l.since, download: l.download,
+                                                        upload: l.upload, ping: l.ping))
         case .done(let r):
             return ConnectionProgress(name: "Speed test", hotspot: false, state: .done, icon: "speedometer", tint: .isletGreen,
                                       doneText: summary(r), hold: 5)

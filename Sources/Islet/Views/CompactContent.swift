@@ -47,6 +47,13 @@ struct CompactContentView: View {
                         }
                         .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
                                height: IslandLayout.levelBodyHeight).offset(y: -1)
+                    } else if levelBody, case .progress(let p) = content, let s = liveSpeed(p) {
+                        // A speed test's running figures under the wings: only the numbers roll.
+                        SpeedFiguresText(download: s.download, upload: s.upload, uploading: s.uploading, ping: s.ping)
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                            .minimumScaleFactor(0.75)
+                            .frame(width: nw + IslandLayout.wingsExtra - 2 * IslandLayout.levelSideInset,
+                                   height: IslandLayout.levelBodyHeight).offset(y: -1)
                     } else if levelBody, case .progress(let p) = content {
                         // The step, then the result, under the wings.
                         Text(p.state == .done && p.actionLabel != nil ? "\(p.text) · \(p.actionLabel!) ›" : p.text)
@@ -222,9 +229,15 @@ struct CompactContentView: View {
         case .progress(let p):
             HStack(spacing: 10) {
                 progressIcon(p).frame(width: 18)
-                Text(p.text).font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                    .monospacedDigit().contentTransition(rolls(p) ? .numericText() : .opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                if let s = liveSpeed(p) {
+                    SpeedFiguresText(download: s.download, upload: s.upload, uploading: s.uploading, ping: s.ping)
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                        .minimumScaleFactor(0.8)
+                } else {
+                    Text(p.text).font(.system(size: 13, weight: .semibold)).foregroundStyle(progressTextColor(p))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .monospacedDigit().contentTransition(rolls(p) ? .numericText() : .opacity).animation(.easeInOut(duration: 0.2), value: p.text)
+                }
                 Spacer(minLength: 4)
                 if let f = p.fraction {
                     if p.state == .done, let label = p.actionLabel { actionPill(label) }
@@ -289,7 +302,13 @@ struct CompactContentView: View {
     }
 
     /// Only a count (the download's percent) rolls its digits; a new step cross-fades.
-    private func rolls(_ p: ConnectionProgress) -> Bool { p.text.hasSuffix("%") || p.speed != nil }
+    private func rolls(_ p: ConnectionProgress) -> Bool { p.text.hasSuffix("%") }
+
+    /// A speed test with figures to show (before the first, "Testing speed…" shows as text).
+    private func liveSpeed(_ p: ConnectionProgress) -> SpeedPhase? {
+        guard case .working = p.state, let s = p.speed, s.download > 0 else { return nil }
+        return s
+    }
 
     private func isFailed(_ p: ConnectionProgress) -> Bool { if case .failed = p.state { true } else { false } }
 
@@ -338,6 +357,39 @@ struct CompactContentView: View {
         }
     }
 
+}
+
+/// The speed test's running figures, "↓ 71.9 Mbps  ↑ 16.2 Mbps  323 ms", built from pieces so only the numbers roll
+/// as they change; the arrows and units stay put.
+struct SpeedFiguresText: View {
+    var download: Double
+    var upload: Double
+    var uploading: Bool
+    var ping: Double?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("↓ ")
+            number(SpeedTest.mbpsNumber(download), download)
+            Text(" Mbps")
+            if uploading {
+                Text("  ↑ ")
+                if upload > 0 { number(SpeedTest.mbpsNumber(upload), upload) } else { Text("…") }
+                if upload > 0 { Text(" Mbps") }
+            }
+            if let ping {
+                Text("  ")
+                number("\(Int(ping.rounded()))", ping.rounded())
+                Text(" ms")
+            }
+        }
+        .monospacedDigit()
+        .lineLimit(1)
+    }
+
+    private func number(_ text: String, _ value: Double) -> some View {
+        Text(text).contentTransition(.numericText(value: value)).animation(.easeInOut(duration: 0.2), value: value)
+    }
 }
 
 /// A speed test running: a glowing bar along the notch's bottom edge, filling like a speed test's gauge. Blue through
