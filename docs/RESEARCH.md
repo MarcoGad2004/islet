@@ -251,6 +251,12 @@ If 11 or 12 can't be solved, drop face unlock from v1; the unlock animation stil
 - **8 Volume keys**: `CGEvent` tap on NX system-defined events (subtype 8), consumed so the system HUD
   doesn't show. Needs Accessibility (the tap fails without it; Settings shows its status). Outputs without
   software volume pass through to the system.
+  Volume changed without a key (AirPods' controls, Control Center, another app) is caught with CoreAudio property
+  listeners on the output's volume and mute. macOS 27 shows its own display for AirPods changes (not for CoreAudio or
+  AppleScript changes): a MenuBarAgent window, identifier `volume-system-banner`, layer 101, top right, 367 x 154. It
+  can't be hidden (2026-11-27): an Accessibility position change is accepted but MenuBarAgent puts it back within
+  milliseconds and the real window never moves; AXHidden and AXSize aren't settable; AXMinimized is accepted and does
+  nothing; the only actions are AXRaise and AXPress (on its content).
 - **9 Volume and brightness**: CoreAudio `VirtualMainVolume` and mute on the default output device.
   Brightness uses private DisplayServices (`DisplayServicesGet/SetBrightness`), which works for the
   built-in display.

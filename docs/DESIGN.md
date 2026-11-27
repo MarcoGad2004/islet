@@ -413,7 +413,7 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
 - Shows on volume, mute and brightness keys. Hides 1.5 s after the last press.
 - Also shows when the volume changes any other way (owner, 2026-11-27): AirPods' own controls, Control Center, the menu
   bar, another app or the iPhone. macOS's own display for those (macOS 27: a MenuBarAgent window, `volume-system-banner`,
-  top right) is moved off screen the moment it appears, like notification banners, so only the notch shows it.
+  top right) still shows as well: it can't be moved, hidden or closed through Accessibility (tried 2026-11-27).
 - Always the chin: icon (speaker or sun), a 16-step bar (steps 9 × 6 pt, 3 pt gaps, on
   `#F5F5F7`, off `#3A3A3C`), the value 0–100 on the right. Both use the same white.
 - Muted: speaker with a cross, bar dims (on `#636366`, off `#2C2C2E`) but keeps the level, value "Off".
