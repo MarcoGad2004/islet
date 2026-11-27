@@ -196,8 +196,10 @@ struct HotspotDetail: View {
         HStack(spacing: 6) {
             Image(systemName: "cellularbars", variableValue: Double(phone.bars) / 4)
             if let b = phone.battery {
+                // Red at a quarter or less, as a Bluetooth device's charge goes red when low.
                 Image(systemName: b >= 100 ? "battery.100" : b >= 75 ? "battery.75" : b >= 50 ? "battery.50" : b >= 25 ? "battery.25" : "battery.0")
                     .font(.system(size: size + 2))
+                    .foregroundStyle(b <= 25 ? Color.isletRedText : color)
             }
         }
         .font(.system(size: size)).foregroundStyle(color)

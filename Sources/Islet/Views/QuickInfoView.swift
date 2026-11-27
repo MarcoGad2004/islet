@@ -117,7 +117,8 @@ struct QuickInfoView: View {
                     .quickInfoPiece(.wifiName, ns)
                     .layoutPriority(1)
                 if let phone = w.connectedPhone {
-                    HotspotDetail(phone: phone, size: 11, color: .isletSecondary)
+                    // Like a Bluetooth device's charge after its name: the same size and grey.
+                    HotspotDetail(phone: phone, size: 12, color: .isletSecondary)
                 }
             }
             .lineLimit(1)
