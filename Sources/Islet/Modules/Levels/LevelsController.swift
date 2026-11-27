@@ -37,6 +37,10 @@ final class LevelsController {
     @ObservationIgnored private var swallowRepeats = false
     /// The nudge, hold or unlock showing at 100 (XDR Macs).
     @ObservationIgnored private var cue: XDRCue?
+    /// Reading the brightness again and again while the panel shows (`followBrightness`).
+    @ObservationIgnored private var followTask: Task<Void, Never>?
+    /// When the slider last set the brightness: the readings leave it alone for a moment, so a drag isn't fought.
+    @ObservationIgnored private var lastSet = Date.distantPast
 
     // MARK: Setup
 
@@ -332,6 +336,25 @@ final class LevelsController {
         // The slider covers 0...100: moving it leaves extended brightness.
         if extended.isOn { extended.stop(); brightnessExtra = 0; onExtendedChange?() }
         displayServices.set(displayID, Float(b)); brightness = b
+        lastSet = Date()
+    }
+
+    /// While the panel shows, the brightness slider follows the screen as macOS changes it (auto-brightness, True
+    /// Tone's ambient changes, another app), reading it about 7 times a second; macOS sends no notice for these.
+    /// The reading is one quick DisplayServices call. Not while the slider was just moved, a face scan's pulse runs,
+    /// or extended brightness is on (it holds the screen at 100 itself).
+    func followBrightness(_ on: Bool) {
+        followTask?.cancel(); followTask = nil
+        guard on else { return }
+        followTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard let self, !Task.isCancelled else { return }
+                guard Date().timeIntervalSince(lastSet) > 0.6, boostRestore == nil, !extended.isOn,
+                      let b = displayServices.get(displayID).map(Double.init), abs(b - brightness) > 0.002 else { continue }
+                brightness = b
+            }
+        }
     }
 
     /// The Display page's Turn Off: back to 100.

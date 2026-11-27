@@ -88,7 +88,9 @@ struct ControlStage: View {
             default: break
             }
         }
-        .onDisappear { store.stopPanelHotspotBrowsing() }
+        // The brightness slider follows the screen live while the panel shows (auto-brightness changes it quietly).
+        .onAppear { store.levels?.followBrightness(true) }
+        .onDisappear { store.stopPanelHotspotBrowsing(); store.levels?.followBrightness(false) }
         // The Wi-Fi page keeps its list fresh: a scan every 15 s while it is open (the first one starts on opening).
         .task(id: mode == .wifi) {
             guard mode == .wifi else { return }
