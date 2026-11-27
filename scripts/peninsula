@@ -7,20 +7,23 @@
 #                                    2) release the next version (or resume a release that stopped)
 #                                    3) go back to the released build (shown while something else is installed)
 #   peninsula install      1, without the menu (asks nothing)
-#   peninsula release      2, without the menu (asks the version and "Start?")
+#   peninsula release      2, without the menu (asks the version, and whether to install it when it's out)
 #   peninsula revert       3, without the menu (asks nothing)
 #   peninsula status       the menu's header only
 #   peninsula dmg [--app-only]   build the current tree into signed, notarized DMGs (no version change, no
 #                                  upload); --app-only stops at the signed app in build/dmg-derived
 #
-# release options: --no-upload stops once both DMGs are ready (the version change is left uncommitted, and running
-# release again carries on from there).
+# release [<version>] [--install | --no-install] [--no-upload]: the questions are asked first, and only those whose
+# answer wasn't given here; after them the release runs unattended (the Mac is kept awake, network steps are retried,
+# and a notification says when it is done or why it stopped). --no-upload stops once both DMGs are ready (the version
+# change is left uncommitted, and running release again carries on from there).
 #
 # Installing: the app goes to /Applications/Dynamic Peninsula.app, replacing the copy there in place. It is always
 # signed with the Developer ID certificate, the same as releases, so the permissions macOS gave it carry over. Build
 # folders and Islet's DerivedData are deleted afterwards, so the only copy of the app is the one in /Applications.
 #
-# Releasing (outward-facing: run it only when you mean it). It checks everything first, then sets the version and
+# Releasing (outward-facing: run it only when you mean it). The version you confirm is the go-ahead: it then checks
+# everything, prints its plan and carries on with no more questions. It sets the version and
 # build in project.yml and dates the version's CHANGELOG.md heading with today's date. Then it gets both DMGs ready:
 #   - each DMG in dist/ is opened and checked on its own (version, build, the commit it was built from, signatures);
 #     one that is notarized is reused, one that only needs notarizing is notarized, and only a missing or stale one is
@@ -98,14 +101,34 @@ fail() {
   if [ -n "$LOG" ] && [ -s "$LOG" ]; then
     local errors; errors=$(grep -E "error:|Error:|FAILED|failed" "$LOG" | sort -u | tail -12 || true)
     [ -n "$errors" ] || errors=$(tail -8 "$LOG")
-    echo "$errors" | sed 's/^/    /' >&2
+    echo "$errors" | cut -c1-200 | sed 's/^/    /' >&2
     echo "    Full log: $LOG" >&2
   fi
   if $RELEASING && ! $PUBLIC; then
     echo "  Nothing is public yet. Fix the cause and run peninsula release again: finished steps are skipped." >&2
   fi
+  notify "Dynamic Peninsula: stopped" "${STEP:-Stopped}: $1"
   STEP=""
   exit 1
+}
+
+# A macOS notification, for unattended runs (NOTIFY=true once the questions are answered).
+NOTIFY=false
+notify() {
+  $NOTIFY || return 0
+  local t="${1//\"/}" m="${2//\"/}"
+  osascript -e "display notification \"${m:0:200}\" with title \"$t\"" > /dev/null 2>&1 || true
+}
+
+# One readable line for why a network command failed: short_error <log>
+short_error() {
+  if grep -qiE "connectTimeout|timed out|timeout" "$1" 2> /dev/null; then echo "the connection timed out"
+  elif grep -qiE "could not resolve|resolve host|offline|network.*(lost|unreachable)|NSURLErrorDomain" "$1" 2> /dev/null; then echo "no network connection"
+  elif grep -qiE "HTTP 5[0-9][0-9]|50[234]|Service Unavailable|Bad Gateway" "$1" 2> /dev/null; then echo "the server had an error"
+  else
+    local last; last=$( (grep -v '^[[:space:]]*$' "$1" 2> /dev/null || true) | tail -1 | cut -c1-160)
+    echo "${last:-it failed}"
+  fi
 }
 
 # Runs a command in the background with the live line ticking: run_live <text> <log> <command...>
@@ -116,6 +139,21 @@ run_live() {
   local pid=$!; BG+=("$pid")
   while kill -0 "$pid" 2> /dev/null; do live "$text"; sleep 1; done
   wait "$pid"
+}
+
+# run_live, tried again after 30 s, 60 s... when it fails (for network steps): retry_live <tries> <text> <log> <command...>
+retry_live() {
+  local tries="$1" text="$2" log="$3" n=1 pause t0; shift 3
+  while :; do
+    if run_live "$text" "$log" "$@"; then return 0; fi
+    [ "$n" -ge "$tries" ] && return 1
+    pause=$((n * 30))
+    warn "$text: $(short_error "$log"). Trying again in ${pause}s (attempt $((n + 1)) of $tries)"
+    cp "$log" "$log.attempt$n" 2> /dev/null || true
+    t0=$SECONDS
+    while [ $((SECONDS - t0)) -lt "$pause" ]; do live "$text: trying again in $((pause - SECONDS + t0))s"; sleep 1; done
+    n=$((n + 1))
+  done
 }
 
 MOUNTS=()
@@ -493,33 +531,55 @@ pack() { # <index> <source .app>
   ok "Packed" "$(basename "$f") ($(size_of "$f"))"
 }
 
+# Sends one DMG to Apple, trying again after 30, 60 and 90 s when the upload fails (run in the background).
+submit_dmg() {
+  local i=$1 n
+  : > "$LOGDIR/notary-$i.attempts"
+  for n in 1 2 3 4; do
+    if xcrun notarytool submit "${DMG_FILES[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+        > "$LOGDIR/notary-$i.json" 2> "$LOGDIR/notary-$i.err"; then return 0; fi
+    echo "$(short_error "$LOGDIR/notary-$i.err")" >> "$LOGDIR/notary-$i.attempts"
+    [ "$n" -lt 4 ] && sleep $((n * 30))
+  done
+  return 1
+}
+
 # Sends the given DMGs to Apple at the same time and waits for all of them: notarize <index>...
 notarize() {
-  local idx=("$@") i ids=() states=() pids=() st last=-100 text
+  local idx=("$@") i ids=() states=() pids=() tries=() st last=-100 text failed=""
   step "Notarizing" "uploading to Apple"
   for i in "${idx[@]}"; do
-    xcrun notarytool submit "${DMG_FILES[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json \
-      > "$LOGDIR/notary-$i.json" 2> "$LOGDIR/notary-$i.err" &
-    pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; ids[$i]=""
+    submit_dmg "$i" &
+    pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; ids[$i]=""; tries[$i]=0
   done
   while :; do
     local waiting=false
     for i in "${idx[@]}"; do
+      local name; name=$(basename "${DMG_FILES[$i]}")
       if [ "${states[$i]}" = uploading ]; then
+        local a; a=$(wc -l < "$LOGDIR/notary-$i.attempts" 2> /dev/null | xargs || echo 0)
+        if [ "${a:-0}" -gt "${tries[$i]}" ]; then
+          tries[$i]=$a
+          [ "$a" -lt 4 ] && warn "sending $name: $(tail -1 "$LOGDIR/notary-$i.attempts"). Trying again in $((a * 30))s (attempt $((a + 1)) of 4)"
+        fi
         if kill -0 "${pids[$i]}" 2> /dev/null; then waiting=true; continue; fi
-        if ! wait "${pids[$i]}"; then LOG="$LOGDIR/notary-$i.err"; fail "couldn't send $(basename "${DMG_FILES[$i]}") to Apple"; fi
+        if ! wait "${pids[$i]}"; then
+          states[$i]="failed"; failed="$failed${failed:+, }$name ($(tail -1 "$LOGDIR/notary-$i.attempts"))"
+          warn "couldn't send $name to Apple after 4 tries; waiting for the rest before stopping"
+          continue
+        fi
         ids[$i]=$(plutil -extract id raw -o - "$LOGDIR/notary-$i.json" 2> /dev/null || true)
-        [ -n "${ids[$i]}" ] || { LOG="$LOGDIR/notary-$i.json"; fail "Apple gave no submission ID for $(basename "${DMG_FILES[$i]}")"; }
+        if [ -z "${ids[$i]}" ]; then states[$i]="failed"; failed="$failed${failed:+, }$name (no submission ID)"; continue; fi
         states[$i]="In Progress"; last=-100
-        say "$(basename "${DMG_FILES[$i]}") sent to Apple (submission ${ids[$i]})"
+        say "$name sent to Apple (submission ${ids[$i]})"
       fi
-      [ "${states[$i]}" = Accepted ] || waiting=true
+      case "${states[$i]}" in Accepted|failed) ;; *) waiting=true ;; esac
     done
     $waiting || break
     if [ $((SECONDS - last)) -ge 15 ]; then
       last=$SECONDS
       for i in "${idx[@]}"; do
-        case "${states[$i]}" in uploading|Accepted) continue ;; esac
+        case "${states[$i]}" in uploading|Accepted|failed) continue ;; esac
         st=$(xcrun notarytool info "${ids[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json 2> /dev/null \
           | plutil -extract status raw -o - - 2> /dev/null || true)
         [ -n "$st" ] || continue
@@ -533,19 +593,22 @@ notarize() {
       done
     fi
     text=""
-    for i in "${idx[@]}"; do text="$text${text:+ · }$(basename "${DMG_FILES[$i]}" .dmg): ${states[$i]}"; done
+    for i in "${idx[@]}"; do
+      st="${states[$i]}"; [ "$st" = uploading ] && [ "${tries[$i]}" -gt 0 ] && st="uploading (attempt $((tries[$i] + 1)))"
+      text="$text${text:+ · }$(basename "${DMG_FILES[$i]}" .dmg): $st"
+    done
     live "$text"
     sleep 2
   done
-  ok "Notarized" "$(for i in "${idx[@]}"; do printf "%s " "$(basename "${DMG_FILES[$i]}")"; done)accepted by Apple"
-  step "Stapling" ""
+  if [ -n "$failed" ]; then
+    LOG=""; fail "couldn't send to Apple: $failed. Accepted DMGs are kept: the next run only sends the rest"
+  fi
   for i in "${idx[@]}"; do
-    live "$(basename "${DMG_FILES[$i]}")"
     LOG="$LOGDIR/staple-$i.log"
     xcrun stapler staple "${DMG_FILES[$i]}" > "$LOG" 2>&1 || fail "couldn't staple $(basename "${DMG_FILES[$i]}")"
     DMG_STATE[$i]=ready
   done
-  ok "Stapled" "the notarization tickets are inside the DMGs"
+  ok "Notarized" "$(for i in "${idx[@]}"; do printf "%s " "$(basename "${DMG_FILES[$i]}")"; done)accepted by Apple, tickets stapled"
 }
 
 # Gets both DMGs to "ready", doing only what each one needs.
@@ -610,13 +673,48 @@ ask() { # <prompt>: sets REPLY_TEXT; q cancels
 }
 
 cmd_release() {
-  local NO_UPLOAD=false a
+  local NO_UPLOAD=false INSTALL="" V_ARG="" a
   for a in "$@"; do
-    case "$a" in --no-upload) NO_UPLOAD=true ;; *) echo "Unknown option: $a" >&2; exit 1 ;; esac
+    case "$a" in
+      --no-upload) NO_UPLOAD=true ;;
+      --install) INSTALL=true ;;
+      --no-install) INSTALL=false ;;
+      [0-9]*) V_ARG="$a" ;;
+      *) echo "Unknown option: $a" >&2; exit 1 ;;
+    esac
   done
-  [ -t 0 ] || { echo "release asks questions: run it in a terminal." >&2; exit 1; }
+  $NO_UPLOAD && INSTALL=false
 
-  # 1. Everything that doesn't depend on the version.
+  # 1. The questions, all up front: after them the release runs on its own.
+  read_changelog; load_pending; load_releases
+  local default="${PENDING_V:-$NEXT}"
+  if [ -n "$V_ARG" ]; then
+    V="$V_ARG"
+  else
+    [ -t 0 ] || { echo "release asks the version: run it in a terminal, or give it: peninsula release 1.8" >&2; exit 1; }
+    echo "Released: ${PUB_V:-nothing yet} · newest CHANGELOG section: ${NEXT:-none}"
+    ask "Version to release [${default}]: "
+    V="${REPLY_TEXT:-$default}"
+    if [ "$V" != "$default" ]; then
+      ask "Type $V again to confirm: "
+      [ "$REPLY_TEXT" = "$V" ] || { echo "They don't match: nothing was changed."; exit 1; }
+    fi
+  fi
+  echo "$V" | grep -qE '^[0-9]+(\.[0-9]+)*$' || { echo "\"$V\" isn't a version like 1.8 or 1.7.5." >&2; exit 1; }
+  if [ -z "$INSTALL" ]; then
+    if [ -t 0 ]; then
+      ask "Install it on this Mac once it's released? [Y/n]: "
+      case "$REPLY_TEXT" in n|N|no|No) INSTALL=false ;; *) INSTALL=true ;; esac
+    else INSTALL=false; fi
+  fi
+  echo
+  echo "${DIM}No more questions: it runs on its own from here, keeps the Mac awake, and sends a notification when it's${OFF}"
+  echo "${DIM}done or if it stops. Ctrl-C stops it; nothing is public until the publish step.${OFF}"
+  echo
+  NOTIFY=true
+  caffeinate -i -s -w $$ > /dev/null 2>&1 &
+
+  # 2. Everything that can be wrong, before anything is changed.
   step "Checking" "tools, GitHub, git, certificates"
   local problems=() tool
   for tool in gh xcodegen xcrun; do command -v "$tool" > /dev/null || problems+=("$tool isn't installed"); done
@@ -624,35 +722,17 @@ cmd_release() {
   gh auth status > /dev/null 2>&1 || problems+=("gh isn't signed in (gh auth login)")
   [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || problems+=("not on main: releases are made from main")
   live "fetching origin/main"
-  if git fetch -q origin main 2> /dev/null; then
+  if git fetch -q origin main 2> /dev/null || { sleep 10; git fetch -q origin main 2> /dev/null; }; then
     git merge-base --is-ancestor origin/main HEAD || problems+=("main is behind origin/main: pull first")
   else problems+=("couldn't fetch origin (offline?)"); fi
   [ -n "$DEVID" ] || problems+=("no \"Developer ID Application\" certificate in the Keychain")
   live "notary profile"
   xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1 \
-    || problems+=("the \"$NOTARY_PROFILE\" notary profile doesn't work (see peninsula help)")
-  live "GitHub releases"
-  load_releases; read_changelog; load_pending
-  if [ "${#problems[@]}" -gt 0 ]; then
-    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done; STEP=""; exit 1
-  fi
-  ok "Checked" "gh signed in · main up to date with origin · Developer ID and notary profile work"
-
-  # 2. The version.
-  local default="${PENDING_V:-$NEXT}"
-  echo
-  echo "Released: ${PUB_V:-nothing yet} · newest CHANGELOG section: ${NEXT:-none}"
-  ask "Version to release [${default}]: "
-  V="${REPLY_TEXT:-$default}"
-  if [ "$V" != "$default" ]; then
-    ask "Type $V again to confirm: "
-    [ "$REPLY_TEXT" = "$V" ] || { echo "They don't match: nothing was changed."; exit 1; }
-  fi
-  echo "$V" | grep -qE '^[0-9]+(\.[0-9]+)*$' || { echo "\"$V\" isn't a version like 1.8 or 1.7.5." >&2; exit 1; }
-  echo
-
-  step "Checking" "the $V release"
-  problems=()
+    || { sleep 10; xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1; } \
+    || problems+=("the \"$NOTARY_PROFILE\" notary profile doesn't work, or Apple can't be reached (see peninsula help)")
+  $RELEASES_OK || load_releases
+  $RELEASES_OK || problems+=("couldn't list the GitHub releases")
+  live "the $V release"
   grep -qE "^## $V( |\$)" CHANGELOG.md || problems+=("CHANGELOG.md has no \"## $V\" section: add one first")
   NOTES="$LOGDIR/notes-$V.md"
   awk -v v="$V" '$1 == "##" && $2 == v {on = 1; next} /^## / {on = 0} on' CHANGELOG.md > "$NOTES"
@@ -689,18 +769,21 @@ cmd_release() {
     $committed || problems+=("the tag v$V already exists on another commit")
   fi
   if [ "${#problems[@]}" -gt 0 ]; then
-    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done; STEP=""; exit 1
+    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done
+    echo "  Nothing was changed." >&2
+    notify "Dynamic Peninsula: release not started" "${problems[0]}"
+    STEP=""; exit 1
   fi
   local i
   for i in 0 1; do live "opening $(basename "${DMG_FILES[$i]}")"; check_dmg "$i"; done
-  ok "Checked" "$V (build $B) · CHANGELOG section found"
+  ok "Checked" "$V (build $B) · gh, git, Developer ID and notary profile OK · CHANGELOG section found"
 
-  # 3. The plan, then Start?
+  # 3. The plan (what each part needs), then straight on.
   local today old_date
   today=$(date +%Y-%m-%d)
   old_date=$( (grep -m1 -E "^## $V( |\$)" CHANGELOG.md || true) | sed -n 's/^## [^ ]* (\(.*\)).*/\1/p')
   echo
-  echo "${BOLD}Release $APP_NAME $V (build $B)${OFF}"
+  echo "${BOLD}Releasing $APP_NAME $V (build $B)${OFF}"
   if [ "$old_date" = "$today" ]; then echo "  CHANGELOG   \"## $V\" is dated today ($today)"
   else echo "  CHANGELOG   \"## $V\" gets today's date, $today${old_date:+ (it says $old_date)}"; fi
   for i in 0 1; do printf "  %-11s %s\n" "$(basename "${DMG_FILES[$i]}" .dmg)" "${DMG_NOTE[$i]}"; done
@@ -708,7 +791,7 @@ cmd_release() {
   elif $draft; then echo "  GitHub      the draft v$V gets the notes and any DMG it doesn't have yet, then is published"
   else echo "  GitHub      a draft v$V with both DMGs and the notes, published once the commit and tag are pushed"; fi
   $committed && echo "  Git         \"Version $V\" is already committed"
-  ask "Start? Enter to go, q to cancel: "
+  if $INSTALL; then echo "  This Mac    the released $V is installed at the end"; fi
   echo
   RELEASING=true
 
@@ -727,18 +810,14 @@ cmd_release() {
     echo
     echo "${BOLD}DMGs ready${OFF} in dist/ (--no-upload). project.yml and CHANGELOG.md keep the $V change uncommitted;"
     echo "peninsula release carries on from here."
+    notify "Dynamic Peninsula $V DMGs ready" "Notarized in dist/ (--no-upload)."
     return 0
   fi
 
   # 6. The draft release.
   step "GitHub draft" "v$V"
-  if $draft; then
-    run_live "updating the draft's title and notes" "$LOGDIR/gh.log" \
-      gh release edit "v$V" --title "$APP_NAME $V" --notes-file "$NOTES" || fail "couldn't update the draft"
-  else
-    run_live "creating a draft" "$LOGDIR/gh.log" \
-      gh release create "v$V" --draft --title "$APP_NAME $V" --notes-file "$NOTES" || fail "couldn't create the draft"
-  fi
+  retry_live 3 "$($draft && echo "updating the draft's notes" || echo "creating a draft")" "$LOGDIR/gh.log" make_draft \
+    || fail "couldn't $($draft && echo "update" || echo "create") the draft"
   local digests remote
   digests=$(gh release view "v$V" --json assets --jq '.assets[] | [.name, (.digest // "")] | @tsv' 2> /dev/null || true)
   for i in 0 1; do
@@ -746,7 +825,7 @@ cmd_release() {
     if [ -n "$remote" ] && [ "$remote" = "sha256:$(sha "${DMG_FILES[$i]}")" ]; then
       say "$(basename "${DMG_FILES[$i]}") is on the draft already (same checksum): not uploaded again"
     else
-      run_live "uploading $(basename "${DMG_FILES[$i]}") ($(size_of "${DMG_FILES[$i]}"))" "$LOGDIR/gh-upload-$i.log" \
+      retry_live 4 "uploading $(basename "${DMG_FILES[$i]}") ($(size_of "${DMG_FILES[$i]}"))" "$LOGDIR/gh-upload-$i.log" \
         gh release upload "v$V" "${DMG_FILES[$i]}" --clobber || fail "couldn't upload ${DMG_FILES[$i]}"
       say "$(basename "${DMG_FILES[$i]}") uploaded"
     fi
@@ -760,12 +839,12 @@ cmd_release() {
     git commit -q -m "Version $V" -- "${RELEASE_FILES[@]}" > "$LOG" 2>&1 || fail "git commit failed"
   fi
   git rev-parse -q --verify "refs/tags/v$V" > /dev/null || git tag "v$V"
-  run_live "pushing main and v$V" "$LOGDIR/push.log" git push -q origin main "v$V" || fail "git push failed"
+  retry_live 3 "pushing main and v$V" "$LOGDIR/push.log" git push -q origin main "v$V" || fail "git push failed"
   ok "Pushed" "$(git rev-parse --short HEAD) \"Version $V\" and the tag v$V"
 
   # 8. Publish.
   step "Publishing" "v$V"
-  run_live "publishing v$V" "$LOGDIR/gh.log" gh release edit "v$V" --draft=false --latest || fail "couldn't publish the draft"
+  retry_live 3 "publishing v$V" "$LOGDIR/gh.log" gh release edit "v$V" --draft=false --latest || fail "couldn't publish the draft"
   PUBLIC=true
   local url; url=$(gh release view "v$V" --json url -q .url 2> /dev/null || echo "v$V")
   ok "Published" "$url"
@@ -784,16 +863,24 @@ cmd_release() {
   else warn "GitHub's newest release with the DMG is still ${top:-unknown}, not $V: check the release page"; STEP=""; fi
   clean_builds
 
+  RELEASING=false
+  if $INSTALL; then
+    install_from_dmg "${DMG_FILES[0]}" "$V"
+    launch_app
+  fi
   echo
   echo "${BOLD}Released $APP_NAME $V${OFF} (build $B): $url"
-  echo
-  ask "Install the released $V on this Mac now? Enter to install, n to skip: "
-  case "$REPLY_TEXT" in n|N|no) echo "Not installed."; return 0 ;; esac
-  RELEASING=false
-  install_from_dmg "${DMG_FILES[0]}" "$V"
-  launch_app
-  echo
-  echo "${BOLD}Installed${OFF} the released $V."
+  if $INSTALL; then echo "This Mac runs the released $V."; fi
+  notify "Dynamic Peninsula $V released" "$($INSTALL && echo "Installed on this Mac. ")$url"
+}
+
+# The draft release with the title and notes: created, or updated when it exists (so a retry never makes two).
+make_draft() {
+  if gh release view "v$V" > /dev/null 2>&1; then
+    gh release edit "v$V" --title "$APP_NAME $V" --notes-file "$NOTES"
+  else
+    gh release create "v$V" --draft --title "$APP_NAME $V" --notes-file "$NOTES"
+  fi
 }
 
 # ---------------------------------------------------------------- menu

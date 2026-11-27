@@ -48,7 +48,8 @@ offers a menu. Keep exactly ONE copy of the app on the Mac: `/Applications/Dynam
   relaunches it, and says what is installed. Never launch a test build from a build folder.
 - `peninsula revert` puts the released build back (downloaded from GitHub and checked) when testing is done.
 - `peninsula status` shows the state without changing anything.
-- Releasing: `peninsula release`, only when the owner asks. It asks questions, so the owner runs it in a
+- Releasing: `peninsula release`, only when the owner asks. It asks the version (and whether to install it) first,
+  then runs unattended; the owner runs it in a
   terminal (hand them the command). It is resumable and reuses DMGs that are already notarized.
 
 For your own build checks (compiling, running tests) use a throwaway `-derivedDataPath` and delete it afterwards.
