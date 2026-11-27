@@ -917,8 +917,9 @@ docs/mockups/quick-info.html).
   wing: the time (13 semibold, no AM/PM) over the date (9.5, `secondary`, "Sat, Nov 21"). Right wing: the percentage
   (11.5 semibold) over the battery (the battery page's glyph, 28 × 13; green while plugged in, red at 20% or less, a bolt
   plugged in). Each centred in its wing, so they mirror. Body: Wi-Fi (icon and network, 12 semibold; the hotspot icon
-  for a hotspot; "Not connected" or "Wi-Fi Off" with the crossed-out icon) and the connected Bluetooth device ("2
-  devices" for more; left out when none), centred together 24 pt apart.
+  for a hotspot; "Not connected" or "Wi-Fi Off" with the crossed-out icon) and, on a 24 pt line of its own below (the
+  body grows to 50), the connected Bluetooth device ("2 devices" for more; left out when none, and the body stays
+  26), each centred (owner, 2026-11-27; until 1.7.5 they shared the row, 24 pt apart).
 - **Chin** (no room): the notch as the stem, a 340 × 82 body (top 16, bottom 18, 10 pt curves). First row, 18 pt in:
   the time and date on the left, the battery and percentage on the right. Then Wi-Fi and Bluetooth on a 22 pt line
   each, left-aligned 18 pt in with the icons in a 16 pt column, so long names fit (owner, 2026-11-27; until 1.7.5 they

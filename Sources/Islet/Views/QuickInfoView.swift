@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Quick info (DESIGN.md "Quick info"): hovering an idle notch shows the time and date, the battery, and what Wi-Fi
 /// and Bluetooth are connected to. In the wide bar: the time over the date in the left wing, the percentage over the
-/// battery in the right, Wi-Fi and Bluetooth centred together in the body. In the chin: the time, date and battery on
+/// battery in the right, Wi-Fi and Bluetooth centred in the body, a line each. In the chin: the time, date and battery on
 /// the first row, then Wi-Fi and Bluetooth on a line each, so long names fit (owner, 2026-11-27). On a phone's
 /// hotspot, the phone's cellular bars and battery follow the network's name. Opening the panel from here, the Wi-Fi, Bluetooth and battery
 /// pieces glide to their tiles and the header chip (matched by `QuickInfoPiece`).
@@ -24,9 +24,13 @@ struct QuickInfoView: View {
                         battery(stacked: true).frame(width: 60)
                     }
                     .frame(height: nh)
-                    connections(room: nw + 120 - 40)
-                        .frame(height: IslandLayout.levelBodyHeight)
-                        .offset(y: -1)
+                    // Wi-Fi, then Bluetooth on a line of its own below (the body grows by `quickBarLine`).
+                    VStack(spacing: 0) {
+                        wifi.frame(height: IslandLayout.levelBodyHeight)
+                        if let b = bluetooth { b.frame(height: CGFloat(IslandLayout.quickBarLine)) }
+                    }
+                    .frame(maxWidth: nw + 120 - 40)
+                    .offset(y: -1)
                 }
             } else {
                 VStack(spacing: 0) {
@@ -94,15 +98,6 @@ struct QuickInfoView: View {
     }
 
     // MARK: Wi-Fi and Bluetooth
-
-    /// Both, centred together; Wi-Fi alone takes the row (the wide bar).
-    private func connections(room: CGFloat) -> some View {
-        HStack(spacing: 24) {
-            wifi
-            bluetooth
-        }
-        .frame(maxWidth: room)
-    }
 
     /// The Wi-Fi icon and network; on a phone's hotspot, the phone's signal and battery after it.
     @ViewBuilder private var wifi: some View {

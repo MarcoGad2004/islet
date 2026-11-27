@@ -51,6 +51,8 @@ enum IslandLayout {
     static let quickChinWidth: Double = 340
     static let quickChinHeight: Double = 82
     static let quickChinLine: Double = 22
+    /// Quick info's wide bar: the body grows by this for the Bluetooth line under Wi-Fi.
+    static let quickBarLine: Double = 24
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150

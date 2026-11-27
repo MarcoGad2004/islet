@@ -362,6 +362,7 @@ final class IslandStore {
             if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
         }
         if presentation == .quickChin, !QuickInfoView.showsBluetooth(self) { m.bh -= IslandLayout.quickChinLine }
+        if presentation == .quickBar, QuickInfoView.showsBluetooth(self) { m.bh += IslandLayout.quickBarLine }
         if case .shazam(let s)? = content, presentation == .shazam {
             typealias L = IslandLayout
             if s.song != nil {
