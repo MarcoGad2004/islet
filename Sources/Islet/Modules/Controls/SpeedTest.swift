@@ -25,10 +25,22 @@ final class SpeedTest {
 
     enum State: Equatable { case idle, running, done(Result), failed(String) }
 
+    /// One redraw of the tool's running line: throughput in Mbps and responsiveness in round trips a minute (RPM),
+    /// for the download and the upload.
+    struct Figures: Equatable {
+        var download: Double
+        var downloadRPM: Double
+        var upload: Double
+        var uploadRPM: Double
+    }
+
     /// The figures so far while a test runs: download, then upload (Mbps), and when each phase began.
     struct Live: Equatable {
         var download: Double = 0
         var upload: Double = 0
+        /// The ping right now, in ms: the round trip while the link is loaded (60,000 / the phase's RPM), so higher
+        /// than the idle latency the result reports. nil until the tool has measured one.
+        var ping: Double?
         var uploading = false
         var since = Date()
     }
@@ -58,7 +70,8 @@ final class SpeedTest {
     /// What the notch says while it runs: the download climbing, then the upload beside the final download.
     static func liveText(_ l: Live?) -> String {
         guard let l, l.download > 0 else { return "Testing speed…" }
-        return l.uploading ? "↓ \(mbps(l.download))  ↑ \(l.upload > 0 ? mbps(l.upload) : "…")" : "↓ \(mbps(l.download))"
+        let speeds = l.uploading ? "↓ \(mbps(l.download))  ↑ \(l.upload > 0 ? mbps(l.upload) : "…")" : "↓ \(mbps(l.download))"
+        return l.ping.map { "\(speeds)  \(Int($0.rounded())) ms" } ?? speeds
     }
 
     private static func progress(_ s: State, live: Live?) -> ConnectionProgress? {
@@ -160,11 +173,13 @@ final class SpeedTest {
         return a
     }
 
-    private func update(_ p: Process, _ figures: (download: Double, upload: Double)) {
+    private func update(_ p: Process, _ figures: Figures) {
         guard process === p, state == .running, var l = live else { return }
         if !l.uploading && figures.upload > 0 { l.uploading = true; l.since = Date() }
         l.download = figures.download
         l.upload = figures.upload
+        let rpm = l.uploading ? figures.uploadRPM : figures.downloadRPM
+        if rpm > 0 { l.ping = 60_000 / rpm } // the upload's first readings have none yet: the download's stays
         guard l != live else { return }
         live = l
         show()
@@ -182,11 +197,14 @@ final class SpeedTest {
 
     /// The newest "Downlink: 71.2 Mbps, 186 RPM - Uplink: 0.000 Mbps, 0 RPM" in what the tool printed (it redraws
     /// one line with carriage returns).
-    nonisolated static func parseLive(_ text: String) -> (download: Double, upload: Double)? {
+    nonisolated static func parseLive(_ text: String) -> Figures? {
         for line in text.split(whereSeparator: { $0 == "\r" || $0 == "\n" }).reversed() {
             // Only a whole line (a read can end mid-number).
             guard line.hasSuffix("RPM") else { continue }
-            if let d = number(after: "Downlink: ", in: line), let u = number(after: "Uplink: ", in: line) { return (d, u) }
+            if let d = number(after: "Downlink: ", in: line), let u = number(after: "Uplink: ", in: line),
+               let dr = number(after: " Mbps, ", in: line.prefix { $0 != "-" }), let ur = number(after: " Mbps, ", in: line) {
+                return Figures(download: d, downloadRPM: dr, upload: u, uploadRPM: ur)
+            }
         }
         return nil
     }

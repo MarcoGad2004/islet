@@ -88,7 +88,7 @@ struct ControlStage: View {
             default: break
             }
         }
-        .onDisappear { store.wifi?.stopBrowsingHotspots() }
+        .onDisappear { store.stopPanelHotspotBrowsing() }
         // The Wi-Fi page keeps its list fresh: a scan every 15 s while it is open (the first one starts on opening).
         .task(id: mode == .wifi) {
             guard mode == .wifi else { return }

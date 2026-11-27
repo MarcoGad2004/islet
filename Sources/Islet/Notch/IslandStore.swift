@@ -275,6 +275,14 @@ final class IslandStore {
         return true
     }
 
+    /// The panel closing ends its hotspot browsing, unless quick info already came up under the pointer and shows the
+    /// hotspot's phone: the panel's page disappears after its fade, by when quick info has asked for the same browsing,
+    /// and stopping it then would take the phone's signal and battery away until the next hover. Its own minute runs on.
+    func stopPanelHotspotBrowsing() {
+        if quickInfo, wifi?.hotspot == true { wifi?.browseHotspots(); return }
+        wifi?.stopBrowsingHotspots()
+    }
+
     /// The pointer over an idle notch shows it at once, in place of the peek (owner, 2026-11-21: a quick peek).
     private func updateQuickInfo() {
         if pointerInside && quickInfoAllowed {

@@ -17,8 +17,7 @@ final class SpeedTestParseTests: XCTestCase {
 
     func testLiveTakesTheNewestWholeLine() {
         let f = SpeedTest.parseLive(running)
-        XCTAssertEqual(f?.download, 71.856)
-        XCTAssertEqual(f?.upload, 0)
+        XCTAssertEqual(f, .init(download: 71.856, downloadRPM: 136, upload: 0, uploadRPM: 0))
         // A read that ends mid-line falls back to the last whole one.
         let cut = SpeedTest.parseLive(running + "\u{1B}[2K\rDownlink: 211.804 Mbps, 140 RPM - Uplink: 2")
         XCTAssertEqual(cut?.download, 71.856)
@@ -27,8 +26,16 @@ final class SpeedTestParseTests: XCTestCase {
 
     func testLiveSeesTheUpload() {
         let f = SpeedTest.parseLive("\rDownlink: 211.804 Mbps, 140 RPM - Uplink: 28.486 Mbps, 159 RPM\r")
-        XCTAssertEqual(f?.download, 211.804)
-        XCTAssertEqual(f?.upload, 28.486)
+        XCTAssertEqual(f, .init(download: 211.804, downloadRPM: 140, upload: 28.486, uploadRPM: 159))
+    }
+
+    @MainActor func testLiveTextShowsThePing() {
+        var l = SpeedTest.Live(download: 71.856)
+        XCTAssertEqual(SpeedTest.liveText(l), "↓ 71.9 Mbps")
+        l.ping = 60_000 / 186
+        XCTAssertEqual(SpeedTest.liveText(l), "↓ 71.9 Mbps  323 ms")
+        l.uploading = true; l.upload = 16.2
+        XCTAssertEqual(SpeedTest.liveText(l), "↓ 71.9 Mbps  ↑ 16.2 Mbps  323 ms")
     }
 
     func testSummary() {

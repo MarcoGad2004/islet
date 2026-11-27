@@ -496,7 +496,9 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   - Speed test (owner, 2026-11-27): its pill sits on the line under the connected row's Disconnect, at the end of the
     line that shows its progress and result: "Run speed test", Stop (with a spinner) while it runs, then "Test speed
     again" (or "Retry"). While it runs the line shows the figures as they come ("Testing download… ↓ 64.1 Mbps", then
-    "Testing upload… ↓ 212 Mbps  ↑ 16.2 Mbps"). It runs download then upload (`networkQuality -s` under `script`, which
+    "Testing upload… ↓ 212 Mbps  ↑ 16.2 Mbps"), then the ping right now ("323 ms"): the round trip while the link is
+    loaded, 60,000 / the phase's responsiveness (RPM) from the tool's running line, so it reads higher than the idle
+    latency the result gives. It runs download then upload (`networkQuality -s` under `script`, which
     gives the tool the terminal it needs to print running figures). With the panel closed, the notch shows the same
     figures rolling in its line (the speedometer blue for the download, purple for the upload), and a 3 pt glowing bar
     fills along its bottom edge inside the corners, like a speed test's gauge: blue through the first half (download),
