@@ -73,31 +73,95 @@ STEP=""; STEP_T=$SECONDS; LIVE=""; LOG=""; RELEASING=false; PUBLIC=false
 
 clock() { local s=$((SECONDS - $1)); printf "%d:%02d" $((s / 60)) $((s % 60)); }
 
-# The live line: "▸ Step  what is happening  0:42", redrawn in place on a terminal.
+# Lines are wrapped to the window's width, at spaces, with continuation lines indented under the text. Lengths count
+# characters (the UTF-8 locale makes ▸ or █ one character) and leave out colour codes.
+shopt -s extglob
+export LC_CTYPE=en_US.UTF-8
+[ -n "${LC_ALL:-}" ] && export LC_ALL=en_US.UTF-8
+term_cols() {
+  local c; c=$(stty size < /dev/tty 2> /dev/null | awk '{print $2}')
+  if [ "${c:-0}" -gt 30 ] 2> /dev/null; then echo "$c"; else echo 100; fi
+}
+NBSP=$'\xc2\xa0'   # a space that never breaks: keeps the elapsed time with the word before it
+vlen() { local v="${1//$'\033'\[*([0-9;])m/}"; VLEN=${#v}; }
+# wrap_lines <text> <width>: sets WRAPPED, one entry per line. A "·" stays at the end of the line before it.
+wrap_lines() {
+  local width="$2" line="" word words=() tokens=() i n
+  [ "$width" -lt 20 ] && width=20
+  read -r -a words <<< "$1" || true
+  for word in ${words[@]+"${words[@]}"}; do
+    n=${#tokens[@]}
+    if [ "$word" = "·" ] && [ "$n" -gt 0 ]; then tokens[$((n - 1))]="${tokens[$((n - 1))]} ·"; else tokens+=("$word"); fi
+  done
+  WRAPPED=()
+  for word in ${tokens[@]+"${tokens[@]}"}; do
+    vlen "$line $word"
+    if [ -z "$line" ]; then line="$word"
+    elif [ "$VLEN" -le "$width" ]; then line="$line $word"
+    else WRAPPED+=("$line"); line="$word"; fi
+    vlen "$line"
+    while [ "$VLEN" -gt "$width" ]; do   # one word wider than the window: cut it
+      WRAPPED+=("${line:0:$width}"); line="${line:$width}"; vlen "$line"
+    done
+  done
+  WRAPPED+=("$line")
+}
+# Prints <text> wrapped: the first line after <first> (already formatted), the rest indented by <indent> spaces.
+print_wrapped() { # <first> <indent> <text> [colour]
+  local first="$1" indent="$2" col="${4:-}" i pad=""
+  # A first-line label wider than the indent leaves less room on that line: a placeholder word takes up the difference.
+  vlen "$first"
+  if [ "$VLEN" -gt $((indent + 1)) ]; then pad=$(printf "%$((VLEN - indent - 1))s" "" | tr ' ' '#'); fi
+  wrap_lines "${pad:+$pad }$3" $(($(term_cols) - indent - 1))
+  [ -n "$pad" ] && WRAPPED[0]="${WRAPPED[0]#"$pad"}" && WRAPPED[0]="${WRAPPED[0]# }"
+  printf "%s%s%s%s\n" "$first" "$col" "${WRAPPED[0]}" "${col:+$OFF}"
+  for ((i = 1; i < ${#WRAPPED[@]}; i++)); do printf "%${indent}s%s%s%s\n" "" "$col" "${WRAPPED[$i]}" "${col:+$OFF}"; done
+}
+# "  Label       text" rows (the plan, the menu's header), wrapped under the text.
+row() { if $TTY; then print_wrapped "$(printf "  %-11s " "$1")" 14 "$2"; else printf "  %-11s %s\n" "$1" "$2"; fi; }
+
+# The live line: "▸ Step  what is happening  0:42", redrawn in place; it takes as many lines as the window needs.
+DRAWN=0
+erase_live() {
+  [ "$DRAWN" -gt 1 ] && printf "\033[%dA" $((DRAWN - 1))
+  printf "\r\033[J"; DRAWN=0
+}
 draw() {
-  local line; line=$(printf "▸ %-13s %s  %s%s" "$STEP" "$LIVE" "$(clock "$STEP_T")" "$(eta_suffix)")
-  # Line wrapping is off while it is written, so a line wider than the terminal is clipped at its edge (cutting the
-  # string instead could split a multi-byte character like ▸ or █, which shows as a "?" box).
-  printf "\r\033[K\033[?7l%s%s%s\033[?7h" "$BOLD" "$line" "$OFF"
+  local i
+  wrap_lines "$LIVE$NBSP${DIM}$(clock "$STEP_T")${OFF}${BOLD}" $(($(term_cols) - 17))
+  erase_live
+  printf "%s▸ %-13s %s%s" "$BOLD" "$STEP" "${WRAPPED[0]}" "$OFF"
+  for ((i = 1; i < ${#WRAPPED[@]}; i++)); do printf "\n%s%16s%s%s" "$BOLD" "" "${WRAPPED[$i]}" "$OFF"; done
+  DRAWN=${#WRAPPED[@]}
 }
 step() {
   STEP="$1"; LIVE="${2:-}"; STEP_T=$SECONDS; LOG=""
   if $TTY; then draw; else printf "▸ %-13s %s\n" "$STEP" "$LIVE"; fi
 }
 live() { LIVE="$1"; if $TTY; then draw; fi; }
-clear_line() { if $TTY; then printf "\r\033[K"; fi; }
+clear_line() { if $TTY; then erase_live; fi; }
 # A finished step: "✓ Built  1.7.5 (363)  (1:12)".
 ok() {
   clear_line
-  printf "%s✓%s %-13s %s %s(%s)%s\n" "$GREEN" "$OFF" "$1" "${2:-}" "$DIM" "$(clock "$STEP_T")" "$OFF"
+  if $TTY; then print_wrapped "$(printf "%s✓%s %-13s " "$GREEN" "$OFF" "$1")" 16 "${2:-}$NBSP$DIM($(clock "$STEP_T"))$OFF"
+  else printf "✓ %-13s %s (%s)\n" "$1" "${2:-}" "$(clock "$STEP_T")"; fi
   STEP=""
 }
 # A detail under the current step; the live line is redrawn under it.
-say() { clear_line; printf "  %s·%s %s\n" "$DIM" "$OFF" "$1"; if [ -n "$STEP" ] && $TTY; then draw; fi; }
-warn() { clear_line; printf "  %s!%s %s\n" "$YELLOW" "$OFF" "$1"; if [ -n "$STEP" ] && $TTY; then draw; fi; }
+say() {
+  clear_line
+  if $TTY; then print_wrapped "  ${DIM}·${OFF} " 4 "$1"; else printf "  · %s\n" "$1"; fi
+  if [ -n "$STEP" ] && $TTY; then draw; fi
+}
+warn() {
+  clear_line
+  if $TTY; then print_wrapped "  ${YELLOW}!${OFF} " 4 "$1"; else printf "  ! %s\n" "$1"; fi
+  if [ -n "$STEP" ] && $TTY; then draw; fi
+}
 fail() {
   clear_line
-  printf "%s✗ %s:%s %s\n" "$RED" "${STEP:-Stopped}" "$OFF" "$1" >&2
+  if $TTY; then print_wrapped "${RED}✗ ${STEP:-Stopped}:${OFF} " 4 "$1" >&2
+  else printf "✗ %s: %s\n" "${STEP:-Stopped}" "$1" >&2; fi
   if [ -n "$LOG" ] && [ -s "$LOG" ]; then
     local errors; errors=$(grep -E "error:|Error:|FAILED|failed" "$LOG" | sort -u | tail -12 || true)
     [ -n "$errors" ] || errors=$(tail -8 "$LOG")
@@ -105,7 +169,8 @@ fail() {
     echo "    Full log: $LOG" >&2
   fi
   if $RELEASING && ! $PUBLIC; then
-    echo "  Nothing is public yet. Fix the cause and run peninsula release again: finished steps are skipped." >&2
+    if $TTY; then print_wrapped "  " 2 "Nothing is public yet. Fix the cause and run peninsula release again: finished steps are skipped." >&2
+    else echo "  Nothing is public yet. Fix the cause and run peninsula release again: finished steps are skipped." >&2; fi
   fi
   notify "Dynamic Peninsula: stopped" "${STEP:-Stopped}: $1"
   STEP=""
@@ -164,8 +229,8 @@ retry_live() {
 
 # ---------------------------------------------------------------- time estimates
 # How long things took last time (build, packing, Apple's processing) and the measured upload speed are kept in
-# build/peninsula/timings. A release lists its phases in PLAN with an estimate each; the live line ends with when the
-# whole run should be done, and network steps show their own progress from the network interface's byte counters.
+# build/peninsula/timings. A release lists its phases in PLAN with an estimate each, for the plan's estimate; the
+# live line shows network steps' own progress and time left, from the network interface's byte counters.
 
 TIMINGS="$LOGDIR/timings"
 timing() { awk -v k="$1" '$1 == k {v = $2} END {print v}' "$TIMINGS" 2> /dev/null || true; }
@@ -236,14 +301,6 @@ phase() {
   CUR_PHASE="$1"; PHASE_T=$SECONDS; PHASE_LEFT=""
 }
 plan_seconds() { local p sum=0; for p in ${PLAN[@]+"${PLAN[@]}"}; do sum=$((sum + $(est_phase "$p"))); done; echo "$sum"; }
-# " · done ~10:05" while a release runs.
-eta_suffix() {
-  [ -n "$CUR_PHASE" ] || return 0
-  local cur="$PHASE_LEFT"
-  if [ -z "$cur" ]; then cur=$(($(est_phase "$CUR_PHASE") - SECONDS + PHASE_T)); [ "$cur" -lt 5 ] && cur=5; fi
-  printf " · done ~%s" "$(date -v+"$((cur + $(plan_seconds)))"S +%H:%M)"
-}
-
 MOUNTS=()
 on_exit() {
   local p m
@@ -343,37 +400,43 @@ header() {
   dirty=$(git status --porcelain -- Sources Models vendor ':!Sources/Islet/Info.plist' | wc -l | xargs)
   echo "${BOLD}$APP_NAME${OFF}"
   case "$INST_KIND" in
-    missing) printf "  %-11s %s\n" "Installed" "nothing in $INSTALL_DIR" ;;
+    missing) row "Installed" "nothing in $INSTALL_DIR" ;;
     *)
       built=$(stat -f "%Sm" -t "%b %-d %H:%M" "$DEST/Contents/MacOS/$APP_NAME" 2> /dev/null || true)
       local kind=""
       case "$INST_KIND" in released) kind=" · the released build" ;; test) kind=" · ${YELLOW}not the released build${OFF}" ;; esac
-      printf "  %-11s %s%s%s\n" "Installed" "$(app_desc "$DEST")" "${built:+, installed $built}" "$kind" ;;
+      row "Installed" "$(app_desc "$DEST")${built:+, installed $built}$kind" ;;
   esac
-  if ! $RELEASES_OK; then printf "  %-11s %s\n" "Released" "unknown (couldn't reach GitHub with gh)"
-  elif [ -n "$PUB_V" ]; then printf "  %-11s %s\n" "Released" "$PUB_V (build ${PUB_B:-?}) on GitHub, $PUB_DATE"; fi
+  if ! $RELEASES_OK; then row "Released" "unknown (couldn't reach GitHub with gh)"
+  elif [ -n "$PUB_V" ]; then row "Released" "$PUB_V (build ${PUB_B:-?}) on GitHub, $PUB_DATE"; fi
   if [ -n "$DRAFT_V" ] && version_gt "$DRAFT_V" "${PUB_V:-0}"; then
-    printf "  %-11s %s\n" "Draft" "v$DRAFT_V on GitHub, not public yet: releasing $DRAFT_V resumes it"
+    row "Draft" "v$DRAFT_V on GitHub, not public yet: releasing $DRAFT_V resumes it"
   fi
-  [ -n "$PENDING_V" ] && printf "  %-11s %s\n" "Pending" "project.yml already says $PENDING_V (uncommitted): a release of it was started"
-  printf "  %-11s %s\n" "Checkout" "$branch at $short${dirty:+$([ "$dirty" != 0 ] && echo " · $dirty uncommitted file(s) in the app's sources")} · next version in CHANGELOG: ${NEXT:-none}"
+  [ -n "$PENDING_V" ] && row "Pending" "project.yml already says $PENDING_V (uncommitted): a release of it was started"
+  row "Checkout" "$branch at $short${dirty:+$([ "$dirty" != 0 ] && echo " · $dirty uncommitted file(s) in the app's sources")} · next version in CHANGELOG: ${NEXT:-none}"
 }
 
 # ---------------------------------------------------------------- building
 
 build_progress() {
   if ! $TTY; then cat > /dev/null; return 0; fi
-  awk -v total="$1" -v label="$STEP" -v eta="$(eta_suffix)" '
+  awk -v total="$1" -v label="$STEP" -v width="$(term_cols)" '
     function target() { return match($0, /in target \047[^\047]+/) ? substr($0, RSTART + 11, RLENGTH - 11) : "" }
-    function draw(   line, bar, i, f, p) {
-      line = sprintf("▸ %-13s %s", label, what)
-      if (total > 0) {
-        p = int(steps * 100 / total); if (p > 99) p = 99
+    # One line that fits the window: the bar is left out when it would not fit, then the step name is shortened.
+    function draw(   line, bar, i, f, p, pct, room, w) {
+      room = width - 17; w = what
+      if (total > 0) { p = int(steps * 100 / total); if (p > 99) p = 99; pct = sprintf(" %3d%%", p) }
+      else pct = sprintf("  (step %d)", steps)
+      if (total > 0 && room >= 36 + 21 + length(pct)) {
         f = int(p / 5); bar = ""
         for (i = 0; i < 20; i++) bar = bar (i < f ? "█" : "░")
-        line = sprintf("%-52s %s %3d%%%s", line, bar, p, eta)
-      } else line = line sprintf("  (step %d)", steps)
-      printf "\r\033[K\033[?7l\033[1m%s\033[0m\033[?7h", line; fflush()
+        line = sprintf("%-36s %s%s", w, bar, pct)
+      } else {
+        room = room - length(pct); if (room < 8) room = 8
+        if (length(w) > room) w = substr(w, 1, room - 3) "..."
+        line = sprintf("%-" room "s%s", w, pct)
+      }
+      printf "\r\033[K\033[1m▸ %-13s %s\033[0m", label, line; fflush()
     }
     BEGIN { what = "starting" }
     /^SwiftDriver / && target() != ""  { what = "Compiling " target() }
@@ -918,14 +981,15 @@ cmd_release() {
   old_date=$( (grep -m1 -E "^## $V( |\$)" CHANGELOG.md || true) | sed -n 's/^## [^ ]* (\(.*\)).*/\1/p')
   echo
   echo "${BOLD}Releasing $APP_NAME $V (build $B)${OFF}"
-  if [ "$old_date" = "$today" ]; then echo "  CHANGELOG   \"## $V\" is dated today ($today)"
-  else echo "  CHANGELOG   \"## $V\" gets today's date, $today${old_date:+ (it says $old_date)}"; fi
-  for i in 0 1; do printf "  %-11s %s\n" "$(basename "${DMG_FILES[$i]}" .dmg)" "${DMG_NOTE[$i]}"; done
-  if $NO_UPLOAD; then echo "  GitHub      nothing (--no-upload): stops once the DMGs are ready"
-  elif $draft; then echo "  GitHub      the draft v$V gets the notes and any DMG it doesn't have yet, then is published"
-  else echo "  GitHub      a draft v$V with both DMGs and the notes, published once the commit and tag are pushed"; fi
-  $committed && echo "  Git         \"Version $V\" is already committed"
-  if $INSTALL; then echo "  This Mac    the released $V is installed at the end"; fi
+  if [ "$old_date" = "$today" ]; then row "CHANGELOG" "\"## $V\" is dated today ($today)"
+  else row "CHANGELOG" "\"## $V\" gets today's date, $today${old_date:+ (it says $old_date)}"; fi
+  row "Main DMG" "$(basename "${DMG_FILES[0]}"): ${DMG_NOTE[0]}"
+  row "Islet DMG" "$(basename "${DMG_FILES[1]}") (for copies from before 1.5): ${DMG_NOTE[1]}"
+  if $NO_UPLOAD; then row "GitHub" "nothing (--no-upload): stops once the DMGs are ready"
+  elif $draft; then row "GitHub" "the draft v$V gets the notes and any DMG it doesn't have yet, then is published"
+  else row "GitHub" "a draft v$V with both DMGs and the notes, published once the commit and tag are pushed"; fi
+  if $committed; then row "Git" "\"Version $V\" is already committed"; fi
+  if $INSTALL; then row "This Mac" "the released $V is installed at the end"; fi
   # The phases still to do, for the time estimate.
   PLAN=(); local n_pack=0 n_sign=0 n_notarize=0 donor_ok=false
   for i in 0 1; do
@@ -944,9 +1008,8 @@ cmd_release() {
   $NO_UPLOAD || PLAN+=(ghup0 ghup1 finish)
   $INSTALL && PLAN+=(finish)
   local total; total=$(plan_seconds)
-  printf "  %-11s about %s, done around %s" "Estimate" "$(left "$total" | tr -d '~')" "$(date -v+"$total"S +%H:%M)"
-  if $SPEED_MEASURED; then echo " (uploads at $(rate "$UP_SPEED"), the last measured speed; updated live)"
-  else echo " (upload speed not measured yet: assumes $(rate "$UP_SPEED") until it is)"; fi
+  if $SPEED_MEASURED; then row "Estimate" "about $(left "$total" | tr -d '~') (uploads at $(rate "$UP_SPEED"), the last measured speed; the live line shows time left as it measures)"
+  else row "Estimate" "about $(left "$total" | tr -d '~') (upload speed not measured yet: assumes $(rate "$UP_SPEED") until it is)"; fi
   echo
   CUR_PHASE="start"; PHASE_T=$SECONDS
   RELEASING=true
