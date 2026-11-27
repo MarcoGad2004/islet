@@ -46,9 +46,11 @@ enum IslandLayout {
     /// The AirPods case card: the earbuds and the case, their charge underneath.
     static let earbudsCardWidth: Double = 330
     static let earbudsCardHeight: Double = 124
-    /// Quick info's chin: two rows under the notch.
+    /// Quick info's chin: the time and battery, then Wi-Fi and Bluetooth on a line each (one line shorter without a
+    /// Bluetooth device: `quickChinLine`).
     static let quickChinWidth: Double = 340
-    static let quickChinHeight: Double = 60
+    static let quickChinHeight: Double = 82
+    static let quickChinLine: Double = 22
     static let chinWidth: Double = 300
     static let chinHeight: Double = 36
     static let scanHeight: Double = 150

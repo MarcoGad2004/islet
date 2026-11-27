@@ -3,7 +3,8 @@ import SwiftUI
 /// Quick info (DESIGN.md "Quick info"): hovering an idle notch shows the time and date, the battery, and what Wi-Fi
 /// and Bluetooth are connected to. In the wide bar: the time over the date in the left wing, the percentage over the
 /// battery in the right, Wi-Fi and Bluetooth centred together in the body. In the chin: the time, date and battery on
-/// the first row, Wi-Fi and Bluetooth on the second. Opening the panel from here, the Wi-Fi, Bluetooth and battery
+/// the first row, then Wi-Fi and Bluetooth on a line each, so long names fit (owner, 2026-11-27). On a phone's
+/// hotspot, the phone's cellular bars and battery follow the network's name. Opening the panel from here, the Wi-Fi, Bluetooth and battery
 /// pieces glide to their tiles and the header chip (matched by `QuickInfoPiece`).
 struct QuickInfoView: View {
     let store: IslandStore
@@ -36,8 +37,12 @@ struct QuickInfoView: View {
                     }
                     .padding(.horizontal, 18)
                     .frame(height: 24)
-                    connections(room: CGFloat(IslandLayout.quickChinWidth) - 36)
-                        .frame(height: 24)
+                    VStack(alignment: .leading, spacing: 0) {
+                        wifi.frame(height: CGFloat(IslandLayout.quickChinLine))
+                        if let b = bluetooth { b.frame(height: CGFloat(IslandLayout.quickChinLine)) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
                 }
                 .frame(width: CGFloat(IslandLayout.quickChinWidth))
                 .padding(.top, nh + 6)
@@ -90,36 +95,53 @@ struct QuickInfoView: View {
 
     // MARK: Wi-Fi and Bluetooth
 
-    /// Both, centred together; Wi-Fi alone takes the row.
+    /// Both, centred together; Wi-Fi alone takes the row (the wide bar).
     private func connections(room: CGFloat) -> some View {
         HStack(spacing: 24) {
-            if let w = store.wifi {
-                HStack(spacing: 6) {
-                    Image(systemName: !w.isConnected ? "wifi.slash" : w.hotspot ? "personalhotspot" : "wifi")
-                        .font(.system(size: 12, weight: .semibold))
-                        .quickInfoPiece(.wifiIcon, ns)
-                    Text(w.shortStatus ?? "Wi-Fi Off")
-                        .font(.system(size: 12, weight: .semibold))
-                        .quickInfoPiece(.wifiName, ns)
-                }
-                .lineLimit(1)
-            }
-            if let name = bluetoothName {
-                HStack(spacing: 5) {
-                    BluetoothGlyph().frame(width: 8, height: 12)
-                        .quickInfoPiece(.bluetoothIcon, ns)
-                    Text(name).font(.system(size: 12, weight: .semibold))
-                        .quickInfoPiece(.bluetoothName, ns)
-                    // One device: its charge beside its name (the earbuds' for AirPods).
-                    if let p = bluetoothBattery {
-                        Text("\(p)%").font(.system(size: 12, weight: .medium)).monospacedDigit()
-                            .foregroundStyle(p <= 20 ? Color.isletRedText : Color.isletSecondary)
-                    }
-                }
-                .lineLimit(1)
-            }
+            wifi
+            bluetooth
         }
         .frame(maxWidth: room)
+    }
+
+    /// The Wi-Fi icon and network; on a phone's hotspot, the phone's signal and battery after it.
+    @ViewBuilder private var wifi: some View {
+        if let w = store.wifi {
+            HStack(spacing: 6) {
+                Image(systemName: !w.isConnected ? "wifi.slash" : w.hotspot ? "personalhotspot" : "wifi")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: bar ? nil : 16)
+                    .quickInfoPiece(.wifiIcon, ns)
+                Text(w.shortStatus ?? "Wi-Fi Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .quickInfoPiece(.wifiName, ns)
+                    .layoutPriority(1)
+                if let phone = w.connectedPhone {
+                    HotspotDetail(phone: phone, size: 11, color: .isletSecondary)
+                }
+            }
+            .lineLimit(1)
+        }
+    }
+
+    /// The connected Bluetooth device and, for one, its charge; nil when none is connected.
+    private var bluetooth: (some View)? {
+        bluetoothName.map { name in
+            HStack(spacing: 6) {
+                BluetoothGlyph().frame(width: 8, height: 12)
+                    .frame(width: bar ? nil : 16)
+                    .quickInfoPiece(.bluetoothIcon, ns)
+                Text(name).font(.system(size: 12, weight: .semibold))
+                    .quickInfoPiece(.bluetoothName, ns)
+                    .layoutPriority(1)
+                // One device: its charge beside its name (the earbuds' for AirPods).
+                if let p = bluetoothBattery {
+                    Text("\(p)%").font(.system(size: 12, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(p <= 20 ? Color.isletRedText : Color.isletSecondary)
+                }
+            }
+            .lineLimit(1)
+        }
     }
 
     /// The connected device; "2 devices" for more; nothing when none is connected.

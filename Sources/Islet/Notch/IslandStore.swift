@@ -280,6 +280,8 @@ final class IslandStore {
         if pointerInside && quickInfoAllowed {
             guard !quickInfo else { return }
             wifi?.refresh(); bluetooth?.refresh()
+            // On a phone's hotspot: look for the phone, for its signal and battery beside the network's name.
+            if wifi?.hotspot == true { wifi?.browseHotspots() }
             quickInfo = true
         } else if !pointerInside {
             quickInfo = false
@@ -359,6 +361,7 @@ final class IslandStore {
             if notifications.count > 1 { m.bh += Double(IslandLayout.notificationStackDepth) }
             if presentation == .notification, notificationHasButtons(n) { m.bh += Double(IslandLayout.notificationActionsHeight) }
         }
+        if presentation == .quickChin, !QuickInfoView.showsBluetooth(self) { m.bh -= IslandLayout.quickChinLine }
         if case .shazam(let s)? = content, presentation == .shazam {
             typealias L = IslandLayout
             if s.song != nil {

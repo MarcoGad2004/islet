@@ -231,6 +231,10 @@ lock screen. Each question below can block it:
     `v@?@"SFRemoteHotspotInfo"@"NSError"`, but `-[SFRemoteHotspotSession enableHotspotForDevice:withCompletionHandler:]`
     wraps it and calls the caller's block with `(name, password, error)` (disassembly, macOS 27.2). It escapes. macOS does not join by itself: the caller associates with CoreWLAN, retrying
     while the phone starts broadcasting. Browsing verified on macOS 27.2; joining needs testing.
+    While the Mac is joined to a phone's hotspot, browsing keeps reporting that phone with fresh bars and battery
+    (checked 2026-11-27, macOS 27.2: "Marco's iPhone Duo", 2 bars, 75), which the connected row and quick info use.
+    `SFRemoteHotspotDevice` also has `networkType` (a char; 8 on that phone, on 5G or LTE) and `model`, but the codes
+    aren't mapped, so no "5G"/"LTE" label is shown.
 15b. **Wi-Fi auto-join** (1.2): not settable. CoreWiFi's private `CWFNetworkProfile.setAutoJoinDisabled:` +
     `CWFInterface updateKnownNetworkProfile:properties:error:` fail with Cocoa error 4097 (connection to
     `com.apple.private.corewifi-xpc` refused: Apple-only entitlement). CoreWLAN's public profile has no auto-join flag.

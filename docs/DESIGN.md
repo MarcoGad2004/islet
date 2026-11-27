@@ -919,8 +919,13 @@ docs/mockups/quick-info.html).
   plugged in). Each centred in its wing, so they mirror. Body: Wi-Fi (icon and network, 12 semibold; the hotspot icon
   for a hotspot; "Not connected" or "Wi-Fi Off" with the crossed-out icon) and the connected Bluetooth device ("2
   devices" for more; left out when none), centred together 24 pt apart.
-- **Chin** (no room): the notch as the stem, a 340 × 60 body (top 16, bottom 18, 10 pt curves). First row, 18 pt in:
-  the time and date on the left, the battery and percentage on the right. Second row: Wi-Fi and Bluetooth centred.
+- **Chin** (no room): the notch as the stem, a 340 × 82 body (top 16, bottom 18, 10 pt curves). First row, 18 pt in:
+  the time and date on the left, the battery and percentage on the right. Then Wi-Fi and Bluetooth on a 22 pt line
+  each, left-aligned 18 pt in with the icons in a 16 pt column, so long names fit (owner, 2026-11-27; until 1.7.5 they
+  shared one centred row). No Bluetooth device: its line goes and the body is 60.
+- **On a phone's hotspot** (owner, 2026-11-27): the phone's cellular bars and battery (in quarters, as an icon, 11 pt
+  `secondary`) follow the network's name, in the wide bar and the chin, and on the Wi-Fi page's connected row before
+  "Hotspot". Hovering starts Instant Hotspot browsing for a minute, so they appear a moment after the rest.
 - **Motion**: the shape springs out like the wings, the text fading in at 0.06 s (0.12 s in the chin). The swell applies.
 - **With music swiped away** (owner, 2026-11-25): quick info shows as usual, and the media peek's glow joins it along the
   bottom edge, in the album's colours: a 120 x 2 pt line that breathes (with the glass look, the glass strip's tint, as in

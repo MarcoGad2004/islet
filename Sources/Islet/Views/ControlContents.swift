@@ -184,6 +184,27 @@ struct SoundOutputList: View {
 
 // MARK: - Wi-Fi
 
+/// A phone's cellular bars and a battery icon, as Wi-Fi Settings shows them: on the Wi-Fi page (phones offering their
+/// hotspot, and the one this Mac is on) and in quick info. The phone only reports its battery in quarters, so it's an
+/// icon rather than a misleading percentage.
+struct HotspotDetail: View {
+    let phone: InstantHotspot
+    var size: CGFloat = 10
+    var color: Color = .isletTertiary
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "cellularbars", variableValue: Double(phone.bars) / 4)
+            if let b = phone.battery {
+                Image(systemName: b >= 100 ? "battery.100" : b >= 75 ? "battery.75" : b >= 50 ? "battery.50" : b >= 25 ? "battery.25" : "battery.0")
+                    .font(.system(size: size + 2))
+            }
+        }
+        .font(.system(size: size)).foregroundStyle(color)
+        .help(phone.battery.map { "Cellular signal \(phone.bars) of 4 bars, battery up to \($0)%" } ?? "Cellular signal \(phone.bars) of 4 bars")
+    }
+}
+
 struct WiFiContent: View {
     let wifi: WiFiController
     @State private var asking: WiFiNetwork?
@@ -307,7 +328,7 @@ struct WiFiContent: View {
                         Image(systemName: "personalhotspot")
                     } trailing: {
                         if wifi.joining == h.name { ProgressView().controlSize(.small) }
-                        else { hotspotDetail(bars: h.bars, battery: h.battery) }
+                        else { HotspotDetail(phone: h) }
                     }
                 }
                 ForEach(others) { n in row(n) }
@@ -327,6 +348,7 @@ struct WiFiContent: View {
             else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3) }
         } trailing: {
             HStack(spacing: 8) {
+                if connectedHotspot, let phone { HotspotDetail(phone: phone) }
                 if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
                 if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                 else if connected {
@@ -335,27 +357,13 @@ struct WiFiContent: View {
                         .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
                         .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
                 }
-                else if let phone { hotspotDetail(bars: phone.bars, battery: phone.battery) }
+                else if let phone { HotspotDetail(phone: phone) }
                 else if n.known { Text("Saved").font(.system(size: 10)).foregroundStyle(Color.isletTertiary) }
                 if n.secured && phone == nil && !connected {
                     Image(systemName: n.enterprise ? "person.badge.key.fill" : "lock.fill").font(.system(size: 9)).foregroundStyle(Color.isletTertiary)
                 }
             }
         }
-    }
-
-    /// Cellular bars and a battery icon, as Wi-Fi Settings shows them for a phone. The phone only reports its battery
-    /// in quarters, so it's an icon rather than a misleading percentage.
-    private func hotspotDetail(bars: Int, battery: Int?) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "cellularbars", variableValue: Double(bars) / 4)
-            if let battery {
-                Image(systemName: battery >= 100 ? "battery.100" : battery >= 75 ? "battery.75" : battery >= 50 ? "battery.50"
-                      : battery >= 25 ? "battery.25" : "battery.0")
-                    .font(.system(size: 12))
-            }
-        }
-        .font(.system(size: 10)).foregroundStyle(Color.isletTertiary)
     }
 
     private func tap(_ n: WiFiNetwork) {

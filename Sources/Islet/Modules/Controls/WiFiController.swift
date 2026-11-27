@@ -71,6 +71,12 @@ final class WiFiController: NSObject, CWEventDelegate, CLLocationManagerDelegate
     }
     /// Joined to a network, named or not.
     var isConnected: Bool { powerOn && (ssid != nil || nameHidden) }
+    /// The phone whose hotspot this Mac is on, with its cellular bars and battery, while Instant Hotspot browsing
+    /// finds it (sharingd keeps reporting a phone while the Mac is joined to it).
+    var connectedPhone: InstantHotspot? {
+        guard hotspot, let ssid else { return nil }
+        return instantHotspots.first { $0.name == ssid }
+    }
 
     func start() {
         location.delegate = self

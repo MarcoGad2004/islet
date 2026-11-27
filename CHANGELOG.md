@@ -9,6 +9,8 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 - **Copy sign-in codes from the notch.** A notification with a verification code (a text from your bank, Apple, Google's "G-123456" and so on) shows a "Copy 123456" button on its card when you hover it, and in the notification list. A click puts the code on the clipboard; the notification stays so you can still open it.
 - **The stats panel is called Stats.** Its title in the top left said "Mac".
+- **Your phone's signal and battery while on its hotspot.** Connected to an iPhone's Personal Hotspot, the Wi-Fi page shows the phone's cellular bars and battery beside the network, as it already did for phones you hadn't joined yet. Quick info shows them too, a moment after you hover (the Mac asks the phone over Bluetooth).
+- **Quick info gives names room.** Under the notch, Wi-Fi and Bluetooth now each get their own line, so long names like "Marco's iPhone Duo" and "Marco's AirPods Pro" show in full instead of being cut off.
 
 **Fixes**
 
