@@ -8,6 +8,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 **New**
 
 - **Copy sign-in codes from the notch.** A notification with a verification code (a text from your bank, Apple, Google's "G-123456" and so on) shows a "Copy 123456" button on its card when you hover it, and in the notification list. A click puts the code on the clipboard; the notification stays so you can still open it.
+- **The stats panel is called Stats.** Its title in the top left said "Mac".
 
 **Fixes**
 

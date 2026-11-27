@@ -105,7 +105,7 @@ private struct MacStatsOverview: View {
         let s = stats.snapshot
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Mac").font(.system(size: 15, weight: .bold)).foregroundStyle(IsletInk.primary)
+                Text("Stats").font(.system(size: 15, weight: .bold)).foregroundStyle(IsletInk.primary)
                 Spacer()
                 if let up = MacStatsFormat.uptime() {
                     Text(up).font(.system(size: 13)).foregroundStyle(IsletInk.secondary)
