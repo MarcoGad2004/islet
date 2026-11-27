@@ -44,6 +44,8 @@ final class LevelsController {
         refresh()
         installTap()
         watchVolume()
+        systemHUD.shouldHide = { Feature.levels.isOn }
+        systemHUD.start()
         // Turned off by sleep, lock, low battery or heat: back to 100 on the island too.
         extended.onEnded = { [weak self] in
             guard let self else { return }
@@ -53,7 +55,7 @@ final class LevelsController {
     }
 
     /// Retry installing the tap (e.g. after Accessibility was granted).
-    func retryTap() { if tap == nil { installTap() } }
+    func retryTap() { if tap == nil { installTap() }; systemHUD.retry() }
 
     /// Lets the keys go to the system (an update's handoff, while the new copy takes over).
     func stopTap() {
@@ -85,9 +87,11 @@ final class LevelsController {
     /// The volume listeners on the current output device, to take them off when the output changes.
     @ObservationIgnored private var watchedDevice: AudioDeviceID?
     @ObservationIgnored private var deviceListener: AudioObjectPropertyListenerBlock?
+    /// macOS's own volume display for those changes, hidden so they show only in the notch.
+    @ObservationIgnored private let systemHUD = SystemVolumeHUD()
 
     /// Volume changed by anything but the keys (AirPods' own controls, Control Center, the menu bar, another app, the
-    /// iPhone): the island shows it too. Changes Islet made itself are recognised by matching what it last set.
+    /// iPhone): the island shows it too, and macOS's own display for it is hidden (SystemVolumeHUD). Changes Islet made itself are recognised by matching what it last set.
     private func watchVolume() {
         var a = Audio.address(kAudioHardwarePropertyDefaultOutputDevice)
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, .main) { [weak self] _, _ in
@@ -124,6 +128,7 @@ final class LevelsController {
         let changed = abs(v - volume) > 0.005 || m != muted
         volume = v; muted = m
         guard changed, Feature.levels.isOn else { return }
+        systemHUD.park()
         onChange?(LevelState(kind: .volume, value: v, muted: m))
     }
 

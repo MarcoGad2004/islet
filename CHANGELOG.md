@@ -11,7 +11,7 @@ the section before releasing. Ideas and bugs found while testing go into the nex
 
 **Fixes**
 
-- **Volume changed with AirPods showed in the top right corner.** Only the volume keys reached the notch. The notch now follows the volume itself, so a change from AirPods, Control Center, the menu bar, another app or the iPhone shows there too. macOS's own display may still appear alongside for those, as it can't be switched off for changes that aren't a key press.
+- **Volume changed with AirPods showed in the top right corner.** Only the volume keys reached the notch. The notch now follows the volume itself, so a change from AirPods, Control Center, the menu bar, another app or the iPhone shows there too. macOS's own display for those is hidden the moment it appears, so the change shows once, in the notch.
 
 ## 1.7.4 (2026-11-25)
 
