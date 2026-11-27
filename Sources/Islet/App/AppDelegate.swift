@@ -232,6 +232,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     store.closeNotificationList()
                 }
             }
+        case "code":
+            let body = "Your verification code is 482913. Don't share it with anyone."
+            notch.store.showNotification(NotificationItem(id: UUID(), app: "Messages", title: "Apple", subtitle: nil, body: body,
+                                                          icon: NSWorkspace.shared.icon(forFile: "/System/Applications/Messages.app"),
+                                                          appURL: nil, code: OneTimeCode.find(in: body)))
         case "conversation":
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))

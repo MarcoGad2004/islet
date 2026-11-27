@@ -43,6 +43,7 @@ final class LevelsController {
     func start() {
         refresh()
         installTap()
+        watchVolume()
         // Turned off by sleep, lock, low battery or heat: back to 100 on the island too.
         extended.onEnded = { [weak self] in
             guard let self else { return }
@@ -77,6 +78,53 @@ final class LevelsController {
         if let k = backlight.get() { keyboard = Double(k); keyboardAvailable = true } else { keyboardAvailable = false }
         devices = Audio.outputDevices().map { OutputDevice(id: $0.0, name: $0.1) }
         outputName = Audio.defaultOutput().flatMap { id in devices.first { $0.id == id }?.name } ?? ""
+    }
+
+    // MARK: Volume changed elsewhere
+
+    /// The volume listeners on the current output device, to take them off when the output changes.
+    @ObservationIgnored private var watchedDevice: AudioDeviceID?
+    @ObservationIgnored private var deviceListener: AudioObjectPropertyListenerBlock?
+
+    /// Volume changed by anything but the keys (AirPods' own controls, Control Center, the menu bar, another app, the
+    /// iPhone): the island shows it too. Changes Islet made itself are recognised by matching what it last set.
+    private func watchVolume() {
+        var a = Audio.address(kAudioHardwarePropertyDefaultOutputDevice)
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, .main) { [weak self] _, _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // A new output (AirPods connecting): take its volume quietly, then follow it.
+                self.refresh()
+                self.watchOutputDevice()
+            }
+        }
+        watchOutputDevice()
+    }
+
+    private func watchOutputDevice() {
+        if let old = watchedDevice, let block = deviceListener {
+            for var a in Audio.volumeAddresses { AudioObjectRemovePropertyListenerBlock(old, &a, .main, block) }
+        }
+        watchedDevice = nil; deviceListener = nil
+        guard let dev = Audio.defaultOutput() else { return }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.volumeChangedElsewhere() }
+        }
+        for var a in Audio.volumeAddresses where AudioObjectHasProperty(dev, &a) {
+            AudioObjectAddPropertyListenerBlock(dev, &a, .main, block)
+        }
+        watchedDevice = dev; deviceListener = block
+    }
+
+    private func volumeChangedElsewhere() {
+        guard let v = Audio.volume().map(Double.init) else { return }
+        let m = Audio.muted() ?? muted
+        // Bluetooth outputs round what they're given (AirPods have 128 steps), so a change Islet made reads back a
+        // little off; real changes are at least a step of 1/128.
+        let changed = abs(v - volume) > 0.005 || m != muted
+        volume = v; muted = m
+        guard changed, Feature.levels.isOn else { return }
+        onChange?(LevelState(kind: .volume, value: v, muted: m))
     }
 
     // MARK: Event tap
@@ -428,6 +476,12 @@ private enum Audio {
     static func address(_ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal,
                         _ element: AudioObjectPropertyElement = kAudioObjectPropertyElementMain) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: element)
+    }
+
+    /// The output's volume and mute, which the island follows.
+    static var volumeAddresses: [AudioObjectPropertyAddress] {
+        [address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioObjectPropertyScopeOutput),
+         address(kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput)]
     }
 
     static func defaultOutput() -> AudioDeviceID? {

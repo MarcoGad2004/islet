@@ -209,7 +209,8 @@ final class NotificationWatcher {
         let header = text("header") ?? ""
         return NotificationItem(id: UUID(), app: app, title: title, subtitle: subtitle, body: body, icon: found.icon, appURL: found.url,
                                 actions: actions, timeSensitive: header.localizedCaseInsensitiveContains("time sensitive"),
-                                fromIPhone: desc.hasSuffix(", from iPhone"))
+                                fromIPhone: desc.hasSuffix(", from iPhone"),
+                                code: OneTimeCode.find(in: [title, subtitle ?? "", body].joined(separator: "\n")))
     }
 
     /// The app by its shown name: running, or in the usual folders.

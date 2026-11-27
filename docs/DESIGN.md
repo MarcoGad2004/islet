@@ -411,6 +411,9 @@ icon" says, and works the same with a notch, the bezel island, the menu bar isla
 ### Volume and brightness
 
 - Shows on volume, mute and brightness keys. Hides 1.5 s after the last press.
+- Also shows when the volume changes any other way (owner, 2026-11-27): AirPods' own controls, Control Center, the menu
+  bar, another app or the iPhone. Islet can't hide macOS's own display for those (it isn't a key Islet can catch), so it
+  may show as well.
 - Always the chin: icon (speaker or sun), a 16-step bar (steps 9 × 6 pt, 3 pt gaps, on
   `#F5F5F7`, off `#3A3A3C`), the value 0–100 on the right. Both use the same white.
 - Muted: speaker with a cross, bar dims (on `#636366`, off `#2C2C2E`) but keeps the level, value "Off".
@@ -623,6 +626,10 @@ Mockups: the "Wings, chin and stacking" prototype on <https://claude.ai/artifact
   can't approve anything. The card grows 36 pt and shows them as 28 pt pills on the right under the text, the last one
   white with black text (it's the app's main action); more than two go under an "Options" menu pill. A list row shows
   them once it's open (28 pt). Pressing one presses the banner's own button and takes the notification away.
+- **Codes** (owner, 2026-11-27): a notification with a sign-in code (2FA, verification, one-time passcode: 4 to 8 digits,
+  or "123-456", with a word like "code" or "verify" in the text) shows "Copy 482913" (doc icon) first among its buttons,
+  on the card and in an open list row. A click puts the digits on the clipboard and the pill says "Copied" (green tint)
+  for 1.5 s; the notification stays.
 - **Timing**: everything showing goes 5 s after the last arrival, then the island folds back to what was showing.
   Hovering pauses it; leaving gives it 3 s more.
 - **Stacking** (several arrive close together, newest on top):

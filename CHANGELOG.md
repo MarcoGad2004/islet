@@ -3,6 +3,16 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
+## 1.7.5 (unreleased)
+
+**New**
+
+- **Copy sign-in codes from the notch.** A notification with a verification code (a text from your bank, Apple, Google's "G-123456" and so on) shows a "Copy 123456" button on its card when you hover it, and in the notification list. A click puts the code on the clipboard; the notification stays so you can still open it.
+
+**Fixes**
+
+- **Volume changed with AirPods showed in the top right corner.** Only the volume keys reached the notch. The notch now follows the volume itself, so a change from AirPods, Control Center, the menu bar, another app or the iPhone shows there too. macOS's own display may still appear alongside for those, as it can't be switched off for changes that aren't a key press.
+
 ## 1.7.4 (2026-11-25)
 
 Face Unlock's blink, smile or head-turn challenge now has to be done by your face, and the Now Playing page is redesigned.

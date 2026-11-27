@@ -1135,7 +1135,7 @@ final class IslandStore {
     // MARK: Messages
 
     /// The card shows buttons: the banner's own, or View for Messages (the conversation, in the notch).
-    func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || n.isMessages }
+    func notificationHasButtons(_ n: NotificationItem) -> Bool { !n.actions.isEmpty || n.isMessages || n.code != nil }
     func canReply(_ n: NotificationItem) -> Bool { n.isMessages && messages?.available == true }
 
     /// A Messages notification opens as its conversation in the panel (DESIGN.md "Messages"). When it can't be (not

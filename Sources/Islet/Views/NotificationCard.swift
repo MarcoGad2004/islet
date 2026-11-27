@@ -106,6 +106,7 @@ struct NotificationActions: View {
 
     var body: some View {
         let reply = store.canReply(item)
+        if let code = item.code { CopyCodeButton(code: code, height: height) }
         if item.isMessages {
             // A message's banner has "Mark as Read"; here that gives way to Islet's own (DESIGN.md "Messages"): Open in
             // Messages, and View, the conversation in the notch.
@@ -150,6 +151,41 @@ struct NotificationActions: View {
             .padding(.horizontal, height < 28 ? 10 : 14).frame(height: height)
             .background(Capsule().fill(primary ? Color.isletText : Color.isletRing))
             .contentShape(Capsule())
+    }
+}
+
+/// Copy Code for a sign-in code (DESIGN.md "Notifications", "Codes"): puts it on the clipboard and says "Copied" for a
+/// moment. The notification stays, so it can still be opened.
+struct CopyCodeButton: View {
+    let code: String
+    var height: CGFloat = 28
+    @State private var copied = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(code, forType: .string)
+            copied = true
+            resetTask?.cancel()
+            resetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                copied = false
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: height < 28 ? 10 : 11, weight: .semibold))
+                Text(copied ? "Copied" : "Copy \(code)").monospacedDigit()
+            }
+            .font(.system(size: height < 28 ? 11 : 12, weight: .semibold)).foregroundStyle(Color.isletText).lineLimit(1)
+            .padding(.horizontal, height < 28 ? 10 : 14).frame(height: height)
+            .background(Capsule().fill(copied ? Color.isletGreen.opacity(0.35) : Color.isletRing))
+            .contentShape(Capsule())
+            .animation(.easeOut(duration: 0.15), value: copied)
+        }
+        .buttonStyle(.plain)
+        .help("Copy the code")
     }
 }
 

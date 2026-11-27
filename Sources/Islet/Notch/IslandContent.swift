@@ -53,6 +53,8 @@ struct NotificationItem: Equatable, Identifiable {
     var timeSensitive = false
     /// Mirrored from the iPhone (the banner ends "from iPhone").
     var fromIPhone = false
+    /// A sign-in code in the text (OneTimeCode), offered as Copy Code.
+    var code: String? = nil
 
     /// The card's one line: "Subtitle · Body".
     var line: String { [subtitle, body].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
