@@ -75,7 +75,7 @@ clock() { local s=$((SECONDS - $1)); printf "%d:%02d" $((s / 60)) $((s % 60)); }
 
 # The live line: "▸ Step  what is happening  0:42", redrawn in place on a terminal.
 draw() {
-  local line; line=$(printf "▸ %-13s %s  %s" "$STEP" "$LIVE" "$(clock "$STEP_T")")
+  local line; line=$(printf "▸ %-13s %s  %s%s" "$STEP" "$LIVE" "$(clock "$STEP_T")" "$(eta_suffix)")
   # Line wrapping is off while it is written, so a line wider than the terminal is clipped at its edge (cutting the
   # string instead could split a multi-byte character like ▸ or █, which shows as a "?" box).
   printf "\r\033[K\033[?7l%s%s%s\033[?7h" "$BOLD" "$line" "$OFF"
@@ -133,11 +133,17 @@ short_error() {
 
 # Runs a command in the background with the live line ticking: run_live <text> <log> <command...>
 BG=()
+UP_TOTAL=0   # set to the bytes a command uploads, for a progress, speed and time-left readout
 run_live() {
   local text="$1"; LOG="$2"; shift 2
   "$@" > "$LOG" 2>&1 &
   local pid=$!; BG+=("$pid")
-  while kill -0 "$pid" 2> /dev/null; do live "$text"; sleep 1; done
+  [ "$UP_TOTAL" -gt 0 ] && meter_start 10
+  while kill -0 "$pid" 2> /dev/null; do
+    if [ "$UP_TOTAL" -gt 0 ]; then meter_tick; live "$text: $(progress_text "$M_DONE" "$UP_TOTAL")"
+    else live "$text"; fi
+    sleep 1
+  done
   wait "$pid"
 }
 
@@ -154,6 +160,88 @@ retry_live() {
     while [ $((SECONDS - t0)) -lt "$pause" ]; do live "$text: trying again in $((pause - SECONDS + t0))s"; sleep 1; done
     n=$((n + 1))
   done
+}
+
+# ---------------------------------------------------------------- time estimates
+# How long things took last time (build, packing, Apple's processing) and the measured upload speed are kept in
+# build/peninsula/timings. A release lists its phases in PLAN with an estimate each; the live line ends with when the
+# whole run should be done, and network steps show their own progress from the network interface's byte counters.
+
+TIMINGS="$LOGDIR/timings"
+timing() { awk -v k="$1" '$1 == k {v = $2} END {print v}' "$TIMINGS" 2> /dev/null || true; }
+save_timing() {
+  [ -n "$2" ] && [ "$2" -gt 0 ] 2> /dev/null || return 0
+  { grep -v "^$1 " "$TIMINGS" 2> /dev/null || true; echo "$1 $2"; } > "$TIMINGS.new" && mv "$TIMINGS.new" "$TIMINGS"
+}
+UP_SPEED=$(timing up_speed); SPEED_MEASURED=true
+[ -n "$UP_SPEED" ] || { UP_SPEED=2000000; SPEED_MEASURED=false; }
+DMG_BYTES=$(timing dmg_bytes); [ -n "$DMG_BYTES" ] || DMG_BYTES=134000000
+
+NET_IF=$(route -n get default 2> /dev/null | awk '/interface:/ {print $2}' || true)
+net_bytes() { # <7 = received, 10 = sent>
+  local b=""
+  [ -n "$NET_IF" ] && b=$(netstat -ibn -I "$NET_IF" 2> /dev/null | awk -v c="$1" 'NR == 2 {print $c}')
+  echo "${b:-0}"
+}
+# A speed meter on the network interface: meter_start <7|10>, then meter_tick sets M_DONE (bytes since the start)
+# and M_RATE (bytes per second, smoothed).
+meter_start() { M_COL=$1; M_B0=$(net_bytes "$1"); M_LB=$M_B0; M_LT=$SECONDS; M_DONE=0; M_RATE=0; }
+meter_tick() {
+  local b t=$SECONDS r; b=$(net_bytes "$M_COL")
+  M_DONE=$((b - M_B0))
+  if [ $((t - M_LT)) -ge 2 ]; then
+    r=$(((b - M_LB) / (t - M_LT)))
+    if [ "$M_RATE" -gt 0 ]; then M_RATE=$(((M_RATE * 2 + r) / 3)); else M_RATE=$r; fi
+    M_LB=$b; M_LT=$t
+    [ "$M_COL" = 10 ] && [ "$M_RATE" -gt 20000 ] && UP_SPEED=$M_RATE
+  fi
+  return 0
+}
+mb() { echo $(($1 / 1048576)); }
+rate() { awk -v b="$1" 'BEGIN { printf "%.1f MB/s", b / 1048576 }'; }
+left() { # <seconds>: "~40 s" or "~3 min"
+  if [ "$1" -lt 60 ]; then echo "~$(( ($1 + 9) / 10 * 10 )) s"; else echo "~$(( ($1 + 59) / 60 )) min"; fi
+}
+# "64 of 256 MB · 0.4 MB/s · ~9 min left" for <bytes done> <bytes total>
+progress_text() {
+  local d=$1 t=$2 r=$M_RATE
+  [ "$d" -gt "$t" ] && d=$t
+  [ "$d" -lt 0 ] && d=0
+  if [ "$r" -gt 20000 ]; then
+    PHASE_LEFT=$(((t - d) / r))
+    echo "$(mb "$d") of $(mb "$t") MB · $(rate "$r") · $(left "$PHASE_LEFT") left"
+  else
+    echo "$(mb "$d") of $(mb "$t") MB · measuring speed"
+  fi
+}
+
+PLAN=(); CUR_PHASE=""; PHASE_T=0; PHASE_LEFT=""; NUP_BYTES=0; GHUP_BYTES=0
+est_phase() {
+  case "$1" in
+    build) local t; t=$(timing build); echo "${t:-90}" ;;
+    pack) local t; t=$(timing pack); echo "${t:-15}" ;;
+    sign) echo 5 ;;
+    nup) echo $((NUP_BYTES / UP_SPEED)) ;;
+    nwait) local t; t=$(timing notary_wait); echo "${t:-300}" ;;
+    ghup*) echo $((DMG_BYTES / UP_SPEED)) ;;
+    finish) echo 30 ;;
+    *) echo 0 ;;
+  esac
+}
+# A phase begins: it and everything before it leave PLAN.
+phase() {
+  local i n=${#PLAN[@]} cut=-1
+  for ((i = 0; i < n; i++)); do [ "${PLAN[$i]}" = "$1" ] && { cut=$i; break; }; done
+  [ "$cut" -ge 0 ] && PLAN=("${PLAN[@]:$((cut + 1))}")
+  CUR_PHASE="$1"; PHASE_T=$SECONDS; PHASE_LEFT=""
+}
+plan_seconds() { local p sum=0; for p in ${PLAN[@]+"${PLAN[@]}"}; do sum=$((sum + $(est_phase "$p"))); done; echo "$sum"; }
+# " · done ~10:05" while a release runs.
+eta_suffix() {
+  [ -n "$CUR_PHASE" ] || return 0
+  local cur="$PHASE_LEFT"
+  if [ -z "$cur" ]; then cur=$(($(est_phase "$CUR_PHASE") - SECONDS + PHASE_T)); [ "$cur" -lt 5 ] && cur=5; fi
+  printf " · done ~%s" "$(date -v+"$((cur + $(plan_seconds)))"S +%H:%M)"
 }
 
 MOUNTS=()
@@ -275,7 +363,7 @@ header() {
 
 build_progress() {
   if ! $TTY; then cat > /dev/null; return 0; fi
-  awk -v total="$1" -v label="$STEP" '
+  awk -v total="$1" -v label="$STEP" -v eta="$(eta_suffix)" '
     function target() { return match($0, /in target \047[^\047]+/) ? substr($0, RSTART + 11, RLENGTH - 11) : "" }
     function draw(   line, bar, i, f, p) {
       line = sprintf("▸ %-13s %s", label, what)
@@ -283,7 +371,7 @@ build_progress() {
         p = int(steps * 100 / total); if (p > 99) p = 99
         f = int(p / 5); bar = ""
         for (i = 0; i < 20; i++) bar = bar (i < f ? "█" : "░")
-        line = sprintf("%-52s %s %3d%%", line, bar, p)
+        line = sprintf("%-52s %s %3d%%%s", line, bar, p, eta)
       } else line = line sprintf("  (step %d)", steps)
       printf "\r\033[K\033[?7l\033[1m%s\033[0m\033[?7h", line; fflush()
     }
@@ -298,7 +386,21 @@ build_progress() {
   '
 }
 
+# codesign, tried again when Apple's timestamp server doesn't answer (it needs the network): sign_retry <codesign...>
+sign_retry() {
+  local n before
+  for n in 1 2 3 4; do
+    before=$(wc -l < "$LOG")
+    "$@" >> "$LOG" 2>&1 && return 0
+    tail -n +"$((before + 1))" "$LOG" | grep -qi "timestamp" || return 1
+    [ "$n" -lt 4 ] || return 1
+    warn "Apple's timestamp server didn't answer while signing; trying again in $((n * 15))s"
+    sleep $((n * 15))
+  done
+}
+
 build_app() {
+  phase build
   step "Building" "Release, from $(git rev-parse --short HEAD)"
   if [ ! -f Models/FaceEmbedding.mlmodel ]; then
     run_live "fetching the face model" "$LOGDIR/fetch-model.log" ./scripts/fetch-model.sh || fail "couldn't fetch the face model"
@@ -313,18 +415,20 @@ build_app() {
   grep -c "(in target '" "$LOG" > "$LOGDIR/build-steps" || true
   [ -d "$BUILT_APP" ] || fail "the build made no $APP_NAME.app"
   local warnings; warnings=$( (grep -E ": warning: " "$LOG" || true) | sort -u | wc -l | xargs)
+  save_timing build $((SECONDS - STEP_T))
   ok "Built" "$(app_desc "$BUILT_APP")${warnings:+$([ "$warnings" != 0 ] && echo " · $warnings warning(s), see $LOG")}"
 
   # Inside out: the media adapter (loaded by perl from Resources), the fan helper (it and the app each check the other
   # is signed by the same team), then the app with its entitlements.
+  phase sign
   step "Signing" "media adapter"
   LOG="$LOGDIR/sign.log"; : > "$LOG"
   local SIGN=(codesign --force --timestamp --options runtime --sign "$DEVID")
-  "${SIGN[@]}" "$BUILT_APP/Contents/Resources/MediaRemoteAdapter.framework" >> "$LOG" 2>&1 || fail "couldn't sign the media adapter"
+  sign_retry "${SIGN[@]}" "$BUILT_APP/Contents/Resources/MediaRemoteAdapter.framework" || fail "couldn't sign the media adapter"
   live "fan helper"
-  "${SIGN[@]}" --identifier com.marcogad.islet.fanhelper "$BUILT_APP/Contents/MacOS/IsletFanHelper" >> "$LOG" 2>&1 || fail "couldn't sign the fan helper"
+  sign_retry "${SIGN[@]}" --identifier com.marcogad.islet.fanhelper "$BUILT_APP/Contents/MacOS/IsletFanHelper" || fail "couldn't sign the fan helper"
   live "app"
-  "${SIGN[@]}" --entitlements Sources/Islet/Islet.entitlements "$BUILT_APP" >> "$LOG" 2>&1 || fail "couldn't sign the app"
+  sign_retry "${SIGN[@]}" --entitlements Sources/Islet/Islet.entitlements "$BUILT_APP" || fail "couldn't sign the app"
   codesign --verify --deep --strict "$BUILT_APP" >> "$LOG" 2>&1 || fail "the signed app doesn't verify"
   ok "Signed" "$DEVID"
 }
@@ -428,10 +532,13 @@ cmd_install() {
   if [ -n "$NEXT" ] && [ "$NEXT" != "$v" ]; then label="labeled \"$NEXT test build ($short)\""
   else label="${YELLOW}version $v with no test-build label (CHANGELOG's newest section is $v too)${OFF}"; fi
   ok "Checked" "$(git rev-parse --abbrev-ref HEAD) at $short$([ "$dirty" != 0 ] && echo ", with $dirty uncommitted file(s) in Sources") · $label"
+  PLAN=(build sign finish); CUR_PHASE="start"; PHASE_T=$SECONDS
   build_app
+  phase finish
   install_app "$BUILT_APP"
   clean_builds --deriveddata
   launch_app
+  CUR_PHASE=""
   echo
   echo "${BOLD}Installed${OFF} $(app_desc "$DEST") in $INSTALL_DIR. peninsula revert goes back to the released build."
 }
@@ -458,8 +565,10 @@ cmd_revert() {
     LOG="$LOGDIR/download.log"
     gh release download "v$PUB_V" --pattern "${DMG_ASSETS[0]}" --dir "$dl" > "$LOG" 2>&1 &
     local pid=$! total_mb=$((size / 1048576)); BG+=("$pid")
+    meter_start 7
     while kill -0 "$pid" 2> /dev/null; do
-      live "${DMG_ASSETS[0]}  $(($(du -sk "$dl" | cut -f1) / 1024)) of $total_mb MB"
+      meter_tick
+      live "${DMG_ASSETS[0]}: $(progress_text $(($(du -sk "$dl" | cut -f1) * 1024)) "$size")"
       sleep 1
     done
     wait "$pid" || fail "the download failed"
@@ -521,6 +630,7 @@ check_dmg() {
 
 pack() { # <index> <source .app>
   local i=$1 src="$2" stage="build/dmg-stage" f="${DMG_FILES[$1]}"
+  phase pack
   step "Packing" "$(basename "$f")"
   rm -rf "$stage" "$f"; mkdir -p "$stage" dist
   run_live "$(basename "$f"): copying the app" "$LOGDIR/pack.log" ditto "$src" "$stage/${DMG_APPS[$i]}" || fail "couldn't stage the app"
@@ -528,6 +638,7 @@ pack() { # <index> <source .app>
   run_live "$(basename "$f"): compressing" "$LOGDIR/pack.log" \
     hdiutil create -volname "${DMG_VOLS[$i]}" -srcfolder "$stage" -ov -format UDZO "$f" || fail "hdiutil couldn't make $f"
   rm -rf "$stage"
+  save_timing pack $((SECONDS - STEP_T)); save_timing dmg_bytes "$(stat -f %z "$f")"
   ok "Packed" "$(basename "$f") ($(size_of "$f"))"
 }
 
@@ -547,7 +658,12 @@ submit_dmg() {
 # Sends the given DMGs to Apple at the same time and waits for all of them: notarize <index>...
 notarize() {
   local idx=("$@") i ids=() states=() pids=() tries=() st last=-100 text failed=""
+  phase nup
+  NUP_BYTES=0
+  for i in "${idx[@]}"; do NUP_BYTES=$((NUP_BYTES + $(stat -f %z "${DMG_FILES[$i]}"))); done
   step "Notarizing" "uploading to Apple"
+  meter_start 10
+  local up_t0=$SECONDS uploaded=false wait_t0=0
   for i in "${idx[@]}"; do
     submit_dmg "$i" &
     pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; ids[$i]=""; tries[$i]=0
@@ -592,14 +708,29 @@ notarize() {
         esac
       done
     fi
-    text=""
+    text=""; local any_up=false
     for i in "${idx[@]}"; do
-      st="${states[$i]}"; [ "$st" = uploading ] && [ "${tries[$i]}" -gt 0 ] && st="uploading (attempt $((tries[$i] + 1)))"
+      st="${states[$i]}"
+      [ "$st" = uploading ] && any_up=true
+      [ "$st" = uploading ] && [ "${tries[$i]}" -gt 0 ] && st="uploading (attempt $((tries[$i] + 1)))"
       text="$text${text:+ · }$(basename "${DMG_FILES[$i]}" .dmg): $st"
     done
+    if $any_up; then
+      meter_tick
+      text="$text · $(progress_text "$M_DONE" "$NUP_BYTES")"
+    else
+      if ! $uploaded; then
+        uploaded=true; wait_t0=$SECONDS
+        [ $((SECONDS - up_t0)) -ge 5 ] && save_timing up_speed $((NUP_BYTES / (SECONDS - up_t0)))
+        phase nwait
+      fi
+      local typical; typical=$(timing notary_wait)
+      text="$text · Apple usually takes $(left "${typical:-300}")"
+    fi
     live "$text"
     sleep 2
   done
+  [ "$wait_t0" -gt 0 ] && [ -z "$failed" ] && save_timing notary_wait $((SECONDS - wait_t0))
   if [ -n "$failed" ]; then
     LOG=""; fail "couldn't send to Apple: $failed. Accepted DMGs are kept: the next run only sends the rest"
   fi
@@ -632,7 +763,8 @@ prepare_dmgs() {
     [ "${DMG_STATE[$i]}" = unsigned ] || continue
     step "Signing" "$(basename "${DMG_FILES[$i]}")"
     LOG="$LOGDIR/sign-dmg.log"
-    codesign --force --timestamp --sign "$DEVID" "${DMG_FILES[$i]}" > "$LOG" 2>&1 || fail "couldn't sign ${DMG_FILES[$i]}"
+    : > "$LOG"
+    sign_retry codesign --force --timestamp --sign "$DEVID" "${DMG_FILES[$i]}" || fail "couldn't sign ${DMG_FILES[$i]}"
     ok "Signed" "$(basename "${DMG_FILES[$i]}") with $DEVID"
     DMG_STATE[$i]=unnotarized
   done
@@ -656,9 +788,11 @@ cmd_dmg() {
   if [ "${1:-}" = --app-only ]; then echo "App: $BUILT_APP"; return 0; fi
   xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1 \
     || { echo "No \"$NOTARY_PROFILE\" Keychain profile (see the top of this script)." >&2; exit 1; }
+  NUP_BYTES=$((2 * DMG_BYTES)); PLAN=(pack pack sign nup nwait); CUR_PHASE="start"; PHASE_T=$SECONDS
   pack 0 "$BUILT_APP"; pack 1 "$BUILT_APP"
   DMG_STATE=(unsigned unsigned)
   prepare_dmgs
+  CUR_PHASE=""
 }
 
 # ---------------------------------------------------------------- releasing
@@ -792,7 +926,29 @@ cmd_release() {
   else echo "  GitHub      a draft v$V with both DMGs and the notes, published once the commit and tag are pushed"; fi
   $committed && echo "  Git         \"Version $V\" is already committed"
   if $INSTALL; then echo "  This Mac    the released $V is installed at the end"; fi
+  # The phases still to do, for the time estimate.
+  PLAN=(); local n_pack=0 n_sign=0 n_notarize=0 donor_ok=false
+  for i in 0 1; do
+    case "${DMG_STATE[$i]}" in
+      missing|stale) n_pack=$((n_pack + 1)); n_sign=$((n_sign + 1)); n_notarize=$((n_notarize + 1)) ;;
+      unsigned) n_sign=$((n_sign + 1)); n_notarize=$((n_notarize + 1)); donor_ok=true ;;
+      unnotarized) n_notarize=$((n_notarize + 1)); donor_ok=true ;;
+      ready) donor_ok=true ;;
+    esac
+  done
+  [ "$n_pack" -gt 0 ] && ! $donor_ok && PLAN+=(build sign)
+  for ((i = 0; i < n_pack; i++)); do PLAN+=(pack); done
+  [ "$n_sign" -gt 0 ] && PLAN+=(sign)
+  NUP_BYTES=$((n_notarize * DMG_BYTES))
+  [ "$n_notarize" -gt 0 ] && PLAN+=(nup nwait)
+  $NO_UPLOAD || PLAN+=(ghup0 ghup1 finish)
+  $INSTALL && PLAN+=(finish)
+  local total; total=$(plan_seconds)
+  printf "  %-11s about %s, done around %s" "Estimate" "$(left "$total" | tr -d '~')" "$(date -v+"$total"S +%H:%M)"
+  if $SPEED_MEASURED; then echo " (uploads at $(rate "$UP_SPEED"), the last measured speed; updated live)"
+  else echo " (upload speed not measured yet: assumes $(rate "$UP_SPEED") until it is)"; fi
   echo
+  CUR_PHASE="start"; PHASE_T=$SECONDS
   RELEASING=true
 
   # 4. Version, build and the CHANGELOG date.
@@ -825,14 +981,19 @@ cmd_release() {
     if [ -n "$remote" ] && [ "$remote" = "sha256:$(sha "${DMG_FILES[$i]}")" ]; then
       say "$(basename "${DMG_FILES[$i]}") is on the draft already (same checksum): not uploaded again"
     else
-      retry_live 4 "uploading $(basename "${DMG_FILES[$i]}") ($(size_of "${DMG_FILES[$i]}"))" "$LOGDIR/gh-upload-$i.log" \
-        gh release upload "v$V" "${DMG_FILES[$i]}" --clobber || fail "couldn't upload ${DMG_FILES[$i]}"
+      phase "ghup$i"
+      UP_TOTAL=$(stat -f %z "${DMG_FILES[$i]}"); local up_t0=$SECONDS
+      retry_live 4 "uploading $(basename "${DMG_FILES[$i]}")" "$LOGDIR/gh-upload-$i.log" \
+        gh release upload "v$V" "${DMG_FILES[$i]}" --clobber || { UP_TOTAL=0; fail "couldn't upload ${DMG_FILES[$i]}"; }
+      [ $((SECONDS - up_t0)) -ge 5 ] && save_timing up_speed $((UP_TOTAL / (SECONDS - up_t0)))
+      UP_TOTAL=0
       say "$(basename "${DMG_FILES[$i]}") uploaded"
     fi
   done
   ok "Draft ready" "v$V with both DMGs and the CHANGELOG notes (not public yet)"
 
   # 7. Commit, tag, push.
+  phase finish
   step "Committing" "Version $V"
   if ! git diff --quiet HEAD -- "${RELEASE_FILES[@]}"; then
     LOG="$LOGDIR/git.log"
@@ -863,7 +1024,7 @@ cmd_release() {
   else warn "GitHub's newest release with the DMG is still ${top:-unknown}, not $V: check the release page"; STEP=""; fi
   clean_builds
 
-  RELEASING=false
+  RELEASING=false; CUR_PHASE=""
   if $INSTALL; then
     install_from_dmg "${DMG_FILES[0]}" "$V"
     launch_app
