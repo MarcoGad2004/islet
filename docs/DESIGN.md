@@ -493,6 +493,15 @@ DISPLAY & SOUND           ⚡85% ☾  [♪ Song title  ▶]  ⚙
   - Wi-Fi detail: on/off, the connected network (always first, with a Disconnect button), nearby networks (join; saved networks join directly; password
     prompt for new secured ones, with an eye button beside the field that shows what is typed (owner's request, 2026-11-25; hidden again for each network), username and password for Enterprise ones), a link to Wi-Fi settings. The footer's left end has a refresh button (it turns into a spinner while scanning) and "Updated 12 s ago" for the list's age (owner's request, 2026-11-25); the page also scans by itself every 15 s while it is open, and never during a join or a speed test. A Personal
     Hotspot shows as one: the tile reads "Hotspot" with the hotspot icon, the network gets a green "Hotspot" tag.
+  - Speed test (owner, 2026-11-27): its pill sits on the line under the connected row's Disconnect, at the end of the
+    line that shows its progress and result: "Run speed test", Stop (with a spinner) while it runs, then "Test speed
+    again" (or "Retry"). While it runs the line shows the figures as they come ("Testing download… ↓ 64.1 Mbps", then
+    "Testing upload… ↓ 212 Mbps  ↑ 16.2 Mbps"). It runs download then upload (`networkQuality -s` under `script`, which
+    gives the tool the terminal it needs to print running figures). With the panel closed, the notch shows the same
+    figures rolling in its line (the speedometer blue for the download, purple for the upload), and a 3 pt glowing bar
+    fills along its bottom edge inside the corners, like a speed test's gauge: blue through the first half (download),
+    purple through the second (upload), easing toward the end of each half over about 10 s and cross-fading colour
+    (0.4 s) as the upload starts. The result shows as before.
   - Bluetooth detail: on/off and only the accessories one connects on purpose (headphones, speakers, keyboards, mice,
     controllers; not phones, tablets, watches or Macs), tap to connect or disconnect, a link to Bluetooth settings.
   - Mirroring detail: available displays and AirPlay targets where reachable, otherwise it opens the system picker.
@@ -925,8 +934,9 @@ docs/mockups/quick-info.html).
   each, left-aligned 18 pt in with the icons in a 16 pt column, so long names fit (owner, 2026-11-27; until 1.7.5 they
   shared one centred row). No Bluetooth device: its line goes and the body is 60.
 - **On a phone's hotspot** (owner, 2026-11-27): the phone's cellular bars, the network ("5G", "LTE", semibold,
-  after the bars) and battery (in quarters, as an icon; 12 pt
-  `secondary` like a Bluetooth device's charge, the battery red at a quarter or less) follow the network's name, in the wide bar and the chin, and on the Wi-Fi page's connected row before
+  after the bars) and battery (the phone reports the quarter it's in, rounded
+  down, so the icon shows that quarter's top: 75-99% is full, 50-74% three quarters; 12 pt `secondary` like a
+  Bluetooth device's charge, the battery red under 25%) follow the network's name, in the wide bar and the chin, and on the Wi-Fi page's connected row before
   "Hotspot". Hovering starts Instant Hotspot browsing for a minute, so they appear a moment after the rest.
 - **Motion**: the shape springs out like the wings, the text fading in at 0.06 s (0.12 s in the chin). The swell applies.
 - **With music swiped away** (owner, 2026-11-25): quick info shows as usual, and the media peek's glow joins it along the

@@ -37,6 +37,8 @@ struct DetailRow<Icon: View, Trailing: View>: View {
     /// A full-width line under the row (the speed test's progress and result); the row grows to hold it.
     var note: String? = nil
     var noteColor = Color.isletText
+    /// At the end of the note's line, under the row's trailing buttons (the speed test's button).
+    var accessory: AnyView? = nil
     var action: () -> Void
     @ViewBuilder var icon: () -> Icon
     @ViewBuilder var trailing: () -> Trailing
@@ -57,11 +59,18 @@ struct DetailRow<Icon: View, Trailing: View>: View {
                     trailing()
                 }
                 .frame(height: 34)
-                if let note {
-                    Text(note).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(noteColor)
-                        .lineLimit(1).minimumScaleFactor(0.85)
-                        .padding(.leading, 34).padding(.bottom, 8)
-                        .transition(.opacity)
+                if note != nil || accessory != nil {
+                    HStack(spacing: 8) {
+                        if let note {
+                            Text(note).font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(noteColor)
+                                .lineLimit(1).minimumScaleFactor(0.85)
+                                .contentTransition(.numericText())
+                                .transition(.opacity)
+                        }
+                        Spacer(minLength: 6)
+                        accessory
+                    }
+                    .padding(.leading, 34).padding(.bottom, 8)
                 }
             }
             .padding(.horizontal, 8)
@@ -200,15 +209,17 @@ struct HotspotDetail: View {
                 if let n = phone.network { Text(n).font(.system(size: size, weight: .semibold)) }
             }
             if let b = phone.battery {
-                // Red at a quarter or less, as a Bluetooth device's charge goes red when low.
-                Image(systemName: b >= 100 ? "battery.100" : b >= 75 ? "battery.75" : b >= 50 ? "battery.50" : b >= 25 ? "battery.25" : "battery.0")
+                // The phone reports the quarter it's in, rounded down (75 is 75-99%), so the icon shows the top of that
+                // quarter: a phone at 80% looks nearly full, as it is. Red under 25%, as a Bluetooth device's charge
+                // goes red when low.
+                Image(systemName: b >= 75 ? "battery.100" : b >= 50 ? "battery.75" : b >= 25 ? "battery.50" : "battery.25")
                     .font(.system(size: size + 2))
-                    .foregroundStyle(b <= 25 ? Color.isletRedText : color)
+                    .foregroundStyle(b < 25 ? Color.isletRedText : color)
             }
         }
         .font(.system(size: size)).foregroundStyle(color)
         .help((phone.network.map { "\($0), " } ?? "") + "cellular signal \(phone.bars) of 4 bars"
-              + (phone.battery.map { ", battery up to \($0)%" } ?? ""))
+              + (phone.battery.map { $0 >= 100 ? ", battery full" : ", battery \($0)-\($0 + 24)%" } ?? ""))
     }
 }
 
@@ -262,7 +273,8 @@ struct WiFiContent: View {
         return "Updated over an hour ago"
     }
 
-    /// The pill beside Disconnect: Run speed test, Stop, Again or Retry. The output goes on its own line (`speedNote`).
+    /// The pill under Disconnect: Run speed test, Stop, Test speed again or Retry, at the end of the line that shows
+    /// its progress and result (`speedNote`).
     @ViewBuilder private var speedTest: some View {
         let t = SpeedTest.shared
         switch t.state {
@@ -274,7 +286,7 @@ struct WiFiContent: View {
                     .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
                     .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))
             }
-        case .done: speedButton("Again")
+        case .done: speedButton("Test speed again")
         case .failed: speedButton("Retry")
         }
     }
@@ -283,7 +295,13 @@ struct WiFiContent: View {
     private var speedNote: (text: String, color: Color)? {
         switch SpeedTest.shared.state {
         case .idle: nil
-        case .running: ("Testing… measuring download, upload and latency", .isletSecondary)
+        case .running:
+            // The figures as they come: the download climbing, then the upload.
+            if let l = SpeedTest.shared.live, l.download > 0 {
+                (l.uploading ? "Testing upload…  \(SpeedTest.liveText(l))" : "Testing download…  \(SpeedTest.liveText(l))", .isletSecondary)
+            } else {
+                ("Testing… measuring download, upload and latency", .isletSecondary)
+            }
         case .done(let r): (SpeedTest.summary(r), .isletText)
         case .failed(let e): (e, .isletRedText)
         }
@@ -350,7 +368,7 @@ struct WiFiContent: View {
         let connected = n.ssid == wifi.ssid
         let connectedHotspot = connected && wifi.hotspot
         DetailRow(title: n.ssid, selected: connected, note: connected ? speedNote?.text : nil,
-                  noteColor: speedNote?.color ?? .isletText, action: { tap(n) }) {
+                  noteColor: speedNote?.color ?? .isletText, accessory: connected ? AnyView(speedTest) : nil, action: { tap(n) }) {
             if n.hotspot || phone != nil || connectedHotspot { Image(systemName: "personalhotspot") }
             else { Image(systemName: "wifi", variableValue: Double(n.bars) / 3) }
         } trailing: {
@@ -359,7 +377,7 @@ struct WiFiContent: View {
                 if connectedHotspot { Text("Hotspot").font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletGreen) }
                 if wifi.joining == n.ssid { ProgressView().controlSize(.small) }
                 else if connected {
-                    speedTest
+                    // The speed test's button is on the line below, under this one (`accessory`).
                     Button("Disconnect") { Task { await wifi.disconnect() } }
                         .buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.isletText)
                         .padding(.horizontal, 9).frame(height: 20).background(Capsule().fill(Color.white.opacity(0.12)))

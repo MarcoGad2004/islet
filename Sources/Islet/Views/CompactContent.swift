@@ -289,7 +289,7 @@ struct CompactContentView: View {
     }
 
     /// Only a count (the download's percent) rolls its digits; a new step cross-fades.
-    private func rolls(_ p: ConnectionProgress) -> Bool { p.text.hasSuffix("%") }
+    private func rolls(_ p: ConnectionProgress) -> Bool { p.text.hasSuffix("%") || p.speed != nil }
 
     private func isFailed(_ p: ConnectionProgress) -> Bool { if case .failed = p.state { true } else { false } }
 
@@ -338,6 +338,32 @@ struct CompactContentView: View {
         }
     }
 
+}
+
+/// A speed test running: a glowing bar along the notch's bottom edge, filling like a speed test's gauge. Blue through
+/// the download (the first half), purple through the upload (the second); the colour cross-fades as it changes.
+struct SpeedGlowBar: View {
+    let phase: SpeedPhase
+    let width: CGFloat
+
+    var body: some View {
+        let color: Color = phase.uploading ? .speedUpload : .speedDownload
+        TimelineView(.animation) { ctx in
+            // Eases toward the end of its half and waits there until the next phase starts.
+            let t = max(ctx.date.timeIntervalSince(phase.since), 0) / SpeedTest.phaseSeconds
+            let part = 0.96 * (1 - exp(-2.2 * t))
+            let fill = (phase.uploading ? 0.5 : 0) + 0.5 * part
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.08))
+                Capsule().fill(LinearGradient(colors: [color.opacity(0.55), color], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: max(width * fill, 3))
+                    .shadow(color: color.opacity(0.8), radius: 4)
+                    .shadow(color: color.opacity(0.4), radius: 9)
+            }
+            .frame(width: width, height: 3)
+        }
+        .animation(.easeInOut(duration: 0.4), value: phase.uploading)
+    }
 }
 
 /// Icon that pops in from scale 0 with overshoot, 0.4 s.

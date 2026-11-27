@@ -7,7 +7,8 @@ struct InstantHotspot: Identifiable, Equatable, Sendable {
     var name: String
     /// 0...4 bars of cellular signal.
     var bars: Int
-    /// Battery in 25% steps, rounded up (sharingd only gets this much from the phone): 75 means 51-75%.
+    /// Battery in 25% steps, rounded down (sharingd only gets this much from the phone): 75 means 75-99% (a phone at
+    /// 80% reports 75), 100 full.
     var battery: Int?
     /// "5G", "LTE" and so on: the cellular network, as sharingd names it; nil when it doesn't say.
     var network: String?

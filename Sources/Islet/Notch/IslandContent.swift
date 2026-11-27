@@ -206,6 +206,13 @@ struct ShazamDrag: Equatable {
     var reach: Double { min(max(progress / 0.5, 0), 1) }
 }
 
+/// The speed test's phase, for the glow bar: download fills the first half (blue), upload the second (purple), each
+/// over about `SpeedTest.phaseSeconds` from `since`.
+struct SpeedPhase: Equatable {
+    var uploading: Bool
+    var since: Date
+}
+
 /// A join (or an update) in progress. Updates in place (one content kind), so the notch doesn't remount between steps.
 struct ConnectionProgress: Equatable {
     enum State: Equatable {
@@ -226,6 +233,8 @@ struct ConnectionProgress: Equatable {
     var hold: Double? = nil
     /// The whole job's progress, 0...1 (an update): shown as a bar that becomes a check when it is done.
     var fraction: Double? = nil
+    /// A speed test running: the glow bar along the notch's bottom edge (`SpeedGlowBar`).
+    var speed: SpeedPhase? = nil
 
     /// The line under the wings, or beside the icon in the chin.
     var text: String {

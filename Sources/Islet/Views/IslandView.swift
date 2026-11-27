@@ -98,6 +98,14 @@ struct IslandView: View {
                                            levelBody: pres == .levelWings, hintBody: pres == .lockHint, eventBar: pres == .eventWings)
                             .id(key).transition(levelGlide(content) ? .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.1)))
                                                 : pres == .chin ? fade(0.36) : wingsFade(pres == .levelWings || pres == .lockHint ? 0.2 : 0.12))
+                        // A speed test: its glow bar fills along the bottom edge, inside the corners.
+                        if case .progress(let p) = c, let phase = p.speed {
+                            SpeedGlowBar(phase: phase, width: max(CGFloat(m.bw - 2 * max(m.br, 12) - 8), 40))
+                                .padding(.top, CGFloat(m.height) - 7)
+                                .frame(maxWidth: .infinity, alignment: .top)
+                                .transition(.opacity.animation(.easeOut(duration: 0.25)))
+                                .allowsHitTesting(false)
+                        }
                     }
                 case .earbuds:
                     if case .earbuds(let e)? = content {

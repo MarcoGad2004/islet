@@ -1,15 +1,43 @@
 import XCTest
 @testable import Islet
 
+/// networkQuality's own output under a pseudo-terminal (`networkQuality -s`, macOS 27.2): one line redrawn with
+/// carriage returns, then the summary.
 final class SpeedTestParseTests: XCTestCase {
-    func testParsesThroughputAndLatency() {
-        let json = #"{"dl_throughput": 250000000, "ul_throughput": 40000000, "base_rtt": 12.5}"#
-        XCTAssertEqual(SpeedTest.parse(Data(json.utf8)), .done(.init(download: 250, upload: 40, latency: 12.5)))
+    private let running = "\u{1B}[2K\rDownlink: 66.462 Mbps, 0 RPM - Uplink: 0.000 Mbps, 0 RPM\r\u{1B}[2K\rDownlink: 71.856 Mbps, 136 RPM - Uplink: 0.000 Mbps, 0 RPM\r"
+    private let summary = """
+        \u{1B}[2K==== SUMMARY ====\r
+        Uplink capacity: 16.162 Mbps\r
+        Downlink capacity: 211.804 Mbps\r
+        Uplink Responsiveness: Medium (235.025 milliseconds | 255 RPM)\r
+        Downlink Responsiveness: Low (426.189 milliseconds | 140 RPM)\r
+        Idle Latency: 66.557 milliseconds | 901 RPM\r
+
+        """
+
+    func testLiveTakesTheNewestWholeLine() {
+        let f = SpeedTest.parseLive(running)
+        XCTAssertEqual(f?.download, 71.856)
+        XCTAssertEqual(f?.upload, 0)
+        // A read that ends mid-line falls back to the last whole one.
+        let cut = SpeedTest.parseLive(running + "\u{1B}[2K\rDownlink: 211.804 Mbps, 140 RPM - Uplink: 2")
+        XCTAssertEqual(cut?.download, 71.856)
+        XCTAssertNil(SpeedTest.parseLive("nothing here"))
     }
 
-    func testErrorAndGarbageFailCleanly() {
-        if case .failed = SpeedTest.parse(Data(#"{"error_code": "timeout"}"#.utf8)) {} else { XCTFail("error_code") }
-        if case .failed = SpeedTest.parse(Data("not json".utf8)) {} else { XCTFail("garbage") }
-        if case .failed = SpeedTest.parse(Data("{}".utf8)) {} else { XCTFail("empty") }
+    func testLiveSeesTheUpload() {
+        let f = SpeedTest.parseLive("\rDownlink: 211.804 Mbps, 140 RPM - Uplink: 28.486 Mbps, 159 RPM\r")
+        XCTAssertEqual(f?.download, 211.804)
+        XCTAssertEqual(f?.upload, 28.486)
+    }
+
+    func testSummary() {
+        XCTAssertEqual(SpeedTest.parseSummary(running + summary), .done(.init(download: 211.804, upload: 16.162, latency: 66.557)))
+    }
+
+    func testNoSummaryFailsCleanly() {
+        if case .failed = SpeedTest.parseSummary("") {} else { XCTFail("empty") }
+        if case .failed = SpeedTest.parseSummary(running) {} else { XCTFail("cut off") }
+        if case .failed = SpeedTest.parseSummary("Error: no network") {} else { XCTFail("error") }
     }
 }
