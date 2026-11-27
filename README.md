@@ -49,9 +49,9 @@ MIT, see [LICENSE](LICENSE). The spoof model in `Models/AntiSpoof.mlpackage` is 
 ## Install (DMG)
 
 ```bash
-scripts/peninsula            # menu: install a test build, release, or go back to the released build
-scripts/peninsula install    # build this checkout and install it in /Applications
-scripts/peninsula dmg        # build signed, notarized DMGs in dist/ (no version change, no upload)
+peninsula            # menu: install a test build, release, or go back to the released build
+peninsula install    # build this checkout and install it in /Applications
+peninsula dmg        # build signed, notarized DMGs in dist/ (no version change, no upload)
 ```
 
 Or open a release's `Dynamic Peninsula.dmg`, drag the app to Applications, launch it, then allow Accessibility (Settings in the

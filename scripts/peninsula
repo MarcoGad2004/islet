@@ -1,15 +1,16 @@
 #!/bin/bash
-# Builds, installs and releases Dynamic Peninsula (formerly Islet). One command for the whole process:
+# Builds, installs and releases Dynamic Peninsula (formerly Islet). One command for the whole process, run from any
+# folder as `peninsula` (scripts/bootstrap.sh links it into ~/.local/bin, like ascupload):
 #
-#   scripts/peninsula              a menu showing what is installed, released and pending, then:
+#   peninsula              a menu showing what is installed, released and pending, then:
 #                                    1) install a test build of the next version from this checkout
 #                                    2) release the next version (or resume a release that stopped)
 #                                    3) go back to the released build (shown while something else is installed)
-#   scripts/peninsula install      1, without the menu (asks nothing)
-#   scripts/peninsula release      2, without the menu (asks the version and "Start?")
-#   scripts/peninsula revert       3, without the menu (asks nothing)
-#   scripts/peninsula status       the menu's header only
-#   scripts/peninsula dmg [--app-only]   build the current tree into signed, notarized DMGs (no version change, no
+#   peninsula install      1, without the menu (asks nothing)
+#   peninsula release      2, without the menu (asks the version and "Start?")
+#   peninsula revert       3, without the menu (asks nothing)
+#   peninsula status       the menu's header only
+#   peninsula dmg [--app-only]   build the current tree into signed, notarized DMGs (no version change, no
 #                                  upload); --app-only stops at the signed app in build/dmg-derived
 #
 # release options: --no-upload stops once both DMGs are ready (the version change is left uncommitted, and running
@@ -33,7 +34,13 @@
 # Notarizing uses the Keychain profile "islet-notary", saved once with
 #   xcrun notarytool store-credentials islet-notary --apple-id <Apple ID> --team-id X9Q5Y948RX
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Run from anywhere: ~/.local/bin/peninsula is a symlink to this file, so follow it back to the repo.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  link=$(readlink "$SELF")
+  case "$link" in /*) SELF="$link" ;; *) SELF="$(dirname "$SELF")/$link" ;; esac
+done
+cd "$(dirname "$SELF")/.."
 
 APP_NAME="Dynamic Peninsula"
 BUNDLE_ID="com.marcogad.islet"
@@ -95,7 +102,7 @@ fail() {
     echo "    Full log: $LOG" >&2
   fi
   if $RELEASING && ! $PUBLIC; then
-    echo "  Nothing is public yet. Fix the cause and run scripts/peninsula release again: finished steps are skipped." >&2
+    echo "  Nothing is public yet. Fix the cause and run peninsula release again: finished steps are skipped." >&2
   fi
   STEP=""
   exit 1
@@ -388,7 +395,7 @@ cmd_install() {
   clean_builds --deriveddata
   launch_app
   echo
-  echo "${BOLD}Installed${OFF} $(app_desc "$DEST") in $INSTALL_DIR. scripts/peninsula revert goes back to the released build."
+  echo "${BOLD}Installed${OFF} $(app_desc "$DEST") in $INSTALL_DIR. peninsula revert goes back to the released build."
 }
 
 # ---------------------------------------------------------------- going back to the released build
@@ -623,7 +630,7 @@ cmd_release() {
   [ -n "$DEVID" ] || problems+=("no \"Developer ID Application\" certificate in the Keychain")
   live "notary profile"
   xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1 \
-    || problems+=("the \"$NOTARY_PROFILE\" notary profile doesn't work (see the top of scripts/peninsula)")
+    || problems+=("the \"$NOTARY_PROFILE\" notary profile doesn't work (see peninsula help)")
   live "GitHub releases"
   load_releases; read_changelog; load_pending
   if [ "${#problems[@]}" -gt 0 ]; then
@@ -719,7 +726,7 @@ cmd_release() {
     clean_builds
     echo
     echo "${BOLD}DMGs ready${OFF} in dist/ (--no-upload). project.yml and CHANGELOG.md keep the $V change uncommitted;"
-    echo "scripts/peninsula release carries on from here."
+    echo "peninsula release carries on from here."
     return 0
   fi
 
@@ -819,12 +826,12 @@ menu() {
 }
 
 case "${1:-}" in
-  "") [ -t 0 ] || { echo "The menu needs a terminal: use scripts/peninsula install, release, revert or status." >&2; exit 1; }; menu ;;
+  "") [ -t 0 ] || { echo "The menu needs a terminal: use peninsula install, release, revert or status." >&2; exit 1; }; menu ;;
   install) cmd_install ;;
   release) shift; cmd_release "$@" ;;
   revert) cmd_revert ;;
   status) header ;;
   dmg) shift; cmd_dmg "$@" ;;
-  -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-  *) echo "Unknown command: $1 (try scripts/peninsula help)" >&2; exit 1 ;;
+  -h|--help|help) sed -n '2,/^set -euo/p' "$SELF" | sed '$d; s/^# \{0,1\}//' ;;
+  *) echo "Unknown command: $1 (try peninsula help)" >&2; exit 1 ;;
 esac

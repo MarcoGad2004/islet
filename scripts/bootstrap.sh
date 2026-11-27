@@ -6,4 +6,7 @@ brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
 brew list gh >/dev/null 2>&1 || brew install gh
 xcode-select -p >/dev/null || { echo "Install Xcode from the App Store"; exit 1; }
 xcodegen generate
-echo "Done. Run: open Islet.xcodeproj"
+# `peninsula` from any folder (test builds, releases), the same way as ascupload.
+mkdir -p ~/.local/bin
+ln -sf "$PWD/scripts/peninsula" ~/.local/bin/peninsula
+echo "Done. Run: open Islet.xcodeproj, or peninsula (~/.local/bin must be on your PATH)"

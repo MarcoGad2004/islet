@@ -25,7 +25,7 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
   `Islet.xcodeproj`.
 - Build: `xcodegen generate && xcodebuild -scheme Islet -destination 'platform=macOS' build`.
 - No analytics. No network access except updates and Shazam (only while it listens, after a press or swipe: ShazamKit
-  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23) and the Wi-Fi panel's speed test (macOS's `networkQuality`, only when Run speed test is pressed). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/peninsula release` publishes one, using the matching section of CHANGELOG.md as its notes and dating its heading; keep CHANGELOG.md up to date as features land).
+  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23) and the Wi-Fi panel's speed test (macOS's `networkQuality`, only when Run speed test is pressed). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`peninsula release` publishes one, using the matching section of CHANGELOG.md as its notes and dating its heading; keep CHANGELOG.md up to date as features land).
 
 ## Decisions already made
 
@@ -38,16 +38,17 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
 
 ## Running a test build on the owner's Mac (every session follows this)
 
-`scripts/peninsula` does the whole process; run with no arguments it shows what is installed, released and pending and
+`peninsula` (scripts/peninsula, linked into ~/.local/bin by scripts/bootstrap.sh, so it runs from any folder) does
+the whole process; run with no arguments it shows what is installed, released and pending and
 offers a menu. Keep exactly ONE copy of the app on the Mac: `/Applications/Dynamic Peninsula.app`.
 
-- When the owner asks to run or rebuild the test copy: `scripts/peninsula install` (it asks nothing). It builds Release
+- When the owner asks to run or rebuild the test copy: `peninsula install` (it asks nothing). It builds Release
   signed with the Developer ID certificate (the same identity as releases, which keeps the permissions macOS gave the
   app), quits the app, replaces the copy in /Applications in place, deletes the build folders and Islet's DerivedData,
   relaunches it, and says what is installed. Never launch a test build from a build folder.
-- `scripts/peninsula revert` puts the released build back (downloaded from GitHub and checked) when testing is done.
-- `scripts/peninsula status` shows the state without changing anything.
-- Releasing: `scripts/peninsula release`, only when the owner asks. It asks questions, so the owner runs it in a
+- `peninsula revert` puts the released build back (downloaded from GitHub and checked) when testing is done.
+- `peninsula status` shows the state without changing anything.
+- Releasing: `peninsula release`, only when the owner asks. It asks questions, so the owner runs it in a
   terminal (hand them the command). It is resumable and reuses DMGs that are already notarized.
 
 For your own build checks (compiling, running tests) use a throwaway `-derivedDataPath` and delete it afterwards.
