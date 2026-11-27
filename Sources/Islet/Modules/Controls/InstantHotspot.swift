@@ -9,10 +9,22 @@ struct InstantHotspot: Identifiable, Equatable, Sendable {
     var bars: Int
     /// Battery in 25% steps, rounded up (sharingd only gets this much from the phone): 75 means 51-75%.
     var battery: Int?
+    /// "5G", "LTE" and so on: the cellular network, as sharingd names it; nil when it doesn't say.
+    var network: String?
     fileprivate var device: SendableObject
 
     static func == (a: InstantHotspot, b: InstantHotspot) -> Bool {
-        a.id == b.id && a.name == b.name && a.bars == b.bars && a.battery == b.battery
+        a.id == b.id && a.name == b.name && a.bars == b.bars && a.battery == b.battery && a.network == b.network
+    }
+
+    /// The network's name from the device's description ("…, network type: 5G, …"). `networkType` itself is a bare
+    /// code (8 for 5G) with no public mapping, and the description is where sharingd turns it into words.
+    static func networkName(_ description: String) -> String? {
+        guard let r = description.range(of: "network type: ") else { return nil }
+        let name = description[r.upperBound...].prefix { $0 != "," && $0 != ">" }.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name.count <= 8, !["none", "unknown", "(null)", "invalid"].contains(name.lowercased()),
+              !name.allSatisfy(\.isNumber) else { return nil }
+        return name
     }
 }
 
@@ -110,7 +122,8 @@ final class InstantHotspotBrowser: NSObject {
                 let id = (d.value(forKey: "deviceIdentifier") as? String) ?? name
                 let bars = (d.value(forKey: "signalStrength") as? NSNumber)?.intValue ?? 0
                 let battery = (d.value(forKey: "batteryLife") as? NSNumber)?.intValue
-                return InstantHotspot(id: id, name: name, bars: min(max(bars, 0), 4), battery: battery, device: SendableObject(object: d))
+                return InstantHotspot(id: id, name: name, bars: min(max(bars, 0), 4), battery: battery,
+                                      network: InstantHotspot.networkName(d.description), device: SendableObject(object: d))
             }
             onDevices?(list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending })
         }

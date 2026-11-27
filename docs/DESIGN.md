@@ -924,7 +924,8 @@ docs/mockups/quick-info.html).
   the time and date on the left, the battery and percentage on the right. Then Wi-Fi and Bluetooth on a 22 pt line
   each, left-aligned 18 pt in with the icons in a 16 pt column, so long names fit (owner, 2026-11-27; until 1.7.5 they
   shared one centred row). No Bluetooth device: its line goes and the body is 60.
-- **On a phone's hotspot** (owner, 2026-11-27): the phone's cellular bars and battery (in quarters, as an icon; 12 pt
+- **On a phone's hotspot** (owner, 2026-11-27): the phone's cellular bars, the network ("5G", "LTE", semibold,
+  after the bars) and battery (in quarters, as an icon; 12 pt
   `secondary` like a Bluetooth device's charge, the battery red at a quarter or less) follow the network's name, in the wide bar and the chin, and on the Wi-Fi page's connected row before
   "Hotspot". Hovering starts Instant Hotspot browsing for a minute, so they appear a moment after the rest.
 - **Motion**: the shape springs out like the wings, the text fading in at 0.06 s (0.12 s in the chin). The swell applies.

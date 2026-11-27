@@ -233,8 +233,10 @@ lock screen. Each question below can block it:
     while the phone starts broadcasting. Browsing verified on macOS 27.2; joining needs testing.
     While the Mac is joined to a phone's hotspot, browsing keeps reporting that phone with fresh bars and battery
     (checked 2026-11-27, macOS 27.2: "Marco's iPhone Duo", 2 bars, 75), which the connected row and quick info use.
-    `SFRemoteHotspotDevice` also has `networkType` (a char; 8 on that phone, on 5G or LTE) and `model`, but the codes
-    aren't mapped, so no "5G"/"LTE" label is shown.
+    `SFRemoteHotspotDevice` also has `networkType` (a char; 8 on that phone) with no public mapping, but its
+    `description` spells it out ("battery life: 75, network type: 5G, signal strength: 1, … model iPhone19,4"), so
+    the label is read from there. There is no charging flag: `advertisementData` is nil once parsed, and the device
+    keeps only `batteryLife` in quarters (as macOS's own Wi-Fi menu shows it, without a bolt).
 15b. **Wi-Fi auto-join** (1.2): not settable. CoreWiFi's private `CWFNetworkProfile.setAutoJoinDisabled:` +
     `CWFInterface updateKnownNetworkProfile:properties:error:` fail with Cocoa error 4097 (connection to
     `com.apple.private.corewifi-xpc` refused: Apple-only entitlement). CoreWLAN's public profile has no auto-join flag.

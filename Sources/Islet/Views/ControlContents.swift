@@ -194,7 +194,11 @@ struct HotspotDetail: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "cellularbars", variableValue: Double(phone.bars) / 4)
+            HStack(spacing: 3) {
+                Image(systemName: "cellularbars", variableValue: Double(phone.bars) / 4)
+                // "5G", "LTE": after the bars, as the iPhone's status bar has it.
+                if let n = phone.network { Text(n).font(.system(size: size, weight: .semibold)) }
+            }
             if let b = phone.battery {
                 // Red at a quarter or less, as a Bluetooth device's charge goes red when low.
                 Image(systemName: b >= 100 ? "battery.100" : b >= 75 ? "battery.75" : b >= 50 ? "battery.50" : b >= 25 ? "battery.25" : "battery.0")
@@ -203,7 +207,8 @@ struct HotspotDetail: View {
             }
         }
         .font(.system(size: size)).foregroundStyle(color)
-        .help(phone.battery.map { "Cellular signal \(phone.bars) of 4 bars, battery up to \($0)%" } ?? "Cellular signal \(phone.bars) of 4 bars")
+        .help((phone.network.map { "\($0), " } ?? "") + "cellular signal \(phone.bars) of 4 bars"
+              + (phone.battery.map { ", battery up to \($0)%" } ?? ""))
     }
 }
 
