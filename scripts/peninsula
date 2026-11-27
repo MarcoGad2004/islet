@@ -187,7 +187,8 @@ notify() {
 
 # One readable line for why a network command failed: short_error <log>
 short_error() {
-  if grep -qiE "connectTimeout|timed out|timeout" "$1" 2> /dev/null; then echo "the connection timed out"
+  if grep -qiE "deadlineExceeded" "$1" 2> /dev/null; then echo "a piece of the upload took too long and Apple dropped it"
+  elif grep -qiE "connectTimeout|timed out|timeout" "$1" 2> /dev/null; then echo "the connection timed out"
   elif grep -qiE "could not resolve|resolve host|offline|network.*(lost|unreachable)|NSURLErrorDomain" "$1" 2> /dev/null; then echo "no network connection"
   elif grep -qiE "HTTP 5[0-9][0-9]|50[234]|Service Unavailable|Bad Gateway" "$1" 2> /dev/null; then echo "the server had an error"
   else
@@ -706,42 +707,57 @@ pack() { # <index> <source .app>
 }
 
 # Sends one DMG to Apple, trying again after 30, 60 and 90 s when the upload fails (run in the background).
+# Retries skip S3 Transfer Acceleration, which goes a more direct way that can hold up better on a slow line.
 submit_dmg() {
-  local i=$1 n
+  local i=$1 n accel=()
   : > "$LOGDIR/notary-$i.attempts"
   for n in 1 2 3 4; do
+    [ "$n" -gt 1 ] && accel=(--no-s3-acceleration)
     if xcrun notarytool submit "${DMG_FILES[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json \
-        > "$LOGDIR/notary-$i.json" 2> "$LOGDIR/notary-$i.err"; then return 0; fi
+        ${accel[@]+"${accel[@]}"} > "$LOGDIR/notary-$i.json" 2> "$LOGDIR/notary-$i.err"; then return 0; fi
     echo "$(short_error "$LOGDIR/notary-$i.err")" >> "$LOGDIR/notary-$i.attempts"
     [ "$n" -lt 4 ] && sleep $((n * 30))
   done
   return 1
 }
 
-# Sends the given DMGs to Apple at the same time and waits for all of them: notarize <index>...
+# Sends the given DMGs to Apple and waits for all of them: notarize <index>...
+# Uploads go one at a time, so each gets the whole connection (two at once on a slow line made every piece slow
+# enough for Apple to drop it); Apple checks a DMG that is already sent while the next one uploads.
 notarize() {
-  local idx=("$@") i ids=() states=() pids=() tries=() st last=-100 text failed=""
+  local idx=("$@") i ids=() states=() pids=() tries=() sizes=() st last=-100 text failed="" cur=""
   phase nup
   NUP_BYTES=0
-  for i in "${idx[@]}"; do NUP_BYTES=$((NUP_BYTES + $(stat -f %z "${DMG_FILES[$i]}"))); done
-  step "Notarizing" "uploading to Apple"
-  meter_start 10
-  local up_t0=$SECONDS uploaded=false wait_t0=0
   for i in "${idx[@]}"; do
-    submit_dmg "$i" &
-    pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; ids[$i]=""; tries[$i]=0
+    sizes[$i]=$(stat -f %z "${DMG_FILES[$i]}"); NUP_BYTES=$((NUP_BYTES + sizes[$i]))
+    states[$i]="queued"; ids[$i]=""; tries[$i]=0
   done
+  step "Notarizing" "uploading to Apple"
+  local up_t0=$SECONDS uploaded=false wait_t0=0
   while :; do
+    # Start the next upload when none is running.
+    if [ -z "$cur" ]; then
+      for i in "${idx[@]}"; do
+        [ "${states[$i]}" = queued ] || continue
+        submit_dmg "$i" &
+        pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; cur=$i
+        meter_start 10
+        break
+      done
+    fi
     local waiting=false
     for i in "${idx[@]}"; do
       local name; name=$(basename "${DMG_FILES[$i]}")
+      [ "${states[$i]}" = queued ] && { waiting=true; continue; }
       if [ "${states[$i]}" = uploading ]; then
         local a; a=$(wc -l < "$LOGDIR/notary-$i.attempts" 2> /dev/null | xargs || echo 0)
         if [ "${a:-0}" -gt "${tries[$i]}" ]; then
           tries[$i]=$a
-          [ "$a" -lt 4 ] && warn "sending $name: $(tail -1 "$LOGDIR/notary-$i.attempts"). Trying again in $((a * 30))s (attempt $((a + 1)) of 4)"
+          meter_start 10   # the next try starts from zero, so count from zero too
+          [ "$a" -lt 4 ] && warn "sending $name: $(tail -1 "$LOGDIR/notary-$i.attempts"). Trying again in $((a * 30))s without S3 acceleration (attempt $((a + 1)) of 4)"
         fi
         if kill -0 "${pids[$i]}" 2> /dev/null; then waiting=true; continue; fi
+        cur=""; waiting=true
         if ! wait "${pids[$i]}"; then
           states[$i]="failed"; failed="$failed${failed:+, }$name ($(tail -1 "$LOGDIR/notary-$i.attempts"))"
           warn "couldn't send $name to Apple after 4 tries; waiting for the rest before stopping"
@@ -758,7 +774,7 @@ notarize() {
     if [ $((SECONDS - last)) -ge 15 ]; then
       last=$SECONDS
       for i in "${idx[@]}"; do
-        case "${states[$i]}" in uploading|Accepted|failed) continue ;; esac
+        case "${states[$i]}" in queued|uploading|Accepted|failed) continue ;; esac
         st=$(xcrun notarytool info "${ids[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json 2> /dev/null \
           | plutil -extract status raw -o - - 2> /dev/null || true)
         [ -n "$st" ] || continue
@@ -771,16 +787,21 @@ notarize() {
         esac
       done
     fi
-    text=""; local any_up=false
+    text=""; local any_up=false left_bytes=0
     for i in "${idx[@]}"; do
       st="${states[$i]}"
-      [ "$st" = uploading ] && any_up=true
-      [ "$st" = uploading ] && [ "${tries[$i]}" -gt 0 ] && st="uploading (attempt $((tries[$i] + 1)))"
+      case "$st" in
+        uploading) any_up=true; left_bytes=$((left_bytes + sizes[$i]))
+          [ "${tries[$i]}" -gt 0 ] && st="uploading (attempt $((tries[$i] + 1)))" ;;
+        queued) any_up=true; left_bytes=$((left_bytes + sizes[$i])); st="next" ;;
+        "In Progress") st="Apple is checking it" ;;
+      esac
       text="$text${text:+ · }$(basename "${DMG_FILES[$i]}" .dmg): $st"
     done
     if $any_up; then
       meter_tick
-      text="$text · $(progress_text "$M_DONE" "$NUP_BYTES")"
+      # This try's bytes against what is still to send (this DMG and the ones after it).
+      text="$text · $(progress_text "$M_DONE" "$left_bytes")"
     else
       if ! $uploaded; then
         uploaded=true; wait_t0=$SECONDS
