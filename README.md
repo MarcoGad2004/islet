@@ -49,9 +49,11 @@ MIT, see [LICENSE](LICENSE). The spoof model in `Models/AntiSpoof.mlpackage` is 
 ## Install (DMG)
 
 ```bash
-scripts/make-dmg.sh      # builds a Release app and writes dist/Islet.dmg
+scripts/peninsula            # menu: install a test build, release, or go back to the released build
+scripts/peninsula install    # build this checkout and install it in /Applications
+scripts/peninsula dmg        # build signed, notarized DMGs in dist/ (no version change, no upload)
 ```
 
-Open `dist/Islet.dmg`, drag Islet to Applications, launch it, then allow Accessibility (Settings in the
+Or open a release's `Dynamic Peninsula.dmg`, drag the app to Applications, launch it, then allow Accessibility (Settings in the
 menu bar item shows what is missing) and turn on "Open Islet at login". The face model is fetched by
-`scripts/fetch-model.sh` (the DMG script runs it for you). Not notarized: it is for this Mac.
+`scripts/fetch-model.sh` (the script runs it for you).

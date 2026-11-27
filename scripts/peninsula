@@ -1,0 +1,829 @@
+#!/bin/bash
+# Builds, installs and releases Dynamic Peninsula (formerly Islet). One command for the whole process:
+#
+#   scripts/peninsula              a menu showing what is installed, released and pending, then:
+#                                    1) install a test build of the next version from this checkout
+#                                    2) release the next version (or resume a release that stopped)
+#                                    3) go back to the released build (shown while something else is installed)
+#   scripts/peninsula install      1, without the menu (asks nothing)
+#   scripts/peninsula release      2, without the menu (asks the version and "Start?")
+#   scripts/peninsula revert       3, without the menu (asks nothing)
+#   scripts/peninsula status       the menu's header only
+#   scripts/peninsula dmg [--app-only]   build the current tree into signed, notarized DMGs (no version change, no
+#                                  upload); --app-only stops at the signed app in build/dmg-derived
+#
+# release options: --no-upload stops once both DMGs are ready (the version change is left uncommitted, and running
+# release again carries on from there).
+#
+# Installing: the app goes to /Applications/Dynamic Peninsula.app, replacing the copy there in place. It is always
+# signed with the Developer ID certificate, the same as releases, so the permissions macOS gave it carry over. Build
+# folders and Islet's DerivedData are deleted afterwards, so the only copy of the app is the one in /Applications.
+#
+# Releasing (outward-facing: run it only when you mean it). It checks everything first, then sets the version and
+# build in project.yml and dates the version's CHANGELOG.md heading with today's date. Then it gets both DMGs ready:
+#   - each DMG in dist/ is opened and checked on its own (version, build, the commit it was built from, signatures);
+#     one that is notarized is reused, one that only needs notarizing is notarized, and only a missing or stale one is
+#     packed again (from the other DMG's app when that one is good, otherwise from a fresh build)
+#   - DMGs that need notarizing are sent to Apple together and waited on together
+# Then a draft GitHub release gets the DMGs (skipped for one whose checksum already matches the draft's) and the
+# CHANGELOG section as notes; "Version <v>" is committed, tagged and pushed; and only then is the draft published.
+# If it stops part way, fix the cause and run it again: every finished step is skipped, and nothing is public until
+# the last step. At the end it can install the released build on this Mac.
+#
+# Notarizing uses the Keychain profile "islet-notary", saved once with
+#   xcrun notarytool store-credentials islet-notary --apple-id <Apple ID> --team-id X9Q5Y948RX
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+APP_NAME="Dynamic Peninsula"
+BUNDLE_ID="com.marcogad.islet"
+NOTARY_PROFILE="islet-notary"
+INSTALL_DIR="${PENINSULA_DEST:-/Applications}"     # PENINSULA_DEST: install elsewhere (for testing this script)
+DEST="$INSTALL_DIR/$APP_NAME.app"
+TEST_DEST=false; [ -n "${PENINSULA_DEST:-}" ] && TEST_DEST=true
+DERIVED="build/dmg-derived"
+BUILT_APP="$DERIVED/Build/Products/Release/$APP_NAME.app"
+LOGDIR="build/peninsula"
+DMG_FILES=("dist/Dynamic Peninsula.dmg" "dist/Islet.dmg")
+DMG_APPS=("Dynamic Peninsula.app" "Islet.app")   # Islet.dmg is for copies from before the 1.5 rename
+DMG_VOLS=("Dynamic Peninsula" "Islet")
+DMG_ASSETS=("Dynamic.Peninsula.dmg" "Islet.dmg") # GitHub turns spaces in asset names into dots
+RELEASE_FILES=(project.yml Sources/Islet/Info.plist CHANGELOG.md)
+mkdir -p "$LOGDIR"
+
+# ---------------------------------------------------------------- output
+
+TTY=false; [ -t 1 ] && TTY=true
+if $TTY; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; RED=$'\033[31m'; YELLOW=$'\033[33m'; OFF=$'\033[0m'
+else
+  BOLD=""; DIM=""; GREEN=""; RED=""; YELLOW=""; OFF=""
+fi
+STEP=""; STEP_T=$SECONDS; LIVE=""; LOG=""; RELEASING=false; PUBLIC=false
+
+clock() { local s=$((SECONDS - $1)); printf "%d:%02d" $((s / 60)) $((s % 60)); }
+cols() { local c; c=$(tput cols 2> /dev/null || echo 100); [ "$c" -gt 20 ] 2> /dev/null && echo "$c" || echo 100; }
+
+# The live line: "▸ Step  what is happening  0:42", redrawn in place on a terminal.
+draw() {
+  local line; line=$(printf "▸ %-13s %s  %s" "$STEP" "$LIVE" "$(clock "$STEP_T")")
+  printf "\r\033[K%s%s%s" "$BOLD" "${line:0:$(($(cols) - 1))}" "$OFF"
+}
+step() {
+  STEP="$1"; LIVE="${2:-}"; STEP_T=$SECONDS; LOG=""
+  if $TTY; then draw; else printf "▸ %-13s %s\n" "$STEP" "$LIVE"; fi
+}
+live() { LIVE="$1"; if $TTY; then draw; fi; }
+clear_line() { if $TTY; then printf "\r\033[K"; fi; }
+# A finished step: "✓ Built  1.7.5 (363)  (1:12)".
+ok() {
+  clear_line
+  printf "%s✓%s %-13s %s %s(%s)%s\n" "$GREEN" "$OFF" "$1" "${2:-}" "$DIM" "$(clock "$STEP_T")" "$OFF"
+  STEP=""
+}
+# A detail under the current step; the live line is redrawn under it.
+say() { clear_line; printf "  %s·%s %s\n" "$DIM" "$OFF" "$1"; if [ -n "$STEP" ] && $TTY; then draw; fi; }
+warn() { clear_line; printf "  %s!%s %s\n" "$YELLOW" "$OFF" "$1"; if [ -n "$STEP" ] && $TTY; then draw; fi; }
+fail() {
+  clear_line
+  printf "%s✗ %s:%s %s\n" "$RED" "${STEP:-Stopped}" "$OFF" "$1" >&2
+  if [ -n "$LOG" ] && [ -s "$LOG" ]; then
+    local errors; errors=$(grep -E "error:|Error:|FAILED|failed" "$LOG" | sort -u | tail -12 || true)
+    [ -n "$errors" ] || errors=$(tail -8 "$LOG")
+    echo "$errors" | sed 's/^/    /' >&2
+    echo "    Full log: $LOG" >&2
+  fi
+  if $RELEASING && ! $PUBLIC; then
+    echo "  Nothing is public yet. Fix the cause and run scripts/peninsula release again: finished steps are skipped." >&2
+  fi
+  STEP=""
+  exit 1
+}
+
+# Runs a command in the background with the live line ticking: run_live <text> <log> <command...>
+BG=()
+run_live() {
+  local text="$1"; LOG="$2"; shift 2
+  "$@" > "$LOG" 2>&1 &
+  local pid=$!; BG+=("$pid")
+  while kill -0 "$pid" 2> /dev/null; do live "$text"; sleep 1; done
+  wait "$pid"
+}
+
+MOUNTS=()
+on_exit() {
+  local p m
+  for p in ${BG[@]+"${BG[@]}"}; do kill "$p" 2> /dev/null || true; done
+  for m in ${MOUNTS[@]+"${MOUNTS[@]}"}; do
+    [ -d "$m" ] || continue
+    hdiutil detach -quiet -force "$m" 2> /dev/null || true
+    rmdir "$m" 2> /dev/null || true
+  done
+  if [ -n "$STEP" ]; then clear_line; fi
+}
+trap on_exit EXIT
+trap 'clear_line; echo "Stopped."; STEP=""; exit 130' INT
+
+# ---------------------------------------------------------------- small helpers
+
+plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2> /dev/null || true; }
+team_of() { codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p'; }
+human_kb() { awk -v k="$1" 'BEGIN { if (k >= 1048576) printf "%.1f GB", k / 1048576; else printf "%d MB", k / 1024 }'; }
+size_of() { du -h "$1" | cut -f1 | xargs; }
+sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+vsort() { sort -t. -k1,1n -k2,2n -k3,3n -k4,4n; }
+# version_gt a b: a is a higher version than b.
+version_gt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | vsort | tail -1)" = "$1" ]; }
+yml_version() { sed -n 's/.*CFBundleShortVersionString: "\(.*\)".*/\1/p' | head -1; }
+yml_build() { sed -n 's/.*CFBundleVersion: "\(.*\)".*/\1/p' | head -1; }
+
+DEVID=$(security find-identity -v -p codesigning 2> /dev/null | awk -F'"' '/Developer ID Application/ {print $2; exit}' || true)
+TEAM=$(echo "$DEVID" | sed -n 's/.*(\([A-Z0-9]*\))$/\1/p')
+
+# "1.7.5 (363) · 1.7.5 test build (6e78c4f)" for an app bundle.
+app_desc() {
+  local info="$1/Contents/Info.plist" v b label commit
+  v=$(plist "$info" CFBundleShortVersionString); b=$(plist "$info" CFBundleVersion)
+  label=$(plist "$info" IsletBuildLabel); commit=$(plist "$info" IsletCommit)
+  if [ -n "$label" ]; then echo "$label, build $b"
+  elif [ -n "$commit" ]; then echo "$v (build $b, $commit)"
+  else echo "$v (build $b)"; fi
+}
+
+mount_dmg() { # prints the mount point; the caller adds it to MOUNTS
+  local mp; mp=$(mktemp -d "${TMPDIR:-/tmp}/peninsula-mnt.XXXXXX")
+  if ! hdiutil attach -nobrowse -readonly -noverify -noautoopen -mountpoint "$mp" "$1" > /dev/null 2>&1; then
+    rmdir "$mp"; return 1
+  fi
+  echo "$mp"
+}
+unmount_dmg() { hdiutil detach -quiet "$1" 2> /dev/null || hdiutil detach -quiet -force "$1" 2> /dev/null || true; rmdir "$1" 2> /dev/null || true; }
+
+# ---------------------------------------------------------------- what is installed, released, pending
+
+NEXT=""; NEXT_HEADING=""
+read_changelog() {
+  NEXT_HEADING=$(grep -m1 -E '^## [0-9]' CHANGELOG.md || true)
+  NEXT=$(echo "$NEXT_HEADING" | awk '{print $2}')
+}
+
+RELEASES_OK=false; PUB_V=""; PUB_B=""; PUB_DATE=""; DRAFT_V=""
+load_releases() {
+  local out
+  out=$(gh release list --limit 40 --json tagName,isDraft,publishedAt \
+    --jq '.[] | [.tagName, (.isDraft | tostring), .publishedAt] | @tsv' 2> /dev/null) || return 0
+  RELEASES_OK=true
+  PUB_V=$(echo "$out" | awk -F'\t' '$2 == "false" {sub(/^v/, "", $1); print $1}' | vsort | tail -1)
+  DRAFT_V=$(echo "$out" | awk -F'\t' '$2 == "true" {sub(/^v/, "", $1); print $1}' | vsort | tail -1)
+  [ -n "$PUB_V" ] || return 0
+  PUB_DATE=$(echo "$out" | awk -F'\t' -v t="v$PUB_V" '$1 == t {print substr($3, 1, 10)}')
+  git rev-parse -q --verify "refs/tags/v$PUB_V" > /dev/null || git fetch -q --tags origin 2> /dev/null || true
+  PUB_B=$(git show "v$PUB_V:project.yml" 2> /dev/null | yml_build || true)
+}
+
+INST_KIND="missing"; INST_V=""; INST_B=""
+load_installed() {
+  INST_KIND="missing"
+  [ -d "$DEST" ] || return 0
+  local info="$DEST/Contents/Info.plist"
+  INST_V=$(plist "$info" CFBundleShortVersionString); INST_B=$(plist "$info" CFBundleVersion)
+  if [ -n "$(plist "$info" IsletBuildLabel)" ]; then INST_KIND="test"
+  elif ! $RELEASES_OK || [ -z "$PUB_V" ]; then INST_KIND="unknown"
+  elif [ "$INST_V" = "$PUB_V" ] && [ "$INST_B" = "$PUB_B" ]; then INST_KIND="released"
+  else INST_KIND="test"; fi
+}
+
+# A release that was started: project.yml says a version that isn't committed yet.
+PENDING_V=""
+load_pending() {
+  local cur head
+  cur=$(yml_version < project.yml); head=$(git show HEAD:project.yml | yml_version)
+  PENDING_V=""; [ "$cur" != "$head" ] && PENDING_V="$cur"
+  return 0
+}
+
+header() {
+  read_changelog; load_releases; load_installed; load_pending
+  local branch short dirty built
+  branch=$(git rev-parse --abbrev-ref HEAD); short=$(git rev-parse --short HEAD)
+  dirty=$(git status --porcelain -- Sources Models vendor ':!Sources/Islet/Info.plist' | wc -l | xargs)
+  echo "${BOLD}$APP_NAME${OFF}"
+  case "$INST_KIND" in
+    missing) printf "  %-11s %s\n" "Installed" "nothing in $INSTALL_DIR" ;;
+    *)
+      built=$(stat -f "%Sm" -t "%b %-d %H:%M" "$DEST/Contents/MacOS/$APP_NAME" 2> /dev/null || true)
+      local kind=""
+      case "$INST_KIND" in released) kind=" · the released build" ;; test) kind=" · ${YELLOW}not the released build${OFF}" ;; esac
+      printf "  %-11s %s%s%s\n" "Installed" "$(app_desc "$DEST")" "${built:+, installed $built}" "$kind" ;;
+  esac
+  if ! $RELEASES_OK; then printf "  %-11s %s\n" "Released" "unknown (couldn't reach GitHub with gh)"
+  elif [ -n "$PUB_V" ]; then printf "  %-11s %s\n" "Released" "$PUB_V (build ${PUB_B:-?}) on GitHub, $PUB_DATE"; fi
+  if [ -n "$DRAFT_V" ] && version_gt "$DRAFT_V" "${PUB_V:-0}"; then
+    printf "  %-11s %s\n" "Draft" "v$DRAFT_V on GitHub, not public yet: releasing $DRAFT_V resumes it"
+  fi
+  [ -n "$PENDING_V" ] && printf "  %-11s %s\n" "Pending" "project.yml already says $PENDING_V (uncommitted): a release of it was started"
+  printf "  %-11s %s\n" "Checkout" "$branch at $short${dirty:+$([ "$dirty" != 0 ] && echo " · $dirty uncommitted file(s) in the app's sources")} · next version in CHANGELOG: ${NEXT:-none}"
+}
+
+# ---------------------------------------------------------------- building
+
+build_progress() {
+  if ! $TTY; then cat > /dev/null; return 0; fi
+  awk -v total="$1" -v label="$STEP" -v width="$(($(cols) - 1))" '
+    function target() { return match($0, /in target \047[^\047]+/) ? substr($0, RSTART + 11, RLENGTH - 11) : "" }
+    function draw(   line, bar, i, f, p) {
+      line = sprintf("▸ %-13s %s", label, what)
+      if (total > 0) {
+        p = int(steps * 100 / total); if (p > 99) p = 99
+        f = int(p / 5); bar = ""
+        for (i = 0; i < 20; i++) bar = bar (i < f ? "█" : "░")
+        line = sprintf("%-52s %s %3d%%", line, bar, p)
+      } else line = line sprintf("  (step %d)", steps)
+      printf "\r\033[K\033[1m%s\033[0m", substr(line, 1, width); fflush()
+    }
+    BEGIN { what = "starting" }
+    /^SwiftDriver / && target() != ""  { what = "Compiling " target() }
+    /^Ld / && target() != ""           { what = "Linking " target() }
+    /^CodeSign / && target() != ""     { what = "Signing " target() }
+    /^PhaseScriptExecution / && target() != "" {
+      s = $0; sub(/^PhaseScriptExecution /, "", s); sub(/ \/.*$/, "", s); gsub(/\\ /, " ", s); what = "Running \"" s "\""
+    }
+    /\(in target \047/ { steps++; draw() }
+  '
+}
+
+build_app() {
+  step "Building" "Release, from $(git rev-parse --short HEAD)"
+  if [ ! -f Models/FaceEmbedding.mlmodel ]; then
+    run_live "fetching the face model" "$LOGDIR/fetch-model.log" ./scripts/fetch-model.sh || fail "couldn't fetch the face model"
+  fi
+  run_live "generating the Xcode project" "$LOGDIR/xcodegen.log" xcodegen generate || fail "xcodegen generate failed"
+  LOG="$LOGDIR/build.log"
+  local total; total=$(cat "$LOGDIR/build-steps" 2> /dev/null || echo 0)
+  if ! xcodebuild -scheme Islet -configuration Release -destination 'platform=macOS' \
+      -derivedDataPath "$DERIVED" build 2>&1 | tee "$LOG" | build_progress "$total"; then
+    fail "xcodebuild failed"
+  fi
+  grep -c "(in target '" "$LOG" > "$LOGDIR/build-steps" || true
+  [ -d "$BUILT_APP" ] || fail "the build made no $APP_NAME.app"
+  local warnings; warnings=$( (grep -E ": warning: " "$LOG" || true) | sort -u | wc -l | xargs)
+  ok "Built" "$(app_desc "$BUILT_APP")${warnings:+$([ "$warnings" != 0 ] && echo " · $warnings warning(s), see $LOG")}"
+
+  # Inside out: the media adapter (loaded by perl from Resources), the fan helper (it and the app each check the other
+  # is signed by the same team), then the app with its entitlements.
+  step "Signing" "media adapter"
+  LOG="$LOGDIR/sign.log"; : > "$LOG"
+  local SIGN=(codesign --force --timestamp --options runtime --sign "$DEVID")
+  "${SIGN[@]}" "$BUILT_APP/Contents/Resources/MediaRemoteAdapter.framework" >> "$LOG" 2>&1 || fail "couldn't sign the media adapter"
+  live "fan helper"
+  "${SIGN[@]}" --identifier com.marcogad.islet.fanhelper "$BUILT_APP/Contents/MacOS/IsletFanHelper" >> "$LOG" 2>&1 || fail "couldn't sign the fan helper"
+  live "app"
+  "${SIGN[@]}" --entitlements Sources/Islet/Islet.entitlements "$BUILT_APP" >> "$LOG" 2>&1 || fail "couldn't sign the app"
+  codesign --verify --deep --strict "$BUILT_APP" >> "$LOG" 2>&1 || fail "the signed app doesn't verify"
+  ok "Signed" "$DEVID"
+}
+
+# ---------------------------------------------------------------- installing
+
+quit_app() {
+  pgrep -x "$APP_NAME" > /dev/null || return 0
+  pkill -x "$APP_NAME" || true
+  local n
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    pgrep -x "$APP_NAME" > /dev/null || return 0
+    sleep 0.5
+  done
+  pkill -9 -x "$APP_NAME" || true
+  sleep 0.5
+}
+
+install_app() { # <source .app>
+  local src="$1" old_team="" was=""
+  [ -d "$DEST" ] && { old_team=$(team_of "$DEST"); was=$(app_desc "$DEST"); }
+  if $TEST_DEST; then
+    step "Quitting" ""; ok "Not quit" "(PENINSULA_DEST is set: the running app is left alone)"
+  else
+    step "Quitting" "$APP_NAME"
+    if pgrep -x "$APP_NAME" > /dev/null; then quit_app; ok "Quit" "$APP_NAME${was:+ ($was)}"
+    else ok "Quit" "it wasn't running"; fi
+  fi
+  step "Installing" "copying to $DEST"
+  local tmp="$INSTALL_DIR/.$APP_NAME-new.app"
+  rm -rf "$tmp"
+  mkdir -p "$INSTALL_DIR"
+  run_live "copying to $DEST" "$LOGDIR/install.log" ditto "$src" "$tmp" || fail "couldn't copy the app to $INSTALL_DIR"
+  rm -rf "$DEST"
+  mv "$tmp" "$DEST" || fail "couldn't move the app into place"
+  local note=""
+  if [ -n "$old_team" ] && [ "$old_team" != "$(team_of "$DEST")" ]; then
+    note=" · ${YELLOW}signed by another team than the copy it replaced: macOS will ask for permissions again${OFF}"
+  elif [ -n "$old_team" ]; then
+    note=" · same signature as before, so its permissions carry over"
+  fi
+  ok "Installed" "$(app_desc "$DEST")$note"
+}
+
+launch_app() {
+  if $TEST_DEST; then return 0; fi
+  step "Launching" "$APP_NAME"
+  open "$DEST" || fail "open failed"
+  local n
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    pgrep -x "$APP_NAME" > /dev/null && { ok "Running" "$(app_desc "$DEST")"; return 0; }
+    sleep 0.5
+  done
+  warn "it didn't start within 10 seconds: open $DEST yourself to see why"
+  STEP=""
+}
+
+clean_builds() { # [--deriveddata]
+  step "Cleaning up" "build folders"
+  local paths=("$DERIVED" build/dmg-stage) d kb=0 p
+  if [ "${1:-}" = --deriveddata ]; then
+    for d in "$HOME"/Library/Developer/Xcode/DerivedData/Islet-*; do [ -e "$d" ] && paths+=("$d"); done
+  fi
+  for p in "${paths[@]}"; do [ -e "$p" ] && kb=$((kb + $(du -sk "$p" | cut -f1))); done
+  rm -rf "${paths[@]}"
+  ok "Cleaned up" "no other built copy of the app is left ($(human_kb "$kb") freed)"
+}
+
+# Installs the app inside a DMG after checking it: install_from_dmg <dmg> <expected version>
+install_from_dmg() {
+  local dmg="$1" want="$2" mp app
+  step "Checking" "$(basename "$dmg")"
+  mp=$(mount_dmg "$dmg") || fail "couldn't open $dmg"
+  MOUNTS+=("$mp")
+  app="$mp/$APP_NAME.app"
+  [ -d "$app" ] || fail "no $APP_NAME.app inside $(basename "$dmg")"
+  [ "$(plist "$app/Contents/Info.plist" CFBundleIdentifier)" = "$BUNDLE_ID" ] || fail "the app inside isn't $APP_NAME"
+  [ "$(plist "$app/Contents/Info.plist" CFBundleShortVersionString)" = "$want" ] || fail "the app inside isn't version $want"
+  codesign --verify --deep --strict "$app" 2> /dev/null || fail "the app's signature doesn't verify"
+  [ -z "$TEAM" ] || [ "$(team_of "$app")" = "$TEAM" ] || fail "the app isn't signed by team $TEAM"
+  xcrun stapler validate "$dmg" > /dev/null 2>&1 || fail "the DMG isn't notarized"
+  spctl -a -t open --context context:primary-signature "$dmg" 2> /dev/null || fail "Gatekeeper rejects the DMG"
+  ok "Checked" "$(app_desc "$app") · Developer ID signed, notarized, Gatekeeper accepts it"
+  install_app "$app"
+  unmount_dmg "$mp"
+}
+
+cmd_install() {
+  step "Checking" ""
+  local problems=()
+  command -v xcodegen > /dev/null || problems+=("xcodegen isn't installed (scripts/bootstrap.sh)")
+  [ -n "$DEVID" ] || problems+=("no \"Developer ID Application\" certificate in the Keychain: a build signed any other way would lose the permissions macOS gave the installed app")
+  if [ "${#problems[@]}" -gt 0 ]; then
+    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done; STEP=""; exit 1
+  fi
+  read_changelog
+  local short v dirty label
+  short=$(git rev-parse --short HEAD); v=$(yml_version < project.yml)
+  dirty=$(git status --porcelain -- Sources ':!Sources/Islet/Info.plist' | wc -l | xargs)
+  [ "$dirty" != 0 ] && short="$short+"
+  if [ -n "$NEXT" ] && [ "$NEXT" != "$v" ]; then label="labeled \"$NEXT test build ($short)\""
+  else label="${YELLOW}version $v with no test-build label (CHANGELOG's newest section is $v too)${OFF}"; fi
+  ok "Checked" "$(git rev-parse --abbrev-ref HEAD) at $short$([ "$dirty" != 0 ] && echo ", with $dirty uncommitted file(s) in Sources") · $label"
+  build_app
+  install_app "$BUILT_APP"
+  clean_builds --deriveddata
+  launch_app
+  echo
+  echo "${BOLD}Installed${OFF} $(app_desc "$DEST") in $INSTALL_DIR. scripts/peninsula revert goes back to the released build."
+}
+
+# ---------------------------------------------------------------- going back to the released build
+
+cmd_revert() {
+  step "Checking" "GitHub releases"
+  load_releases
+  $RELEASES_OK || fail "couldn't reach GitHub (is gh signed in? gh auth status)"
+  [ -n "$PUB_V" ] || fail "nothing has been released yet"
+  local digest size
+  digest=$(gh release view "v$PUB_V" --json assets --jq ".assets[] | select(.name == \"${DMG_ASSETS[0]}\") | .digest" 2> /dev/null || true)
+  size=$(gh release view "v$PUB_V" --json assets --jq ".assets[] | select(.name == \"${DMG_ASSETS[0]}\") | .size" 2> /dev/null || true)
+  [ -n "$size" ] || fail "v$PUB_V has no ${DMG_ASSETS[0]}"
+  ok "Checked" "the released version is $PUB_V (build ${PUB_B:-?}, $PUB_DATE)"
+
+  local dmg="${DMG_FILES[0]}" dl="$LOGDIR/download"
+  if [ -f "$dmg" ] && [ -n "$digest" ] && [ "sha256:$(sha "$dmg")" = "$digest" ]; then
+    step "Download" ""; ok "No download" "$dmg is the published file already (same checksum)"
+  else
+    step "Downloading" "${DMG_ASSETS[0]}"
+    rm -rf "$dl"; mkdir -p "$dl"
+    LOG="$LOGDIR/download.log"
+    gh release download "v$PUB_V" --pattern "${DMG_ASSETS[0]}" --dir "$dl" > "$LOG" 2>&1 &
+    local pid=$! total_mb=$((size / 1048576)); BG+=("$pid")
+    while kill -0 "$pid" 2> /dev/null; do
+      live "${DMG_ASSETS[0]}  $(($(du -sk "$dl" | cut -f1) / 1024)) of $total_mb MB"
+      sleep 1
+    done
+    wait "$pid" || fail "the download failed"
+    dmg="$dl/${DMG_ASSETS[0]}"
+    [ -f "$dmg" ] || fail "the download made no file"
+    if [ -n "$digest" ] && [ "sha256:$(sha "$dmg")" != "$digest" ]; then fail "the download's checksum doesn't match GitHub's"; fi
+    ok "Downloaded" "${DMG_ASSETS[0]} ($total_mb MB, checksum matches)"
+  fi
+  install_from_dmg "$dmg" "$PUB_V"
+  rm -rf "$dl"
+  launch_app
+  echo
+  echo "${BOLD}Back on the released $PUB_V${OFF} (build ${PUB_B:-?})."
+}
+
+# ---------------------------------------------------------------- DMGs
+
+DMG_STATE=(missing missing); DMG_NOTE=("" "")
+
+# Opens one DMG and decides what it needs: ready | unnotarized | unsigned | stale | missing.
+# Uses V, B and BUILD_COMMITS (the commits a build of this release may come from).
+check_dmg() {
+  local i=$1 f="${DMG_FILES[$1]}" mp app info v b c id why=""
+  if [ ! -f "$f" ]; then DMG_STATE[$i]=missing; DMG_NOTE[$i]="not built yet: will be packed"; return 0; fi
+  if ! mp=$(mount_dmg "$f"); then DMG_STATE[$i]=stale; DMG_NOTE[$i]="can't be opened: will be packed again"; return 0; fi
+  MOUNTS+=("$mp")
+  app="$mp/${DMG_APPS[$i]}"; info="$app/Contents/Info.plist"
+  id=$(plist "$info" CFBundleIdentifier); v=$(plist "$info" CFBundleShortVersionString)
+  b=$(plist "$info" CFBundleVersion); c=$(plist "$info" IsletCommit)
+  if [ ! -d "$app" ] || [ "$id" != "$BUNDLE_ID" ]; then why="doesn't hold ${DMG_APPS[$i]}"
+  elif [ "$v" != "$V" ]; then why="holds version $v"
+  elif [ "$b" != "$B" ]; then why="holds build $b, not $B"
+  elif [ -n "$c" ]; then
+    case "$c" in
+      *+) why="was built with uncommitted changes ($c)" ;;
+      *) local full; full=$(git rev-parse -q --verify "$c^{commit}" 2> /dev/null || true)
+         case " $BUILD_COMMITS " in *" $full "*) ;; *) why="was built from $c, not this commit" ;; esac ;;
+    esac
+  fi
+  if [ -z "$why" ] && ! codesign --verify --deep --strict "$app" 2> /dev/null; then why="its app's signature doesn't verify"; fi
+  if [ -z "$why" ] && [ "$(team_of "$app")" != "$TEAM" ]; then why="its app isn't signed by $TEAM"; fi
+  unmount_dmg "$mp"
+  if [ -n "$why" ]; then DMG_STATE[$i]=stale; DMG_NOTE[$i]="$why: will be packed again"; return 0; fi
+
+  local origin="$v (build $b) from ${c:-this commit (by its build number: it predates builds recording their commit)}"
+  local sig; sig=$(codesign -dvv "$f" 2>&1 || true)
+  case "$sig" in
+    *"Authority=Developer ID Application"*) ;;
+    *) DMG_STATE[$i]=unsigned; DMG_NOTE[$i]="$origin, but the DMG isn't signed: will be signed and notarized"; return 0 ;;
+  esac
+  if xcrun stapler validate "$f" > /dev/null 2>&1 && spctl -a -t open --context context:primary-signature "$f" 2> /dev/null; then
+    DMG_STATE[$i]=ready; DMG_NOTE[$i]="$origin, notarized and stapled: reused as it is"
+  elif xcrun stapler staple "$f" > /dev/null 2>&1 && spctl -a -t open --context context:primary-signature "$f" 2> /dev/null; then
+    DMG_STATE[$i]=ready; DMG_NOTE[$i]="$origin, notarized by Apple (ticket stapled now): reused"
+  else
+    DMG_STATE[$i]=unnotarized; DMG_NOTE[$i]="$origin, signed but not notarized: will be notarized"
+  fi
+}
+
+pack() { # <index> <source .app>
+  local i=$1 src="$2" stage="build/dmg-stage" f="${DMG_FILES[$1]}"
+  step "Packing" "$(basename "$f")"
+  rm -rf "$stage" "$f"; mkdir -p "$stage" dist
+  run_live "$(basename "$f"): copying the app" "$LOGDIR/pack.log" ditto "$src" "$stage/${DMG_APPS[$i]}" || fail "couldn't stage the app"
+  ln -s /Applications "$stage/Applications"
+  run_live "$(basename "$f"): compressing" "$LOGDIR/pack.log" \
+    hdiutil create -volname "${DMG_VOLS[$i]}" -srcfolder "$stage" -ov -format UDZO "$f" || fail "hdiutil couldn't make $f"
+  rm -rf "$stage"
+  ok "Packed" "$(basename "$f") ($(size_of "$f"))"
+}
+
+# Sends the given DMGs to Apple at the same time and waits for all of them: notarize <index>...
+notarize() {
+  local idx=("$@") i ids=() states=() pids=() st last=-100 text
+  step "Notarizing" "uploading to Apple"
+  for i in "${idx[@]}"; do
+    xcrun notarytool submit "${DMG_FILES[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json \
+      > "$LOGDIR/notary-$i.json" 2> "$LOGDIR/notary-$i.err" &
+    pids[$i]=$!; BG+=("$!"); states[$i]="uploading"; ids[$i]=""
+  done
+  while :; do
+    local waiting=false
+    for i in "${idx[@]}"; do
+      if [ "${states[$i]}" = uploading ]; then
+        if kill -0 "${pids[$i]}" 2> /dev/null; then waiting=true; continue; fi
+        if ! wait "${pids[$i]}"; then LOG="$LOGDIR/notary-$i.err"; fail "couldn't send $(basename "${DMG_FILES[$i]}") to Apple"; fi
+        ids[$i]=$(plutil -extract id raw -o - "$LOGDIR/notary-$i.json" 2> /dev/null || true)
+        [ -n "${ids[$i]}" ] || { LOG="$LOGDIR/notary-$i.json"; fail "Apple gave no submission ID for $(basename "${DMG_FILES[$i]}")"; }
+        states[$i]="In Progress"; last=-100
+        say "$(basename "${DMG_FILES[$i]}") sent to Apple (submission ${ids[$i]})"
+      fi
+      [ "${states[$i]}" = Accepted ] || waiting=true
+    done
+    $waiting || break
+    if [ $((SECONDS - last)) -ge 15 ]; then
+      last=$SECONDS
+      for i in "${idx[@]}"; do
+        case "${states[$i]}" in uploading|Accepted) continue ;; esac
+        st=$(xcrun notarytool info "${ids[$i]}" --keychain-profile "$NOTARY_PROFILE" --output-format json 2> /dev/null \
+          | plutil -extract status raw -o - - 2> /dev/null || true)
+        [ -n "$st" ] || continue
+        states[$i]="$st"
+        case "$st" in
+          Accepted) say "$(basename "${DMG_FILES[$i]}") accepted by Apple" ;;
+          Invalid|Rejected)
+            xcrun notarytool log "${ids[$i]}" --keychain-profile "$NOTARY_PROFILE" "$LOGDIR/notary-$i-report.json" > /dev/null 2>&1 || true
+            LOG=""; fail "Apple rejected $(basename "${DMG_FILES[$i]}") ($st). Apple's report: $LOGDIR/notary-$i-report.json" ;;
+        esac
+      done
+    fi
+    text=""
+    for i in "${idx[@]}"; do text="$text${text:+ · }$(basename "${DMG_FILES[$i]}" .dmg): ${states[$i]}"; done
+    live "$text"
+    sleep 2
+  done
+  ok "Notarized" "$(for i in "${idx[@]}"; do printf "%s " "$(basename "${DMG_FILES[$i]}")"; done)accepted by Apple"
+  step "Stapling" ""
+  for i in "${idx[@]}"; do
+    live "$(basename "${DMG_FILES[$i]}")"
+    LOG="$LOGDIR/staple-$i.log"
+    xcrun stapler staple "${DMG_FILES[$i]}" > "$LOG" 2>&1 || fail "couldn't staple $(basename "${DMG_FILES[$i]}")"
+    DMG_STATE[$i]=ready
+  done
+  ok "Stapled" "the notarization tickets are inside the DMGs"
+}
+
+# Gets both DMGs to "ready", doing only what each one needs.
+prepare_dmgs() {
+  local i pack_these=() donor="" src="" mp=""
+  for i in 0 1; do case "${DMG_STATE[$i]}" in missing|stale) pack_these+=("$i") ;; esac; done
+  if [ "${#pack_these[@]}" -gt 0 ]; then
+    for i in 0 1; do case "${DMG_STATE[$i]}" in ready|unsigned|unnotarized) donor=$i; break ;; esac; done
+    if [ -n "$donor" ]; then
+      step "Reusing" "the app inside $(basename "${DMG_FILES[$donor]}")"
+      mp=$(mount_dmg "${DMG_FILES[$donor]}") || fail "couldn't open ${DMG_FILES[$donor]}"
+      MOUNTS+=("$mp"); src="$mp/${DMG_APPS[$donor]}"
+      ok "No build" "$(basename "${DMG_FILES[$donor]}") already holds this build, so its app is packed again"
+    else
+      build_app; src="$BUILT_APP"
+    fi
+    for i in "${pack_these[@]}"; do pack "$i" "$src"; DMG_STATE[$i]=unsigned; done
+    [ -n "$mp" ] && unmount_dmg "$mp"
+  fi
+  for i in 0 1; do
+    [ "${DMG_STATE[$i]}" = unsigned ] || continue
+    step "Signing" "$(basename "${DMG_FILES[$i]}")"
+    LOG="$LOGDIR/sign-dmg.log"
+    codesign --force --timestamp --sign "$DEVID" "${DMG_FILES[$i]}" > "$LOG" 2>&1 || fail "couldn't sign ${DMG_FILES[$i]}"
+    ok "Signed" "$(basename "${DMG_FILES[$i]}") with $DEVID"
+    DMG_STATE[$i]=unnotarized
+  done
+  local todo=()
+  for i in 0 1; do [ "${DMG_STATE[$i]}" = unnotarized ] && todo+=("$i"); done
+  [ "${#todo[@]}" -gt 0 ] && notarize "${todo[@]}"
+  step "Verifying" "both DMGs"
+  for i in 0 1; do
+    local f="${DMG_FILES[$i]}" sig
+    sig=$(codesign -dvv "$f" 2>&1 || true)   # captured first: grep -q closing a pipe early fails under pipefail
+    case "$sig" in *"Authority=Developer ID Application"*) ;; *) fail "$f isn't Developer ID signed" ;; esac
+    xcrun stapler validate "$f" > /dev/null 2>&1 || fail "$f isn't notarized and stapled"
+    spctl -a -t open --context context:primary-signature "$f" 2> /dev/null || fail "Gatekeeper rejects $f"
+  done
+  ok "DMGs ready" "$(size_of "${DMG_FILES[0]}") + $(size_of "${DMG_FILES[1]}"), Developer ID signed, notarized, stapled, Gatekeeper accepts both"
+}
+
+cmd_dmg() {
+  [ -n "$DEVID" ] || { echo "No \"Developer ID Application\" certificate in the Keychain." >&2; exit 1; }
+  build_app
+  if [ "${1:-}" = --app-only ]; then echo "App: $BUILT_APP"; return 0; fi
+  xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1 \
+    || { echo "No \"$NOTARY_PROFILE\" Keychain profile (see the top of this script)." >&2; exit 1; }
+  pack 0 "$BUILT_APP"; pack 1 "$BUILT_APP"
+  DMG_STATE=(unsigned unsigned)
+  prepare_dmgs
+}
+
+# ---------------------------------------------------------------- releasing
+
+# The files with only the release's own edits taken out, to tell those apart from other uncommitted changes.
+norm_yml() { sed -E 's/(CFBundleShortVersionString: )"[^"]*"/\1"X"/; s/(CFBundleVersion: )"[^"]*"/\1"X"/'; }
+norm_log() { awk -v v="$V" '$1 == "##" && $2 == v {print "## " v; next} {print}'; }
+
+ask() { # <prompt>: sets REPLY_TEXT; q cancels
+  read -r -p "$1" REPLY_TEXT || { echo; echo "Cancelled."; exit 0; }
+  case "$REPLY_TEXT" in q|Q) echo "Cancelled: nothing was changed."; exit 0 ;; esac
+}
+
+cmd_release() {
+  local NO_UPLOAD=false a
+  for a in "$@"; do
+    case "$a" in --no-upload) NO_UPLOAD=true ;; *) echo "Unknown option: $a" >&2; exit 1 ;; esac
+  done
+  [ -t 0 ] || { echo "release asks questions: run it in a terminal." >&2; exit 1; }
+
+  # 1. Everything that doesn't depend on the version.
+  step "Checking" "tools, GitHub, git, certificates"
+  local problems=() tool
+  for tool in gh xcodegen xcrun; do command -v "$tool" > /dev/null || problems+=("$tool isn't installed"); done
+  live "gh sign-in"
+  gh auth status > /dev/null 2>&1 || problems+=("gh isn't signed in (gh auth login)")
+  [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || problems+=("not on main: releases are made from main")
+  live "fetching origin/main"
+  if git fetch -q origin main 2> /dev/null; then
+    git merge-base --is-ancestor origin/main HEAD || problems+=("main is behind origin/main: pull first")
+  else problems+=("couldn't fetch origin (offline?)"); fi
+  [ -n "$DEVID" ] || problems+=("no \"Developer ID Application\" certificate in the Keychain")
+  live "notary profile"
+  xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" > /dev/null 2>&1 \
+    || problems+=("the \"$NOTARY_PROFILE\" notary profile doesn't work (see the top of scripts/peninsula)")
+  live "GitHub releases"
+  load_releases; read_changelog; load_pending
+  if [ "${#problems[@]}" -gt 0 ]; then
+    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done; STEP=""; exit 1
+  fi
+  ok "Checked" "gh signed in · main up to date with origin · Developer ID and notary profile work"
+
+  # 2. The version.
+  local default="${PENDING_V:-$NEXT}"
+  echo
+  echo "Released: ${PUB_V:-nothing yet} · newest CHANGELOG section: ${NEXT:-none}"
+  ask "Version to release [${default}]: "
+  V="${REPLY_TEXT:-$default}"
+  if [ "$V" != "$default" ]; then
+    ask "Type $V again to confirm: "
+    [ "$REPLY_TEXT" = "$V" ] || { echo "They don't match: nothing was changed."; exit 1; }
+  fi
+  echo "$V" | grep -qE '^[0-9]+(\.[0-9]+)*$' || { echo "\"$V\" isn't a version like 1.8 or 1.7.5." >&2; exit 1; }
+  echo
+
+  step "Checking" "the $V release"
+  problems=()
+  grep -qE "^## $V( |\$)" CHANGELOG.md || problems+=("CHANGELOG.md has no \"## $V\" section: add one first")
+  NOTES="$LOGDIR/notes-$V.md"
+  awk -v v="$V" '$1 == "##" && $2 == v {on = 1; next} /^## / {on = 0} on' CHANGELOG.md > "$NOTES"
+  grep -q '[^[:space:]]' "$NOTES" || problems+=("CHANGELOG.md's $V section is empty")
+  if [ -n "$PUB_V" ] && ! version_gt "$V" "$PUB_V"; then problems+=("$V isn't newer than the released $PUB_V"); fi
+  local draft=false
+  if gh release view "v$V" > /dev/null 2>&1; then
+    [ "$(gh release view "v$V" --json isDraft -q .isDraft)" = true ] || problems+=("v$V is already published")
+    draft=true
+  fi
+  # Uncommitted changes other than this release's own would end up in the build without being in git.
+  local line f
+  while IFS= read -r line; do
+    f="${line:3}"
+    case "$f" in
+      project.yml) cmp -s <(git show HEAD:project.yml | norm_yml) <(norm_yml < project.yml) \
+                     || problems+=("project.yml has uncommitted changes besides the version: commit or discard them") ;;
+      CHANGELOG.md) cmp -s <(git show HEAD:CHANGELOG.md | norm_log) <(norm_log < CHANGELOG.md) \
+                     || problems+=("CHANGELOG.md has uncommitted changes besides the $V heading's date: commit them first") ;;
+      Sources/Islet/Info.plist|*.xcodeproj/*) ;;   # generated from project.yml
+      docs/*|*.md) ;;                              # not part of the app
+      *) problems+=("uncommitted: $f (it would be built into the release without being in git)") ;;
+    esac
+  done < <(git status --porcelain --untracked-files=all)
+  # The build number: the commit count, unless "Version $V" is already committed (a resumed release).
+  local committed=false
+  if [ "$(git show HEAD:project.yml | yml_version)" = "$V" ] && [ "$(git log -1 --format=%s)" = "Version $V" ]; then
+    committed=true; B=$(git show HEAD:project.yml | yml_build)
+    BUILD_COMMITS="$(git rev-parse HEAD^) $(git rev-parse HEAD)"
+  else
+    B=$(git rev-list --count HEAD); BUILD_COMMITS="$(git rev-parse HEAD)"
+  fi
+  if git rev-parse -q --verify "refs/tags/v$V" > /dev/null && [ "$(git rev-list -n1 "v$V")" != "$(git rev-parse HEAD)" ]; then
+    $committed || problems+=("the tag v$V already exists on another commit")
+  fi
+  if [ "${#problems[@]}" -gt 0 ]; then
+    clear_line; local p; for p in "${problems[@]}"; do printf "%s✗%s %s\n" "$RED" "$OFF" "$p" >&2; done; STEP=""; exit 1
+  fi
+  local i
+  for i in 0 1; do live "opening $(basename "${DMG_FILES[$i]}")"; check_dmg "$i"; done
+  ok "Checked" "$V (build $B) · CHANGELOG section found"
+
+  # 3. The plan, then Start?
+  local today old_date
+  today=$(date +%Y-%m-%d)
+  old_date=$( (grep -m1 -E "^## $V( |\$)" CHANGELOG.md || true) | sed -n 's/^## [^ ]* (\(.*\)).*/\1/p')
+  echo
+  echo "${BOLD}Release $APP_NAME $V (build $B)${OFF}"
+  if [ "$old_date" = "$today" ]; then echo "  CHANGELOG   \"## $V\" is dated today ($today)"
+  else echo "  CHANGELOG   \"## $V\" gets today's date, $today${old_date:+ (it says $old_date)}"; fi
+  for i in 0 1; do printf "  %-11s %s\n" "$(basename "${DMG_FILES[$i]}" .dmg)" "${DMG_NOTE[$i]}"; done
+  if $NO_UPLOAD; then echo "  GitHub      nothing (--no-upload): stops once the DMGs are ready"
+  elif $draft; then echo "  GitHub      the draft v$V gets the notes and any DMG it doesn't have yet, then is published"
+  else echo "  GitHub      a draft v$V with both DMGs and the notes, published once the commit and tag are pushed"; fi
+  $committed && echo "  Git         \"Version $V\" is already committed"
+  ask "Start? Enter to go, q to cancel: "
+  echo
+  RELEASING=true
+
+  # 4. Version, build and the CHANGELOG date.
+  step "Version" "$V, build $B"
+  sed -i '' -E "s/(CFBundleShortVersionString: )\"[^\"]*\"/\1\"$V\"/; s/(CFBundleVersion: )\"[^\"]*\"/\1\"$B\"/" project.yml
+  awk -v v="$V" -v d="$today" '$1 == "##" && $2 == v && !done {print "## " v " (" d ")"; done = 1; next} {print}' \
+    CHANGELOG.md > "$LOGDIR/CHANGELOG.md" && cat "$LOGDIR/CHANGELOG.md" > CHANGELOG.md
+  run_live "generating the Xcode project" "$LOGDIR/xcodegen.log" xcodegen generate || fail "xcodegen generate failed"
+  ok "Version" "$V (build $B) in project.yml and Info.plist · \"## $V ($today)\" in CHANGELOG.md"
+
+  # 5. The DMGs.
+  prepare_dmgs
+  if $NO_UPLOAD; then
+    clean_builds
+    echo
+    echo "${BOLD}DMGs ready${OFF} in dist/ (--no-upload). project.yml and CHANGELOG.md keep the $V change uncommitted;"
+    echo "scripts/peninsula release carries on from here."
+    return 0
+  fi
+
+  # 6. The draft release.
+  step "GitHub draft" "v$V"
+  if $draft; then
+    run_live "updating the draft's title and notes" "$LOGDIR/gh.log" \
+      gh release edit "v$V" --title "$APP_NAME $V" --notes-file "$NOTES" || fail "couldn't update the draft"
+  else
+    run_live "creating a draft" "$LOGDIR/gh.log" \
+      gh release create "v$V" --draft --title "$APP_NAME $V" --notes-file "$NOTES" || fail "couldn't create the draft"
+  fi
+  local digests remote
+  digests=$(gh release view "v$V" --json assets --jq '.assets[] | [.name, (.digest // "")] | @tsv' 2> /dev/null || true)
+  for i in 0 1; do
+    remote=$(echo "$digests" | awk -F'\t' -v n="${DMG_ASSETS[$i]}" '$1 == n {print $2}')
+    if [ -n "$remote" ] && [ "$remote" = "sha256:$(sha "${DMG_FILES[$i]}")" ]; then
+      say "$(basename "${DMG_FILES[$i]}") is on the draft already (same checksum): not uploaded again"
+    else
+      run_live "uploading $(basename "${DMG_FILES[$i]}") ($(size_of "${DMG_FILES[$i]}"))" "$LOGDIR/gh-upload-$i.log" \
+        gh release upload "v$V" "${DMG_FILES[$i]}" --clobber || fail "couldn't upload ${DMG_FILES[$i]}"
+      say "$(basename "${DMG_FILES[$i]}") uploaded"
+    fi
+  done
+  ok "Draft ready" "v$V with both DMGs and the CHANGELOG notes (not public yet)"
+
+  # 7. Commit, tag, push.
+  step "Committing" "Version $V"
+  if ! git diff --quiet HEAD -- "${RELEASE_FILES[@]}"; then
+    LOG="$LOGDIR/git.log"
+    git commit -q -m "Version $V" -- "${RELEASE_FILES[@]}" > "$LOG" 2>&1 || fail "git commit failed"
+  fi
+  git rev-parse -q --verify "refs/tags/v$V" > /dev/null || git tag "v$V"
+  run_live "pushing main and v$V" "$LOGDIR/push.log" git push -q origin main "v$V" || fail "git push failed"
+  ok "Pushed" "$(git rev-parse --short HEAD) \"Version $V\" and the tag v$V"
+
+  # 8. Publish.
+  step "Publishing" "v$V"
+  run_live "publishing v$V" "$LOGDIR/gh.log" gh release edit "v$V" --draft=false --latest || fail "couldn't publish the draft"
+  PUBLIC=true
+  local url; url=$(gh release view "v$V" --json url -q .url 2> /dev/null || echo "v$V")
+  ok "Published" "$url"
+
+  # 9. What installed copies will see: the highest published version that has the DMG.
+  step "Updater check" "asking GitHub what installed copies see"
+  local top="" n
+  for n in 1 2 3 4 5 6; do
+    top=$(gh api "repos/{owner}/{repo}/releases?per_page=30" \
+      --jq ".[] | select(.draft | not) | select(any(.assets[]; .name == \"${DMG_ASSETS[0]}\")) | .tag_name" 2> /dev/null \
+      | sed 's/^v//' | vsort | tail -1 || true)
+    [ "$top" = "$V" ] && break
+    sleep 5
+  done
+  if [ "$top" = "$V" ]; then ok "Updater check" "installed copies will be offered $V"
+  else warn "GitHub's newest release with the DMG is still ${top:-unknown}, not $V: check the release page"; STEP=""; fi
+  clean_builds
+
+  echo
+  echo "${BOLD}Released $APP_NAME $V${OFF} (build $B): $url"
+  echo
+  ask "Install the released $V on this Mac now? Enter to install, n to skip: "
+  case "$REPLY_TEXT" in n|N|no) echo "Not installed."; return 0 ;; esac
+  RELEASING=false
+  install_from_dmg "${DMG_FILES[0]}" "$V"
+  launch_app
+  echo
+  echo "${BOLD}Installed${OFF} the released $V."
+}
+
+# ---------------------------------------------------------------- menu
+
+menu() {
+  header
+  echo
+  local v_rel="${PENDING_V:-$NEXT}" rel_text
+  if [ -n "$DRAFT_V" ] && [ "$DRAFT_V" = "$v_rel" ]; then rel_text="Resume releasing $v_rel (the draft is on GitHub)"
+  elif [ -n "$PENDING_V" ]; then rel_text="Resume releasing $PENDING_V"
+  else rel_text="Release ${v_rel:-a new version}"; fi
+  echo "  1) Install a test build${NEXT:+ of $NEXT} from $(git rev-parse --abbrev-ref HEAD)"
+  echo "  2) $rel_text"
+  local three=false
+  if $RELEASES_OK && [ -n "$PUB_V" ] && [ "$INST_KIND" != released ]; then
+    three=true
+    if [ "$INST_KIND" = missing ]; then echo "  3) Install the released $PUB_V"
+    else echo "  3) Go back to the released $PUB_V"; fi
+  fi
+  echo "  q) Quit"
+  echo
+  ask "Choose: "
+  echo
+  case "$REPLY_TEXT" in
+    1) cmd_install ;;
+    2) cmd_release ;;
+    3) $three && cmd_revert || { echo "Not an option."; exit 1; } ;;
+    *) echo "Not an option."; exit 1 ;;
+  esac
+}
+
+case "${1:-}" in
+  "") [ -t 0 ] || { echo "The menu needs a terminal: use scripts/peninsula install, release, revert or status." >&2; exit 1; }; menu ;;
+  install) cmd_install ;;
+  release) shift; cmd_release "$@" ;;
+  revert) cmd_revert ;;
+  status) header ;;
+  dmg) shift; cmd_dmg "$@" ;;
+  -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+  *) echo "Unknown command: $1 (try scripts/peninsula help)" >&2; exit 1 ;;
+esac

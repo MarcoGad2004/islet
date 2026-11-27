@@ -25,7 +25,7 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
   `Islet.xcodeproj`.
 - Build: `xcodegen generate && xcodebuild -scheme Islet -destination 'platform=macOS' build`.
 - No analytics. No network access except updates and Shazam (only while it listens, after a press or swipe: ShazamKit
-  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23) and the Wi-Fi panel's speed test (macOS's `networkQuality`, only when Run speed test is pressed). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/release.sh <version>` publishes one, using the matching section of CHANGELOG.md as its notes; keep CHANGELOG.md up to date as features land).
+  sends a sound signature and the cover is downloaded; owner's request, 2026-11-23) and the Wi-Fi panel's speed test (macOS's `networkQuality`, only when Run speed test is pressed). Updates: Islet reads this public repo's latest release from GitHub's API (no account or `gh` needed) when Check for updates is clicked, and on its own about every 6 hours unless Settings > Updates > "Check for updates automatically" is off (owner's decision, 2026-11-19) (`scripts/peninsula release` publishes one, using the matching section of CHANGELOG.md as its notes and dating its heading; keep CHANGELOG.md up to date as features land).
 
 ## Decisions already made
 
@@ -38,18 +38,16 @@ the Artifact tool, not a web fetch). The "v1 prototype" artboard shows the motio
 
 ## Running a test build on the owner's Mac (every session follows this)
 
-When the owner asks to run or rebuild the test copy so they can try a change, keep exactly ONE copy of the app on the
-Mac: `/Applications/Dynamic Peninsula.app`. Replace it in place so the permissions the owner already granted it
-(Accessibility, Camera, Microphone, Contacts, Full Disk Access, Location, Bluetooth...) carry over, and no copies pile up:
+`scripts/peninsula` does the whole process; run with no arguments it shows what is installed, released and pending and
+offers a menu. Keep exactly ONE copy of the app on the Mac: `/Applications/Dynamic Peninsula.app`.
 
-1. Build the signed app: `./scripts/make-dmg.sh --app-only`. It builds Release and signs with the Developer ID
-   certificate, the same identity as the released app, which is what keeps macOS's permissions attached (a Debug or
-   Apple Development build is signed differently and would lose them). It doesn't notarize or upload anything.
-2. Quit the running app (`pkill -x "Dynamic Peninsula"`), then replace it:
-   `rm -rf "/Applications/Dynamic Peninsula.app" && ditto "build/dmg-derived/Build/Products/Release/Dynamic Peninsula.app" "/Applications/Dynamic Peninsula.app"`, and `open` it.
-3. Delete every other copy: `build/dmg-derived`, `build/dmg-stage`, and any `-derivedDataPath` build folders you made
-   (e.g. `/tmp/islet-dd-*`), and DerivedData for Islet. Never leave a built `.app` anywhere else.
-4. Say which version/commit is installed. Never launch a test build from a build folder.
+- When the owner asks to run or rebuild the test copy: `scripts/peninsula install` (it asks nothing). It builds Release
+  signed with the Developer ID certificate (the same identity as releases, which keeps the permissions macOS gave the
+  app), quits the app, replaces the copy in /Applications in place, deletes the build folders and Islet's DerivedData,
+  relaunches it, and says what is installed. Never launch a test build from a build folder.
+- `scripts/peninsula revert` puts the released build back (downloaded from GitHub and checked) when testing is done.
+- `scripts/peninsula status` shows the state without changing anything.
+- Releasing: `scripts/peninsula release`, only when the owner asks. It asks questions, so the owner runs it in a
+  terminal (hand them the command). It is resumable and reuses DMGs that are already notarized.
 
 For your own build checks (compiling, running tests) use a throwaway `-derivedDataPath` and delete it afterwards.
-Releasing is separate: `scripts/release.sh <version>` only when the owner asks.

@@ -1,7 +1,7 @@
 # Islet release notes
 
-Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
-the section before releasing. Ideas and bugs found while testing go into the next version.
+Newest first. `scripts/peninsula release` publishes the section for that version as the GitHub release notes and dates its
+heading, so add the section (as `## <version> (unreleased)`) before releasing. Ideas and bugs found while testing go into the next version.
 
 ## 1.7.5 (2026-11-27)
 
