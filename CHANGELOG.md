@@ -3,7 +3,9 @@
 Newest first. `scripts/release.sh <version>` publishes the section for that version as the GitHub release notes, so add
 the section before releasing. Ideas and bugs found while testing go into the next version.
 
-## 1.7.5 (unreleased)
+## 1.7.5 (2026-11-27)
+
+Copy sign-in codes from the notch, watch a speed test as it runs, see your phone's signal and battery on its hotspot, and quick info with room for long names.
 
 **New**
 
