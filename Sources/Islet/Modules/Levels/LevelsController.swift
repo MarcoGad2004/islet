@@ -87,9 +87,9 @@ final class LevelsController {
     @ObservationIgnored private var deviceListener: AudioObjectPropertyListenerBlock?
 
     /// Volume changed by anything but the keys (AirPods' own controls, Control Center, the menu bar, another app, the
-    /// iPhone): the island shows it too. macOS's own display for those can't be hidden: since macOS 27 it is a
-    /// MenuBarAgent scene (`volume-system-banner`) that ignores Accessibility moves, hiding, resizing and minimising
-    /// (tried 2026-11-27). Changes Islet made itself are recognised by matching what it last set.
+    /// iPhone): the island shows it, unless macOS shows its own display for it (AirPods' controls), which can't be
+    /// hidden (RESEARCH.md Q8): then that one alone shows (owner, 2026-11-27). Changes Islet made itself are recognised
+    /// by matching what it last set.
     private func watchVolume() {
         var a = Audio.address(kAudioHardwarePropertyDefaultOutputDevice)
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, .main) { [weak self] _, _ in
@@ -126,7 +126,24 @@ final class LevelsController {
         let changed = abs(v - volume) > 0.005 || m != muted
         volume = v; muted = m
         guard changed, Feature.levels.isOn else { return }
-        onChange?(LevelState(kind: .volume, value: v, muted: m))
+        // macOS puts its display up within a few milliseconds of the change: wait for it before deciding.
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard let self, !Self.systemVolumeDisplayShowing() else { return }
+            onChange?(LevelState(kind: .volume, value: volume, muted: muted))
+        }
+    }
+
+    /// macOS's own volume display is on screen: since macOS 27 a MenuBarAgent window at the banner level (101) in the
+    /// top right, about 367 x 154. Read from the window list, so no Accessibility is needed.
+    private static func systemVolumeDisplayShowing() -> Bool {
+        guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first?.processIdentifier,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        return list.contains { w in
+            guard (w[kCGWindowOwnerPID as String] as? Int32) == pid, (w[kCGWindowLayer as String] as? Int) == 101,
+                  let b = w[kCGWindowBounds as String] as? [String: Any], let h = b["Height"] as? Double else { return false }
+            return h > 60 // the menu bar's own windows at that level are bar height
+        }
     }
 
     // MARK: Event tap
