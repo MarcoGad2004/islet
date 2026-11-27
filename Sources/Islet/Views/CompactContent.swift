@@ -360,7 +360,8 @@ struct CompactContentView: View {
 }
 
 /// The speed test's running figures, "↓ 71.9 Mbps  ↑ 16.2 Mbps  323 ms", built from pieces so only the numbers roll
-/// as they change; the arrows and units stay put.
+/// as they change; the arrows and units stay put. Each part comes in as it's measured (the ping, then the upload):
+/// it fades and slides in from the right while the line makes room.
 struct SpeedFiguresText: View {
     var download: Double
     var upload: Double
@@ -369,23 +370,47 @@ struct SpeedFiguresText: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Text("↓ ")
-            number(SpeedTest.mbpsNumber(download), download)
-            Text(" Mbps")
+            HStack(spacing: 0) {
+                Text("↓ ")
+                number(SpeedTest.mbpsNumber(download), download)
+                Text(" Mbps")
+            }
+            .transition(Self.arrive)
             if uploading {
-                Text("  ↑ ")
-                if upload > 0 { number(SpeedTest.mbpsNumber(upload), upload) } else { Text("…") }
-                if upload > 0 { Text(" Mbps") }
+                HStack(spacing: 0) {
+                    Text("  ↑ ")
+                    if upload > 0 {
+                        HStack(spacing: 0) {
+                            number(SpeedTest.mbpsNumber(upload), upload)
+                            Text(" Mbps")
+                        }
+                        .transition(Self.arrive)
+                    } else {
+                        Text("…").transition(.opacity)
+                    }
+                }
+                .transition(Self.arrive)
             }
             if let ping {
-                Text("  ")
-                number("\(Int(ping.rounded()))", ping.rounded())
-                Text(" ms")
+                HStack(spacing: 0) {
+                    Text("  ")
+                    number("\(Int(ping.rounded()))", ping.rounded())
+                    Text(" ms")
+                }
+                .transition(Self.arrive)
             }
         }
         .monospacedDigit()
         .lineLimit(1)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: uploading)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: upload > 0)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: ping == nil)
     }
+
+    /// A part arriving: fades and slides in from the right.
+    private static let arrive = AnyTransition.asymmetric(
+        insertion: .opacity.combined(with: .offset(x: 10)).combined(with: .scale(scale: 0.9, anchor: .leading)),
+        removal: .opacity)
 
     private func number(_ text: String, _ value: Double) -> some View {
         Text(text).contentTransition(.numericText(value: value)).animation(.easeInOut(duration: 0.2), value: value)
