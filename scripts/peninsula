@@ -62,12 +62,13 @@ fi
 STEP=""; STEP_T=$SECONDS; LIVE=""; LOG=""; RELEASING=false; PUBLIC=false
 
 clock() { local s=$((SECONDS - $1)); printf "%d:%02d" $((s / 60)) $((s % 60)); }
-cols() { local c; c=$(tput cols 2> /dev/null || echo 100); [ "$c" -gt 20 ] 2> /dev/null && echo "$c" || echo 100; }
 
 # The live line: "▸ Step  what is happening  0:42", redrawn in place on a terminal.
 draw() {
   local line; line=$(printf "▸ %-13s %s  %s" "$STEP" "$LIVE" "$(clock "$STEP_T")")
-  printf "\r\033[K%s%s%s" "$BOLD" "${line:0:$(($(cols) - 1))}" "$OFF"
+  # Line wrapping is off while it is written, so a line wider than the terminal is clipped at its edge (cutting the
+  # string instead could split a multi-byte character like ▸ or █, which shows as a "?" box).
+  printf "\r\033[K\033[?7l%s%s%s\033[?7h" "$BOLD" "$line" "$OFF"
 }
 step() {
   STEP="$1"; LIVE="${2:-}"; STEP_T=$SECONDS; LOG=""
@@ -229,7 +230,7 @@ header() {
 
 build_progress() {
   if ! $TTY; then cat > /dev/null; return 0; fi
-  awk -v total="$1" -v label="$STEP" -v width="$(($(cols) - 1))" '
+  awk -v total="$1" -v label="$STEP" '
     function target() { return match($0, /in target \047[^\047]+/) ? substr($0, RSTART + 11, RLENGTH - 11) : "" }
     function draw(   line, bar, i, f, p) {
       line = sprintf("▸ %-13s %s", label, what)
@@ -239,7 +240,7 @@ build_progress() {
         for (i = 0; i < 20; i++) bar = bar (i < f ? "█" : "░")
         line = sprintf("%-52s %s %3d%%", line, bar, p)
       } else line = line sprintf("  (step %d)", steps)
-      printf "\r\033[K\033[1m%s\033[0m", substr(line, 1, width); fflush()
+      printf "\r\033[K\033[?7l\033[1m%s\033[0m\033[?7h", line; fflush()
     }
     BEGIN { what = "starting" }
     /^SwiftDriver / && target() != ""  { what = "Compiling " target() }
